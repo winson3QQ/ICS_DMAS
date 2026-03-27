@@ -3,14 +3,23 @@
 # 啟動：指揮部後端 :8000 + 收容組 Pi 伺服器 :8765/:8766
 # 用法：chmod +x start_mac.sh && ./start_mac.sh
 
-set -e
 REPO="$(cd "$(dirname "$0")" && pwd)"
+
+# ── 取得本機 LAN IP ──────────────────────────────
+LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "")
+# ── 取得 Tailscale IP（走大網情境）───────────────
+TS_IP=$(tailscale ip 2>/dev/null | head -1 || echo "")
 
 echo "======================================"
 echo " ICS_DMAS 本機模擬啟動（Phase 1）"
 echo " 指揮部 → http://127.0.0.1:8000"
 echo " 收容組 Pi → ws://127.0.0.1:8765"
-echo " 收容組 Admin → http://127.0.0.1:8766"
+if [ -n "$LAN_IP" ]; then
+  echo " LAN IP → $LAN_IP（同 WiFi 平板用此 IP）"
+fi
+if [ -n "$TS_IP" ]; then
+  echo " Tailscale → $TS_IP（走大網情境）"
+fi
 echo "======================================"
 
 # ── 終止舊服務 ──────────────────────────────
@@ -82,10 +91,27 @@ fi
 echo ""
 echo "======================================"
 echo " 服務已啟動"
-echo " 指揮部幕僚版：http://127.0.0.1:8000/static/staff_dashboard.html"
 echo " 指揮官版：    http://127.0.0.1:8000/static/commander_dashboard.html"
-echo " 收容組 PWA：  http://127.0.0.1:8766/shelter_pwa.html"
+echo " 幕僚版：      http://127.0.0.1:8000/static/staff_dashboard.html"
 echo " API 文件：    http://127.0.0.1:8000/docs"
+echo ""
+echo " ── 情境 1A：同一 WiFi ──"
+if [ -n "$LAN_IP" ]; then
+  echo "   PWA 網址：  http://$LAN_IP:8766/shelter_pwa.html"
+  echo "   Pi URL：    ws://$LAN_IP:8765"
+else
+  echo "   （LAN IP 未偵測，請手動執行 ifconfig 確認）"
+fi
+echo ""
+if [ -n "$TS_IP" ]; then
+  echo " ── 情境 1B：走大網（Tailscale）──"
+  echo "   PWA 網址：  http://$TS_IP:8766/shelter_pwa.html"
+  echo "   Pi URL：    ws://$TS_IP:8765"
+else
+  echo " ── 情境 1B：走大網 ──"
+  echo "   Tailscale 未安裝。安裝後重啟腳本可自動偵測 IP。"
+  echo "   或使用路由器 port-forward 8765/8766/8000 並使用公網 IP。"
+fi
 echo ""
 echo " 日誌："
 echo "   指揮部：tail -f /tmp/ics_command.log"
