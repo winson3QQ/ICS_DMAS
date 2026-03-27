@@ -9,22 +9,22 @@ echo "=== ICS 指揮部後端安裝 ==="
 # 安裝 Python 套件
 pip3 install -r requirements.txt
 
-# 建立 static 資料夾（前端 HTML 放這裡）
-mkdir -p static
+# 建立必要資料夾
+mkdir -p data
 
-# 建立 DB（第一次執行）
-python3 -c "import db; db.init_db(); print('✓ 資料庫建立完成')"
+# 建立 DB（第一次執行，需在 src/ 目錄下執行）
+cd src && python3 -c "import db; db.init_db(); print('✓ 資料庫建立完成')" && cd ..
 
 echo ""
 echo "=== 啟動方式 ==="
 echo "  開發模式（自動重載）："
-echo "    uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+echo "    cd src && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 echo ""
 echo "  演訓正式模式："
-echo "    uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2"
+echo "    cd src && uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2"
 echo ""
 echo "  背景執行（演訓期間）："
-echo "    nohup uvicorn main:app --host 0.0.0.0 --port 8000 &"
+echo "    cd src && nohup uvicorn main:app --host 0.0.0.0 --port 8000 &"
 echo ""
 echo "  各組 Pi 推送端點："
 echo "    POST http://$(hostname -I | awk '{print $1}'):8000/api/snapshots"

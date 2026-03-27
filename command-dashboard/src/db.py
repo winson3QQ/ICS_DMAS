@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "ics.db"
+DB_PATH = Path(__file__).parent.parent / "data" / "ics.db"
 
 
 def get_conn() -> sqlite3.Connection:

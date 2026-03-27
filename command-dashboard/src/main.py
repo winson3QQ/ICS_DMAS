@@ -43,7 +43,7 @@ app.add_middleware(
 )
 
 # 靜態檔案（前端 HTML）
-static_path = Path(__file__).parent / "static"
+static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
