@@ -533,3 +533,338 @@ def mark_manual_record_synced(record_id: str, operator: str):
             (_now(), record_id)
         )
     _audit(operator, None, "manual_record_synced", "manual_records", record_id, {})
+
+
+# ──────────────────────────────────────────
+# 三 Pass 對齊（網路恢復後同步）
+# ──────────────────────────────────────────
+
+def execute_three_pass(source_unit: str, sync_data: dict,
+                       operator: str = "auto") -> dict:
+    """
+    執行三 Pass 對齊邏輯。
+
+    sync_data keys:
+      sync_start_ts   str  斷線起始時間（ISO UTC）
+      device_id       str  來源裝置識別
+      snapshots       list 含 snapshot_id 的快照列表
+      events          list 斷線期間的事件
+      manual_records  list 斷線期間的手動輸入記錄
+
+    回傳 sync_log entry dict。
+    """
+    sync_id   = str(uuid.uuid4())
+    now       = _now()
+    start_ts  = sync_data.get("sync_start_ts", now)
+    device_id = sync_data.get("device_id", "")
+
+    p1_merged  = 0   # Pass 1：自動合併（QR→完整）
+    p1_added   = 0   # Pass 1：新增（指揮部無此快照）
+    p2_pending = []  # Pass 2：待人工確認衝突
+    p3_added   = 0   # Pass 3：直接補傳無衝突記錄
+
+    with get_conn() as conn:
+
+        # ── Pass 1：SNAPSHOT 去重與補齊 ──────────
+        # 規格：有 snapshot_id 者自動合併外部完整快照
+        for snap in (sync_data.get("snapshots") or []):
+            snap_id = snap.get("snapshot_id") or snap.get("snapshot_uuid")
+            if not snap_id:
+                continue
+
+            existing = conn.execute(
+                "SELECT id, source FROM snapshots WHERE snapshot_id=?",
+                (snap_id,)
+            ).fetchone()
+
+            extra_json = json.dumps(snap.get("extra") or {}, ensure_ascii=False)
+
+            if existing:
+                ex_source = existing["source"] if existing else "auto"
+                # 若已有 QR 版本 → 以完整記錄覆蓋，更新 source=merged
+                new_source = "merged" if ex_source == "qr" else ex_source
+                conn.execute("""
+                    UPDATE snapshots
+                    SET source=?, extra=?,
+                        casualties_red=?, casualties_yellow=?,
+                        casualties_green=?, casualties_black=?,
+                        bed_used=?, bed_total=?,
+                        waiting_count=?, pending_evac=?,
+                        vehicle_available=?, staff_on_duty=?
+                    WHERE snapshot_id=?
+                """, (
+                    new_source,
+                    extra_json,
+                    snap.get("casualties_red"),
+                    snap.get("casualties_yellow"),
+                    snap.get("casualties_green"),
+                    snap.get("casualties_black"),
+                    snap.get("bed_used"),
+                    snap.get("bed_total"),
+                    snap.get("waiting_count"),
+                    snap.get("pending_evac"),
+                    snap.get("vehicle_available"),
+                    snap.get("staff_on_duty"),
+                    snap_id,
+                ))
+                p1_merged += 1
+            else:
+                # 指揮部沒有此快照 → 直接補入，source=sync_recovery
+                node_type = snap.get("node_type") or _unit_to_node(source_unit)
+                new_id = str(uuid.uuid4())
+                conn.execute("""
+                    INSERT OR IGNORE INTO snapshots
+                        (id, snapshot_id, node_type, source, snapshot_time,
+                         casualties_red, casualties_yellow, casualties_green, casualties_black,
+                         bed_used, bed_total, waiting_count, pending_evac,
+                         vehicle_available, staff_on_duty, extra)
+                    VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?)
+                """, (
+                    new_id, snap_id, node_type, "sync_recovery",
+                    snap.get("t") or snap.get("snapshot_time") or now,
+                    snap.get("casualties_red"),
+                    snap.get("casualties_yellow"),
+                    snap.get("casualties_green"),
+                    snap.get("casualties_black"),
+                    snap.get("bed_used"),
+                    snap.get("bed_total"),
+                    snap.get("waiting_count"),
+                    snap.get("pending_evac"),
+                    snap.get("vehicle_available"),
+                    snap.get("staff_on_duty"),
+                    extra_json,
+                ))
+                p1_added += 1
+
+        # ── Pass 2：手動記錄模糊比對 ─────────────
+        # 規格：相似度評分後人工確認（離站衝突必須人工）
+        for rec in (sync_data.get("manual_records") or []):
+            rec_time = rec.get("submitted_at") or rec.get("timestamp") or now
+            rec_type = rec.get("form_id") or rec.get("type", "")
+            rec_summary = rec.get("summary", "")
+
+            # 查找指揮部是否有相似記錄（相同類型、時間差 ±30 分鐘）
+            conflict = conn.execute("""
+                SELECT id, summary, submitted_at FROM manual_records
+                WHERE form_id=?
+                  AND ABS(
+                    (julianday(submitted_at) - julianday(?)) * 1440
+                  ) < 30
+                ORDER BY ABS(julianday(submitted_at) - julianday(?))
+                LIMIT 1
+            """, (rec_type, rec_time, rec_time)).fetchone()
+
+            if conflict:
+                p2_pending.append({
+                    "incoming":  {"summary": rec_summary, "time": rec_time, "data": rec},
+                    "existing":  _row_to_dict(conflict),
+                    "action":    None,   # 等人工決定：keep_incoming / keep_existing / merge
+                })
+            else:
+                # Pass 3：無衝突，直接補入
+                new_rid = str(uuid.uuid4())
+                conn.execute("""
+                    INSERT INTO manual_records
+                        (id, form_id, form_type, target_table, operator,
+                         summary, payload, sync_status, submitted_at)
+                    VALUES (?,?,?,?,?, ?,?,?,?)
+                """, (
+                    new_rid,
+                    rec_type,
+                    rec.get("form_type", ""),
+                    rec.get("target_table", ""),
+                    operator,
+                    rec_summary,
+                    json.dumps(rec.get("payload") or rec, ensure_ascii=False),
+                    "synced",
+                    rec_time,
+                ))
+                p3_added += 1
+
+        # ── Pass 3：事件補傳（有時間戳的直接寫入）──
+        for ev in (sync_data.get("events") or []):
+            ev_id = ev.get("id")
+            if ev_id:
+                existing_ev = conn.execute(
+                    "SELECT id FROM events WHERE id=?", (ev_id,)
+                ).fetchone()
+                if existing_ev:
+                    continue  # 已有，略過
+
+            new_ev_id = ev_id or str(uuid.uuid4())
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO events
+                        (id, unit, type, description, severity, status,
+                         occurred_at, operator, source)
+                    VALUES (?,?,?,?,?,?,?,?,?)
+                """, (
+                    new_ev_id,
+                    ev.get("unit", source_unit),
+                    ev.get("type", "sync_recovery"),
+                    ev.get("description", ""),
+                    ev.get("severity", "info"),
+                    ev.get("status", "open"),
+                    ev.get("occurred_at") or ev.get("timestamp") or now,
+                    ev.get("operator", operator),
+                    "sync_recovery",
+                ))
+                p3_added += 1
+            except Exception:
+                pass  # 忽略個別寫入失敗
+
+        # ── 記錄 sync_log ─────────────────────────
+        status = "completed" if not p2_pending else "partial"
+        detail = json.dumps({
+            "pass1_merged": p1_merged,
+            "pass1_added":  p1_added,
+            "pass2_conflicts": p2_pending,
+            "pass3_added":  p3_added,
+            "device_id":    device_id,
+        }, ensure_ascii=False)
+
+        conn.execute("""
+            INSERT INTO sync_log
+                (id, source_unit, sync_started_at, sync_completed_at,
+                 data_gap_start, data_gap_end,
+                 pass1_merged, pass2_manual, pass3_added, conflicts_manual,
+                 status, triggered_by, operator, detail)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            sync_id, source_unit, now, now,
+            start_ts, now,
+            p1_merged, len(p2_pending), p3_added, len(p2_pending),
+            status, "api", operator, detail,
+        ))
+
+    _audit(operator, device_id, "three_pass_sync", "sync_log", sync_id, {
+        "source_unit": source_unit,
+        "p1_merged":   p1_merged,
+        "p1_added":    p1_added,
+        "p2_pending":  len(p2_pending),
+        "p3_added":    p3_added,
+        "status":      status,
+    })
+
+    return {
+        "sync_id":     sync_id,
+        "status":      status,
+        "pass1_merged": p1_merged,
+        "pass1_added":  p1_added,
+        "pass2_conflicts": len(p2_pending),
+        "pass3_added":  p3_added,
+        "conflicts":   p2_pending,
+    }
+
+
+def get_sync_log(source_unit: str | None = None, limit: int = 20) -> list[dict]:
+    with get_conn() as conn:
+        if source_unit:
+            rows = conn.execute("""
+                SELECT * FROM sync_log
+                WHERE source_unit=?
+                ORDER BY sync_started_at DESC LIMIT ?
+            """, (source_unit, limit)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT * FROM sync_log
+                ORDER BY sync_started_at DESC LIMIT ?
+            """, (limit,)).fetchall()
+    result = []
+    for r in rows:
+        d = _row_to_dict(r)
+        if d.get("detail") and isinstance(d["detail"], str):
+            try:
+                d["detail"] = json.loads(d["detail"])
+            except Exception:
+                pass
+        result.append(d)
+    return result
+
+
+def get_sync_conflicts(sync_id: str) -> dict | None:
+    """取得某次同步的 Pass 2 衝突列表"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM sync_log WHERE id=?", (sync_id,)
+        ).fetchone()
+    if not row:
+        return None
+    d = _row_to_dict(row)
+    if isinstance(d.get("detail"), str):
+        try:
+            d["detail"] = json.loads(d["detail"])
+        except Exception:
+            pass
+    return d
+
+
+def resolve_conflict(sync_id: str, conflict_idx: int,
+                     action: str, operator: str) -> dict:
+    """
+    解決 Pass 2 衝突。
+    action: keep_incoming / keep_existing / merge
+    """
+    entry = get_sync_conflicts(sync_id)
+    if not entry:
+        raise ValueError(f"sync_id {sync_id} not found")
+
+    detail = entry.get("detail") or {}
+    conflicts = detail.get("pass2_conflicts") or []
+
+    if conflict_idx >= len(conflicts):
+        raise ValueError(f"conflict_idx {conflict_idx} out of range")
+
+    conflict = conflicts[conflict_idx]
+    conflict["action"] = action
+    conflict["resolved_by"] = operator
+    conflict["resolved_at"] = _now()
+
+    # 若選擇保留 incoming → 寫入 manual_records
+    if action == "keep_incoming":
+        rec = conflict.get("incoming", {}).get("data", {})
+        new_rid = str(uuid.uuid4())
+        now = _now()
+        with get_conn() as conn:
+            conn.execute("""
+                INSERT INTO manual_records
+                    (id, form_id, form_type, target_table, operator,
+                     summary, payload, sync_status, submitted_at)
+                VALUES (?,?,?,?,?, ?,?,?,?)
+            """, (
+                new_rid,
+                rec.get("form_id", rec.get("type", "")),
+                rec.get("form_type", ""),
+                rec.get("target_table", ""),
+                operator,
+                conflict["incoming"].get("summary", ""),
+                json.dumps(rec, ensure_ascii=False),
+                "synced",
+                conflict["incoming"].get("time", now),
+            ))
+
+    # 更新 detail
+    detail["pass2_conflicts"] = conflicts
+    all_resolved = all(c.get("action") for c in conflicts)
+    new_status = "completed" if all_resolved else "partial"
+
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE sync_log SET detail=?, status=? WHERE id=?
+        """, (json.dumps(detail, ensure_ascii=False), new_status, sync_id))
+
+    _audit(operator, None, "conflict_resolved", "sync_log", sync_id,
+           {"conflict_idx": conflict_idx, "action": action})
+
+    return {"sync_id": sync_id, "conflict_idx": conflict_idx,
+            "action": action, "status": new_status}
+
+
+def _unit_to_node(unit: str) -> str:
+    """將 source_unit 轉換為 node_type"""
+    return {
+        "shelter":  "shelter",
+        "medical":  "medical",
+        "forward":  "forward",
+        "security": "security",
+    }.get(unit, unit)

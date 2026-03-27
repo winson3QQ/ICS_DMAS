@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ICS 指揮官儀表板 v8</title>
+<style>
+/* ════════════════════════════════════
+   基礎 & 變數
+════════════════════════════════════ */
+:root {
+  --bg:       #0a0e1a;
+  --card:     #131929;
+  --card2:    #1a2340;
+  --border:   #2a3555;
+  --text:     #c9d1d9;
+  --dim:      #6e7b96;
+  --red:      #f85149;
+  --yellow:   #d29922;
+  --green:    #3fb950;
+  --blue:     #58a6ff;
+  --orange:   #f0883e;
+  --purple:   #bc8cff;
+  --font:     'Menlo','Consolas','Liberation Mono',monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  min-height: 100vh;
+  padding: 8px;
+}
+
+/* ════════════════════════════════════
+   Row 1 — 指揮摘要列
+════════════════════════════════════ */
+#summary-bar {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.sum-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sum-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+.sum-value { font-size: 20px; font-weight: bold; line-height: 1.2; }
+.sum-sub   { font-size: 11px; color: var(--dim); }
+.level-red    { color: var(--red); }
+.level-yellow { color: var(--yellow); }
+.level-green  { color: var(--green); }
+.level-lkp    { color: var(--dim); }
+
+/* ════════════════════════════════════
+   Row 2 — 事故處置主鏈
+════════════════════════════════════ */
+#chain {
+  display: grid;
+  grid-template-columns: 1fr 80px 1.2fr 1fr 1.2fr;
+  gap: 0;
+  margin-bottom: 6px;
+  align-items: stretch;
+}
+.chain-node {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  position: relative;
+}
+.chain-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  font-size: 22px;
+}
+.chain-node h3 {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.cas-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.cas-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  min-width: 36px;
+  text-align: center;
+}
+.cas-red    { background: rgba(248,81,73,.2);  color: var(--red); }
+.cas-yellow { background: rgba(210,153,34,.2); color: var(--yellow); }
+.cas-green  { background: rgba(63,185,80,.2);  color: var(--green); }
+.cas-black  { background: rgba(110,123,150,.2); color: var(--dim); }
+.cas-label  { font-size: 10px; color: var(--dim); }
+
+.meter-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .5s;
+}
+.stat-row { display: flex; justify-content: space-between; margin: 3px 0; }
+.stat-k   { color: var(--dim); font-size: 11px; }
+.stat-v   { font-size: 13px; font-weight: bold; }
+
+.freshness-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.f-ok   { background: var(--green); }
+.f-warn { background: var(--yellow); animation: blink 1s infinite; }
+.f-crit { background: var(--red);    animation: blink .5s infinite; }
+.f-lkp  { background: var(--dim); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ════════════════════════════════════
+   Row 3 — 橫向限制條件
+════════════════════════════════════ */
+#constraints {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.constraint-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.constraint-card h4 {
+  font-size: 10px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.constraint-value { font-size: 18px; font-weight: bold; }
+.constraint-sub   { font-size: 11px; color: var(--dim); }
+
+/* ════════════════════════════════════
+   Row 4 — 態勢地圖 + 待裁示事項
+════════════════════════════════════ */
+#bottom {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 6px;
+}
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow: hidden;
+}
+.panel h3 {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+/* 態勢地圖 */
+#map-canvas {
+  width: 100%;
+  height: 220px;
+  position: relative;
+}
+.map-node {
+  position: absolute;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  text-align: center;
+  border: 2px solid;
+  min-width: 80px;
+}
+.map-line {
+  position: absolute;
+  height: 2px;
+  transform-origin: left center;
+  background: var(--border);
+}
+.map-node .mn-title { font-size: 10px; color: var(--dim); }
+.map-node .mn-value { font-size: 15px; font-weight: bold; margin-top: 2px; }
+
+/* 待裁示事項 */
+#decisions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+#decisions-list::-webkit-scrollbar { width: 4px; }
+#decisions-list::-webkit-scrollbar-track { background: var(--card); }
+#decisions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.decision-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-left: 3px solid;
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+.decision-card.sev-critical { border-left-color: var(--red); }
+.decision-card.sev-warning  { border-left-color: var(--yellow); }
+.decision-card.sev-info     { border-left-color: var(--blue); }
+.dc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.dc-topic { font-weight: bold; font-size: 13px; flex: 1; }
+.dc-meta  { font-size: 10px; color: var(--dim); white-space: nowrap; }
+.dc-desc  { font-size: 11px; color: var(--dim); margin: 4px 0 6px; }
+.dc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid;
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn:hover { opacity: .8; }
+.btn-approve  { background: rgba(63,185,80,.15);  color: var(--green);  border-color: var(--green); }
+.btn-hold     { background: rgba(210,153,34,.15); color: var(--yellow); border-color: var(--yellow); }
+.btn-redirect { background: rgba(88,166,255,.15); color: var(--blue);   border-color: var(--blue); }
+
+.no-decisions {
+  text-align: center;
+  color: var(--dim);
+  padding: 30px 0;
+  font-size: 12px;
+}
+
+/* 已裁示記錄 */
+#decided-section { margin-top: 10px; }
+#decided-section h4 { font-size: 10px; color: var(--dim); letter-spacing: 1px; margin-bottom: 6px; }
+.decided-row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--dim);
+}
+.decided-action {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.act-approved  { background: rgba(63,185,80,.2);  color: var(--green); }
+.act-hold      { background: rgba(210,153,34,.2); color: var(--yellow); }
+.act-redirect  { background: rgba(88,166,255,.2); color: var(--blue); }
+.act-completed { background: rgba(110,123,150,.2); color: var(--dim); }
+
+/* ════════════════════════════════════
+   Modal — 裁示輸入
+════════════════════════════════════ */
+#modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+#modal-overlay.open { display: flex; }
+#modal-box {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  width: 420px;
+  max-width: 95vw;
+}
+#modal-box h3 { margin-bottom: 14px; }
+.modal-field { margin-bottom: 12px; }
+.modal-field label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+.modal-field input, .modal-field textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: var(--font);
+  font-size: 12px;
+}
+.modal-field textarea { resize: vertical; min-height: 60px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.btn-cancel { background: transparent; color: var(--dim); border-color: var(--border); }
+
+/* ════════════════════════════════════
+   狀態列
+════════════════════════════════════ */
+#status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+#status-bar span { display: flex; align-items: center; gap: 4px; }
+#conn-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+#conn-dot.ok { background: var(--green); }
+#conn-dot.err { background: var(--red); animation: blink .5s infinite; }
+
+/* ════════════════════════════════════
+   趨勢箭頭
+════════════════════════════════════ */
+.trend-up   { color: var(--red);    }
+.trend-down { color: var(--green);  }
+.trend-flat { color: var(--dim);    }
+</style>
+</head>
+<body>
+
+<!-- ── 狀態列 ── -->
+<div id="status-bar">
+  <span>ICS 指揮官儀表板 v8 &nbsp;|&nbsp; Phase 1 本機模擬</span>
+  <span>
+    <span id="conn-dot"></span>
+    <span id="conn-label">連線中...</span>
+    &nbsp;|&nbsp; 上次更新：<span id="last-update">—</span>
+    &nbsp;|&nbsp; <a href="staff_dashboard.html" style="color:var(--blue);text-decoration:none">幕僚版</a>
+    &nbsp;|&nbsp; <a href="/docs" style="color:var(--blue);text-decoration:none">API</a>
+  </span>
+</div>
+
+<!-- ══ Row 1：指揮摘要列 ══════════════════════ -->
+<div id="summary-bar">
+  <div class="sum-card">
+    <div class="sum-label">整體態勢</div>
+    <div class="sum-value" id="sum-situation">—</div>
+    <div class="sum-sub" id="sum-mpi">MPI —</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">主戰點</div>
+    <div class="sum-value" id="sum-focus" style="font-size:14px">—</div>
+    <div class="sum-sub" id="sum-focus-sub">—</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">警戒倒數</div>
+    <div class="sum-value" id="sum-countdown">—</div>
+    <div class="sum-sub" id="sum-countdown-sub">醫療站床位達90%</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">待裁示件數</div>
+    <div class="sum-value" id="sum-decisions">—</div>
+    <div class="sum-sub" id="sum-decisions-sub">—</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">資料新鮮度</div>
+    <div class="sum-value" id="sum-freshness">—</div>
+    <div class="sum-sub" id="sum-freshness-sub">各節點最低</div>
+  </div>
+</div>
+
+<!-- ══ Row 2：事故處置主鏈 ═════════════════════ -->
+<div id="chain">
+  <!-- 前進組 -->
+  <div class="chain-node" id="node-forward">
+    <h3><span class="freshness-dot f-lkp" id="f-forward"></span>前進組</h3>
+    <div class="cas-row" id="fwd-cas">
+      <span class="cas-badge cas-red">R:—</span>
+      <span class="cas-badge cas-yellow">Y:—</span>
+      <span class="cas-badge cas-green">G:—</span>
+      <span class="cas-badge cas-black">B:—</span>
+    </div>
+    <div class="stat-row"><span class="stat-k">現場小隊</span><span class="stat-v" id="fwd-units">—</span></div>
+    <div class="stat-row"><span class="stat-k">危險標記</span><span class="stat-v" id="fwd-hazard">—</span></div>
+  </div>
+
+  <!-- 箭頭 -->
+  <div class="chain-arrow">→</div>
+
+  <!-- 醫療站 -->
+  <div class="chain-node" id="node-medical">
+    <h3><span class="freshness-dot f-lkp" id="f-medical"></span>醫療站</h3>
+    <div class="cas-row" id="med-cas">
+      <span class="cas-badge cas-red">R:—</span>
+      <span class="cas-badge cas-yellow">Y:—</span>
+      <span class="cas-badge cas-green">G:—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-k">治療位</span>
+      <span class="stat-v" id="med-bed">—/—</span>
+    </div>
+    <div class="meter-bar"><div class="meter-fill" id="med-bed-meter" style="width:0%"></div></div>
+    <div class="stat-row">
+      <span class="stat-k">等待進入</span>
+      <span class="stat-v" id="med-waiting">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-k">床位趨勢</span>
+      <span class="stat-v" id="med-trend">—</span>
+    </div>
+  </div>
+
+  <!-- 箭頭 -->
+  <div class="chain-arrow">→</div>
+
+  <!-- 後送 / 收容 -->
+  <div class="chain-node" id="node-evac-shelter">
+    <h3>後送 &amp; 收容</h3>
+    <div class="stat-row"><span class="stat-k">待後送</span><span class="stat-v" id="evac-pending">—</span></div>
+    <div class="stat-row"><span class="stat-k">可用車輛</span><span class="stat-v" id="evac-vehicle">—</span></div>
+    <hr style="border-color:var(--border);margin:6px 0">
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+      <span class="freshness-dot f-lkp" id="f-shelter"></span>
+      <span style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">收容所</span>
+    </div>
+    <div class="stat-row"><span class="stat-k">床位</span><span class="stat-v" id="shel-bed">—/—</span></div>
+    <div class="meter-bar"><div class="meter-fill" id="shel-bed-meter" style="width:0%"></div></div>
+    <div class="stat-row"><span class="stat-k">等候入站</span><span class="stat-v" id="shel-pending">—</span></div>
+    <div class="stat-row"><span class="stat-k">SRT紅</span><span class="stat-v" id="shel-srt-red">—</span></div>
+  </div>
+</div>
+
+<!-- ══ Row 3：橫向限制條件 ════════════════════ -->
+<div id="constraints">
+  <div class="constraint-card">
+    <h4>車輛限制</h4>
+    <div class="constraint-value" id="con-vehicle">—</div>
+    <div class="constraint-sub" id="con-vehicle-sub">可用後送車輛</div>
+  </div>
+  <div class="constraint-card">
+    <h4>醫療容量</h4>
+    <div class="constraint-value" id="con-med-cap">—</div>
+    <div class="constraint-sub" id="con-med-cap-sub">治療位使用率</div>
+  </div>
+  <div class="constraint-card">
+    <h4>安全態勢</h4>
+    <div class="constraint-value" id="con-security">—</div>
+    <div class="constraint-sub" id="con-security-sub">哨位異常</div>
+  </div>
+  <div class="constraint-card">
+    <h4>警戒預測</h4>
+    <div class="constraint-value" id="con-countdown">—</div>
+    <div class="constraint-sub">醫療站達90%倒數</div>
+  </div>
+</div>
+
+<!-- ══ Row 4：態勢地圖 + 待裁示事項 ══════════ -->
+<div id="bottom">
+  <!-- 態勢地圖 -->
+  <div class="panel">
+    <h3>態勢地圖</h3>
+    <div id="map-canvas">
+      <!-- 動態渲染 -->
+    </div>
+  </div>
+
+  <!-- 待裁示事項 -->
+  <div class="panel">
+    <h3>待裁示事項 <span id="pending-count" style="color:var(--red);margin-left:4px"></span></h3>
+    <div id="decisions-list">
+      <div class="no-decisions">載入中...</div>
+    </div>
+    <div id="decided-section" style="display:none">
+      <h4>近期已裁示</h4>
+      <div id="decided-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal：裁示輸入 ════════════════════════ -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3 id="modal-title">裁示</h3>
+    <div class="modal-field">
+      <label>裁示人員</label>
+      <input type="text" id="modal-operator" placeholder="輸入姓名或代號" value="">
+    </div>
+    <div class="modal-field">
+      <label>執行備註</label>
+      <textarea id="modal-note" placeholder="（選填）執行指示、資源分配說明..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn" id="modal-confirm" onclick="submitDecision()">確認</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════
+   設定
+════════════════════════════════════ */
+const API_BASE = '';   // 同源，空字串即可
+const POLL_MS  = 10000;
+
+let _currentDecisionId = null;
+let _currentAction     = null;
+let _lastData          = null;
+
+/* ════════════════════════════════════
+   Polling
+════════════════════════════════════ */
+async function fetchDashboard() {
+  try {
+    const r = await fetch(`${API_BASE}/api/dashboard`);
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    _lastData = data;
+    render(data);
+    setConn(true);
+  } catch(e) {
+    setConn(false);
+    console.error('[Dashboard] fetch error', e);
+  }
+}
+
+function setConn(ok) {
+  const dot   = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  dot.className = ok ? 'ok' : 'err';
+  label.textContent = ok ? '已連線' : '連線失敗';
+}
+
+/* ════════════════════════════════════
+   主渲染
+════════════════════════════════════ */
+function render(data) {
+  const calc = data.calc || {};
+  const med  = calc.medical  || {};
+  const shel = calc.shelter  || {};
+  const fwd  = calc.forward  || {};
+  const sec  = calc.security || {};
+  const mpi  = calc.medical_pressure || {};
+
+  const medSnap  = med.snapshot  || {};
+  const shelSnap = shel.snapshot || {};
+  const fwdSnap  = fwd.snapshot  || {};
+  const secSnap  = sec.snapshot  || {};
+
+  document.getElementById('last-update').textContent =
+    new Date().toLocaleTimeString('zh-TW');
+
+  /* ── Row 1：指揮摘要列 ── */
+  renderSummary(data, calc, med, shel, fwd, sec, mpi);
+
+  /* ── Row 2：主鏈 ── */
+  renderChain(medSnap, shelSnap, fwdSnap, med, shel, fwd, sec);
+
+  /* ── Row 3：限制條件 ── */
+  renderConstraints(medSnap, shelSnap, secSnap, med);
+
+  /* ── Row 4 左：態勢地圖 ── */
+  renderMap(med, shel, fwd, sec);
+
+  /* ── Row 4 右：待裁示 ── */
+  renderDecisions(data.decisions || {}, data.events || []);
+}
+
+/* ════════════════════════════════════
+   Row 1 — 指揮摘要
+════════════════════════════════════ */
+function renderSummary(data, calc, med, shel, fwd, sec, mpi) {
+  // 整體態勢
+  const level = mpi.level || 'green';
+  const levelMap = { green: '正常', yellow: '注意', red: '危急' };
+  const el = document.getElementById('sum-situation');
+  el.textContent = levelMap[level] || '—';
+  el.className = `sum-value level-${level}`;
+  document.getElementById('sum-mpi').textContent =
+    `MPI ${Math.round(mpi.index ?? mpi.score ?? 0)}`;
+
+  // 主戰點
+  const focus = findFocus(calc, data.events || []);
+  document.getElementById('sum-focus').textContent = focus.title;
+  document.getElementById('sum-focus-sub').textContent = focus.sub;
+
+  // 警戒倒數
+  const cd = med.countdown_to_red || {};
+  const etaMin = cd.eta_minutes;
+  const cdEl = document.getElementById('sum-countdown');
+  if (etaMin == null || etaMin >= 999) {
+    cdEl.textContent = '無即時威脅';
+    cdEl.className = 'sum-value level-green';
+  } else if (etaMin < 5) {
+    cdEl.textContent = `${Math.round(etaMin)} 分`;
+    cdEl.className = 'sum-value level-red';
+  } else if (etaMin < 15) {
+    cdEl.textContent = `${Math.round(etaMin)} 分`;
+    cdEl.className = 'sum-value level-yellow';
+  } else {
+    cdEl.textContent = `${Math.round(etaMin)} 分`;
+    cdEl.className = 'sum-value level-green';
+  }
+
+  // 待裁示
+  const pending = (data.decisions?.pending || []).length;
+  const decEl = document.getElementById('sum-decisions');
+  decEl.textContent = pending;
+  decEl.className = `sum-value ${pending > 0 ? 'level-red' : 'level-green'}`;
+  document.getElementById('sum-decisions-sub').textContent =
+    pending > 0 ? '待指揮官裁示' : '目前無待裁示';
+
+  // 新鮮度（取最差）
+  const fresh = worstFreshness([
+    med.freshness, shel.freshness, fwd.freshness, sec.freshness
+  ]);
+  const freshEl = document.getElementById('sum-freshness');
+  const freshLabel = { ok: '即時', warn: '注意', crit: '逾時', lkp: 'LKP' };
+  freshEl.textContent = freshLabel[fresh.level] || '—';
+  freshEl.className = `sum-value level-${freshnessLevel(fresh.level)}`;
+  document.getElementById('sum-freshness-sub').textContent =
+    fresh.level !== 'ok' ? `最舊：${Math.round(fresh.minutes || 0)} 分前` : '所有節點即時';
+}
+
+function findFocus(calc, events) {
+  // 優先：有 critical event
+  const critical = events.find(e => e.severity === 'critical' && e.status !== 'closed');
+  if (critical) return { title: critical.type || critical.unit, sub: critical.description || '' };
+
+  const med = calc.medical || {};
+  const cd = med.countdown_to_red || {};
+  if (cd.eta_minutes != null && cd.eta_minutes < 15) {
+    return { title: '醫療站床位告急', sub: `預計 ${Math.round(cd.eta_minutes)} 分達警戒` };
+  }
+  const shel = (calc.shelter?.snapshot) || {};
+  if (shel.pending_intake > 10) {
+    return { title: '收容所入站壓力', sub: `${shel.pending_intake} 人等候入站` };
+  }
+  return { title: '無立即危機', sub: '持續監控各節點' };
+}
+
+function worstFreshness(arr) {
+  const order = { crit: 4, lkp: 3, warn: 2, ok: 1 };
+  return arr.filter(Boolean).reduce((worst, f) => {
+    return (order[f.level] || 0) > (order[worst.level] || 0) ? f : worst;
+  }, { level: 'ok', minutes: 0 });
+}
+
+function freshnessLevel(level) {
+  return { ok: 'green', warn: 'yellow', crit: 'red', lkp: 'lkp' }[level] || 'lkp';
+}
+
+/* ════════════════════════════════════
+   Row 2 — 主鏈
+════════════════════════════════════ */
+function renderChain(medSnap, shelSnap, fwdSnap, med, shel, fwd, sec) {
+  // 新鮮度點
+  setFreshDot('f-forward', fwd.freshness);
+  setFreshDot('f-medical', med.freshness);
+  setFreshDot('f-shelter', shel.freshness);
+
+  // 前進組
+  const fwdUnits = fwd.units || [];
+  const totCas = fwdUnits.reduce((a, u) => {
+    a.red    += (u.casualties?.red    || 0);
+    a.yellow += (u.casualties?.yellow || 0);
+    a.green  += (u.casualties?.green  || 0);
+    a.black  += (u.casualties?.black  || 0);
+    return a;
+  }, { red:0, yellow:0, green:0, black:0 });
+
+  // 若無前進組資料，用 fwdSnap
+  if (fwdUnits.length === 0 && fwdSnap.casualties_red != null) {
+    totCas.red    = fwdSnap.casualties_red    || 0;
+    totCas.yellow = fwdSnap.casualties_yellow || 0;
+    totCas.green  = fwdSnap.casualties_green  || 0;
+    totCas.black  = fwdSnap.casualties_black  || 0;
+  }
+
+  document.getElementById('fwd-cas').innerHTML =
+    `<span class="cas-badge cas-red">R:${totCas.red}</span>
+     <span class="cas-badge cas-yellow">Y:${totCas.yellow}</span>
+     <span class="cas-badge cas-green">G:${totCas.green}</span>
+     <span class="cas-badge cas-black">B:${totCas.black}</span>`;
+  document.getElementById('fwd-units').textContent =
+    fwdUnits.length > 0 ? `${fwdUnits.length} 支小隊` : (fwdSnap.staff_on_duty ? `${fwdSnap.staff_on_duty} 人` : '—');
+  const hazard = fwdUnits.find(u => u.hazard && u.hazard !== 'none')?.hazard || fwdSnap.hazard || 'none';
+  const hazardEl = document.getElementById('fwd-hazard');
+  hazardEl.textContent = hazard === 'none' ? '無' : hazard;
+  hazardEl.style.color = hazard !== 'none' ? 'var(--red)' : 'var(--green)';
+
+  // 醫療站
+  const medR = medSnap.casualties_red    || 0;
+  const medY = medSnap.casualties_yellow || 0;
+  const medG = medSnap.casualties_green  || 0;
+  document.getElementById('med-cas').innerHTML =
+    `<span class="cas-badge cas-red">R:${medR}</span>
+     <span class="cas-badge cas-yellow">Y:${medY}</span>
+     <span class="cas-badge cas-green">G:${medG}</span>`;
+
+  const medUsed  = medSnap.bed_used  ?? '—';
+  const medTotal = medSnap.bed_total ?? '—';
+  document.getElementById('med-bed').textContent = `${medUsed}/${medTotal}`;
+  const medPct = medTotal > 0 ? (medUsed / medTotal) * 100 : 0;
+  const medMeter = document.getElementById('med-bed-meter');
+  medMeter.style.width   = `${Math.min(medPct, 100)}%`;
+  medMeter.style.background = medPct >= 90 ? 'var(--red)' : medPct >= 70 ? 'var(--yellow)' : 'var(--green)';
+
+  document.getElementById('med-waiting').textContent = medSnap.waiting_count ?? '—';
+
+  const bedTrend = med.bed_trend || {};
+  const trendEl  = document.getElementById('med-trend');
+  const arrows   = { up: '↑ 上升', down: '↓ 下降', stable: '→ 穩定' };
+  trendEl.textContent = arrows[bedTrend.direction] || '—';
+  trendEl.className   = `stat-v trend-${bedTrend.direction || 'flat'}`;
+
+  // 後送 & 收容
+  document.getElementById('evac-pending').textContent = medSnap.pending_evac ?? '—';
+  document.getElementById('evac-vehicle').textContent = medSnap.vehicle_available ?? '—';
+
+  const shelUsed  = shelSnap.bed_used  ?? '—';
+  const shelTotal = shelSnap.bed_total ?? '—';
+  document.getElementById('shel-bed').textContent = `${shelUsed}/${shelTotal}`;
+  const shelPct = shelTotal > 0 ? (shelUsed / shelTotal) * 100 : 0;
+  const shelMeter = document.getElementById('shel-bed-meter');
+  shelMeter.style.width   = `${Math.min(shelPct, 100)}%`;
+  shelMeter.style.background = shelPct >= 90 ? 'var(--red)' : shelPct >= 70 ? 'var(--yellow)' : 'var(--green)';
+
+  document.getElementById('shel-pending').textContent =
+    shelSnap.pending_intake ?? shelSnap.waiting_count ?? '—';
+  const srt = shelSnap.srt || {};
+  document.getElementById('shel-srt-red').textContent =
+    srt.red != null ? `${srt.red} 人` : (shelSnap.srt_red != null ? `${shelSnap.srt_red} 人` : '—');
+}
+
+function setFreshDot(id, freshness) {
+  const el = document.getElementById(id);
+  if (!el || !freshness) return;
+  el.className = `freshness-dot f-${freshness.level || 'lkp'}`;
+  el.title = `${freshness.label || freshness.level} (${Math.round(freshness.minutes || 0)} 分前)`;
+}
+
+/* ════════════════════════════════════
+   Row 3 — 限制條件
+════════════════════════════════════ */
+function renderConstraints(medSnap, shelSnap, secSnap, med) {
+  // 車輛限制
+  const veh = medSnap.vehicle_available;
+  const vehEl = document.getElementById('con-vehicle');
+  vehEl.textContent = veh != null ? `${veh} 輛` : '—';
+  vehEl.className   = `constraint-value ${veh === 0 ? 'level-red' : veh <= 2 ? 'level-yellow' : 'level-green'}`;
+
+  // 醫療容量
+  const used  = medSnap.bed_used;
+  const total = medSnap.bed_total;
+  const pct   = total > 0 ? Math.round((used / total) * 100) : null;
+  const capEl = document.getElementById('con-med-cap');
+  capEl.textContent = pct != null ? `${pct}%` : '—';
+  capEl.className   = `constraint-value ${pct >= 90 ? 'level-red' : pct >= 70 ? 'level-yellow' : 'level-green'}`;
+  document.getElementById('con-med-cap-sub').textContent =
+    used != null ? `${used}/${total} 床位` : '治療位使用率';
+
+  // 安全態勢
+  const anomaly = secSnap.post_anomaly ?? secSnap.anomaly_count;
+  const secEl   = document.getElementById('con-security');
+  secEl.textContent = anomaly != null ? `${anomaly} 異常` : '—';
+  secEl.className   = `constraint-value ${anomaly > 0 ? 'level-red' : 'level-green'}`;
+  const postTotal = secSnap.post_total;
+  document.getElementById('con-security-sub').textContent =
+    postTotal != null ? `共 ${postTotal} 哨位` : '哨位異常';
+
+  // 警戒倒數（與 summary 同步）
+  const cd = med.countdown_to_red || {};
+  const eta = cd.eta_minutes;
+  const cdEl = document.getElementById('con-countdown');
+  cdEl.textContent = eta != null && eta < 999 ? `${Math.round(eta)} 分` : '—';
+  cdEl.className   = `constraint-value ${eta < 5 ? 'level-red' : eta < 15 ? 'level-yellow' : 'level-green'}`;
+}
+
+/* ════════════════════════════════════
+   Row 4 左 — 態勢地圖
+════════════════════════════════════ */
+function renderMap(med, shel, fwd, sec) {
+  const canvas = document.getElementById('map-canvas');
+  canvas.innerHTML = '';
+
+  const nodes = [
+    { id: 'fwd',    label: '前進組',  x: 5,  y: 30,  fresh: fwd.freshness,  value: fwdValue(fwd) },
+    { id: 'med',    label: '醫療站',  x: 38, y: 5,   fresh: med.freshness,  value: medValue(med) },
+    { id: 'shel',   label: '收容所',  x: 38, y: 60,  fresh: shel.freshness, value: shelValue(shel) },
+    { id: 'cmd',    label: '指揮部',  x: 72, y: 30,  fresh: null,           value: '本機' },
+    { id: 'sec',    label: '安全組',  x: 5,  y: 70,  fresh: sec.freshness,  value: secValue(sec) },
+  ];
+
+  // 連線
+  const lines = [
+    ['fwd', 'med'], ['fwd', 'shel'], ['med', 'cmd'], ['shel', 'cmd'], ['sec', 'cmd']
+  ];
+  lines.forEach(([a, b]) => {
+    const nA = nodes.find(n => n.id === a);
+    const nB = nodes.find(n => n.id === b);
+    if (!nA || !nB) return;
+    const line = document.createElement('div');
+    line.className = 'map-line';
+    const x1 = nA.x + 6, y1 = nA.y + 3;
+    const x2 = nB.x + 6, y2 = nB.y + 3;
+    const len = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+    const angle = Math.atan2(y2-y1, x2-x1) * 180 / Math.PI;
+    line.style.cssText = `left:${x1}%;top:${y1}%;width:${len}%;transform:rotate(${angle}deg)`;
+    canvas.appendChild(line);
+  });
+
+  // 節點
+  nodes.forEach(n => {
+    const level = n.fresh?.level || (n.id === 'cmd' ? 'ok' : 'lkp');
+    const colMap = { ok: '#3fb950', warn: '#d29922', crit: '#f85149', lkp: '#6e7b96' };
+    const el = document.createElement('div');
+    el.className = 'map-node';
+    el.style.cssText = `left:${n.x}%;top:${n.y}%;border-color:${colMap[level]};background:rgba(0,0,0,.4)`;
+    el.innerHTML = `<div class="mn-title">${n.label}</div><div class="mn-value" style="color:${colMap[level]}">${n.value}</div>`;
+    canvas.appendChild(el);
+  });
+}
+
+function fwdValue(fwd) {
+  const units = fwd.units || [];
+  const tot = units.reduce((s, u) => s + (u.casualties?.red || 0), 0);
+  return fwd.snapshot ? `R:${tot}` : '—';
+}
+function medValue(med) {
+  const s = med.snapshot;
+  if (!s) return '—';
+  const pct = s.bed_total > 0 ? Math.round(s.bed_used / s.bed_total * 100) : 0;
+  return `${pct}%`;
+}
+function shelValue(shel) {
+  const s = shel.snapshot;
+  if (!s) return '—';
+  const pct = s.bed_total > 0 ? Math.round(s.bed_used / s.bed_total * 100) : 0;
+  return `${pct}%`;
+}
+function secValue(sec) {
+  const s = sec.snapshot;
+  if (!s) return '—';
+  return s.post_anomaly != null ? `${s.post_anomaly}異` : 'OK';
+}
+
+/* ════════════════════════════════════
+   Row 4 右 — 待裁示事項
+════════════════════════════════════ */
+function renderDecisions(decisions, events) {
+  const pending = decisions.pending || [];
+  const decided = decisions.decided || [];
+
+  // 件數
+  const countEl = document.getElementById('pending-count');
+  countEl.textContent = pending.length > 0 ? `(${pending.length})` : '';
+
+  const list = document.getElementById('decisions-list');
+
+  if (pending.length === 0) {
+    list.innerHTML = `<div class="no-decisions">目前無待裁示事項</div>`;
+  } else {
+    list.innerHTML = pending.map(d => decisionCard(d)).join('');
+  }
+
+  // 已裁示
+  const decidedSec = document.getElementById('decided-section');
+  if (decided.length > 0) {
+    decidedSec.style.display = 'block';
+    document.getElementById('decided-list').innerHTML =
+      decided.slice(0, 5).map(d => `
+        <div class="decided-row">
+          <span class="decided-action act-${d.action || d.status}">${actionLabel(d.action || d.status)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.topic || d.description || '—'}</span>
+          <span>${d.decided_at ? new Date(d.decided_at).toLocaleTimeString('zh-TW') : ''}</span>
+        </div>`).join('');
+  } else {
+    decidedSec.style.display = 'none';
+  }
+}
+
+function decisionCard(d) {
+  const sevClass = { critical: 'sev-critical', warning: 'sev-warning', info: 'sev-info' }[d.severity] || 'sev-info';
+  const timeStr  = d.created_at ? new Date(d.created_at).toLocaleTimeString('zh-TW') : '';
+  const typeLabel = { initial: '初始', revision: '修訂', escalation: '升級' }[d.decision_type] || d.decision_type || '';
+  return `
+    <div class="decision-card ${sevClass}">
+      <div class="dc-header">
+        <div class="dc-topic">${d.topic || d.description || '—'}</div>
+        <div class="dc-meta">${typeLabel} ${timeStr}</div>
+      </div>
+      <div class="dc-desc">${d.recommendation || d.execution_note || ''}</div>
+      <div class="dc-actions">
+        <button class="btn btn-approve"  onclick="openModal('${d.id}','approved','核可')">✓ 核可</button>
+        <button class="btn btn-hold"     onclick="openModal('${d.id}','hold','擱置')">⏸ 擱置</button>
+        <button class="btn btn-redirect" onclick="openModal('${d.id}','redirect','轉交')">↗ 轉交</button>
+      </div>
+    </div>`;
+}
+
+function actionLabel(action) {
+  return { approved: '核可', hold: '擱置', redirect: '轉交', completed: '完成', pending: '待裁' }[action] || action || '—';
+}
+
+/* ════════════════════════════════════
+   Modal — 裁示
+════════════════════════════════════ */
+function openModal(decisionId, action, label) {
+  _currentDecisionId = decisionId;
+  _currentAction     = action;
+  document.getElementById('modal-title').textContent = `裁示：${label}`;
+  const confirmBtn = document.getElementById('modal-confirm');
+  confirmBtn.textContent  = label;
+  confirmBtn.className    = `btn ${action === 'approved' ? 'btn-approve' : action === 'hold' ? 'btn-hold' : 'btn-redirect'}`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  _currentDecisionId = null;
+  _currentAction     = null;
+}
+
+async function submitDecision() {
+  const operator = document.getElementById('modal-operator').value.trim() || '指揮官';
+  const note     = document.getElementById('modal-note').value.trim();
+
+  if (!_currentDecisionId || !_currentAction) return;
+
+  try {
+    const r = await fetch(`${API_BASE}/api/decisions/${_currentDecisionId}/decide`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action:          _currentAction,
+        decided_by:      operator,
+        execution_note:  note,
+      }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    closeModal();
+    fetchDashboard();  // 立即刷新
+  } catch(e) {
+    alert(`裁示失敗：${e.message}`);
+  }
+}
+
+// Modal 點擊背景關閉
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+/* ════════════════════════════════════
+   啟動
+════════════════════════════════════ */
+fetchDashboard();
+setInterval(fetchDashboard, POLL_MS);
+</script>
+</body>
+</html>

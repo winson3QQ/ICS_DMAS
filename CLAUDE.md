@@ -22,6 +22,20 @@
    - 意見：個人判斷，可能有其他立場
 4. **不確定就說**：資訊不確定時直接說「不確定」或問清楚，不得填補猜測當事實。
 
+## Memory 同步（跨機器）
+
+Memory 檔案存放在 repo 的 `.claude/memory/` 目錄，**每次在新機器 clone 後**需執行以下指令，將 memory 複製到 Claude Code 實際讀取的位置：
+
+```bash
+# Linux / Mac
+cp /path/to/ICS_DMAS/.claude/memory/* ~/.claude/projects/$(pwd | sed 's|/|-|g' | sed 's|^-||')memory/
+
+# Windows (Git Bash)
+cp "c:/Users/yello/研究計畫/ICS_DMAS/.claude/memory/"* "C:/Users/yello/.claude/projects/c--Users-yello------ICS-DMAS/memory/"
+```
+
+若在該機器新增了 memory，記得也要 commit `.claude/memory/` 回 repo，讓其他機器能同步。
+
 ## 開發環境
 
 - 主要開發機：Mac

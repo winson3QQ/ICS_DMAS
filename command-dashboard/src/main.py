@@ -135,6 +135,25 @@ class DecideIn(BaseModel):
     execution_note: str = ""
 
 
+class SyncPushIn(BaseModel):
+    """網路恢復後，各組 Pi 推送斷線期間完整資料"""
+    source_unit:   str           # shelter / medical / forward / security
+    sync_start_ts: str           # 斷線起始時間（ISO UTC）
+    device_id:     Optional[str] = None
+    snapshots:     list = []     # 含 snapshot_id 的快照列表
+    events:        list = []     # 斷線期間事件
+    manual_records: list = []    # 斷線期間手動輸入記錄
+
+    class Config:
+        extra = "allow"
+
+
+class ConflictResolveIn(BaseModel):
+    conflict_idx: int    # 衝突在列表中的索引
+    action:       str    # keep_incoming / keep_existing / merge
+    operator:     str
+
+
 # ──────────────────────────────────────────
 # API：快照
 # ──────────────────────────────────────────
@@ -318,11 +337,18 @@ def health():
 def index():
     return """
     <html><head><meta charset="UTF-8"><title>ICS 指揮部</title></head>
-    <body style="font-family:monospace;padding:20px;background:#1a2535;color:#9ab0c8">
-    <h2 style="color:#fff">ICS 指揮部後端 v1.0</h2>
-    <p>API 文件：<a href="/docs" style="color:#90b8e8">/docs</a></p>
-    <p>儀表板資料：<a href="/api/dashboard" style="color:#90b8e8">/api/dashboard</a></p>
-    <p>系統狀態：<a href="/api/health" style="color:#90b8e8">/api/health</a></p>
+    <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
+    <h2 style="color:#fff">ICS 指揮部 v1.1 — Phase 1 本機模擬</h2>
+    <p style="margin-top:16px;font-size:12px;color:#6e7b96">儀表板</p>
+    <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 指揮官版儀表板 v8</a></p>
+    <p><a href="/static/staff_dashboard.html" style="color:#90b8e8">▶ 幕僚版儀表板</a></p>
+    <p><a href="/static/qr_scanner.html" style="color:#90b8e8">▶ QR 快照掃描</a></p>
+    <p><a href="/static/manual_input.html" style="color:#90b8e8">▶ 手動輸入</a></p>
+    <p style="margin-top:16px;font-size:12px;color:#6e7b96">API</p>
+    <p><a href="/docs" style="color:#90b8e8">/docs — Swagger UI</a></p>
+    <p><a href="/api/dashboard" style="color:#90b8e8">/api/dashboard — 儀表板資料</a></p>
+    <p><a href="/api/health" style="color:#90b8e8">/api/health — 系統狀態</a></p>
+    <p><a href="/api/sync/log" style="color:#90b8e8">/api/sync/log — 三 Pass 同步記錄</a></p>
     </body></html>
     """
 
@@ -384,3 +410,60 @@ def mark_synced(record_id: str, operator: str):
     """人工確認同步完成後標記"""
     db.mark_manual_record_synced(record_id, operator)
     return {"ok": True}
+
+
+# ──────────────────────────────────────────
+# API：三 Pass 同步（網路恢復後）
+# ──────────────────────────────────────────
+
+@app.post("/api/sync/push", tags=["三 Pass 同步"])
+def sync_push(body: SyncPushIn, request: Request):
+    """
+    各組 Pi 網路恢復後推送斷線期間資料。
+    指揮部執行三 Pass 對齊邏輯。
+
+    Pass 1（自動）：SNAPSHOT 去重與補齊
+    Pass 2（人工）：手動記錄模糊比對，衝突標記待審核
+    Pass 3（自動）：無衝突記錄直接補傳
+
+    回傳：sync_id + 各 Pass 統計 + 待審衝突列表
+    """
+    operator = request.headers.get("X-Operator", "auto")
+    result = db.execute_three_pass(
+        source_unit=body.source_unit,
+        sync_data=body.model_dump(),
+        operator=operator,
+    )
+    return result
+
+
+@app.get("/api/sync/log", tags=["三 Pass 同步"])
+def get_sync_log(source_unit: Optional[str] = None, limit: int = 20):
+    """取同步執行記錄列表"""
+    return db.get_sync_log(source_unit, limit)
+
+
+@app.get("/api/sync/{sync_id}", tags=["三 Pass 同步"])
+def get_sync_entry(sync_id: str):
+    """取特定同步記錄（含 Pass 2 衝突詳情）"""
+    entry = db.get_sync_conflicts(sync_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="sync_id not found")
+    return entry
+
+
+@app.post("/api/sync/{sync_id}/resolve", tags=["三 Pass 同步"])
+def resolve_conflict(sync_id: str, body: ConflictResolveIn):
+    """
+    解決 Pass 2 衝突。
+    action: keep_incoming / keep_existing / merge
+    """
+    try:
+        return db.resolve_conflict(
+            sync_id=sync_id,
+            conflict_idx=body.conflict_idx,
+            action=body.action,
+            operator=body.operator,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
