@@ -1,7 +1,7 @@
 # ICS_DMAS 安全與網路架構規格
-# Security & Network Architecture Specification v1.0
+# Security & Network Architecture Specification v1.1
 
-整合對象：指揮部儀表板設計規格 v1.0、收容組規格 v2.1、民防輔助感知系統規格 v1.3
+整合對象：指揮部儀表板設計規格 v1.1、收容組規格 v2.2、民防輔助感知系統規格 v1.3
 
 ---
 
@@ -139,6 +139,40 @@
 | DHCP 範圍（手機等）| 192.168.100.100–200 | 動態分配 |
 
 演訓前須在 AP 的 DHCP 設定中排除 .10–.99 段。
+
+### 3.3 指揮部 Mini PC 端口分配
+
+同一台 Mini PC 同時運行兩套系統：
+
+| 服務 | 系統 | 端口 | 協定 |
+|------|------|------|------|
+| ICS_DMAS 後端 API | ICS_DMAS | :8000 | HTTPS (FastAPI + uvicorn) |
+| 民防感知 Console API | 民防輔助感知系統 | :8001 | HTTPS (FastAPI + uvicorn) |
+| 收容組 WebSocket | 各組 Pi | :8765 | WSS |
+| 收容組 Admin | 各組 Pi | :8766 | HTTPS |
+| 醫療組 WebSocket | 各組 Pi | :8775 | WSS |
+| 醫療組 Admin | 各組 Pi | :8776 | HTTPS |
+
+### 3.4 系統整合機制（民防感知 → ICS_DMAS）
+
+民防感知系統（前進組/安全組 Field Node）透過 HTTP POST 將事件寫入 ICS_DMAS：
+
+```
+民防感知 Console (:8001)
+  └─ POST http://localhost:8000/api/events
+       Content-Type: application/json
+       {
+         "unit": "前進組",
+         "type": "感知警報",
+         "description": "...",
+         "source": "sensor"
+       }
+```
+
+**設計原則**：
+- 整合僅限本機 localhost 呼叫（不跨網路）
+- ICS_DMAS `/api/events` 端點需驗證 source 白名單
+- 民防感知系統不直接寫入 ICS_DMAS SQLite（避免跨系統耦合）
 
 ---
 
@@ -305,7 +339,28 @@ Admin：https://192.168.100.20:8766
 
 ---
 
-## 9. 待確認事項
+## 9. 跨系統資料標準
+
+### 9.1 SNAPSHOT.source 統一詞彙
+
+所有系統（收容組 Pi SQLite、指揮部 SQLite、PWA IndexedDB）使用相同的 source 值：
+
+| 值 | 含義 | 產生時機 |
+|----|------|---------|
+| `auto` | 各組 Pi 自動定時推送 | 收容組 Pi 每 N 秒自動執行 sync_push |
+| `qr` | QR code 快照掃描匯入 | 指揮部人員用 qr_scanner.html 掃各組快照 |
+| `sync_recovery` | 斷網恢復後三 Pass 對齊同步 | 網路恢復後手動/自動觸發三 Pass 流程 |
+| `manual` | 人工輸入或手動覆寫 | 操作員直接在介面輸入或修改 |
+| `merged` | 衝突合併後的記錄 | 三 Pass 對齊遇衝突，人工或規則決議後產生 |
+
+**禁用值**（已廢棄，不得出現在任何系統）：
+- `pi_push`（改用 `auto`）
+- `merged_from_qr`（改用 `merged`）
+- `shelter_push`（改用 `auto`）
+
+---
+
+## 10. 待確認事項
 
 | 項目 | 狀態 | 說明 |
 |------|------|------|
@@ -317,4 +372,4 @@ Admin：https://192.168.100.20:8766
 
 ---
 
-*文件版本：v1.0 | 整合來源：指揮部儀表板規格 v1.0、收容組規格 v2.1、民防感知系統規格 v1.3*
+*文件版本：v1.1 | 整合來源：指揮部儀表板規格 v1.1、收容組規格 v2.2、民防感知系統規格 v1.3*
