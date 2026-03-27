@@ -6,10 +6,13 @@
    ════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const CACHE_NAME = 'shelter-pwa-v2.2';
+const CACHE_NAME = 'shelter-pwa-v2.3';
 const STATIC_ASSETS = [
   './shelter_pwa.html',
   './sw.js',
+  './lib/dexie.min.js',
+  './lib/papaparse.min.js',
+  './lib/qrcode.js',
 ];
 
 /* ── 安裝：快取靜態資源 ── */

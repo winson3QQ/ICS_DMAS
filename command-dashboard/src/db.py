@@ -123,6 +123,40 @@ CREATE TABLE IF NOT EXISTS manual_records (
     synced_at    TEXT
 );
 
+-- 計算引擎預測結果（每次新增 SNAPSHOT 後非同步產生）
+CREATE TABLE IF NOT EXISTS predictions (
+    id              TEXT PRIMARY KEY,   -- UUID
+    node_type       TEXT NOT NULL,      -- medical/shelter/forward/security
+    metric          TEXT NOT NULL,      -- 預測指標名稱
+    current_value   REAL,
+    predicted_at    TEXT NOT NULL,      -- 預測產生時間
+    eta_threshold   TEXT,              -- 預計到達門檻的時間（ISO UTC），可為 null
+    confidence      TEXT NOT NULL DEFAULT 'low',  -- high/medium/low/insufficient
+    trend_rate      REAL,              -- 趨勢速率（每分鐘變化量）
+    basis_snap_ids  TEXT,              -- JSON array，計算所用的 snapshot_id 列表
+    status          TEXT NOT NULL DEFAULT 'active',  -- active/expired
+    created_at      TEXT NOT NULL
+);
+
+-- 網路恢復同步記錄（三 Pass 對齊執行結果，不可刪除）
+CREATE TABLE IF NOT EXISTS sync_log (
+    id                  TEXT PRIMARY KEY,   -- UUID
+    source_unit         TEXT NOT NULL,      -- shelter/medical/forward/security
+    sync_started_at     TEXT NOT NULL,
+    sync_completed_at   TEXT,
+    data_gap_start      TEXT,              -- 斷線空洞起始時間
+    data_gap_end        TEXT,              -- 斷線空洞結束時間
+    pass1_merged        INTEGER DEFAULT 0, -- SNAPSHOT 自動合併筆數
+    pass2_manual        INTEGER DEFAULT 0, -- 需人工確認筆數
+    pass3_added         INTEGER DEFAULT 0, -- 自動新增筆數
+    conflicts_manual    INTEGER DEFAULT 0, -- 衝突需人工筆數
+    status              TEXT NOT NULL DEFAULT 'in_progress',
+        -- in_progress/completed/partial
+    triggered_by        TEXT,              -- auto（網路恢復）/ manual
+    operator            TEXT,
+    detail              TEXT               -- JSON，完整對齊摘要
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_snapshots_node_time
     ON snapshots(node_type, snapshot_time DESC);
@@ -134,6 +168,10 @@ CREATE INDEX IF NOT EXISTS idx_decisions_parent
     ON decisions(parent_decision_id);
 CREATE INDEX IF NOT EXISTS idx_manual_records_status
     ON manual_records(sync_status, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_predictions_node_status
+    ON predictions(node_type, status, predicted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sync_log_unit
+    ON sync_log(source_unit, sync_started_at DESC);
 """
 
 

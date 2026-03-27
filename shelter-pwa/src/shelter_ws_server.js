@@ -30,10 +30,37 @@ const path       = require('path');
 const Database   = require('better-sqlite3');
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
-const WS_PORT    = process.env.WS_PORT   || 8765;
-const ADMIN_PORT = process.env.ADMIN_PORT|| 8766;
-const DB_PATH    = process.env.DB_PATH   || path.join(__dirname, 'shelter_accounts.db');
+const WS_PORT      = process.env.WS_PORT       || 8765;
+const ADMIN_PORT   = process.env.ADMIN_PORT    || 8766;
+const DB_PATH      = process.env.DB_PATH       || path.join(__dirname, 'shelter_accounts.db');
+const COMMAND_URL  = process.env.COMMAND_URL   || '';   // 例：http://192.168.1.100:8000
+let   _commandUrl  = COMMAND_URL;                       // 執行期可覆寫（admin API 或 DB 持久化）
 const DELTA_LOG_MAX = 1000;
+
+/* ─── 推送快照至指揮部 ───────────────────────────────────────────
+   規格 §10.4：網路恢復後將最新快照 POST 至指揮部 /api/snapshots。
+   若 COMMAND_URL 未設定則略過（純本地模式）。
+── */
+async function pushToCommand(snapshotPayload) {
+  const target = typeof _commandUrl !== 'undefined' ? _commandUrl : COMMAND_URL;
+  if (!target) return;
+  try {
+    const res = await fetch(`${target}/api/snapshots`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(snapshotPayload),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      console.log(`[Command] Snapshot pushed OK: ${snapshotPayload.snapshot_id}`);
+    } else {
+      const text = await res.text();
+      console.warn(`[Command] Push failed ${res.status}: ${text}`);
+    }
+  } catch (err) {
+    console.warn(`[Command] Push error: ${err.message}`);
+  }
+}
 
 /* ─── SQLite 初始化 ──────────────────────────────────────────── */
 const db = new Database(DB_PATH);
@@ -101,11 +128,19 @@ db.exec(`
    供三 Pass 同步計算起始時間點。
    若無記錄則初始化為 epoch（代表需全量同步）。
 ─────────────────────────────────────────────────────────────── */
-(function initLastSync() {
+(function initConfig() {
   const row = db.prepare("SELECT value FROM config WHERE key='last_sync_to_command'").get();
   if (!row) {
     db.prepare("INSERT INTO config(key,value) VALUES('last_sync_to_command','1970-01-01T00:00:00.000Z')").run();
     console.log('[Config] Initialized last_sync_to_command = epoch (full sync on first connect)');
+  }
+  // 從 DB 讀取持久化的 command_url（若環境變數未設定）
+  if (!COMMAND_URL) {
+    const urlRow = db.prepare("SELECT value FROM config WHERE key='command_url'").get();
+    if (urlRow) {
+      _commandUrl = urlRow.value;
+      console.log(`[Config] Loaded command_url from DB: ${_commandUrl}`);
+    }
   }
 })();
 
@@ -345,6 +380,15 @@ wss.on('connection', (ws, req) => {
           pass1_results: passOneResults,
         }));
         console.log(`[WS] sync_push: applied ${recordsApplied} records, merged ${snapshotsMerged} snapshots`);
+
+        // §10.4：將最新快照推送至指揮部（非同步，不阻塞回應）
+        if (COMMAND_URL && Array.isArray(pushSnapshots) && pushSnapshots.length > 0) {
+          const latest = pushSnapshots[pushSnapshots.length - 1];
+          const payload = typeof latest.payload_json === 'string'
+            ? JSON.parse(latest.payload_json)
+            : latest;
+          pushToCommand(payload);
+        }
         break;
       }
 
@@ -552,7 +596,33 @@ app.get('/admin/status', (req, res) => {
     connected_clients: clients.size,
     admin_pin_setup: !!getAdminPinHash(),
     last_sync_to_command: getLastSyncToCommand(),
+    command_url: COMMAND_URL || null,
   });
+});
+
+/* ─── 設定指揮部 URL（§10.4）───────────────────────────────────── */
+
+app.get('/admin/command-url', adminAuth, (req, res) => {
+  res.json({ ok: true, command_url: _commandUrl || null });
+});
+
+app.post('/admin/command-url', adminAuth, async (req, res) => {
+  const { url } = req.body || {};
+  if (!url || !url.startsWith('http')) {
+    return res.status(400).json({ ok: false, error: '格式錯誤，範例：http://192.168.1.100:8000' });
+  }
+  _commandUrl = url.replace(/\/$/, '');
+  // 寫入 config 表持久化
+  db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('command_url',?)").run(_commandUrl);
+  console.log(`[Config] command_url set to: ${_commandUrl}`);
+  // 測試連線
+  try {
+    const r = await fetch(`${_commandUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
+    const body = await r.json();
+    res.json({ ok: true, command_url: _commandUrl, health: body });
+  } catch (err) {
+    res.json({ ok: true, command_url: _commandUrl, health_error: err.message });
+  }
 });
 
 app.listen(ADMIN_PORT, () => {
