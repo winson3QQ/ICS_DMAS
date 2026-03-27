@@ -2192,6 +2192,8 @@ async function handleLogin(roleHint) {
       AuditManager.setOperator(result.username);
       await AuditLogManager.write('login_success',{username:result.username,role:result.role,mode:'pi_auth'});
       App.startApp(result.role);
+      // 重連後自動推送斷線期間資料（背景執行，不阻塞登入流程）
+      _autoRecoveryPush();
     }catch(e){warn.textContent='❌ '+(e.message||'驗證失敗');warn.style.display='block';if(pinInput){pinInput.value='';pinInput.focus();}}
     return;
   }
@@ -2210,6 +2212,32 @@ async function handleLogin(roleHint) {
   AuditManager.setOperator(name+'【降級】');
   await AuditLogManager.write('login_degraded',{name,role:roleHint});
   App.startApp(roleHint);
+}
+
+/* ══ 重連後自動推送斷線期間資料 ══════════════════════════════════
+   登入成功後背景執行：
+   1. 確認 Pi 已連線
+   2. 檢查距上次同步時間（shelter_last_sync_ts）是否超過 1 分鐘
+   3. 若是，靜默執行 pushRecoveryData()
+   4. 成功後更新 shelter_last_sync_ts，顯示 toast 通知
+════════════════════════════════════════════════════════════════ */
+async function _autoRecoveryPush(){
+  try{
+    if(!WsManager.isConnected())return;
+    const lastSyncStr=localStorage.getItem('shelter_last_sync_ts')||'1970-01-01T00:00:00.000Z';
+    const lastSync=new Date(lastSyncStr).getTime();
+    const now=Date.now();
+    // 距上次同步超過 1 分鐘才推（避免剛登入就不必要的推送）
+    if(now-lastSync<60_000)return;
+    const count=await WsManager.pushRecoveryData();
+    if(count>0){
+      showToast(`🔄 網路恢復：已同步 ${count} 筆記錄至 Pi`);
+      await AuditLogManager.write('network_recovery_push',{records_sent:count,triggered_by:'auto_reconnect'});
+    }
+  }catch(e){
+    // 靜默失敗，不干擾登入流程
+    console.warn('[AutoRecovery] push failed:',e.message);
+  }
 }
 
 /* ══ PWA MANIFEST ════════════════════════════════════════════════ */

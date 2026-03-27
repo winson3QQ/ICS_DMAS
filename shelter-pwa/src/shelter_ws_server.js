@@ -38,11 +38,11 @@ let   _commandUrl  = COMMAND_URL;                       // 執行期可覆寫（
 const DELTA_LOG_MAX = 1000;
 
 /* ─── 推送快照至指揮部 ───────────────────────────────────────────
-   規格 §10.4：網路恢復後將最新快照 POST 至指揮部 /api/snapshots。
+   規格 §10.4：將快照 POST 至指揮部 /api/snapshots。
    若 COMMAND_URL 未設定則略過（純本地模式）。
 ── */
 async function pushToCommand(snapshotPayload) {
-  const target = typeof _commandUrl !== 'undefined' ? _commandUrl : COMMAND_URL;
+  const target = _commandUrl || COMMAND_URL;
   if (!target) return;
   try {
     const res = await fetch(`${target}/api/snapshots`, {
@@ -60,6 +60,87 @@ async function pushToCommand(snapshotPayload) {
   } catch (err) {
     console.warn(`[Command] Push error: ${err.message}`);
   }
+}
+
+/* ─── 定時推快照至指揮部（聯網情境自動同步）────────────────────────
+   每 AUTO_PUSH_INTERVAL_MS 毫秒推最新快照至指揮部 /api/snapshots。
+   環境變數 AUTO_PUSH_INTERVAL_MS 可覆寫，預設 5 分鐘。
+── */
+const AUTO_PUSH_INTERVAL_MS = parseInt(process.env.AUTO_PUSH_INTERVAL_MS || '') || 5 * 60 * 1000;
+
+async function autoPushLatestSnapshot() {
+  const target = _commandUrl || COMMAND_URL;
+  if (!target) return;
+  let row;
+  try {
+    row = db.prepare(
+      "SELECT payload_json FROM snapshots ORDER BY recv_at DESC LIMIT 1"
+    ).get();
+  } catch { return; }
+  if (!row) return;
+  let payload;
+  try { payload = JSON.parse(row.payload_json); } catch { return; }
+  payload.source = 'auto';
+  await pushToCommand(payload);
+}
+
+function startAutoPush() {
+  if (!(_commandUrl || COMMAND_URL)) return;
+  setTimeout(() => autoPushLatestSnapshot(), 10_000);      // 啟動 10 秒後先推一次
+  setInterval(() => autoPushLatestSnapshot(), AUTO_PUSH_INTERVAL_MS);
+  console.log(`[AutoPush] 定時推快照至指揮部，間隔 ${AUTO_PUSH_INTERVAL_MS / 1000}s`);
+}
+
+/* ─── 三 Pass 完整同步至指揮部（網路恢復後）──────────────────────
+   呼叫指揮部 POST /api/sync/push，傳入：
+     - snapshots：Pi 快照表中 recv_at >= last_sync_to_command 的所有快照
+     - events：delta_log 中 incidents 記錄 ts >= last_sync_to_command
+   指揮部執行三 Pass 後回傳結果，Pi 更新 last_sync_to_command。
+   若 /api/sync/push 不可用，fallback 至 /api/snapshots 推最新快照。
+── */
+async function pushThreePassToCommand(lastSyncTs) {
+  const target = _commandUrl || COMMAND_URL;
+  if (!target) return;
+  const since = lastSyncTs || '1970-01-01T00:00:00.000Z';
+
+  let snapshots = [];
+  try {
+    const rows = db.prepare(
+      "SELECT payload_json FROM snapshots WHERE recv_at >= ? ORDER BY recv_at ASC"
+    ).all(since);
+    snapshots = rows.map(r => { try { return JSON.parse(r.payload_json); } catch { return null; } }).filter(Boolean);
+  } catch { /* snapshots 表空 */ }
+
+  let events = [];
+  try {
+    const rows = db.prepare(
+      "SELECT record_json FROM delta_log WHERE table_name='incidents' AND ts >= ? ORDER BY ts ASC LIMIT 200"
+    ).all(since);
+    events = rows.map(r => { try { return JSON.parse(r.record_json); } catch { return null; } }).filter(Boolean);
+  } catch { /* delta_log 空 */ }
+
+  try {
+    const res = await fetch(`${target}/api/sync/push`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Operator': 'shelter_pi' },
+      body:    JSON.stringify({
+        source_unit: 'shelter', sync_start_ts: since,
+        device_id: 'shelter_pi', snapshots, events, manual_records: [],
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (res.ok) {
+      const result = await res.json();
+      updateLastSyncToCommand(nowISO());
+      console.log(`[ThreePass] OK → P1 merged:${result.pass1_merged} added:${result.pass1_added} P2 conflicts:${result.pass2_conflicts} P3:${result.pass3_added}`);
+      return result;
+    }
+    console.warn(`[ThreePass] /api/sync/push 回應 ${res.status}，fallback`);
+  } catch (err) {
+    console.warn(`[ThreePass] 失敗: ${err.message}，fallback`);
+  }
+  // fallback：推最新快照
+  if (snapshots.length > 0) await pushToCommand(snapshots[snapshots.length - 1]);
 }
 
 /* ─── SQLite 初始化 ──────────────────────────────────────────── */
@@ -381,14 +462,11 @@ wss.on('connection', (ws, req) => {
         }));
         console.log(`[WS] sync_push: applied ${recordsApplied} records, merged ${snapshotsMerged} snapshots`);
 
-        // §10.4：將最新快照推送至指揮部（非同步，不阻塞回應）
-        if (COMMAND_URL && Array.isArray(pushSnapshots) && pushSnapshots.length > 0) {
-          const latest = pushSnapshots[pushSnapshots.length - 1];
-          const payload = typeof latest.payload_json === 'string'
-            ? JSON.parse(latest.payload_json)
-            : latest;
-          pushToCommand(payload);
-        }
+        // §10.4：網路恢復後執行三 Pass 完整同步至指揮部（非同步，不阻塞回應）
+        // 使用 pushThreePassToCommand 取代 pushToCommand，帶入所有斷線期間的快照與事件
+        pushThreePassToCommand(sync_start_ts).catch(err =>
+          console.warn('[ThreePass] async error:', err.message)
+        );
         break;
       }
 
@@ -630,6 +708,8 @@ app.listen(ADMIN_PORT, () => {
   if (!getAdminPinHash()) {
     console.warn('[Admin HTTP] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
   }
+  // 啟動定時推快照至指揮部（聯網情境自動同步）
+  startAutoPush();
 });
 
 process.on('SIGTERM', () => { wss.close(); db.close(); process.exit(0); });
