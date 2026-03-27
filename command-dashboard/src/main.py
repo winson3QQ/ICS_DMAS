@@ -51,7 +51,7 @@ if static_path.exists():
 @app.on_event("startup")
 def startup():
     db.init_db()
-    print("✓ ICS 後端啟動，資料庫已初始化")
+    print("[OK] ICS 後端啟動，資料庫已初始化")
 
 
 # ──────────────────────────────────────────

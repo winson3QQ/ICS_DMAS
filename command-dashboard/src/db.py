@@ -177,6 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_sync_log_unit
 
 def init_db():
     """建立所有資料表（idempotent）"""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
 

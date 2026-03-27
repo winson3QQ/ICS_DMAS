@@ -50,7 +50,7 @@ fi
 
 # COMMAND_URL 留空（指揮部就是本機，收容組 Pi 推送至此）
 COMMAND_URL="" \
-  .venv/bin/uvicorn src.main:app \
+  .venv/bin/uvicorn main:app --app-dir src \
   --host 0.0.0.0 \
   --port 8000 \
   --reload \

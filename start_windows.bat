@@ -44,7 +44,7 @@ if not exist ".venv" (
     .venv\Scripts\pip install -q -r requirements.txt
 )
 
-start "ICS-指揮部後端" /min cmd /c ".venv\Scripts\uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload > %TEMP%\ics_command.log 2>&1"
+start "ICS-指揮部後端" /min cmd /c ".venv\Scripts\uvicorn main:app --app-dir src --host 0.0.0.0 --port 8000 --reload > %TEMP%\ics_command.log 2>&1"
 echo [OK] 指揮部後端已啟動
 
 :: ── 收容組 Pi 伺服器（Node.js）────────
