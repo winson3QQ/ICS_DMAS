@@ -555,7 +555,20 @@ const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// 提供 public/ 下的靜態檔案（shelter_pwa.html、sw.js、manifest.json、lib/）
+// 讓平板可直接用 http://<ip>:8766/shelter_pwa.html 開啟 PWA
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+if (fs.existsSync(PUBLIC_DIR)) {
+  app.use(express.static(PUBLIC_DIR));
+  console.log(`[Static] 提供 PWA 靜態檔案：${PUBLIC_DIR}`);
+}
+
 app.get('/', (req, res) => {
+  const pwaPath = path.join(PUBLIC_DIR, 'shelter_pwa.html');
+  if (fs.existsSync(pwaPath)) {
+    res.sendFile(pwaPath);
+    return;
+  }
   const adminPath = path.join(__dirname, 'admin_v2.0.html');
   if (fs.existsSync(adminPath)) {
     res.sendFile(adminPath);
