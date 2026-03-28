@@ -2257,26 +2257,21 @@ const WsManager = (function(){
       _backoffMs=Math.min(_backoffMs*2, RECONNECT_MAX);
     }, _backoffMs);
   }
-  // iOS Safari 切回前景：廢掉凍結的 CONNECTING socket，立即重連
-  // iOS 背景化時 JS 被凍結，CONNECTING 狀態的 WS 會永遠卡住，
-  // 若不清除，要等 CONNECT_TIMEOUT(8s) 才放棄，體驗差
+  // iOS Safari 切回前景：一律丟棄現有 WS，300ms 後重建
+  // 原因：iOS 事件順序 visibilitychange > WS onclose，切回時 _ws.readyState 仍顯示
+  // OPEN（iOS 尚未送出 onclose），若不強制清除，要等 onclose→backoff(2s)→
+  // CONNECT_TIMEOUT(8s)→backoff(2s) 共 12s 才能穩定連線。
+  // 代價：短暫切換 app 也會重連一次（< 500ms），可接受。
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState!=='visible')return;
-    const wsOpen=_ws&&_ws.readyState===WebSocket.OPEN;
-    const wsConnecting=_ws&&_ws.readyState===WebSocket.CONNECTING;
-    _wsLog.debug('visibilitychange → visible, wsOpen='+wsOpen+' wsConnecting='+wsConnecting+' backoffMs='+_backoffMs);
-    if(!wsOpen){
-      // 清除卡住的 CONNECTING socket 及其 timeout timer
-      if(wsConnecting){
-        const dead=_ws;_ws=null;
-        dead.onopen=null;dead.onclose=null;dead.onerror=null;dead.onmessage=null;
-        if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
-        _wsLog.debug('visibilitychange: cleared stale CONNECTING socket');
-      }
-      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
-      _backoffMs=RECONNECT_BASE;
-      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},300);
-    }
+    _wsLog.debug('visibilitychange → visible, readyState='+(_ws?_ws.readyState:'null'));
+    // 強制丟棄現有 WS（不論狀態），避免 iOS 殭屍連線
+    if(_ws){const dead=_ws;_ws=null;dead.onopen=null;dead.onclose=null;dead.onerror=null;dead.onmessage=null;}
+    if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+    if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+    _connected=false;_backoffMs=RECONNECT_BASE;
+    _updateDot('off');_updateLoginStatus('pending');
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},300);
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _updateLoginStatus(state, detail){
