@@ -2133,7 +2133,8 @@ const WsManager = (function(){
   'use strict';
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
   let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
-  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=15000;
+  let _connectTimer=null; // 保存 connect timeout timer，供 visibilitychange 取消用
+  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=8000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
@@ -2154,16 +2155,19 @@ const WsManager = (function(){
       _updateDot('pending');_updateLoginStatus('pending');
       const w=new WebSocket(url);
       _ws=w;
-      const timer=setTimeout(()=>{
+      if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+      _connectTimer=setTimeout(()=>{
         if(_ws!==w)return;
-        _wsLog.warn('connect timeout 15s');
+        _connectTimer=null;
+        _wsLog.warn('connect timeout 8s');
         _ws=null;w.onopen=null;w.onclose=null;w.onerror=null;w.onmessage=null;
         _updateDot('off');_updateLoginStatus('pending');
         _scheduleReconnect();
       },CONNECT_TIMEOUT);
       w.onopen=()=>{
         if(_ws!==w)return;
-        clearTimeout(timer);_connected=true;_degraded=false;
+        clearTimeout(_connectTimer);_connectTimer=null;
+        _connected=true;_degraded=false;
         _backoffMs=RECONNECT_BASE; // 連線成功，重置 backoff
         _wsLog.info('connected ✓');
         _updateDot('ok');_updateLoginStatus('ok');
@@ -2173,17 +2177,15 @@ const WsManager = (function(){
       w.onmessage=(ev)=>{if(_ws!==w)return;let msg;try{msg=JSON.parse(ev.data);}catch{return;}this._handleMsg(msg);};
       w.onclose=(code,reason)=>{
         if(_ws!==w)return;
-        clearTimeout(timer);_ws=null;
+        clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
         _wsLog.warn(`ws closed code=${code} reason=${reason||''}`);
         if(_connected){_connected=false;_updateDot('off');_updateLoginStatus('pending');_scheduleReconnect();}
         else if(!_degraded){_scheduleReconnect();}
       };
       w.onerror=(e)=>{
         if(_ws!==w)return;
-        clearTimeout(timer);_ws=null;
+        clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
         _wsLog.warn('ws onerror',e&&e.message?e.message:'');
-        // 不呼叫 w.close()：iOS Safari 在 onerror 後 close 同一 endpoint 可能觸發速率限制
-        // 直接 null 掉 callbacks 即可，backoff delay 後建新 WS
         if(_connected){_connected=false;}
         _updateDot('off');_updateLoginStatus('pending');
         _scheduleReconnect();
@@ -2255,17 +2257,25 @@ const WsManager = (function(){
       _backoffMs=Math.min(_backoffMs*2, RECONNECT_MAX);
     }, _backoffMs);
   }
-  // iOS Safari 切回前景：取消現有 backoff timer，重置退避計數，300ms 後重連
-  // 理由：使用者主動切回 app，應立即嘗試，不應等待最長 30s 的 backoff
+  // iOS Safari 切回前景：廢掉凍結的 CONNECTING socket，立即重連
+  // iOS 背景化時 JS 被凍結，CONNECTING 狀態的 WS 會永遠卡住，
+  // 若不清除，要等 CONNECT_TIMEOUT(8s) 才放棄，體驗差
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState!=='visible')return;
-    const wsActive=_ws&&(_ws.readyState===WebSocket.OPEN||_ws.readyState===WebSocket.CONNECTING);
-    _wsLog.debug('visibilitychange → visible, wsActive='+wsActive+' backoffMs='+_backoffMs);
-    if(!wsActive){
-      // 取消現有 backoff timer（若有），重置退避計數
+    const wsOpen=_ws&&_ws.readyState===WebSocket.OPEN;
+    const wsConnecting=_ws&&_ws.readyState===WebSocket.CONNECTING;
+    _wsLog.debug('visibilitychange → visible, wsOpen='+wsOpen+' wsConnecting='+wsConnecting+' backoffMs='+_backoffMs);
+    if(!wsOpen){
+      // 清除卡住的 CONNECTING socket 及其 timeout timer
+      if(wsConnecting){
+        const dead=_ws;_ws=null;
+        dead.onopen=null;dead.onclose=null;dead.onerror=null;dead.onmessage=null;
+        if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+        _wsLog.debug('visibilitychange: cleared stale CONNECTING socket');
+      }
       if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
       _backoffMs=RECONNECT_BASE;
-      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);}, 300);
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},300);
     }
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
