@@ -40,7 +40,8 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-log.info(`Log level: ${process.env.LOG_LEVEL || 'debug'}`);
+const SERVER_VERSION = '2026-03-29-v1';
+log.info(`Shelter WS Server ${SERVER_VERSION} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
 const WS_PORT      = process.env.WS_PORT       || 8765;
