@@ -2132,8 +2132,8 @@ const _wsLog = (()=>{
 const WsManager = (function(){
   'use strict';
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
-  let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null;
-  const RECONNECT_DELAY=5000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=15000;
+  let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
+  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=15000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
@@ -2164,6 +2164,7 @@ const WsManager = (function(){
       w.onopen=()=>{
         if(_ws!==w)return;
         clearTimeout(timer);_connected=true;_degraded=false;
+        _backoffMs=RECONNECT_BASE; // 連線成功，重置 backoff
         _wsLog.info('connected ✓');
         _updateDot('ok');_updateLoginStatus('ok');
         const rg=document.getElementById('degraded-role-grid');if(rg)rg.style.display='none';
@@ -2241,17 +2242,24 @@ const WsManager = (function(){
   if(typeof db!=='undefined'&&db.time_sync){db.time_sync.add({device_id:SyncManager.deviceId(),pi_time:piIso,local_time:new Date(localMs).toISOString(),offset_ms:_piTimeOffset,timestamp:new Date(localMs).toISOString()}).catch(()=>{});db.time_sync.count().then(cnt=>{if(cnt>200)db.time_sync.orderBy('_id').limit(cnt-200).primaryKeys().then(keys=>db.time_sync.bulkDelete(keys)).catch(()=>{}); }).catch(()=>{});}}
   function _scheduleReconnect(){
     if(_reconnectTimer)return;
-    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;_updateLoginStatus('pending');WsManager.connect(null);},RECONNECT_DELAY);
+    _wsLog.debug(`scheduleReconnect in ${_backoffMs}ms`);
+    _reconnectTimer=setTimeout(()=>{
+      _reconnectTimer=null;
+      _updateLoginStatus('pending');
+      WsManager.connect(null);
+      // Exponential backoff：每次失敗後翻倍，上限 30 秒
+      _backoffMs=Math.min(_backoffMs*2, RECONNECT_MAX);
+    }, _backoffMs);
   }
-  // iOS Safari 切回前景：若無活躍連線，延遲 300ms 再重連
-  // （iOS Safari 已知問題：立即重連同一 WSS endpoint 會得到 code=1006）
+  // iOS Safari 切回前景：只記 log，不立即重連，讓 backoff 機制自然處理
+  // 避免 visibilitychange 和 _scheduleReconnect 並發造成 iOS 限速
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState!=='visible')return;
-    _wsLog.debug('visibilitychange → visible, ws readyState='+((_ws&&_ws.readyState)??'null'));
     const wsActive=_ws&&(_ws.readyState===WebSocket.OPEN||_ws.readyState===WebSocket.CONNECTING);
-    if(!wsActive){
-      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
-      setTimeout(()=>WsManager.connect(null),300);
+    _wsLog.debug('visibilitychange → visible, wsActive='+wsActive+' backoffMs='+_backoffMs);
+    // 若目前沒有排程也沒有活躍連線，加快重連（但不立即，給 iOS 300ms 喘息）
+    if(!wsActive&&!_reconnectTimer){
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);}, 300);
     }
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}

@@ -39,7 +39,7 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  ('[I]', ...a),
   debug: (...a) => _logLevel >= 3 && console.log  ('[D]', ...a),
 };
-log.info(`Log level: ${process.env.LOG_LEVEL || 'info'}`);
+log.info(`Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
 const WS_PORT      = process.env.WS_PORT       || 8765;
