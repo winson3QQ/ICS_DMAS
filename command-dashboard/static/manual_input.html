@@ -736,7 +736,7 @@ input.inline{width:120px;padding:3px 6px;font-size:11px;}
 // ──────────────────────────────────────────
 // 設定
 // ──────────────────────────────────────────
-let SERVER_URL = localStorage.getItem('ics_server_url') || 'http://localhost:8000';
+let SERVER_URL = localStorage.getItem('ics_server_url') || window.location.origin;
 let isOnline   = false;
 
 // 離線佇列 key

@@ -479,7 +479,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 // ──────────────────────────────────────────
 // 設定
 // ──────────────────────────────────────────
-const SERVER_URL = localStorage.getItem('ics_server_url') || 'http://localhost:8000';
+const SERVER_URL = localStorage.getItem('ics_server_url') || window.location.origin;
 const POLL_MS    = 10000;   // 10 秒 polling
 let lastData     = null;    // 最後一次成功的資料
 let isConnected  = false;

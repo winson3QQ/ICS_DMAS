@@ -397,7 +397,7 @@ html, body {
 // 設定
 // ──────────────────────────────────────────
 
-let SERVER_URL = localStorage.getItem('ics_server_url') || 'http://localhost:8000';
+let SERVER_URL = localStorage.getItem('ics_server_url') || window.location.origin;
 let scanSource = 'qr_scan';  // qr_scan / manual
 let cameraActive = false;
 let animFrameId = null;

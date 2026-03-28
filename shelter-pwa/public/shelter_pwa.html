@@ -1845,10 +1845,17 @@ async function generateAndShowQr() {
     // 寫入 snapshots 表（本機記錄，供網路恢復後三 Pass 對齊 §9.3）
     const existingSnap = await db.snapshots.where('snapshot_uuid').equals(snapshotUuid).first();
     if (!existingSnap) {
+      // 儲存完整 SnapshotIn 欄位，供 sync_push 後 Pi 能正確推送至 FastAPI /api/snapshots
       await db.snapshots.add({
         timestamp: payload.t,
         snapshot_uuid: snapshotUuid,
         source: 'qr_generated',
+        // 完整 QR payload（SnapshotIn 相容格式）
+        v: payload.v, type: payload.type, snapshot_id: snapshotUuid,
+        t: payload.t, src: payload.src,
+        bed_used: payload.bed_used, bed_total: payload.bed_total, srt: payload.srt,
+        pending_intake: payload.pending_intake, cmist_pending: payload.cmist_pending,
+        staff_on_duty: payload.staff_on_duty,
         payload_summary: { bed_used: payload.bed_used, bed_total: payload.bed_total, srt: payload.srt },
         summary: { statusCounts: {}, bedCounts: {} },
       });
@@ -2153,7 +2160,9 @@ const WsManager = (function(){
         tables[table]=records;totalCount+=records.length;
       }
       // 讀取快照（含 snapshot_uuid，供 Pass 1 對齊）
-      const snapshots=await db.snapshots.orderBy('timestamp').filter(s=>(s.timestamp||'')>=since).toArray();
+      // 只送 QR 生成的快照（有完整 SnapshotIn 欄位），略過操作型快照（takeSnapshot）
+      // QR 快照不做時間過濾：Pi 以 snapshot_uuid INSERT OR IGNORE 保冪等，避免時間邊界遺漏
+      const snapshots=await db.snapshots.orderBy('timestamp').filter(s=>s.source==='qr_generated').toArray();
       return new Promise((resolve,reject)=>{
         const timeout=setTimeout(()=>reject(new Error('sync_push 無回應逾時')),15000);
         const prevHandler=this._syncAckHandler;
@@ -2195,7 +2204,7 @@ function savePiUrl(){const val=document.getElementById('pi-url-input')?.value.tr
 
 /* ── L1+L2 橋接 ── */
 const _origBroadcast=SyncManager.broadcast.bind(SyncManager);
-SyncManager.broadcast=function(table,record){_origBroadcast(table,record);WsManager.sendDelta(table,record);localStorage.setItem('shelter_last_sync_ts',record.updated_at||new Date().toISOString());};
+SyncManager.broadcast=function(table,record){_origBroadcast(table,record);WsManager.sendDelta(table,record);};
 </script>
 <script>
 /* ══ AuditLogManager ════════════════════════════════════════════ */

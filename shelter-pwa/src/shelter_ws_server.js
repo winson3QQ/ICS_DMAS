@@ -41,6 +41,16 @@ const DELTA_LOG_MAX = 1000;
 // TLS 憑證（由 CERT_PATH / KEY_PATH 環境變數指定；未設定則退回 HTTP）
 const CERT_PATH = process.env.CERT_PATH || '';
 const KEY_PATH  = process.env.KEY_PATH  || '';
+
+// 指揮部 HTTPS 呼叫用的 CA 憑證（支援私有 CA，如 mkcert）
+// 優先讀 CA_CERT_PATH，其次自動推算 CERT_PATH 同目錄下的 rootCA.pem
+const _caCertPath = process.env.CA_CERT_PATH ||
+  (CERT_PATH ? path.join(path.dirname(CERT_PATH), 'rootCA.pem') : '');
+const CA_CERT = (_caCertPath && fs.existsSync(_caCertPath))
+  ? (() => { try { return fs.readFileSync(_caCertPath); } catch { return null; } })()
+  : null;
+if (CA_CERT) console.log(`[TLS] 指揮部推送 CA=${_caCertPath}`);
+
 function loadTlsOptions() {
   if (!CERT_PATH || !KEY_PATH) return null;
   try {
@@ -54,6 +64,36 @@ const tlsOpts = loadTlsOptions();
 const PROTOCOL = tlsOpts ? 'https' : 'http';
 const WS_PROTOCOL = tlsOpts ? 'wss' : 'ws';
 
+/* ─── 指揮部 HTTPS POST 輔助函式 ─────────────────────────────────
+   使用 Node.js 內建 https.request（支援自訂 CA 憑證）。
+   HTTP 端點則退回 http.request。
+── */
+function postJSON(urlStr, body, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    const url   = new URL(urlStr);
+    const data  = JSON.stringify(body);
+    const isHttps = url.protocol === 'https:';
+    const mod   = isHttps ? require('https') : require('http');
+    const opts  = {
+      hostname: url.hostname,
+      port:     url.port || (isHttps ? 443 : 80),
+      path:     url.pathname + url.search,
+      method:   'POST',
+      headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+    };
+    if (isHttps && CA_CERT) opts.ca = CA_CERT;
+    const req = mod.request(opts, (res) => {
+      let buf = '';
+      res.on('data', c => buf += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: buf }));
+    });
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
 /* ─── 推送快照至指揮部 ───────────────────────────────────────────
    規格 §10.4：將快照 POST 至指揮部 /api/snapshots。
    若 COMMAND_URL 未設定則略過（純本地模式）。
@@ -62,17 +102,11 @@ async function pushToCommand(snapshotPayload) {
   const target = _commandUrl || COMMAND_URL;
   if (!target) return;
   try {
-    const res = await fetch(`${target}/api/snapshots`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(snapshotPayload),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (res.ok) {
+    const res = await postJSON(`${target}/api/snapshots`, snapshotPayload);
+    if (res.status >= 200 && res.status < 300) {
       console.log(`[Command] Snapshot pushed OK: ${snapshotPayload.snapshot_id}`);
     } else {
-      const text = await res.text();
-      console.warn(`[Command] Push failed ${res.status}: ${text}`);
+      console.warn(`[Command] Push failed ${res.status}: ${res.body}`);
     }
   } catch (err) {
     console.warn(`[Command] Push error: ${err.message}`);
@@ -83,7 +117,7 @@ async function pushToCommand(snapshotPayload) {
    每 AUTO_PUSH_INTERVAL_MS 毫秒推最新快照至指揮部 /api/snapshots。
    環境變數 AUTO_PUSH_INTERVAL_MS 可覆寫，預設 5 分鐘。
 ── */
-const AUTO_PUSH_INTERVAL_MS = parseInt(process.env.AUTO_PUSH_INTERVAL_MS || '') || 5 * 60 * 1000;
+const AUTO_PUSH_INTERVAL_MS = parseInt(process.env.AUTO_PUSH_INTERVAL_MS || '') || 2 * 60 * 1000;
 
 async function autoPushLatestSnapshot() {
   const target = _commandUrl || COMMAND_URL;
@@ -97,6 +131,12 @@ async function autoPushLatestSnapshot() {
   if (!row) return;
   let payload;
   try { payload = JSON.parse(row.payload_json); } catch { return; }
+  // 驗證必填欄位（SnapshotIn 格式）：格式不對就跳過，避免 FastAPI 422
+  const required = ['v', 'type', 'snapshot_id', 't', 'src'];
+  if (required.some(k => !(k in payload))) {
+    console.log('[AutoPush] 快照格式不符 SnapshotIn，略過（等待新格式快照）');
+    return;
+  }
   payload.source = 'auto';
   await pushToCommand(payload);
 }
@@ -137,17 +177,12 @@ async function pushThreePassToCommand(lastSyncTs) {
   } catch { /* delta_log 空 */ }
 
   try {
-    const res = await fetch(`${target}/api/sync/push`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Operator': 'shelter_pi' },
-      body:    JSON.stringify({
-        source_unit: 'shelter', sync_start_ts: since,
-        device_id: 'shelter_pi', snapshots, events, manual_records: [],
-      }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (res.ok) {
-      const result = await res.json();
+    const res = await postJSON(`${target}/api/sync/push`, {
+      source_unit: 'shelter', sync_start_ts: since,
+      device_id: 'shelter_pi', snapshots, events, manual_records: [],
+    }, 15_000);
+    if (res.status >= 200 && res.status < 300) {
+      const result = JSON.parse(res.body);
       updateLastSyncToCommand(nowISO());
       console.log(`[ThreePass] OK → P1 merged:${result.pass1_merged} added:${result.pass1_added} P2 conflicts:${result.pass2_conflicts} P3:${result.pass3_added}`);
       return result;
