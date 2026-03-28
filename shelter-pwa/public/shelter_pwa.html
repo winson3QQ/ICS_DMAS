@@ -2125,17 +2125,20 @@ const WsManager = (function(){
     getPiUrl(){if(!_piUrl)_piUrl=localStorage.getItem('shelter_pi_url')||'';return _piUrl;},
     connect(onAuth){
       _authHandler=onAuth;const url=this.getPiUrl();if(!url){this._enterDegraded('未設定 Pi URL');return;}
+      // 關閉舊連線（避免同時存在多條 WebSocket）
+      if(_ws&&_ws.readyState!==WebSocket.CLOSED){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws.close();}
+      _ws=null;_connected=false;
       _updateDot('pending');let timedOut=false;
       const timer=setTimeout(()=>{
-        timedOut=true;if(_ws){_ws.onclose=null;_ws.close();}
+        timedOut=true;if(_ws){_ws.onclose=null;_ws.onerror=null;_ws.close();}
         this._enterDegraded('Pi 連線逾時（12 秒）');
-        _scheduleReconnect(); // 逾時後仍排程重連，不永久卡在降級模式
+        _scheduleReconnect();
       },CONNECT_TIMEOUT);
       try{
         _ws=new WebSocket(url);
         _ws.onopen=()=>{if(timedOut)return;clearTimeout(timer);_connected=true;_degraded=false;_updateDot('ok');_hideDegradedBanner();this._startTimeSync();this._requestCatchup();};
         _ws.onmessage=(ev)=>{let msg;try{msg=JSON.parse(ev.data);}catch{return;}this._handleMsg(msg);};
-        _ws.onclose=()=>{if(timedOut)return;clearTimeout(timer);if(_connected){_connected=false;_updateDot('off');_scheduleReconnect();}};
+        _ws.onclose=()=>{if(timedOut)return;clearTimeout(timer);if(_connected){_connected=false;_updateDot('off');_scheduleReconnect();}else if(!_degraded){_scheduleReconnect();}};
         _ws.onerror=()=>{clearTimeout(timer);if(!timedOut){this._enterDegraded('Pi WebSocket 連線失敗');_scheduleReconnect();}};
       }catch(e){clearTimeout(timer);this._enterDegraded('WebSocket 建立失敗：'+e.message);}
     },
@@ -2193,8 +2196,11 @@ const WsManager = (function(){
     _startTimeSync(){if(_timeSyncTimer)clearInterval(_timeSyncTimer);_timeSyncTimer=setInterval(()=>{if(_connected&&_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'time_sync_req',device_id:SyncManager.deviceId()}));},TIME_SYNC_INTERVAL);},
     _requestCatchup(){const since=localStorage.getItem('shelter_last_sync_ts')||'1970-01-01T00:00:00.000Z';if(_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'catchup_req',since}));},
   };
-  function _syncTime(piIso){const piMs=new Date(piIso).getTime(),localMs=Date.now();_piTimeOffset=piMs-localMs;localStorage.setItem('shelter_last_sync_ts',piIso);if(typeof db!=='undefined'&&db.time_sync){db.time_sync.add({device_id:SyncManager.deviceId(),pi_time:piIso,local_time:new Date(localMs).toISOString(),offset_ms:_piTimeOffset,timestamp:new Date(localMs).toISOString()}).catch(()=>{});db.time_sync.count().then(cnt=>{if(cnt>200)db.time_sync.orderBy('_id').limit(cnt-200).primaryKeys().then(keys=>db.time_sync.bulkDelete(keys)).catch(()=>{}); }).catch(()=>{});}}
+  function _syncTime(piIso){const piMs=new Date(piIso).getTime(),localMs=Date.now();_piTimeOffset=piMs-localMs;// 注意：不覆寫 shelter_last_sync_ts，那個 key 由 sync_ack 獨家管理
+  if(typeof db!=='undefined'&&db.time_sync){db.time_sync.add({device_id:SyncManager.deviceId(),pi_time:piIso,local_time:new Date(localMs).toISOString(),offset_ms:_piTimeOffset,timestamp:new Date(localMs).toISOString()}).catch(()=>{});db.time_sync.count().then(cnt=>{if(cnt>200)db.time_sync.orderBy('_id').limit(cnt-200).primaryKeys().then(keys=>db.time_sync.bulkDelete(keys)).catch(()=>{}); }).catch(()=>{});}}
   function _scheduleReconnect(){if(_reconnectTimer)return;_reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},RECONNECT_DELAY);}
+  // iOS Safari 切換 App 後 JS timer 會被凍結，visibilitychange 是頁面重回前景的可靠觸發點
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_connected){if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}WsManager.connect(null);}});
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _showDegradedBanner(){const b=document.getElementById('degraded-banner');if(b)b.style.display='block';}
   function _hideDegradedBanner(){const b=document.getElementById('degraded-banner');if(b)b.style.display='none';}
