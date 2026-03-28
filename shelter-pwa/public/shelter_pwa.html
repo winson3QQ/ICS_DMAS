@@ -302,7 +302,7 @@
     <div id="login-pi-status" style="padding:5px 12px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);">
       🟡 Pi 連線中…
     </div>
-    <button onclick="WsManager.connect(null)" style="padding:4px 10px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.3);cursor:pointer;">重試</button>
+    <button onclick="WsManager.connect(null,'retry-btn')" style="padding:4px 10px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.3);cursor:pointer;">重試</button>
   </div>
   <div id="operator-section" style="width:100%;max-width:420px;margin-bottom:20px;display:flex;flex-direction:column;gap:8px;">
     <input id="operator-username-input" type="text" placeholder="任務帳號 / 姓名" autocomplete="off" autocorrect="off" spellcheck="false"
@@ -2140,11 +2140,12 @@ const WsManager = (function(){
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
     setPiUrl(url){_piUrl=url;localStorage.setItem('shelter_pi_url',url);},
     getPiUrl(){if(!_piUrl)_piUrl=localStorage.getItem('shelter_pi_url')||'';return _piUrl;},
-    connect(onAuth){
+    connect(onAuth, source='unknown'){
       // 若目前 WS 正在 CONNECTING 或 OPEN，不重複建立
       if(_ws&&(_ws.readyState===WebSocket.CONNECTING||_ws.readyState===WebSocket.OPEN)){
         _wsLog.debug('connect() skipped — WS already active, readyState='+_ws.readyState);return;
       }
+      _wsLog.info('connect() called from: '+source);
       if(onAuth!==undefined)_authHandler=onAuth;
       const url=this.getPiUrl();if(!url){this._enterDegraded('未設定 Pi URL');return;}
       // iOS Safari 已知問題：主動 close() 後立即建新 WS 會得到 code=1006。
@@ -2169,7 +2170,8 @@ const WsManager = (function(){
         clearTimeout(_connectTimer);_connectTimer=null;
         _connected=true;_degraded=false;
         _backoffMs=RECONNECT_BASE; // 連線成功，重置 backoff
-        _wsLog.info('connected ✓');
+        _wsLog.info('connected ✓ (source='+source+')');
+        _ws.send(JSON.stringify({type:'debug_ping',source,device_id:SyncManager.deviceId()}));
         _updateDot('ok');_updateLoginStatus('ok');
         const rg=document.getElementById('degraded-role-grid');if(rg)rg.style.display='none';
         this._startTimeSync();this._requestCatchup();
@@ -2252,7 +2254,7 @@ const WsManager = (function(){
     _reconnectTimer=setTimeout(()=>{
       _reconnectTimer=null;
       _updateLoginStatus('pending');
-      WsManager.connect(null);
+      WsManager.connect(null,'backoff');
       // Exponential backoff：每次失敗後翻倍，上限 30 秒
       _backoffMs=Math.min(_backoffMs*2, RECONNECT_MAX);
     }, _backoffMs);
@@ -2273,7 +2275,7 @@ const WsManager = (function(){
     _updateDot('off');_updateLoginStatus('pending');
     // 2500ms：給 iOS 足夠時間回收舊 TCP（background 連線約需 10-12s 完成，
     // 但 null callbacks 後立刻排下一個，iOS 仍需 ~2s 實際釋放 socket slot）
-    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},2500);
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},2500);
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _updateLoginStatus(state, detail){
@@ -2294,7 +2296,7 @@ const WsManager = (function(){
   function _hideDegradedBanner(){/* 已整合至 login-pi-status，保留空函式維持相容 */}
 })();
 
-function savePiUrl(){const val=document.getElementById('pi-url-input')?.value.trim(),sEl=document.getElementById('pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：ws://192.168.1.100:8765';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，連線中…';WsManager.connect(null);}
+function savePiUrl(){const val=document.getElementById('pi-url-input')?.value.trim(),sEl=document.getElementById('pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：ws://192.168.1.100:8765';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，連線中…';WsManager.connect(null,'savePiUrl');}
 
 /* ── L1+L2 橋接 ── */
 const _origBroadcast=SyncManager.broadcast.bind(SyncManager);
@@ -2441,7 +2443,7 @@ App.init=async function(){
   // 先完成 App.init（含 serviceWorker.register + IndexedDB），再建立 WS
   // 避免 serviceWorker.register 佔用 iOS main thread，導致 WS onopen callback 被延遲
   await _origAppInit();
-  if(savedPiUrl){WsManager.connect(null);}
+  if(savedPiUrl){WsManager.connect(null,'App.init');}
   else WsManager._enterDegraded('未設定 Pi URL');
 };
 window.switchRole=function(){PinLock.clear();PersonCrypto.clearKey();sessionStorage.removeItem('shelter_session_id');localStorage.removeItem('shelter_role');location.reload();};

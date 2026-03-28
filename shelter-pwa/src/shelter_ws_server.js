@@ -441,6 +441,12 @@ wss.on('connection', (ws, req) => {
         break;
       }
 
+      /* ── debug_ping（診斷用，記錄 connect() 呼叫來源） ── */
+      case 'debug_ping': {
+        log.info(`[WS] debug_ping from ${ip} source=${msg.source||'?'} device=${msg.device_id||'?'}`);
+        break;
+      }
+
       /* ── Catchup 請求（新裝置連線補傳） ── */
       case 'catchup_req': {
         const since = msg.since || '1970-01-01T00:00:00.000Z';
