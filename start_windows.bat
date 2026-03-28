@@ -9,12 +9,16 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr "IPv4"') do (
 :found_ip
 set LAN_IP=%LAN_IP: =%
 
+:: ── 憑證路徑（mkcert 產生）────────────────────
+set CERT=%~dp0certs\10.0.1.16+2.pem
+set KEY=%~dp0certs\10.0.1.16+2-key.pem
+
 echo ======================================
 echo  ICS_DMAS 本機模擬啟動（Windows / Phase 1）
 echo  本機 LAN IP：%LAN_IP%
-echo  指揮部    ^> http://%LAN_IP%:8000
-echo  收容組 Pi ^> ws://%LAN_IP%:8765
-echo  收容組 PWA^> http://%LAN_IP%:8766/shelter_pwa.html
+echo  指揮部    ^> https://%LAN_IP%:8000
+echo  收容組 Pi ^> wss://%LAN_IP%:8765
+echo  收容組 PWA^> https://%LAN_IP%:8766/shelter_pwa.html
 echo ======================================
 echo.
 
@@ -44,7 +48,7 @@ if not exist ".venv" (
     .venv\Scripts\pip install -q -r requirements.txt
 )
 
-start "ICS-指揮部後端" /min cmd /c ".venv\Scripts\uvicorn main:app --app-dir src --host 0.0.0.0 --port 8000 --reload > %TEMP%\ics_command.log 2>&1"
+start "ICS-指揮部後端" /min cmd /c ".venv\Scripts\uvicorn main:app --app-dir src --host 0.0.0.0 --port 8000 --ssl-certfile "%CERT%" --ssl-keyfile "%KEY%" --reload > %TEMP%\ics_command.log 2>&1"
 echo [OK] 指揮部後端已啟動
 
 :: ── 收容組 Pi 伺服器（Node.js）────────
@@ -57,9 +61,8 @@ if not exist "node_modules" (
     npm install --quiet
 )
 
-:: COMMAND_URL 用 127.0.0.1（Pi 與指揮部同機模擬，localhost 永遠可達，不受網路拓撲影響）
-:: 若未來 Pi 硬體獨立部署，改成指揮部的 LAN/Tailscale/公網 IP 即可
-start "ICS-收容組Pi" /min cmd /c "set COMMAND_URL=http://127.0.0.1:8000 && node src\shelter_ws_server.js > %TEMP%\ics_shelter.log 2>&1"
+:: COMMAND_URL 用 https（Pi 與指揮部同機，localhost 永遠可達）
+start "ICS-收容組Pi" /min cmd /c "set COMMAND_URL=https://127.0.0.1:8000&& set CERT_PATH=%CERT%&& set KEY_PATH=%KEY%&& node src\shelter_ws_server.js > %TEMP%\ics_shelter.log 2>&1"
 echo [OK] 收容組 Pi 已啟動
 
 :: ── 等待就緒 ──────────────────────────
@@ -91,8 +94,8 @@ echo    幕僚版：    http://127.0.0.1:8000/static/staff_dashboard.html
 echo    API 文件：  http://127.0.0.1:8000/docs
 echo.
 echo  ── 情境 1A：同一 WiFi（平板與 Windows 同網段）──
-echo    PWA 網址：  http://%LAN_IP%:8766/shelter_pwa.html
-echo    Pi URL：    ws://%LAN_IP%:8765
+echo    PWA 網址：  https://%LAN_IP%:8766/shelter_pwa.html
+echo    Pi URL：    wss://%LAN_IP%:8765
 echo.
 if defined TS_IP (
 echo  ── 情境 1B：走大網（Tailscale VPN）──

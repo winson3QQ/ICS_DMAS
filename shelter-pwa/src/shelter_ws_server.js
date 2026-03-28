@@ -22,6 +22,7 @@
 
 const WebSocket  = require('ws');
 const http       = require('http');
+const https      = require('https');
 const express    = require('express');
 const cors       = require('cors');
 const crypto     = require('crypto');
@@ -33,9 +34,25 @@ const Database   = require('better-sqlite3');
 const WS_PORT      = process.env.WS_PORT       || 8765;
 const ADMIN_PORT   = process.env.ADMIN_PORT    || 8766;
 const DB_PATH      = process.env.DB_PATH       || path.join(__dirname, 'shelter_accounts.db');
-const COMMAND_URL  = process.env.COMMAND_URL   || '';   // 例：http://192.168.1.100:8000
-let   _commandUrl  = COMMAND_URL;                       // 執行期可覆寫（admin API 或 DB 持久化）
+const COMMAND_URL  = process.env.COMMAND_URL   || '';   // 例：https://127.0.0.1:8000
+let   _commandUrl  = COMMAND_URL;
 const DELTA_LOG_MAX = 1000;
+
+// TLS 憑證（由 CERT_PATH / KEY_PATH 環境變數指定；未設定則退回 HTTP）
+const CERT_PATH = process.env.CERT_PATH || '';
+const KEY_PATH  = process.env.KEY_PATH  || '';
+function loadTlsOptions() {
+  if (!CERT_PATH || !KEY_PATH) return null;
+  try {
+    return { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
+  } catch (e) {
+    console.warn(`[TLS] 憑證載入失敗：${e.message}，退回 HTTP`);
+    return null;
+  }
+}
+const tlsOpts = loadTlsOptions();
+const PROTOCOL = tlsOpts ? 'https' : 'http';
+const WS_PROTOCOL = tlsOpts ? 'wss' : 'ws';
 
 /* ─── 推送快照至指揮部 ───────────────────────────────────────────
    規格 §10.4：將快照 POST 至指揮部 /api/snapshots。
@@ -300,9 +317,15 @@ function getRecentDeltas(sinceISO) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   WebSocket 伺服器（Port 8765）
+   WebSocket 伺服器（Port 8765，支援 WSS/WS）
 ════════════════════════════════════════════════════════════════ */
-const wss = new WebSocket.Server({ port: WS_PORT });
+const wsRawServer = tlsOpts
+  ? https.createServer(tlsOpts)
+  : http.createServer();
+const wss = new WebSocket.Server({ server: wsRawServer });
+wsRawServer.listen(WS_PORT, () => {
+  console.log(`[WS] ${WS_PROTOCOL.toUpperCase()} Server listening on port ${WS_PORT}`);
+});
 const clients = new Map();
 
 wss.on('connection', (ws, req) => {
@@ -650,6 +673,27 @@ app.put('/admin/accounts/:username/pin', adminAuth, async (req, res) => {
   res.json({ ok: true, username, message: 'PIN 已重設' });
 });
 
+app.delete('/admin/accounts/:username', adminAuth, (req, res) => {
+  const { username } = req.params;
+  const { deleted_by } = req.body || {};
+  const account = db.prepare('SELECT id FROM accounts WHERE username=?').get(username);
+  if (!account) return res.status(404).json({ ok: false, reason: '帳號不存在' });
+  db.prepare('DELETE FROM accounts WHERE username=?').run(username);
+  writeAuditLog('account_deleted', deleted_by || 'admin', '', null, { target: username });
+  res.json({ ok: true, username });
+});
+
+app.put('/admin/accounts/:username/role', adminAuth, (req, res) => {
+  const { username } = req.params;
+  const { role, updated_by } = req.body || {};
+  if (!['組長','人管','物管','環管'].includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
+  const account = db.prepare('SELECT id FROM accounts WHERE username=?').get(username);
+  if (!account) return res.status(404).json({ ok: false, reason: '帳號不存在' });
+  db.prepare('UPDATE accounts SET role=? WHERE username=?').run(role, username);
+  writeAuditLog('account_role_changed', updated_by || 'admin', '', null, { target: username, new_role: role });
+  res.json({ ok: true, username, role });
+});
+
 app.post('/admin/accounts/suspend-all', adminAuth, (req, res) => {
   const { suspended_by } = req.body;
   const result = db.prepare("UPDATE accounts SET status='suspended'").run();
@@ -716,12 +760,15 @@ app.post('/admin/command-url', adminAuth, async (req, res) => {
   }
 });
 
-app.listen(ADMIN_PORT, () => {
-  console.log(`[Admin HTTP] v2.1 Listening on port ${ADMIN_PORT}`);
+const adminServer = tlsOpts
+  ? https.createServer(tlsOpts, app)
+  : http.createServer(app);
+
+adminServer.listen(ADMIN_PORT, () => {
+  console.log(`[Admin] v2.1 ${PROTOCOL.toUpperCase()} Listening on port ${ADMIN_PORT}`);
   if (!getAdminPinHash()) {
-    console.warn('[Admin HTTP] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
+    console.warn('[Admin] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
   }
-  // 啟動定時推快照至指揮部（聯網情境自動同步）
   startAutoPush();
 });
 

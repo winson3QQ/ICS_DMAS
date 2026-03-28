@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>收容組管理</title>
+  <style>
+    :root {
+      --primary: #C07800; --primary-dk: #8B5600;
+      --bg: #F5F5F5; --surface: #fff;
+      --text: #1A1A1A; --text2: #666; --border: #E0E0E0;
+      --green: #2E7D32; --green-bg: #E8F5E9;
+      --red: #C62828; --red-bg: #FFEBEE;
+      --r: 10px; --r-sm: 6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, 'PingFang TC', '微軟正黑體', sans-serif; background: var(--bg); color: var(--text); font-size: 16px; }
+    .page { display: none; min-height: 100vh; padding: 20px 16px; }
+    .page.active { display: block; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    h2 { font-size: 17px; font-weight: 700; margin-bottom: 12px; }
+    .subtitle { color: var(--text2); font-size: 14px; margin-bottom: 24px; }
+    .card { background: var(--surface); border-radius: var(--r); padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+    input, select { width: 100%; padding: 10px 12px; border: 2px solid var(--border); border-radius: var(--r-sm); font-size: 16px; font-family: inherit; background: var(--surface); color: var(--text); }
+    input:focus, select:focus { outline: none; border-color: var(--primary); }
+    .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: var(--r-sm); font-size: 16px; font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:active { background: var(--primary-dk); }
+    .btn-danger { background: var(--red); color: #fff; margin-top: 8px; }
+    .btn-sm { padding: 6px 14px; font-size: 13px; border-radius: var(--r-sm); border: none; cursor: pointer; font-family: inherit; font-weight: 600; }
+    .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+    .error { color: var(--red); font-size: 14px; margin-top: 8px; min-height: 20px; }
+    .success { color: var(--green); font-size: 14px; margin-top: 8px; min-height: 20px; }
+    .status-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 13px; font-weight: 600; }
+    .badge-green { background: var(--green-bg); color: var(--green); }
+    .badge-red { background: var(--red-bg); color: var(--red); }
+    .badge-gray { background: #eee; color: #666; }
+    .account-item { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .account-item:last-child { border-bottom: none; }
+    .account-info { flex: 1; }
+    .account-name { font-weight: 700; font-size: 15px; }
+    .account-role { font-size: 13px; color: var(--text2); margin-top: 2px; }
+    .account-status { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .status-active { background: var(--green-bg); color: var(--green); }
+    .status-suspended { background: var(--red-bg); color: var(--red); }
+    .nav { display: flex; gap: 8px; margin-bottom: 20px; }
+    .nav-btn { flex: 1; padding: 10px; border: 2px solid var(--border); border-radius: var(--r-sm); background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; color: var(--text2); }
+    .nav-btn.active { border-color: var(--primary); color: var(--primary); background: #FFF8EE; }
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+    .hint { font-size: 12px; color: var(--text2); margin-top: 6px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .logout-btn { background: transparent; border: none; color: var(--text2); font-size: 13px; cursor: pointer; font-family: inherit; padding: 4px 8px; }
+    .section { margin-bottom: 24px; }
+  </style>
+</head>
+<body>
+
+<!-- ── 登入頁 ───────────────────────────────────── -->
+<div id="page-login" class="page active">
+  <div style="max-width:420px;margin:60px auto 0;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-size:56px;margin-bottom:8px;">⛺</div>
+      <h1>收容組管理</h1>
+      <div class="subtitle">輸入管理員 PIN 進入</div>
+    </div>
+    <div class="card">
+      <div id="setup-section">
+        <div style="background:#FFF8EE;border:1px solid #F5A623;border-radius:var(--r-sm);padding:12px;margin-bottom:16px;font-size:14px;color:#8B5600;">
+          ⚠️ 尚未設定管理員 PIN，請先完成設定
+        </div>
+        <div class="form-group">
+          <label>設定管理員 PIN（4-6 位數字）</label>
+          <input id="setup-pin" type="number" inputmode="numeric" maxlength="6" placeholder="例：1234">
+        </div>
+        <div class="form-group">
+          <label>確認 PIN</label>
+          <input id="setup-pin2" type="number" inputmode="numeric" maxlength="6" placeholder="再輸入一次">
+        </div>
+        <button class="btn btn-primary" onclick="doSetup()">設定 PIN</button>
+        <div id="setup-error" class="error"></div>
+      </div>
+      <div id="login-section" style="display:none;">
+        <div class="form-group">
+          <label>管理員 PIN</label>
+          <input id="login-pin" type="number" inputmode="numeric" maxlength="6" placeholder="輸入 PIN" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="btn btn-primary" onclick="doLogin()">進入管理</button>
+        <div id="login-error" class="error"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 管理主頁 ──────────────────────────────────── -->
+<div id="page-main" class="page">
+  <div style="max-width:520px;margin:0 auto;">
+    <div class="top-bar">
+      <div>
+        <h1 style="font-size:18px;">⛺ 收容組管理</h1>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">登出</button>
+    </div>
+
+    <!-- 狀態列 -->
+    <div id="status-bar" class="status-bar"></div>
+
+    <!-- 頁籤 -->
+    <div class="nav">
+      <button class="nav-btn active" id="tab-accounts" onclick="showTab('accounts')">帳號管理</button>
+      <button class="nav-btn" id="tab-add" onclick="showTab('add')">新增帳號</button>
+      <button class="nav-btn" id="tab-server" onclick="showTab('server')">伺服器</button>
+    </div>
+
+    <!-- 帳號列表 -->
+    <div id="tab-accounts-content">
+      <div class="card">
+        <div class="top-bar" style="margin-bottom:12px;">
+          <h2 style="margin:0;">帳號列表</h2>
+          <button class="btn-sm btn-outline" style="border:2px solid var(--primary);color:var(--primary);background:transparent;border-radius:var(--r-sm);" onclick="loadAccounts()">重新整理</button>
+        </div>
+        <div id="accounts-list"><div style="color:var(--text2);font-size:14px;">載入中...</div></div>
+      </div>
+      <div class="card">
+        <h2>緊急操作</h2>
+        <button class="btn btn-danger" onclick="suspendAll()">暫停所有帳號</button>
+        <div class="hint">演習結束或緊急情況時使用</div>
+      </div>
+    </div>
+
+    <!-- 新增帳號 -->
+    <div id="tab-add-content" style="display:none;">
+      <div class="card">
+        <h2>新增帳號</h2>
+        <div class="form-group">
+          <label>帳號名稱</label>
+          <input id="new-username" type="text" placeholder="例：shelter01" autocomplete="off" autocapitalize="none">
+        </div>
+        <div class="form-group">
+          <label>PIN（4-6 位數字）</label>
+          <input id="new-pin" type="number" inputmode="numeric" placeholder="例：1234">
+        </div>
+        <div class="form-group">
+          <label>角色</label>
+          <select id="new-role">
+            <option value="組長">組長</option>
+            <option value="人管">人管</option>
+            <option value="物管">物管</option>
+            <option value="環管">環管</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>顯示名稱（選填）</label>
+          <input id="new-display" type="text" placeholder="例：張三">
+        </div>
+        <button class="btn btn-primary" onclick="addAccount()">建立帳號</button>
+        <div id="add-result" class="success"></div>
+        <div id="add-error" class="error"></div>
+      </div>
+    </div>
+
+    <!-- 伺服器狀態 -->
+    <div id="tab-server-content" style="display:none;">
+      <div class="card">
+        <h2>伺服器狀態</h2>
+        <div id="server-status"><div style="color:var(--text2);font-size:14px;">載入中...</div></div>
+      </div>
+      <div class="card section">
+        <h2>重設帳號 PIN</h2>
+        <div class="form-group">
+          <label>帳號名稱</label>
+          <input id="reset-username" type="text" autocomplete="off" autocapitalize="none" placeholder="輸入要重設的帳號">
+        </div>
+        <div class="form-group">
+          <label>新 PIN</label>
+          <input id="reset-pin" type="number" inputmode="numeric" placeholder="4-6 位數字">
+        </div>
+        <button class="btn btn-primary" onclick="resetPin()">重設 PIN</button>
+        <div id="reset-result" class="success"></div>
+        <div id="reset-error" class="error"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+let _adminPin = '';
+
+/* ─── 初始化：檢查是否需要 setup ───────────────── */
+async function init() {
+  try {
+    const r = await fetch('/admin/status');
+    const d = await r.json();
+    if (!d.admin_pin_setup) {
+      document.getElementById('setup-section').style.display = '';
+      document.getElementById('login-section').style.display = 'none';
+    } else {
+      document.getElementById('setup-section').style.display = 'none';
+      document.getElementById('login-section').style.display = '';
+    }
+  } catch(e) {
+    document.getElementById('login-error').textContent = '無法連線至伺服器';
+  }
+}
+
+async function doSetup() {
+  const pin = document.getElementById('setup-pin').value.trim();
+  const pin2 = document.getElementById('setup-pin2').value.trim();
+  const err = document.getElementById('setup-error');
+  if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN 需為 4-6 位數字'; return; }
+  if (pin !== pin2) { err.textContent = '兩次輸入不一致'; return; }
+  const r = await fetch('/admin/setup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({admin_pin: pin}) });
+  const d = await r.json();
+  if (d.ok) {
+    _adminPin = pin;
+    showMain();
+  } else {
+    err.textContent = d.reason || '設定失敗';
+  }
+}
+
+async function doLogin() {
+  const pin = document.getElementById('login-pin').value.trim();
+  const err = document.getElementById('login-error');
+  if (!pin) { err.textContent = '請輸入 PIN'; return; }
+  // 測試 PIN 是否正確
+  const r = await fetch('/admin/accounts', { headers: {'X-Admin-PIN': pin} });
+  if (r.ok) {
+    _adminPin = pin;
+    showMain();
+  } else {
+    err.textContent = 'PIN 不正確';
+  }
+}
+
+function doLogout() {
+  _adminPin = '';
+  document.getElementById('page-main').classList.remove('active');
+  document.getElementById('page-login').classList.add('active');
+  document.getElementById('login-pin').value = '';
+  document.getElementById('login-error').textContent = '';
+  init();
+}
+
+function showMain() {
+  document.getElementById('page-login').classList.remove('active');
+  document.getElementById('page-main').classList.add('active');
+  loadStatus();
+  loadAccounts();
+}
+
+/* ─── 頁籤 ─────────────────────────────────────── */
+function showTab(name) {
+  ['accounts','add','server'].forEach(t => {
+    document.getElementById(`tab-${t}-content`).style.display = t === name ? '' : 'none';
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+  });
+  if (name === 'accounts') loadAccounts();
+  if (name === 'server') loadServerStatus();
+}
+
+/* ─── 狀態列 ────────────────────────────────────── */
+async function loadStatus() {
+  try {
+    const r = await fetch('/admin/status');
+    const d = await r.json();
+    document.getElementById('status-bar').innerHTML = `
+      <span class="badge badge-green">已連線</span>
+      <span class="badge badge-gray">帳號 ${d.active_accounts} 個</span>
+      <span class="badge badge-gray">裝置 ${d.connected_clients} 台</span>
+    `;
+  } catch { document.getElementById('status-bar').innerHTML = '<span class="badge badge-red">離線</span>'; }
+}
+
+/* ─── 帳號列表 ──────────────────────────────────── */
+async function loadAccounts() {
+  const el = document.getElementById('accounts-list');
+  try {
+    const r = await fetch('/admin/accounts', { headers: {'X-Admin-PIN': _adminPin} });
+    const d = await r.json();
+    if (!d.ok || !d.accounts.length) { el.innerHTML = '<div style="color:var(--text2);font-size:14px;padding:8px 0;">尚無帳號</div>'; return; }
+    el.innerHTML = d.accounts.map(a => `
+      <div class="account-item">
+        <div class="account-info">
+          <div class="account-name">${a.username}${a.display_name ? '（'+a.display_name+'）' : ''}</div>
+          <div class="account-role">${a.role}</div>
+        </div>
+        <span class="account-status ${a.status === 'active' ? 'status-active' : 'status-suspended'}">
+          ${a.status === 'active' ? '啟用' : '暫停'}
+        </span>
+        <button class="btn-sm" style="background:${a.status==='active'?'#FFF3E0':'#E8F5E9'};color:${a.status==='active'?'#E65100':'#2E7D32'};border:none;border-radius:var(--r-sm);"
+          onclick="toggleAccount('${a.username}','${a.status}')">
+          ${a.status === 'active' ? '暫停' : '啟用'}
+        </button>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<div style="color:var(--red);font-size:14px;">載入失敗</div>'; }
+}
+
+async function toggleAccount(username, currentStatus) {
+  const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+  const r = await fetch(`/admin/accounts/${username}/status`, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json','X-Admin-PIN':_adminPin},
+    body: JSON.stringify({status: newStatus, updated_by: 'admin'})
+  });
+  const d = await r.json();
+  if (d.ok) loadAccounts();
+  else alert('操作失敗：' + (d.reason || ''));
+}
+
+async function suspendAll() {
+  if (!confirm('確定要暫停所有帳號？')) return;
+  const r = await fetch('/admin/accounts/suspend-all', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Admin-PIN':_adminPin},
+    body: JSON.stringify({suspended_by: 'admin'})
+  });
+  const d = await r.json();
+  if (d.ok) { loadAccounts(); loadStatus(); }
+}
+
+/* ─── 新增帳號 ──────────────────────────────────── */
+async function addAccount() {
+  const username = document.getElementById('new-username').value.trim();
+  const pin = document.getElementById('new-pin').value.trim();
+  const role = document.getElementById('new-role').value;
+  const display_name = document.getElementById('new-display').value.trim();
+  const errEl = document.getElementById('add-error');
+  const okEl = document.getElementById('add-result');
+  errEl.textContent = ''; okEl.textContent = '';
+  if (!username) { errEl.textContent = '請填帳號名稱'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { errEl.textContent = 'PIN 需為 4-6 位數字'; return; }
+  const r = await fetch('/admin/accounts', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Admin-PIN':_adminPin},
+    body: JSON.stringify({username, pin, role, display_name: display_name||undefined})
+  });
+  const d = await r.json();
+  if (d.ok) {
+    okEl.textContent = `✓ 帳號「${username}」已建立（${role}）`;
+    document.getElementById('new-username').value = '';
+    document.getElementById('new-pin').value = '';
+    document.getElementById('new-display').value = '';
+    loadStatus();
+  } else {
+    errEl.textContent = d.reason || '建立失敗';
+  }
+}
+
+/* ─── 伺服器狀態 ────────────────────────────────── */
+async function loadServerStatus() {
+  const el = document.getElementById('server-status');
+  try {
+    const r = await fetch('/admin/status');
+    const d = await r.json();
+    el.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:6px 0;color:var(--text2);">版本</td><td style="font-weight:600;">${d.server_version}</td></tr>
+        <tr><td style="padding:6px 0;color:var(--text2);">Pi 時間</td><td>${d.pi_time}</td></tr>
+        <tr><td style="padding:6px 0;color:var(--text2);">啟用帳號</td><td>${d.active_accounts} 個</td></tr>
+        <tr><td style="padding:6px 0;color:var(--text2);">連線裝置</td><td>${d.connected_clients} 台</td></tr>
+        <tr><td style="padding:6px 0;color:var(--text2);">上次同步指揮部</td><td style="font-size:12px;">${d.last_sync_to_command||'—'}</td></tr>
+        <tr><td style="padding:6px 0;color:var(--text2);">指揮部 URL</td><td style="font-size:12px;word-break:break-all;">${d.command_url||'（未設定）'}</td></tr>
+      </table>`;
+  } catch { el.innerHTML = '<div style="color:var(--red);">載入失敗</div>'; }
+}
+
+/* ─── 重設 PIN ──────────────────────────────────── */
+async function resetPin() {
+  const username = document.getElementById('reset-username').value.trim();
+  const pin = document.getElementById('reset-pin').value.trim();
+  const errEl = document.getElementById('reset-error');
+  const okEl = document.getElementById('reset-result');
+  errEl.textContent = ''; okEl.textContent = '';
+  if (!username || !/^\d{4,6}$/.test(pin)) { errEl.textContent = '請填帳號名稱和新 PIN'; return; }
+  const r = await fetch(`/admin/accounts/${username}/pin`, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json','X-Admin-PIN':_adminPin},
+    body: JSON.stringify({new_pin: pin, reset_by: 'admin'})
+  });
+  const d = await r.json();
+  if (d.ok) { okEl.textContent = `✓ 已重設 ${username} 的 PIN`; document.getElementById('reset-username').value=''; document.getElementById('reset-pin').value=''; }
+  else errEl.textContent = d.reason || '重設失敗';
+}
+
+init();
+</script>
+</body>
+</html>
