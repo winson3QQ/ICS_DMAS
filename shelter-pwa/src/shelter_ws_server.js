@@ -30,6 +30,17 @@ const fs         = require('fs');
 const path       = require('path');
 const Database   = require('better-sqlite3');
 
+/* ─── Log 系統（LOG_LEVEL=error|warn|info|debug，預設 info）────── */
+const _LOG_LEVELS = { error:0, warn:1, info:2, debug:3 };
+const _logLevel = _LOG_LEVELS[process.env.LOG_LEVEL] ?? _LOG_LEVELS.info;
+const log = {
+  error: (...a) => _logLevel >= 0 && console.error('[E]', ...a),
+  warn:  (...a) => _logLevel >= 1 && console.warn ('[W]', ...a),
+  info:  (...a) => _logLevel >= 2 && console.log  ('[I]', ...a),
+  debug: (...a) => _logLevel >= 3 && console.log  ('[D]', ...a),
+};
+log.info(`Log level: ${process.env.LOG_LEVEL || 'info'}`);
+
 /* ─── 設定 ────────────────────────────────────────────────────── */
 const WS_PORT      = process.env.WS_PORT       || 8765;
 const ADMIN_PORT   = process.env.ADMIN_PORT    || 8766;
@@ -49,14 +60,14 @@ const _caCertPath = process.env.CA_CERT_PATH ||
 const CA_CERT = (_caCertPath && fs.existsSync(_caCertPath))
   ? (() => { try { return fs.readFileSync(_caCertPath); } catch { return null; } })()
   : null;
-if (CA_CERT) console.log(`[TLS] 指揮部推送 CA=${_caCertPath}`);
+if (CA_CERT) log.info(`[TLS] 指揮部推送 CA=${_caCertPath}`);
 
 function loadTlsOptions() {
   if (!CERT_PATH || !KEY_PATH) return null;
   try {
     return { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
   } catch (e) {
-    console.warn(`[TLS] 憑證載入失敗：${e.message}，退回 HTTP`);
+    log.warn(`[TLS] 憑證載入失敗：${e.message}，退回 HTTP`);
     return null;
   }
 }
@@ -104,12 +115,12 @@ async function pushToCommand(snapshotPayload) {
   try {
     const res = await postJSON(`${target}/api/snapshots`, snapshotPayload);
     if (res.status >= 200 && res.status < 300) {
-      console.log(`[Command] Snapshot pushed OK: ${snapshotPayload.snapshot_id}`);
+      log.info(`[Command] Snapshot pushed OK: ${snapshotPayload.snapshot_id}`);
     } else {
-      console.warn(`[Command] Push failed ${res.status}: ${res.body}`);
+      log.warn(`[Command] Push failed ${res.status}: ${res.body}`);
     }
   } catch (err) {
-    console.warn(`[Command] Push error: ${err.message}`);
+    log.warn(`[Command] Push error: ${err.message}`);
   }
 }
 
@@ -134,7 +145,7 @@ async function autoPushLatestSnapshot() {
   // 驗證必填欄位（SnapshotIn 格式）：格式不對就跳過，避免 FastAPI 422
   const required = ['v', 'type', 'snapshot_id', 't', 'src'];
   if (required.some(k => !(k in payload))) {
-    console.log('[AutoPush] 快照格式不符 SnapshotIn，略過（等待新格式快照）');
+    log.debug("[AutoPush] 快照格式不符 SnapshotIn，略過（等待新格式快照）');
     return;
   }
   payload.source = 'auto';
@@ -145,7 +156,7 @@ function startAutoPush() {
   if (!(_commandUrl || COMMAND_URL)) return;
   setTimeout(() => autoPushLatestSnapshot(), 10_000);      // 啟動 10 秒後先推一次
   setInterval(() => autoPushLatestSnapshot(), AUTO_PUSH_INTERVAL_MS);
-  console.log(`[AutoPush] 定時推快照至指揮部，間隔 ${AUTO_PUSH_INTERVAL_MS / 1000}s`);
+  log.info(`[AutoPush] 定時推快照至指揮部，間隔 ${AUTO_PUSH_INTERVAL_MS / 1000}s`);
 }
 
 /* ─── 三 Pass 完整同步至指揮部（網路恢復後）──────────────────────
@@ -184,12 +195,12 @@ async function pushThreePassToCommand(lastSyncTs) {
     if (res.status >= 200 && res.status < 300) {
       const result = JSON.parse(res.body);
       updateLastSyncToCommand(nowISO());
-      console.log(`[ThreePass] OK → P1 merged:${result.pass1_merged} added:${result.pass1_added} P2 conflicts:${result.pass2_conflicts} P3:${result.pass3_added}`);
+      log.info(`[ThreePass] OK → P1 merged:${result.pass1_merged} added:${result.pass1_added} P2 conflicts:${result.pass2_conflicts} P3:${result.pass3_added}`);
       return result;
     }
-    console.warn(`[ThreePass] /api/sync/push 回應 ${res.status}，fallback`);
+    log.warn(`[ThreePass] /api/sync/push 回應 ${res.status}，fallback`);
   } catch (err) {
-    console.warn(`[ThreePass] 失敗: ${err.message}，fallback`);
+    log.warn(`[ThreePass] 失敗: ${err.message}，fallback`);
   }
   // fallback：推最新快照
   if (snapshots.length > 0) await pushToCommand(snapshots[snapshots.length - 1]);
@@ -265,14 +276,14 @@ db.exec(`
   const row = db.prepare("SELECT value FROM config WHERE key='last_sync_to_command'").get();
   if (!row) {
     db.prepare("INSERT INTO config(key,value) VALUES('last_sync_to_command','1970-01-01T00:00:00.000Z')").run();
-    console.log('[Config] Initialized last_sync_to_command = epoch (full sync on first connect)');
+    log.debug("[Config] Initialized last_sync_to_command = epoch (full sync on first connect)');
   }
   // 從 DB 讀取持久化的 command_url（若環境變數未設定）
   if (!COMMAND_URL) {
     const urlRow = db.prepare("SELECT value FROM config WHERE key='command_url'").get();
     if (urlRow) {
       _commandUrl = urlRow.value;
-      console.log(`[Config] Loaded command_url from DB: ${_commandUrl}`);
+      log.debug(`[Config] Loaded command_url from DB: ${_commandUrl}`);
     }
   }
 })();
@@ -359,13 +370,13 @@ const wsRawServer = tlsOpts
   : http.createServer();
 const wss = new WebSocket.Server({ server: wsRawServer });
 wsRawServer.listen(WS_PORT, () => {
-  console.log(`[WS] ${WS_PROTOCOL.toUpperCase()} Server listening on port ${WS_PORT}`);
+  log.info(`[WS] ${WS_PROTOCOL.toUpperCase()} Server listening on port ${WS_PORT}`);
 });
 const clients = new Map();
 
 wss.on('connection', (ws, req) => {
   const ip = req.socket.remoteAddress;
-  console.log(`[WS] Client connected from ${ip}`);
+  log.info(`[WS] Client connected from ${ip}`);
 
   ws.on('message', async (raw) => {
     let msg;
@@ -413,7 +424,7 @@ wss.on('connection', (ws, req) => {
           pi_time: nowISO(),
           last_sync_to_command: getLastSyncToCommand(),  // v2.1: 回傳讓前端知道上次同步時間
         }));
-        console.log(`[WS] Auth OK: ${username} (${account.role}) from ${ip}`);
+        log.info(`[WS] Auth OK: ${username} (${account.role}) from ${ip}`);
         break;
       }
 
@@ -434,7 +445,7 @@ wss.on('connection', (ws, req) => {
         const since = msg.since || '1970-01-01T00:00:00.000Z';
         const deltas = getRecentDeltas(since);
         ws.send(JSON.stringify({ type: 'catchup_resp', deltas, pi_time: nowISO() }));
-        console.log(`[WS] Catchup: sent ${deltas.length} deltas since ${since}`);
+        log.info(`[WS] Catchup: sent ${deltas.length} deltas since ${since}`);
         break;
       }
 
@@ -518,12 +529,12 @@ wss.on('connection', (ws, req) => {
           snapshots_merged: snapshotsMerged,
           pass1_results: passOneResults,
         }));
-        console.log(`[WS] sync_push: applied ${recordsApplied} records, merged ${snapshotsMerged} snapshots`);
+        log.info(`[WS] sync_push: applied ${recordsApplied} records, merged ${snapshotsMerged} snapshots`);
 
         // §10.4：網路恢復後執行三 Pass 完整同步至指揮部（非同步，不阻塞回應）
         // 使用 pushThreePassToCommand 取代 pushToCommand，帶入所有斷線期間的快照與事件
         pushThreePassToCommand(sync_start_ts).catch(err =>
-          console.warn('[ThreePass] async error:', err.message)
+          log.warn("[ThreePass] async error:', err.message)
         );
         break;
       }
@@ -559,11 +570,11 @@ wss.on('connection', (ws, req) => {
   ws.on('close', (code, reason) => {
     const info = clients.get(ws);
     const who = info ? info.username : '(未驗證)';
-    console.log(`[WS] Disconnected: ${who} code=${code} reason=${reason||''}`);
+    log.info(`[WS] Disconnected: ${who} code=${code} reason=${reason||''}`);
     clients.delete(ws);
   });
 
-  ws.on('error', err => console.warn('[WS] Error:', err.message));
+  ws.on("error", err => log.warn('[WS] Error:', err.message));
 
   ws.send(JSON.stringify({
     type: 'welcome',
@@ -573,7 +584,7 @@ wss.on('connection', (ws, req) => {
   }));
 });
 
-wss.on('error', err => console.error('[WS Server Error]', err));
+wss.on("error", err => log.error('[WS Server Error]', err));
 
 /* ─── 伺服器端 Ping（維持 iOS Safari WebSocket 連線）──────────
    iOS Safari 在背景或節能模式下會關閉閒置 WebSocket。
@@ -629,7 +640,7 @@ app.use(express.json());
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 if (fs.existsSync(PUBLIC_DIR)) {
   app.use(express.static(PUBLIC_DIR));
-  console.log(`[Static] 提供 PWA 靜態檔案：${PUBLIC_DIR}`);
+  log.info(`[Static] 提供 PWA 靜態檔案：${PUBLIC_DIR}`);
 }
 
 app.get('/', (req, res) => {
@@ -795,7 +806,7 @@ app.post('/admin/command-url', adminAuth, async (req, res) => {
   _commandUrl = url.replace(/\/$/, '');
   // 寫入 config 表持久化
   db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('command_url',?)").run(_commandUrl);
-  console.log(`[Config] command_url set to: ${_commandUrl}`);
+  log.debug(`[Config] command_url set to: ${_commandUrl}`);
   // 測試連線
   try {
     const r = await fetch(`${_commandUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
@@ -811,9 +822,9 @@ const adminServer = tlsOpts
   : http.createServer(app);
 
 adminServer.listen(ADMIN_PORT, () => {
-  console.log(`[Admin] v2.1 ${PROTOCOL.toUpperCase()} Listening on port ${ADMIN_PORT}`);
+  log.info(`[Admin] v2.1 ${PROTOCOL.toUpperCase()} Listening on port ${ADMIN_PORT}`);
   if (!getAdminPinHash()) {
-    console.warn('[Admin] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
+    log.warn("[Admin] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
   }
   startAutoPush();
 });

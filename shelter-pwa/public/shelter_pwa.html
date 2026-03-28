@@ -2117,6 +2117,18 @@ async function syncAfterWrite(table,idOrRecord){
 }
 
 /* ══ WsManager ══════════════════════════════════════════════════ */
+// Client log：localStorage.setItem('ics_log_level','debug') 啟用詳細 log
+// 層級：error=0 warn=1 info=2 debug=3（預設 warn）
+const _wsLog = (()=>{
+  const LEVELS={error:0,warn:1,info:2,debug:3};
+  const level=()=>LEVELS[localStorage.getItem('ics_log_level')||'warn']??1;
+  return{
+    error:(...a)=>level()>=0&&console.error('[WS]',...a),
+    warn: (...a)=>level()>=1&&console.warn ('[WS]',...a),
+    info: (...a)=>level()>=2&&console.log  ('[WS]',...a),
+    debug:(...a)=>level()>=3&&console.log  ('[WS:D]',...a),
+  };
+})();
 const WsManager = (function(){
   'use strict';
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
@@ -2129,40 +2141,46 @@ const WsManager = (function(){
     getPiUrl(){if(!_piUrl)_piUrl=localStorage.getItem('shelter_pi_url')||'';return _piUrl;},
     connect(onAuth){
       // 若目前 WS 正在 CONNECTING 或 OPEN，不重複建立
-      if(_ws&&(_ws.readyState===WebSocket.CONNECTING||_ws.readyState===WebSocket.OPEN))return;
+      if(_ws&&(_ws.readyState===WebSocket.CONNECTING||_ws.readyState===WebSocket.OPEN)){
+        _wsLog.debug('connect() skipped — WS already active, readyState='+_ws.readyState);return;
+      }
       if(onAuth!==undefined)_authHandler=onAuth;
       const url=this.getPiUrl();if(!url){this._enterDegraded('未設定 Pi URL');return;}
-      // 廢棄舊連線的 callback，避免 stale event 干擾
-      if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;try{_ws.close();}catch{}_ws=null;}
+      // iOS Safari 已知問題：主動 close() 後立即建新 WS 會得到 code=1006。
+      // 改為只廢棄 callback（不 close），讓 iOS 自己 GC 舊物件。
+      if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws=null;}
       _connected=false;
+      _wsLog.info('connecting to', url);
       _updateDot('pending');_updateLoginStatus('pending');
       const w=new WebSocket(url);
       _ws=w;
       const timer=setTimeout(()=>{
-        if(_ws!==w)return; // 已被新連線取代
-        _ws=null;try{w.close();}catch{}
+        if(_ws!==w)return;
+        _wsLog.warn('connect timeout 15s');
+        _ws=null;w.onopen=null;w.onclose=null;w.onerror=null;w.onmessage=null;
         this._enterDegraded('Pi 連線逾時（15 秒）');
         _scheduleReconnect();
       },CONNECT_TIMEOUT);
       w.onopen=()=>{
-        if(_ws!==w)return; // stale
+        if(_ws!==w)return;
         clearTimeout(timer);_connected=true;_degraded=false;
+        _wsLog.info('connected ✓');
         _updateDot('ok');_updateLoginStatus('ok');
         const rg=document.getElementById('degraded-role-grid');if(rg)rg.style.display='none';
         this._startTimeSync();this._requestCatchup();
       };
       w.onmessage=(ev)=>{if(_ws!==w)return;let msg;try{msg=JSON.parse(ev.data);}catch{return;}this._handleMsg(msg);};
-      w.onclose=()=>{
-        if(_ws!==w)return; // stale
+      w.onclose=(code,reason)=>{
+        if(_ws!==w)return;
         clearTimeout(timer);_ws=null;
+        _wsLog.warn(`ws closed code=${code} reason=${reason||''}`);
         if(_connected){_connected=false;_updateDot('off');_updateLoginStatus('pending');_scheduleReconnect();}
         else if(!_degraded){_scheduleReconnect();}
       };
       w.onerror=(e)=>{
-        if(_ws!==w)return; // stale
+        if(_ws!==w)return;
         clearTimeout(timer);_ws=null;
-        const reason=e&&e.message?e.message:'(無詳細資訊)';
-        console.warn('[WsManager] onerror:',reason);
+        _wsLog.warn('ws onerror',e&&e.message?e.message:'');
         this._enterDegraded('Pi 連線失敗');_scheduleReconnect();
       };
     },
@@ -2225,13 +2243,15 @@ const WsManager = (function(){
     if(_reconnectTimer)return;
     _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;_updateLoginStatus('pending');WsManager.connect(null);},RECONNECT_DELAY);
   }
-  // iOS Safari 切回前景時：若沒有活躍連線，立即重連（繞過 timer 凍結）
+  // iOS Safari 切回前景：若無活躍連線，延遲 300ms 再重連
+  // （iOS Safari 已知問題：立即重連同一 WSS endpoint 會得到 code=1006）
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState!=='visible')return;
+    _wsLog.debug('visibilitychange → visible, ws readyState='+((_ws&&_ws.readyState)??'null'));
     const wsActive=_ws&&(_ws.readyState===WebSocket.OPEN||_ws.readyState===WebSocket.CONNECTING);
     if(!wsActive){
       if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
-      WsManager.connect(null);
+      setTimeout(()=>WsManager.connect(null),300);
     }
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
