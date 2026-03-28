@@ -2212,9 +2212,20 @@ const WsManager = (function(){
   };
   function _syncTime(piIso){const piMs=new Date(piIso).getTime(),localMs=Date.now();_piTimeOffset=piMs-localMs;// 注意：不覆寫 shelter_last_sync_ts，那個 key 由 sync_ack 獨家管理
   if(typeof db!=='undefined'&&db.time_sync){db.time_sync.add({device_id:SyncManager.deviceId(),pi_time:piIso,local_time:new Date(localMs).toISOString(),offset_ms:_piTimeOffset,timestamp:new Date(localMs).toISOString()}).catch(()=>{});db.time_sync.count().then(cnt=>{if(cnt>200)db.time_sync.orderBy('_id').limit(cnt-200).primaryKeys().then(keys=>db.time_sync.bulkDelete(keys)).catch(()=>{}); }).catch(()=>{});}}
-  function _scheduleReconnect(){if(_reconnectTimer)return;_reconnectTimer=setTimeout(()=>{_reconnectTimer=null;_updateLoginStatus('pending');WsManager.connect(null);},RECONNECT_DELAY);}
-  // iOS Safari 切換 App 後 JS timer 會被凍結，visibilitychange 是頁面重回前景的可靠觸發點
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_connected){if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}WsManager.connect(null);}});
+  function _scheduleReconnect(){
+    if(_reconnectTimer||_connecting)return;
+    _connecting=true; // 在 delay 期間也鎖定，防止 visibilitychange 並發
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;_connecting=false;_updateLoginStatus('pending');WsManager.connect(null);},RECONNECT_DELAY);
+  }
+  // iOS Safari 切回前景時：若 WS 實際已斷（CLOSED/null），立即重連；否則不動
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState!=='visible')return;
+    const wsGone=!_ws||_ws.readyState===WebSocket.CLOSED||_ws.readyState===WebSocket.CLOSING;
+    if(wsGone&&!_connecting){
+      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;_connecting=false;}
+      WsManager.connect(null);
+    }
+  });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _updateLoginStatus(state){
     const el=document.getElementById('login-pi-status');if(!el)return;

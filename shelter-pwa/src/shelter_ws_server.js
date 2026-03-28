@@ -574,6 +574,17 @@ wss.on('connection', (ws, req) => {
 
 wss.on('error', err => console.error('[WS Server Error]', err));
 
+/* ─── 伺服器端 Ping（維持 iOS Safari WebSocket 連線）──────────
+   iOS Safari 在背景或節能模式下會關閉閒置 WebSocket。
+   每 25 秒由伺服器主動 ping，瀏覽器自動回 pong，
+   讓系統認為連線有活動，避免被關閉。
+─────────────────────────────────────────────────────────── */
+setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.readyState === ws.OPEN) ws.ping();
+  });
+}, 25_000);
+
 /* ─── 稽核日誌寫入 ─────────────────────────────────────────── */
 function writeAuditLog(action, operator, deviceId, sessionId, detail) {
   db.prepare(`INSERT INTO audit_log(id,action,operator_name,device_id,session_id,timestamp,detail)
