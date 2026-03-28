@@ -2158,7 +2158,7 @@ const WsManager = (function(){
         if(_ws!==w)return;
         _wsLog.warn('connect timeout 15s');
         _ws=null;w.onopen=null;w.onclose=null;w.onerror=null;w.onmessage=null;
-        // 逾時也是暫時性問題，保持黃燈繼續 backoff 重連
+        try{w.close(1000);}catch(_){} // 明確釋放 iOS TCP 連線，backoff delay 後再重建
         _updateDot('off');_updateLoginStatus('pending');
         _scheduleReconnect();
       },CONNECT_TIMEOUT);
@@ -2183,8 +2183,9 @@ const WsManager = (function(){
         if(_ws!==w)return;
         clearTimeout(timer);_ws=null;
         _wsLog.warn('ws onerror',e&&e.message?e.message:'');
-        // 網路錯誤（含 iOS 背景化後 1006）：顯示黃燈重連，不進入降級（紅燈）
-        // _enterDegraded 只用於「無 Pi URL」或「使用者主動設定無效」等永久性問題
+        try{w.close(1000);}catch(_){} // 明確釋放 iOS TCP 連線，不留殘餘連線佔用 iOS 配額
+        // 網路錯誤：顯示黃燈重連，不進入降級（紅燈）
+        // backoff delay ≥2s 後再建新 WS，避免 iOS close→立即 new WS 的 1006 問題
         if(_connected){_connected=false;}
         _updateDot('off');_updateLoginStatus('pending');
         _scheduleReconnect();
