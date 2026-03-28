@@ -298,8 +298,11 @@
   <h1 id="shelter-name-title">收容組</h1>
   <div class="subtitle" id="shelter-loc-subtitle">收容管理系統 v2.1</div>
   <!-- Pi 連線狀態列（登入頁） -->
-  <div id="login-pi-status" style="margin-bottom:8px;padding:5px 12px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);display:inline-block;">
-    🟡 Pi 連線中…
+  <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+    <div id="login-pi-status" style="padding:5px 12px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);">
+      🟡 Pi 連線中…
+    </div>
+    <button onclick="WsManager.connect(null)" style="padding:4px 10px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.3);cursor:pointer;">重試</button>
   </div>
   <div id="operator-section" style="width:100%;max-width:420px;margin-bottom:20px;display:flex;flex-direction:column;gap:8px;">
     <input id="operator-username-input" type="text" placeholder="任務帳號 / 姓名" autocomplete="off" autocorrect="off" spellcheck="false"
@@ -2209,7 +2212,7 @@ const WsManager = (function(){
   };
   function _syncTime(piIso){const piMs=new Date(piIso).getTime(),localMs=Date.now();_piTimeOffset=piMs-localMs;// 注意：不覆寫 shelter_last_sync_ts，那個 key 由 sync_ack 獨家管理
   if(typeof db!=='undefined'&&db.time_sync){db.time_sync.add({device_id:SyncManager.deviceId(),pi_time:piIso,local_time:new Date(localMs).toISOString(),offset_ms:_piTimeOffset,timestamp:new Date(localMs).toISOString()}).catch(()=>{});db.time_sync.count().then(cnt=>{if(cnt>200)db.time_sync.orderBy('_id').limit(cnt-200).primaryKeys().then(keys=>db.time_sync.bulkDelete(keys)).catch(()=>{}); }).catch(()=>{});}}
-  function _scheduleReconnect(){if(_reconnectTimer)return;_reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},RECONNECT_DELAY);}
+  function _scheduleReconnect(){if(_reconnectTimer)return;_reconnectTimer=setTimeout(()=>{_reconnectTimer=null;_updateLoginStatus('pending');WsManager.connect(null);},RECONNECT_DELAY);}
   // iOS Safari 切換 App 後 JS timer 會被凍結，visibilitychange 是頁面重回前景的可靠觸發點
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_connected){if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}WsManager.connect(null);}});
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
@@ -2231,7 +2234,7 @@ const WsManager = (function(){
   function _hideDegradedBanner(){/* 已整合至 login-pi-status，保留空函式維持相容 */}
 })();
 
-function savePiUrl(){const val=document.getElementById('pi-url-input')?.value.trim(),sEl=document.getElementById('pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：ws://192.168.1.100:8765';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，下次登入生效';}
+function savePiUrl(){const val=document.getElementById('pi-url-input')?.value.trim(),sEl=document.getElementById('pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：ws://192.168.1.100:8765';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，連線中…';WsManager.connect(null);}
 
 /* ── L1+L2 橋接 ── */
 const _origBroadcast=SyncManager.broadcast.bind(SyncManager);
