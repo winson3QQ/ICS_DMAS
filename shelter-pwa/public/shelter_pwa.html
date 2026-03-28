@@ -2134,7 +2134,7 @@ const WsManager = (function(){
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
   let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
   let _connectTimer=null; // 保存 connect timeout timer，供 visibilitychange 取消用
-  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=8000;
+  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=25000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
@@ -2266,16 +2266,25 @@ const WsManager = (function(){
   // 代價：短暫切換 app 也會重連一次（< 500ms），可接受。
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState!=='visible')return;
-    _wsLog.debug('visibilitychange → visible, readyState='+(_ws?_ws.readyState:'null'));
-    // 強制丟棄現有 WS（不論狀態），避免 iOS 殭屍連線
-    if(_ws){const dead=_ws;_ws=null;dead.onopen=null;dead.onclose=null;dead.onerror=null;dead.onmessage=null;}
-    if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
-    if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
-    _connected=false;_backoffMs=RECONNECT_BASE;
-    _updateDot('off');_updateLoginStatus('pending');
-    // 2500ms：給 iOS 足夠時間回收舊 TCP（background 連線約需 10-12s 完成，
-    // 但 null callbacks 後立刻排下一個，iOS 仍需 ~2s 實際釋放 socket slot）
-    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},2500);
+    const rs=_ws?_ws.readyState:null;
+    _wsLog.debug('visibilitychange → visible, readyState='+rs);
+    if(rs===WebSocket.OPEN){
+      // OPEN 狀態：iOS 可能已靜默 kill 但未通知 JS，強制重建
+      const dead=_ws;_ws=null;dead.onopen=null;dead.onclose=null;dead.onerror=null;dead.onmessage=null;
+      if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+      _connected=false;_backoffMs=RECONNECT_BASE;
+      _updateDot('off');_updateLoginStatus('pending');
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},300);
+    } else if(rs===WebSocket.CONNECTING){
+      // CONNECTING 狀態：iOS 正在完成 TLS，不要打斷，讓 onopen 自然觸發
+      _wsLog.debug('visibilitychange: WS still CONNECTING, letting iOS finish TLS');
+    } else {
+      // null 或 CLOSED：直接重連
+      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+      _backoffMs=RECONNECT_BASE;
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},300);
+    }
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _updateLoginStatus(state, detail){
