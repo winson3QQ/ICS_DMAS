@@ -2271,7 +2271,9 @@ const WsManager = (function(){
     if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
     _connected=false;_backoffMs=RECONNECT_BASE;
     _updateDot('off');_updateLoginStatus('pending');
-    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},300);
+    // 2500ms：給 iOS 足夠時間回收舊 TCP（background 連線約需 10-12s 完成，
+    // 但 null callbacks 後立刻排下一個，iOS 仍需 ~2s 實際釋放 socket slot）
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);},2500);
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _updateLoginStatus(state, detail){
@@ -2436,9 +2438,11 @@ const _origAppInit=App.init.bind(App);
 App.init=async function(){
   const piUrlInput=document.getElementById('pi-url-input'),savedPiUrl=WsManager.getPiUrl();
   if(piUrlInput&&savedPiUrl)piUrlInput.value=savedPiUrl;
+  // 先完成 App.init（含 serviceWorker.register + IndexedDB），再建立 WS
+  // 避免 serviceWorker.register 佔用 iOS main thread，導致 WS onopen callback 被延遲
+  await _origAppInit();
   if(savedPiUrl){WsManager.connect(null);}
   else WsManager._enterDegraded('未設定 Pi URL');
-  await _origAppInit();
 };
 window.switchRole=function(){PinLock.clear();PersonCrypto.clearKey();sessionStorage.removeItem('shelter_session_id');localStorage.removeItem('shelter_role');location.reload();};
 
