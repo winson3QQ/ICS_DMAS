@@ -2158,7 +2158,8 @@ const WsManager = (function(){
         if(_ws!==w)return;
         _wsLog.warn('connect timeout 15s');
         _ws=null;w.onopen=null;w.onclose=null;w.onerror=null;w.onmessage=null;
-        this._enterDegraded('Pi 連線逾時（15 秒）');
+        // 逾時也是暫時性問題，保持黃燈繼續 backoff 重連
+        _updateDot('off');_updateLoginStatus('pending');
         _scheduleReconnect();
       },CONNECT_TIMEOUT);
       w.onopen=()=>{
@@ -2182,7 +2183,11 @@ const WsManager = (function(){
         if(_ws!==w)return;
         clearTimeout(timer);_ws=null;
         _wsLog.warn('ws onerror',e&&e.message?e.message:'');
-        this._enterDegraded('Pi 連線失敗');_scheduleReconnect();
+        // 網路錯誤（含 iOS 背景化後 1006）：顯示黃燈重連，不進入降級（紅燈）
+        // _enterDegraded 只用於「無 Pi URL」或「使用者主動設定無效」等永久性問題
+        if(_connected){_connected=false;}
+        _updateDot('off');_updateLoginStatus('pending');
+        _scheduleReconnect();
       };
     },
     authenticate(username,pin){
