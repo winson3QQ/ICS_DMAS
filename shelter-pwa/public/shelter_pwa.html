@@ -297,14 +297,13 @@
   <div class="logo">🏠</div>
   <h1 id="shelter-name-title">收容組</h1>
   <div class="subtitle" id="shelter-loc-subtitle">收容管理系統 v2.1</div>
+  <!-- Pi 連線狀態列（登入頁） -->
+  <div id="login-pi-status" style="margin-bottom:8px;padding:5px 12px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);display:inline-block;">
+    🟡 Pi 連線中…
+  </div>
   <div id="operator-section" style="width:100%;max-width:420px;margin-bottom:20px;display:flex;flex-direction:column;gap:8px;">
-    <div id="degraded-banner" style="display:none;background:rgba(255,200,0,.2);border:1px solid rgba(255,200,0,.5);border-radius:8px;padding:8px 12px;color:#FFD08A;font-size:12px;line-height:1.5;">
-      ⚠️ <strong>Pi 連線失敗，進入降級模式</strong><br>資料不會自動跨裝置同步，請使用 Peer Delta 手動合併。
-    </div>
-    <input id="operator-username-input" type="text" placeholder="任務帳號（如 PM-001）" autocomplete="off" autocorrect="off" spellcheck="false"
+    <input id="operator-username-input" type="text" placeholder="任務帳號 / 姓名" autocomplete="off" autocorrect="off" spellcheck="false"
       style="width:100%;padding:12px 16px;border-radius:10px;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:16px;outline:none;backdrop-filter:blur(8px);">
-    <input id="operator-name-input" type="text" placeholder="操作者姓名或工號（降級模式）" autocomplete="off" autocorrect="off" spellcheck="false"
-      style="display:none;width:100%;padding:12px 16px;border-radius:10px;border:2px solid rgba(255,200,0,.4);background:rgba(255,200,0,.1);color:#fff;font-size:16px;outline:none;backdrop-filter:blur(8px);">
     <input id="operator-pin-input" type="password" placeholder="PIN（4-6 位數字）" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
       style="width:100%;padding:12px 16px;border-radius:10px;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:16px;outline:none;backdrop-filter:blur(8px);letter-spacing:6px;">
     <details style="color:rgba(255,255,255,.7);font-size:12px;">
@@ -318,12 +317,14 @@
     </details>
     <div id="operator-warn" style="color:#FFD08A;font-size:12px;margin-top:0;display:none;"></div>
   </div>
-  <div id="login-btn-section">
-    <button class="role-btn leader" style="width:100%;max-width:420px;justify-content:center;margin-bottom:0;" onclick="handleLogin(null)">
-      <span class="icon">🔐</span><span class="name">登入</span><span class="desc">帳號決定角色</span>
+  <!-- 登入按鈕（Pi 已連線時）或角色選擇（Pi 離線時） -->
+  <div id="login-btn-section" style="width:100%;max-width:420px;">
+    <button id="login-main-btn" class="role-btn leader" style="width:100%;justify-content:center;margin-bottom:0;" onclick="handleLogin(null)">
+      <span class="icon">🔐</span><span class="name" id="login-btn-text">登入</span><span class="desc" id="login-btn-desc">帳號決定角色</span>
     </button>
   </div>
-  <div id="degraded-role-grid" class="role-grid" style="display:none;">
+  <!-- 降級角色選擇（Pi 離線、輸入帳號+PIN 後顯示） -->
+  <div id="degraded-role-grid" class="role-grid" style="display:none;width:100%;max-width:420px;margin-top:8px;">
     <button class="role-btn leader" onclick="handleLogin('組長')"><span class="icon">📊</span><span class="name">組長</span><span class="desc">所有資料・名冊・設定</span></button>
     <button class="role-btn" onclick="handleLogin('人管')"><span class="icon">👤</span><span class="name">人管</span><span class="desc">入站・床位分配</span></button>
     <button class="role-btn" onclick="handleLogin('物管')"><span class="icon">📦</span><span class="name">物管</span><span class="desc">物資盤點・追蹤</span></button>
@@ -2131,7 +2132,7 @@ const WsManager = (function(){
       // 關閉舊連線（避免同時存在多條 WebSocket）
       if(_ws&&_ws.readyState!==WebSocket.CLOSED){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws.close();}
       _ws=null;_connected=false;
-      _updateDot('pending');let timedOut=false;
+      _updateDot('pending');_updateLoginStatus('pending');let timedOut=false;
       const timer=setTimeout(()=>{
         timedOut=true;_connecting=false;
         if(_ws){_ws.onclose=null;_ws.onerror=null;_ws.close();}
@@ -2142,10 +2143,10 @@ const WsManager = (function(){
         _ws=new WebSocket(url);
         _ws.onopen=()=>{
           if(timedOut)return;clearTimeout(timer);_connecting=false;
-          _connected=true;_degraded=false;_updateDot('ok');_hideDegradedBanner();
-          // 連線成功後，若目前在降級登入頁（有 degraded-role-grid 顯示），重載頁面回到正常登入
+          _connected=true;_degraded=false;_updateDot('ok');_updateLoginStatus('ok');
+          // 連線成功時若角色選擇已展開，收起並恢復正常登入按鈕
           const rg=document.getElementById('degraded-role-grid');
-          if(rg&&rg.style.display==='grid'){location.reload();return;}
+          if(rg)rg.style.display='none';
           this._startTimeSync();this._requestCatchup();
         };
         _ws.onmessage=(ev)=>{let msg;try{msg=JSON.parse(ev.data);}catch{return;}this._handleMsg(msg);};
@@ -2200,9 +2201,8 @@ const WsManager = (function(){
       }
     },
     _enterDegraded(reason){
-      console.warn('[WsManager] Degraded:',reason);_degraded=true;_connected=false;_updateDot('off');_showDegradedBanner();
-      const ui=document.getElementById('operator-username-input'),ni=document.getElementById('operator-name-input'),lb=document.getElementById('login-btn-section'),rg=document.getElementById('degraded-role-grid');
-      if(ui)ui.style.display='none';if(ni)ni.style.display='block';if(lb)lb.style.display='none';if(rg)rg.style.display='grid';
+      console.warn('[WsManager] Degraded:',reason);_degraded=true;_connected=false;_updateDot('off');
+      _updateLoginStatus('off');
     },
     _startTimeSync(){if(_timeSyncTimer)clearInterval(_timeSyncTimer);_timeSyncTimer=setInterval(()=>{if(_connected&&_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'time_sync_req',device_id:SyncManager.deviceId()}));},TIME_SYNC_INTERVAL);},
     _requestCatchup(){const since=localStorage.getItem('shelter_last_sync_ts')||'1970-01-01T00:00:00.000Z';if(_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'catchup_req',since}));},
@@ -2213,8 +2213,22 @@ const WsManager = (function(){
   // iOS Safari 切換 App 後 JS timer 會被凍結，visibilitychange 是頁面重回前景的可靠觸發點
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_connected){if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}WsManager.connect(null);}});
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
-  function _showDegradedBanner(){const b=document.getElementById('degraded-banner');if(b)b.style.display='block';}
-  function _hideDegradedBanner(){const b=document.getElementById('degraded-banner');if(b)b.style.display='none';}
+  function _updateLoginStatus(state){
+    const el=document.getElementById('login-pi-status');if(!el)return;
+    const btn=document.getElementById('login-btn-text'),desc=document.getElementById('login-btn-desc');
+    if(state==='ok'){
+      el.textContent='🟢 Pi 已連線';el.style.background='rgba(80,200,100,.2)';el.style.color='#90e0a0';
+      if(btn)btn.textContent='登入';if(desc)desc.textContent='帳號決定角色';
+    }else if(state==='pending'){
+      el.textContent='🟡 Pi 連線中…';el.style.background='rgba(255,200,0,.15)';el.style.color='rgba(255,255,255,.8)';
+      if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
+    }else{
+      el.textContent='🔴 Pi 離線（離線模式）';el.style.background='rgba(200,60,60,.2)';el.style.color='#f08080';
+      if(btn)btn.textContent='離線登入';if(desc)desc.textContent='請選擇角色，資料不跨裝置同步';
+    }
+  }
+  function _showDegradedBanner(){/* 已整合至 login-pi-status，保留空函式維持相容 */}
+  function _hideDegradedBanner(){/* 已整合至 login-pi-status，保留空函式維持相容 */}
 })();
 
 function savePiUrl(){const val=document.getElementById('pi-url-input')?.value.trim(),sEl=document.getElementById('pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：ws://192.168.1.100:8765';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，下次登入生效';}
@@ -2304,9 +2318,14 @@ async function handleLogin(roleHint) {
   }
 
   /* 降級路徑 */
-  const ni=document.getElementById('operator-name-input'),name=ni?ni.value.trim():'';
-  if(!name){warn.textContent='⚠️ 降級模式：請輸入操作者姓名';warn.style.display='block';ni?.focus();return;}
-  if(!roleHint){warn.textContent='⚠️ 降級模式：請選擇角色';warn.style.display='block';return;}
+  const ui2=document.getElementById('operator-username-input'),name=ui2?ui2.value.trim():'';
+  if(!name){warn.textContent='⚠️ 離線模式：請輸入姓名或帳號';warn.style.display='block';ui2?.focus();return;}
+  // 若尚未選擇角色，展開角色選擇區
+  if(!roleHint){
+    const rg=document.getElementById('degraded-role-grid');
+    if(rg)rg.style.display='grid';
+    warn.textContent='⚠️ 請選擇您的角色';warn.style.display='block';return;
+  }
   if(PinLock.isSetup()){const ok=await PinLock.verify(pin);if(!ok){warn.textContent='⚠️ PIN 不符，請重新輸入';warn.style.display='block';if(pinInput){pinInput.value='';pinInput.focus();}return;}}
   else await PinLock.setup(pin);
   if(pinInput)pinInput.value='';
@@ -2356,7 +2375,7 @@ const _origAppInit=App.init.bind(App);
 App.init=async function(){
   const piUrlInput=document.getElementById('pi-url-input'),savedPiUrl=WsManager.getPiUrl();
   if(piUrlInput&&savedPiUrl)piUrlInput.value=savedPiUrl;
-  if(savedPiUrl)WsManager.connect(null);
+  if(savedPiUrl){WsManager.connect(null);}
   else WsManager._enterDegraded('未設定 Pi URL');
   await _origAppInit();
 };
