@@ -2256,14 +2256,16 @@ const WsManager = (function(){
       _backoffMs=Math.min(_backoffMs*2, RECONNECT_MAX);
     }, _backoffMs);
   }
-  // iOS Safari 切回前景：只記 log，不立即重連，讓 backoff 機制自然處理
-  // 避免 visibilitychange 和 _scheduleReconnect 並發造成 iOS 限速
+  // iOS Safari 切回前景：取消現有 backoff timer，重置退避計數，300ms 後重連
+  // 理由：使用者主動切回 app，應立即嘗試，不應等待最長 30s 的 backoff
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState!=='visible')return;
     const wsActive=_ws&&(_ws.readyState===WebSocket.OPEN||_ws.readyState===WebSocket.CONNECTING);
     _wsLog.debug('visibilitychange → visible, wsActive='+wsActive+' backoffMs='+_backoffMs);
-    // 若目前沒有排程也沒有活躍連線，加快重連（但不立即，給 iOS 300ms 喘息）
-    if(!wsActive&&!_reconnectTimer){
+    if(!wsActive){
+      // 取消現有 backoff timer（若有），重置退避計數
+      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+      _backoffMs=RECONNECT_BASE;
       _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null);}, 300);
     }
   });
