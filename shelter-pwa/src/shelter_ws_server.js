@@ -538,7 +538,6 @@ wss.on('connection', (ws, req) => {
 });
 
 wss.on('error', err => console.error('[WS Server Error]', err));
-console.log(`[WS] v2.1 Server listening on port ${WS_PORT}`);
 
 /* ─── 稽核日誌寫入 ─────────────────────────────────────────── */
 function writeAuditLog(action, operator, deviceId, sessionId, detail) {
