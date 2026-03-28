@@ -2158,7 +2158,6 @@ const WsManager = (function(){
         if(_ws!==w)return;
         _wsLog.warn('connect timeout 15s');
         _ws=null;w.onopen=null;w.onclose=null;w.onerror=null;w.onmessage=null;
-        try{w.close(1000);}catch(_){} // 明確釋放 iOS TCP 連線，backoff delay 後再重建
         _updateDot('off');_updateLoginStatus('pending');
         _scheduleReconnect();
       },CONNECT_TIMEOUT);
@@ -2183,9 +2182,8 @@ const WsManager = (function(){
         if(_ws!==w)return;
         clearTimeout(timer);_ws=null;
         _wsLog.warn('ws onerror',e&&e.message?e.message:'');
-        try{w.close(1000);}catch(_){} // 明確釋放 iOS TCP 連線，不留殘餘連線佔用 iOS 配額
-        // 網路錯誤：顯示黃燈重連，不進入降級（紅燈）
-        // backoff delay ≥2s 後再建新 WS，避免 iOS close→立即 new WS 的 1006 問題
+        // 不呼叫 w.close()：iOS Safari 在 onerror 後 close 同一 endpoint 可能觸發速率限制
+        // 直接 null 掉 callbacks 即可，backoff delay 後建新 WS
         if(_connected){_connected=false;}
         _updateDot('off');_updateLoginStatus('pending');
         _scheduleReconnect();
