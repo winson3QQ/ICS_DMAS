@@ -32,7 +32,7 @@ const Database   = require('better-sqlite3');
 
 /* ─── Log 系統（LOG_LEVEL=error|warn|info|debug，預設 info）────── */
 const _LOG_LEVELS = { error:0, warn:1, info:2, debug:3 };
-const _logLevel = _LOG_LEVELS[process.env.LOG_LEVEL] ?? _LOG_LEVELS.info;
+const _logLevel = _LOG_LEVELS[process.env.LOG_LEVEL] ?? _LOG_LEVELS.debug;
 const log = {
   error: (...a) => _logLevel >= 0 && console.error('[E]', ...a),
   warn:  (...a) => _logLevel >= 1 && console.warn ('[W]', ...a),

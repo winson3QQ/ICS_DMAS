@@ -2121,7 +2121,7 @@ async function syncAfterWrite(table,idOrRecord){
 // 層級：error=0 warn=1 info=2 debug=3（預設 warn）
 const _wsLog = (()=>{
   const LEVELS={error:0,warn:1,info:2,debug:3};
-  const level=()=>LEVELS[localStorage.getItem('ics_log_level')||'warn']??1;
+  const level=()=>LEVELS[localStorage.getItem('ics_log_level')||'debug']??3;
   return{
     error:(...a)=>level()>=0&&console.error('[WS]',...a),
     warn: (...a)=>level()>=1&&console.warn ('[WS]',...a),
