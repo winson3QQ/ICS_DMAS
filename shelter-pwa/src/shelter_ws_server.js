@@ -145,7 +145,7 @@ async function autoPushLatestSnapshot() {
   // 驗證必填欄位（SnapshotIn 格式）：格式不對就跳過，避免 FastAPI 422
   const required = ['v', 'type', 'snapshot_id', 't', 'src'];
   if (required.some(k => !(k in payload))) {
-    log.debug("[AutoPush] 快照格式不符 SnapshotIn，略過（等待新格式快照）');
+    log.debug('[AutoPush] 快照格式不符 SnapshotIn，略過（等待新格式快照）');
     return;
   }
   payload.source = 'auto';
@@ -276,7 +276,7 @@ db.exec(`
   const row = db.prepare("SELECT value FROM config WHERE key='last_sync_to_command'").get();
   if (!row) {
     db.prepare("INSERT INTO config(key,value) VALUES('last_sync_to_command','1970-01-01T00:00:00.000Z')").run();
-    log.debug("[Config] Initialized last_sync_to_command = epoch (full sync on first connect)');
+    log.debug('[Config] Initialized last_sync_to_command = epoch (full sync on first connect)');
   }
   // 從 DB 讀取持久化的 command_url（若環境變數未設定）
   if (!COMMAND_URL) {
@@ -534,7 +534,7 @@ wss.on('connection', (ws, req) => {
         // §10.4：網路恢復後執行三 Pass 完整同步至指揮部（非同步，不阻塞回應）
         // 使用 pushThreePassToCommand 取代 pushToCommand，帶入所有斷線期間的快照與事件
         pushThreePassToCommand(sync_start_ts).catch(err =>
-          log.warn("[ThreePass] async error:', err.message)
+          log.warn('[ThreePass] async error:', err.message)
         );
         break;
       }
@@ -824,7 +824,7 @@ const adminServer = tlsOpts
 adminServer.listen(ADMIN_PORT, () => {
   log.info(`[Admin] v2.1 ${PROTOCOL.toUpperCase()} Listening on port ${ADMIN_PORT}`);
   if (!getAdminPinHash()) {
-    log.warn("[Admin] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
+    log.warn('[Admin] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
   }
   startAutoPush();
 });
