@@ -2158,9 +2158,11 @@ const WsManager = (function(){
         if(_connected){_connected=false;_updateDot('off');_updateLoginStatus('pending');_scheduleReconnect();}
         else if(!_degraded){_scheduleReconnect();}
       };
-      w.onerror=()=>{
+      w.onerror=(e)=>{
         if(_ws!==w)return; // stale
         clearTimeout(timer);_ws=null;
+        const reason=e&&e.message?e.message:'(無詳細資訊)';
+        console.warn('[WsManager] onerror:',reason);
         this._enterDegraded('Pi 連線失敗');_scheduleReconnect();
       };
     },
@@ -2212,7 +2214,7 @@ const WsManager = (function(){
     },
     _enterDegraded(reason){
       console.warn('[WsManager] Degraded:',reason);_degraded=true;_connected=false;_updateDot('off');
-      _updateLoginStatus('off');
+      _updateLoginStatus('off', reason);
     },
     _startTimeSync(){if(_timeSyncTimer)clearInterval(_timeSyncTimer);_timeSyncTimer=setInterval(()=>{if(_connected&&_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'time_sync_req',device_id:SyncManager.deviceId()}));},TIME_SYNC_INTERVAL);},
     _requestCatchup(){const since=localStorage.getItem('shelter_last_sync_ts')||'1970-01-01T00:00:00.000Z';if(_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'catchup_req',since}));},
@@ -2233,7 +2235,7 @@ const WsManager = (function(){
     }
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
-  function _updateLoginStatus(state){
+  function _updateLoginStatus(state, detail){
     const el=document.getElementById('login-pi-status');if(!el)return;
     const btn=document.getElementById('login-btn-text'),desc=document.getElementById('login-btn-desc');
     if(state==='ok'){
@@ -2243,7 +2245,7 @@ const WsManager = (function(){
       el.textContent='🟡 Pi 連線中…';el.style.background='rgba(255,200,0,.15)';el.style.color='rgba(255,255,255,.8)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
     }else{
-      el.textContent='🔴 Pi 離線（離線模式）';el.style.background='rgba(200,60,60,.2)';el.style.color='#f08080';
+      el.textContent='🔴 Pi 離線'+(detail?' — '+detail:'');el.style.background='rgba(200,60,60,.2)';el.style.color='#f08080';
       if(btn)btn.textContent='離線登入';if(desc)desc.textContent='請選擇角色，資料不跨裝置同步';
     }
   }

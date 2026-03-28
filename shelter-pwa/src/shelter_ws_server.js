@@ -556,9 +556,10 @@ wss.on('connection', (ws, req) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
     const info = clients.get(ws);
-    if (info) console.log(`[WS] Disconnected: ${info.username || 'unknown'}`);
+    const who = info ? info.username : '(未驗證)';
+    console.log(`[WS] Disconnected: ${who} code=${code} reason=${reason||''}`);
     clients.delete(ws);
   });
 
