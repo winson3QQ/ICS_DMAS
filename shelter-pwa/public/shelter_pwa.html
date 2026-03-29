@@ -2,6 +2,8 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
+<!-- PWA 版號（格式同 SERVER_VERSION） -->
+<script>const PWA_VERSION='2026-03-29-v1';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -103,7 +105,7 @@
     #role-screen .role-btn .name { font-size: 16px; font-weight: 700; display: block; }
     #role-screen .role-btn .desc { font-size: 12px; opacity: .8; display: block; margin-top: 2px; }
     #role-screen .role-btn.leader { grid-column: 1 / -1; }
-    #role-screen .version { color: rgba(255,255,255,.5); font-size: 12px; position: absolute; bottom: 20px; }
+    #role-screen .version { color: rgba(255,255,255,.65); font-size: 12px; position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; }
     #app { display: flex; flex-direction: column; height: 100vh; }
     #capacity-banner { flex-shrink: 0; }
     #header { display: flex; align-items: center; padding: 0 16px; height: var(--hdr-h); background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 8px; }
@@ -355,7 +357,7 @@
     <button class="role-btn" onclick="handleLogin('物管')"><span class="icon">📦</span><span class="name">物管</span><span class="desc">物資盤點・追蹤</span></button>
     <button class="role-btn" onclick="handleLogin('環管')"><span class="icon">🏗️</span><span class="name">環管</span><span class="desc">帶位・床位地圖</span></button>
   </div>
-  <span class="version">v2.1 · 2026-03 · 收容組 PWA</span>
+  <span class="version" id="pwa-version-display">收容組 PWA</span>
   <button onclick="openAdminPanel()" style="margin-top:16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);border-radius:20px;padding:6px 18px;font-size:13px;cursor:pointer;font-family:inherit;">⚙️ 帳號管理</button>
 </div>
 
@@ -369,12 +371,23 @@
     </div>
     <button class="cap-copy" onclick="copyCapacityReport()">📋 複製通報文字</button>
   </div>
+  <!-- 閒置自動登出警告 -->
+  <div id="auto-logout-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.88);z-index:10000;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:24px;">
+    <div style="font-size:48px;margin-bottom:12px;">⏰</div>
+    <div style="font-size:20px;font-weight:bold;margin-bottom:8px;">閒置逾時</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.7);margin-bottom:28px;">將在 <span id="auto-logout-countdown" style="font-weight:bold;color:#ffd;">30</span> 秒後自動登出</div>
+    <button onclick="PinLock.continueSession()" style="padding:14px 36px;background:#2a7;color:#fff;border:none;border-radius:12px;font-size:17px;cursor:pointer;font-family:inherit;">繼續使用</button>
+  </div>
   <div id="alert-banner" onclick="switchTab('incidents')">⚠️ 有 <span id="alert-count">0</span> 件開放事件 — 點此查看</div>
   <div id="header">
     <h2 id="header-title">儀表板</h2>
-    <span id="sync-dot" title="同步狀態（點擊顯示 debug log）" style="font-size:11px;cursor:pointer" onclick="document.getElementById('debug-log-panel').classList.toggle('hidden')">⚫</span>
+    <span id="sync-dot" title="同步狀態（點擊顯示 debug log）" style="font-size:11px;cursor:pointer;" onclick="document.getElementById('debug-log-panel').classList.toggle('hidden')">⚫</span>
     <span id="pi-mode-badge" style="font-size:10px;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,.2);color:#fff;display:none;">降級</span>
-    <span class="role-chip" id="role-chip">組長</span>
+    <span id="role-chip" style="display:flex;flex-direction:column;align-items:center;font-size:12px;background:var(--yellow-bg);color:var(--orange);padding:3px 10px;border-radius:12px;font-weight:600;line-height:1.3;">
+      <span id="role-chip-text">組長</span>
+      <span id="login-time-badge" style="font-size:9px;font-weight:400;color:var(--orange);opacity:.7;"></span>
+    </span>
+    <span id="idle-countdown" style="font-size:10px;color:var(--text2);white-space:nowrap;flex-shrink:0;"></span>
     <button class="btn-ghost btn-sm" onclick="switchRole()" style="padding:6px 8px;font-size:13px;" title="登出並切換帳號">登出</button>
   </div>
   <div id="content">
@@ -645,8 +658,8 @@
 /* ══ PinLock ═══════════════════════════════════════════════════ */
 (function() {
   'use strict';
-  const IDLE_MS=10*60*1000, PIN_HASH_KEY='shelter_pin_hash', SALT_KEY='shelter_pin_salt';
-  let _idleTimer=null, _locked=false, _pinHash=null;
+  const IDLE_MS=90*1000, WARN_MS=30, PIN_HASH_KEY='shelter_pin_hash', SALT_KEY='shelter_pin_salt';
+  let _idleTimer=null, _warnTimer=null, _countdownTick=null, _locked=false, _pinHash=null, _lastInteract=0;
   async function hashPin(pin,saltHex) {
     const enc=new TextEncoder(), key=await crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveBits']);
     const salt=hexToBytes(saltHex), bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:100000},key,256);
@@ -654,7 +667,34 @@
   }
   function bytesToHex(b){return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');}
   function hexToBytes(h){return new Uint8Array(h.match(/.{2}/g).map(b=>parseInt(b,16)));}
-  function resetIdle(){clearTimeout(_idleTimer);_idleTimer=setTimeout(()=>PinLock.lock('idle'),IDLE_MS);}
+  let _resetIdleCount=0, _resetIdleLastLog=0;
+  function resetIdle(evt){
+    _lastInteract=Date.now();
+    clearTimeout(_idleTimer);
+    _idleTimer=setTimeout(()=>PinLock.lock('idle'),IDLE_MS);
+    _updateCountdown();
+    // 每 5 秒最多 log 一次，避免洗版
+    _resetIdleCount++;
+    const now=Date.now();
+    if(now-_resetIdleLastLog>5000){
+      _resetIdleLastLog=now;
+      if(window._dbgLog)window._dbgLog('D','[idle] resetIdle evtType='+(evt&&evt.type||'prog')+' count='+_resetIdleCount);
+      _resetIdleCount=0;
+    }
+  }
+  let _tickCount=0;
+  function _updateCountdown(){
+    const el=document.getElementById('idle-countdown');if(!el)return;
+    const remaining=Math.max(0,Math.round((IDLE_MS+WARN_MS*1000-(Date.now()-_lastInteract))/1000));
+    if(remaining<=0){el.textContent='';return;}
+    const m=Math.floor(remaining/60),s=remaining%60;
+    el.textContent=(m>0?m+'分':'')+s+'秒 後登出';
+    el.style.color=remaining<=30?'#d9534f':remaining<=60?'#c07800':'var(--text2)';
+    _tickCount++;
+    if(_tickCount<=3||((_tickCount%15)===0)){
+      if(window._dbgLog)window._dbgLog('D','[idle] tick#'+_tickCount+' remaining='+remaining+'s lastInteract='+(Date.now()-_lastInteract)+'ms ago');
+    }
+  }
   ['touchstart','mousedown','keydown','scroll'].forEach(e=>document.addEventListener(e,resetIdle,{passive:true}));
   window.PinLock = {
     async setup(pin) {
@@ -662,7 +702,7 @@
       const saltBytes=crypto.getRandomValues(new Uint8Array(16)), saltHex=bytesToHex(saltBytes);
       _pinHash=await hashPin(pin,saltHex);
       sessionStorage.setItem(SALT_KEY,saltHex); sessionStorage.setItem(PIN_HASH_KEY,_pinHash);
-      _locked=false; resetIdle(); return true;
+      _locked=false; resetIdle(); _startCountdownTick(); return true;
     },
     async verify(pin) {
       const saltHex=sessionStorage.getItem(SALT_KEY), storedH=sessionStorage.getItem(PIN_HASH_KEY)||_pinHash;
@@ -671,9 +711,13 @@
     },
     isSetup(){return !!sessionStorage.getItem(PIN_HASH_KEY);},
     isLocked(){return _locked;},
-    lock(reason){if(!this.isSetup())return; _locked=true; showPinLockScreen(reason==='idle'?'閒置超過 10 分鐘，請重新輸入 PIN':'');},
-    unlock(){_locked=false; hidePinLockScreen(); resetIdle();},
-    clear(){sessionStorage.removeItem(PIN_HASH_KEY); sessionStorage.removeItem(SALT_KEY); _pinHash=null; _locked=false; clearTimeout(_idleTimer);},
+    lock(reason){
+      if(!this.isSetup())return; _locked=true;
+      if(reason==='idle'){_showLogoutWarning();}else{showPinLockScreen('');}
+    },
+    unlock(){_locked=false; hidePinLockScreen(); _hideLogoutWarning(); resetIdle(); _startCountdownTick();},
+    continueSession(){if(!_locked)return; _hideLogoutWarning(); _locked=false; resetIdle();},
+    clear(){sessionStorage.removeItem(PIN_HASH_KEY); sessionStorage.removeItem(SALT_KEY); _pinHash=null; _locked=false; clearTimeout(_idleTimer); clearInterval(_countdownTick); _countdownTick=null; _hideLogoutWarning(); const el=document.getElementById('idle-countdown');if(el)el.textContent='';},
   };
   function showPinLockScreen(msg) {
     let o=document.getElementById('pin-lock-overlay');
@@ -687,6 +731,19 @@
     setTimeout(()=>document.getElementById('pin-unlock-input')?.focus(),100);
   }
   function hidePinLockScreen(){const o=document.getElementById('pin-lock-overlay');if(o)o.style.display='none';}
+  function _showLogoutWarning(){
+    const o=document.getElementById('auto-logout-overlay');if(!o)return;
+    o.style.display='flex';
+    let sec=WARN_MS;
+    const cd=document.getElementById('auto-logout-countdown');if(cd)cd.textContent=sec;
+    clearInterval(_warnTimer);
+    _warnTimer=setInterval(()=>{
+      sec--;if(cd)cd.textContent=sec;
+      if(sec<=0){clearInterval(_warnTimer);o.style.display='none';if(typeof switchRole==='function')switchRole();}
+    },1000);
+  }
+  function _hideLogoutWarning(){clearInterval(_warnTimer);const o=document.getElementById('auto-logout-overlay');if(o)o.style.display='none';}
+  function _startCountdownTick(){clearInterval(_countdownTick);_tickCount=0;if(window._dbgLog)window._dbgLog('D','[idle] startCountdownTick');_countdownTick=setInterval(_updateCountdown,1000);}
   PinLock._attemptUnlock=async function(){
     const pin=document.getElementById('pin-unlock-input')?.value||'', ok=await PinLock.verify(pin);
     if(ok){document.getElementById('pin-unlock-input').value=''; PinLock.unlock();}
@@ -908,7 +965,20 @@ const App = {
     document.getElementById('app').classList.remove('hidden');
     const operator=AuditManager.getOperator();
     const chipText=operator?`${operator}（${role})`:role;
-    document.getElementById('role-chip').textContent=chipText;
+    const chipTextEl=document.getElementById('role-chip-text');
+    if(chipTextEl)chipTextEl.textContent=chipText;else document.getElementById('role-chip').textContent=chipText;
+    // 顯示登入時間
+    const ltBadge=document.getElementById('login-time-badge');
+    if(window._dbgLog)window._dbgLog('D','[startApp] ltBadge found='+!!ltBadge);
+    if(ltBadge){
+      let loginIso=sessionStorage.getItem('shelter_login_time');
+      if(window._dbgLog)window._dbgLog('D','[startApp] loginIso='+loginIso);
+      if(!loginIso){loginIso=new Date().toISOString();sessionStorage.setItem('shelter_login_time',loginIso);}
+      const t=new Date(loginIso);
+      const txt=t.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false})+' 登入';
+      if(window._dbgLog)window._dbgLog('D','[startApp] setting badge text='+txt);
+      ltBadge.textContent=txt;
+    }
     const badge=document.getElementById('pi-mode-badge');
     if(badge){
       if(typeof WsManager!=='undefined'&&WsManager.isDegraded()){badge.style.display='inline';badge.title='Pi 不可用，降級模式';}
@@ -921,6 +991,8 @@ const App = {
     if(role==='物管')this.switchTab('resources');
     else if(role==='環管隊員')this.switchTab('beds');
     else this.switchTab('dashboard');
+    // 啟動閒置計時器（無論從哪條路徑進入儀表板）
+    if(PinLock.isSetup())PinLock.unlock();
   },
 
   async takeSnapshot() {
@@ -1015,6 +1087,8 @@ function selectRole(role){handleLogin(role);}
 function switchRole(){
   PinLock.clear();PersonCrypto.clearKey();AuditManager.clearSession();
   sessionStorage.removeItem('shelter_session_id');sessionStorage.removeItem('shelter_session_username');
+  sessionStorage.removeItem('shelter_login_time');
+  const ltBadge=document.getElementById('login-time-badge');if(ltBadge)ltBadge.textContent='';
   localStorage.removeItem('shelter_role');
   App.role=null;
   const uInp=document.getElementById('operator-username-input'),pInp=document.getElementById('operator-pin-input'),warn=document.getElementById('operator-warn');
@@ -2113,7 +2187,7 @@ const SyncManager = (() => {
   const CHANNEL='shelter-sync-v1', TABLES=['persons','beds','resources','incidents'], DEVICE_KEY='shelter_device_id';
   let _bc=null, _deviceId=null, _log=[];
   function deviceId(){if(!_deviceId){_deviceId=localStorage.getItem(DEVICE_KEY);if(!_deviceId){_deviceId='dev-'+Math.random().toString(36).slice(2,9);localStorage.setItem(DEVICE_KEY,_deviceId);}}return _deviceId;}
-  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','已同步'],pending:['🟡','同步中…'],off:['⚫','無同步']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=`同步狀態：${tip}`;}
+  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','Pi 連線中…'],off:['⚫','Pi 離線']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function broadcast(table,record){if(!_bc||!record)return;const delta={src:deviceId(),table,action:'upsert',record:JSON.parse(JSON.stringify(record)),ts:record.updated_at||record.timestamp||new Date().toISOString(),sent_at:new Date().toISOString()};_bc.postMessage(delta);_logDelta(delta);updateDot('ok');}
   async function applyDelta(delta){
     if(delta.src===deviceId())return;const{table,record}=delta;if(!TABLES.includes(table)||!record)return;_logDelta(delta);
@@ -2371,7 +2445,7 @@ const WsManager = (function(){
     const caller=(new Error().stack||'').split('\n').slice(1,3).map(s=>s.trim()).join(' | ');
     _wsLog.debug(`[dot] ${prev} → ${state} | ${caller}`);
     if(!dot)return;
-    const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};
+    const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','Pi 連線中…'],off:['⚫','Pi 離線']};
     const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;
   }
   function _updateLoginStatus(state, detail){
@@ -2491,6 +2565,7 @@ async function handleLogin(roleHint) {
       sessionStorage.setItem('shelter_session_username',result.username);
       AuditManager.setOperator(result.username);
       await AuditLogManager.write('login_success',{username:result.username,role:result.role,mode:'pi_auth'});
+      sessionStorage.setItem('shelter_login_time',new Date().toISOString());
       App.startApp(result.role);
       // 重連後自動推送斷線期間資料（背景執行，不阻塞登入流程）
       _autoRecoveryPush();
@@ -2517,6 +2592,7 @@ async function handleLogin(roleHint) {
   await PersonCrypto.exportToSession();
   AuditManager.setOperator(name+'【降級】');
   await AuditLogManager.write('login_degraded',{name,role:roleHint});
+  sessionStorage.setItem('shelter_login_time',new Date().toISOString());
   App.startApp(roleHint);
 }
 
@@ -2744,6 +2820,7 @@ window.switchRole=switchRole;
 
 /* ══ BOOT ════════════════════════════════════════════════════════ */
 setupPWAManifest();
+(function(){const el=document.getElementById('pwa-version-display');_dbgLog('[boot] pwa-version el='+!!el+' ver='+PWA_VERSION);if(el){el.textContent='收容組 PWA · '+PWA_VERSION;_dbgLog('[boot] version set ok');}})();
 App.init().catch(console.error);
 </script>
 
