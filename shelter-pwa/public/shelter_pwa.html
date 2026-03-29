@@ -302,7 +302,7 @@
     <div id="login-pi-status" style="padding:5px 12px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);">
       🟡 Pi 連線中…
     </div>
-    <button onclick="WsManager.connect(null,'retry-btn')" style="padding:4px 10px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.3);cursor:pointer;">重試</button>
+    <span style="font-size:11px;color:rgba(255,255,255,.5);">若無法連線，請刷新頁面</span>
   </div>
   <div id="operator-section" style="width:100%;max-width:420px;margin-bottom:20px;display:flex;flex-direction:column;gap:8px;">
     <input id="operator-username-input" type="text" placeholder="任務帳號 / 姓名" autocomplete="off" autocorrect="off" spellcheck="false"
@@ -2181,15 +2181,17 @@ const WsManager = (function(){
         if(_ws!==w)return;
         clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
         _wsLog.warn(`ws closed code=${code} reason=${reason||''}`);
-        if(_connected){_connected=false;_updateDot('off');_updateLoginStatus('pending');_scheduleReconnect();}
-        else if(!_degraded){_scheduleReconnect();}
+        const uiState=navigator.onLine===false?'offline':'pending';
+        if(_connected){_connected=false;_updateDot('off');_updateLoginStatus(uiState);_scheduleReconnect();}
+        else if(!_degraded){_updateLoginStatus(uiState);_scheduleReconnect();}
       };
       w.onerror=(e)=>{
         if(_ws!==w)return;
         clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
         _wsLog.warn('ws onerror',e&&e.message?e.message:'');
         if(_connected){_connected=false;}
-        _updateDot('off');_updateLoginStatus('pending');
+        const uiState=navigator.onLine===false?'offline':'pending';
+        _updateDot('off');_updateLoginStatus(uiState);
         _scheduleReconnect();
       };
     },
@@ -2275,7 +2277,7 @@ const WsManager = (function(){
       if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
       _connected=false;_backoffMs=RECONNECT_BASE;
       _updateDot('off');_updateLoginStatus('pending');
-      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},300);
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},100);
     } else if(rs===WebSocket.CONNECTING){
       // CONNECTING 狀態：iOS 正在完成 TLS，不要打斷，讓 onopen 自然觸發
       _wsLog.debug('visibilitychange: WS still CONNECTING, letting iOS finish TLS');
@@ -2283,8 +2285,23 @@ const WsManager = (function(){
       // null 或 CLOSED：直接重連
       if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
       _backoffMs=RECONNECT_BASE;
-      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},300);
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},100);
     }
+  });
+  window.addEventListener('online',()=>{
+    _wsLog.info('network online — attempting reconnect');
+    if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+    _backoffMs=RECONNECT_BASE;
+    _updateDot('off');_updateLoginStatus('pending');
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'online');},300);
+  });
+  window.addEventListener('offline',()=>{
+    _wsLog.warn('network offline — marking connection dead');
+    if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+    if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+    if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws=null;}
+    _connected=false;_backoffMs=RECONNECT_BASE;
+    _updateDot('off');_updateLoginStatus('offline');
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _updateLoginStatus(state, detail){
@@ -2295,6 +2312,9 @@ const WsManager = (function(){
       if(btn)btn.textContent='登入';if(desc)desc.textContent='帳號決定角色';
     }else if(state==='pending'){
       el.textContent='🟡 Pi 連線中…';el.style.background='rgba(255,200,0,.15)';el.style.color='rgba(255,255,255,.8)';
+      if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
+    }else if(state==='offline'){
+      el.textContent='⚫ 裝置離線';el.style.background='rgba(255,255,255,.08)';el.style.color='rgba(255,255,255,.45)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
     }else{
       el.textContent='🔴 Pi 離線'+(detail?' — '+detail:'');el.style.background='rgba(200,60,60,.2)';el.style.color='#f08080';
