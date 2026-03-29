@@ -2,6 +2,28 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
+<!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
+<script>
+(function(){
+  var MAX=200,_buf=[];
+  window._dbgLog=function(level,msg){
+    var ts=new Date().toLocaleTimeString('zh-TW',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:3});
+    _buf.push({ts:ts,level:level,msg:msg});
+    if(_buf.length>MAX)_buf.shift();
+    var list=document.getElementById('debug-log-list');
+    var panel=document.getElementById('debug-log-panel');
+    if(list&&panel&&!panel.classList.contains('hidden'))_renderDbgLog(list);
+  };
+  window._renderDbgLog=function(list){
+    if(!list)return;
+    list.innerHTML=_buf.map(function(e){
+      var c=e.level==='E'?'#f88':e.level==='W'?'#fe8':e.level==='D'?'#8cf':'#cfc';
+      return '<span style="color:'+c+'">['+e.ts+']['+e.level+'] '+e.msg.replace(/</g,'&lt;')+'</span>';
+    }).join('\n');
+    list.scrollTop=list.scrollHeight;
+  };
+})();
+</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -350,7 +372,7 @@
   <div id="alert-banner" onclick="switchTab('incidents')">⚠️ 有 <span id="alert-count">0</span> 件開放事件 — 點此查看</div>
   <div id="header">
     <h2 id="header-title">儀表板</h2>
-    <span id="sync-dot" title="同步狀態" style="font-size:11px;cursor:default">⚫</span>
+    <span id="sync-dot" title="同步狀態（點擊顯示 debug log）" style="font-size:11px;cursor:pointer" onclick="document.getElementById('debug-log-panel').classList.toggle('hidden')">⚫</span>
     <span id="pi-mode-badge" style="font-size:10px;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,.2);color:#fff;display:none;">降級</span>
     <span class="role-chip" id="role-chip">組長</span>
     <button class="btn-ghost btn-sm" onclick="switchRole()" style="padding:6px 8px;font-size:13px;" title="登出並切換帳號">登出</button>
@@ -2117,8 +2139,9 @@ const SyncManager = (() => {
     return count;
   }
   function init(){
-    try{_bc=new BroadcastChannel(CHANNEL);_bc.onmessage=(ev)=>applyDelta(ev.data);_bc.onmessageerror=e=>console.warn('[Sync] BC err:',e);updateDot('ok');}
-    catch(e){console.warn('[Sync] BC not available:',e);updateDot('off');}
+    // BroadcastChannel 是 peer-to-peer tab sync，與 Pi WSS 連線無關，不改 dot 狀態
+    try{_bc=new BroadcastChannel(CHANNEL);_bc.onmessage=(ev)=>applyDelta(ev.data);_bc.onmessageerror=e=>console.warn('[Sync] BC err:',e);}
+    catch(e){console.warn('[Sync] BC not available:',e);}
   }
   return{init,broadcast,exportDelta,importDelta,deviceId,_applyExternalDelta:applyDelta};
 })();
@@ -2133,11 +2156,12 @@ async function syncAfterWrite(table,idOrRecord){
 const _wsLog = (()=>{
   const LEVELS={error:0,warn:1,info:2,debug:3};
   const level=()=>LEVELS[localStorage.getItem('ics_log_level')||'debug']??3;
+  const _out=(lv,pfx,args)=>{const msg=pfx+args.map(a=>typeof a==='object'?JSON.stringify(a):String(a)).join(' ');if(window._dbgLog)window._dbgLog(lv,msg);};
   return{
-    error:(...a)=>level()>=0&&console.error('[WS]',...a),
-    warn: (...a)=>level()>=1&&console.warn ('[WS]',...a),
-    info: (...a)=>level()>=2&&console.log  ('[WS]',...a),
-    debug:(...a)=>level()>=3&&console.log  ('[WS:D]',...a),
+    error:(...a)=>{if(level()>=0){console.error('[WS]',...a);_out('E','[WS] ',a);}},
+    warn: (...a)=>{if(level()>=1){console.warn ('[WS]',...a);_out('W','[WS] ',a);}},
+    info: (...a)=>{if(level()>=2){console.log  ('[WS]',...a);_out('I','[WS] ',a);}},
+    debug:(...a)=>{if(level()>=3){console.log  ('[WS:D]',...a);_out('D','[WS:D] ',a);}},
   };
 })();
 const WsManager = (function(){
@@ -2153,6 +2177,13 @@ const WsManager = (function(){
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
     markPending(){_updateDot('pending');_updateLoginStatus('pending');},
     queueSessionRestore(username,role){_pendingSessionRestore={username,role};},
+    // 已連線時立刻發送 session_restore（visibilitychange 先連好，App.init 用此方法）
+    flushSessionRestore(){
+      if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN||!_pendingSessionRestore)return;
+      _ws.send(JSON.stringify({type:'session_restore',username:_pendingSessionRestore.username,role:_pendingSessionRestore.role,device_id:SyncManager.deviceId()}));
+      _wsLog.info('[WS] Session restore flushed (already connected)');
+      _pendingSessionRestore=null;
+    },
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
     setPiUrl(url){_piUrl=url;localStorage.setItem('shelter_pi_url',url);},
     getPiUrl(){if(!_piUrl)_piUrl=localStorage.getItem('shelter_pi_url')||'';return _piUrl;},
@@ -2179,7 +2210,7 @@ const WsManager = (function(){
         _connectTimer=null;
         _wsLog.warn('connect timeout 8s');
         _ws=null;w.onopen=null;w.onclose=null;w.onerror=null;w.onmessage=null;
-        _updateDot('off');_updateLoginStatus('pending');
+        _updateDot('pending');_updateLoginStatus('pending'); // 馬上重試，維持 🟡 不閃 ⚫
         _scheduleReconnect();
       },CONNECT_TIMEOUT);
       w.onopen=()=>{
@@ -2203,7 +2234,7 @@ const WsManager = (function(){
         clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
         _wsLog.warn(`ws closed code=${code} reason=${reason||''}`);
         const uiState=navigator.onLine===false?'offline':'pending';
-        if(_connected){_connected=false;_updateDot('off');_updateLoginStatus(uiState);_scheduleReconnect();}
+        if(_connected){_connected=false;_updateDot(navigator.onLine===false?'off':'pending');_updateLoginStatus(uiState);_scheduleReconnect();}
         else if(!_degraded){_updateLoginStatus(uiState);_scheduleReconnect();}
       };
       w.onerror=(e)=>{
@@ -2212,7 +2243,7 @@ const WsManager = (function(){
         _wsLog.warn('ws onerror',e&&e.message?e.message:'');
         if(_connected){_connected=false;}
         const uiState=navigator.onLine===false?'offline':'pending';
-        _updateDot('off');_updateLoginStatus(uiState);
+        _updateDot(navigator.onLine===false?'off':'pending');_updateLoginStatus(uiState);
         _scheduleReconnect();
       };
     },
@@ -2528,7 +2559,7 @@ App.init=async function(){
   if(piUrlInput&&savedPiUrl)piUrlInput.value=savedPiUrl;
   // 若有 session 待還原，在進入 await 前立刻顯示 🟡，避免 _origAppInit 期間停在 ⚫
   const _hasSession=!!(localStorage.getItem('shelter_role')&&sessionStorage.getItem('shelter_session_id')&&savedPiUrl);
-  console.debug('[App.init] hasSession='+_hasSession+' role='+localStorage.getItem('shelter_role')+' sessionId='+!!sessionStorage.getItem('shelter_session_id')+' piUrl='+!!savedPiUrl);
+  _wsLog.debug('[App.init] hasSession='+_hasSession+' role='+localStorage.getItem('shelter_role')+' sessionId='+!!sessionStorage.getItem('shelter_session_id')+' piUrl='+!!savedPiUrl);
   if(_hasSession){WsManager.markPending();}
   // 先完成 App.init（含 serviceWorker.register + IndexedDB），再建立 WS
   // 避免 serviceWorker.register 佔用 iOS main thread，導致 WS onopen callback 被延遲
@@ -2541,10 +2572,18 @@ App.init=async function(){
       const _savedUsername=sessionStorage.getItem('shelter_session_username');
       if(_savedUsername)WsManager.queueSessionRestore(_savedUsername,_savedRole);
       if(PinLock.isSetup())PinLock.unlock(); // 啟動 idle timeout 計時器
-      // 先 connect（同步呼叫 _updateDot('pending') → 🟡），再 startApp，
-      // 確保儀表板顯示時 dot 已是 🟡 而非 ⚫
-      if(savedPiUrl){WsManager.connect(null,'App.init');}
-      else WsManager._enterDegraded('未設定 Pi URL');
+      if(savedPiUrl){
+        if(WsManager.isConnected()){
+          // visibilitychange 在 _origAppInit 等待期間已連線 → 直接發 session_restore，不重建 WS
+          // （重建會造成 zombie + timeout → ⚫ 閃爍）
+          _wsLog.info('[App.init] already connected via visibilitychange, flushing session restore');
+          WsManager.flushSessionRestore();
+        } else {
+          WsManager.connect(null,'App.init');
+        }
+      } else {
+        WsManager._enterDegraded('未設定 Pi URL');
+      }
       App.startApp(_savedRole);
       return;
     }
@@ -2706,6 +2745,26 @@ window.switchRole=switchRole;
 /* ══ BOOT ════════════════════════════════════════════════════════ */
 setupPWAManifest();
 App.init().catch(console.error);
+</script>
+
+<!-- ══ Debug Log Panel ══════════════════════════════════════════ -->
+<div id="debug-log-panel" class="hidden" style="
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,.92);color:#cfc;font-family:monospace;font-size:11px;
+  display:flex;flex-direction:column;z-index:99999;padding:8px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <span style="color:#ff9;font-weight:bold;">Debug Log（點 ⚫ 或此處關閉）</span>
+    <button onclick="document.getElementById('debug-log-panel').classList.add('hidden')"
+      style="background:#333;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:13px;cursor:pointer;">✕</button>
+  </div>
+  <div id="debug-log-list" style="flex:1;overflow-y:auto;white-space:pre-wrap;word-break:break-all;line-height:1.4;"></div>
+  <button onclick="document.getElementById('debug-log-list').textContent=''" style="margin-top:6px;background:#333;color:#aaa;border:none;border-radius:4px;padding:4px;font-size:12px;cursor:pointer;">清除</button>
+</div>
+<script>
+// 底部 panel 初始化：dot click 時 render 早期已收集的 buffer
+document.getElementById('sync-dot').addEventListener('click',function(){
+  window._renderDbgLog(document.getElementById('debug-log-list'));
+});
 </script>
 </body>
 </html>
