@@ -2134,7 +2134,7 @@ const WsManager = (function(){
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
   let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
   let _connectTimer=null; // 保存 connect timeout timer，供 visibilitychange 取消用
-  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=5000;
+  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=2000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
