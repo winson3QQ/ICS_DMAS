@@ -40,7 +40,7 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-const SERVER_VERSION = '2026-03-29-v2';
+const SERVER_VERSION = '2026-03-29-v7';
 log.info(`Shelter WS Server ${SERVER_VERSION} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
@@ -370,7 +370,14 @@ function getRecentDeltas(sinceISO) {
 const wsRawServer = tlsOpts
   ? https.createServer(tlsOpts)
   : http.createServer();
-const wss = new WebSocket.Server({ server: wsRawServer });
+const wss = new WebSocket.Server({ server: wsRawServer, perMessageDeflate: false });
+
+wsRawServer.on('upgrade', (req, socket, _head) => {
+  const ip = socket.remoteAddress;
+  const urlSrc = new URL(req.url, 'wss://localhost').searchParams.get('src') || '?';
+  log.debug(`[WS] HTTP Upgrade received from ${ip} src=${urlSrc}`);
+});
+
 wsRawServer.listen(WS_PORT, () => {
   log.info(`[WS] ${WS_PROTOCOL.toUpperCase()} Server listening on port ${WS_PORT}`);
 });
@@ -378,9 +385,18 @@ const clients = new Map();
 
 wss.on('connection', (ws, req) => {
   const ip = req.socket.remoteAddress;
-  log.info(`[WS] Client connected from ${ip}`);
+  const urlSrc = new URL(req.url, 'wss://localhost').searchParams.get('src') || '?';
+  log.info(`[WS] Client connected from ${ip} src=${urlSrc}`);
+
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
+  let _zombieTimer = setTimeout(() => {
+    log.warn(`[WS] No message in 5s from ${ip} src=${urlSrc} → zombie suspected`);
+  }, 5000);
 
   ws.on('message', async (raw) => {
+    if (_zombieTimer) { clearTimeout(_zombieTimer); _zombieTimer = null; }
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
 
@@ -576,6 +592,7 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', (code, reason) => {
+    if (_zombieTimer) { clearTimeout(_zombieTimer); _zombieTimer = null; }
     const info = clients.get(ws);
     const who = info ? info.username : '(未驗證)';
     log.info(`[WS] Disconnected: ${who} code=${code} reason=${reason||''}`);
@@ -601,7 +618,14 @@ wss.on("error", err => log.error('[WS Server Error]', err));
 ─────────────────────────────────────────────────────────── */
 setInterval(() => {
   wss.clients.forEach(ws => {
-    if (ws.readyState === ws.OPEN) ws.ping();
+    if (ws.readyState !== ws.OPEN) return;
+    if (ws.isAlive === false) {
+      log.warn(`[WS] No pong received, terminating ${clients.get(ws)?.username || '(未驗證)'}`);
+      ws.terminate();
+      return;
+    }
+    ws.isAlive = false;
+    ws.ping();
   });
 }, 25_000);
 

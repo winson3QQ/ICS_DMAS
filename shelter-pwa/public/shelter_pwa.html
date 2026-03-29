@@ -2134,7 +2134,7 @@ const WsManager = (function(){
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
   let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
   let _connectTimer=null; // 保存 connect timeout timer，供 visibilitychange 取消用
-  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=25000;
+  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=5000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
@@ -2154,7 +2154,7 @@ const WsManager = (function(){
       _connected=false;
       _wsLog.info('connecting to', url);
       _updateDot('pending');_updateLoginStatus('pending');
-      const w=new WebSocket(url);
+      const w=new WebSocket(url+'?src='+encodeURIComponent(source));
       _ws=w;
       if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
       _connectTimer=setTimeout(()=>{
@@ -2262,7 +2262,7 @@ const WsManager = (function(){
   // iOS Safari 切回前景：一律丟棄現有 WS，300ms 後重建
   // 原因：iOS 事件順序 visibilitychange > WS onclose，切回時 _ws.readyState 仍顯示
   // OPEN（iOS 尚未送出 onclose），若不強制清除，要等 onclose→backoff(2s)→
-  // CONNECT_TIMEOUT(8s)→backoff(2s) 共 12s 才能穩定連線。
+  // CONNECT_TIMEOUT(5s)→backoff(2s) 共 ~7s 才能穩定連線。
   // 代價：短暫切換 app 也會重連一次（< 500ms），可接受。
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState!=='visible')return;
