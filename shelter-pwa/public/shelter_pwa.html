@@ -2151,6 +2151,7 @@ const WsManager = (function(){
   const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=2000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
+    markPending(){_updateDot('pending');_updateLoginStatus('pending');},
     queueSessionRestore(username,role){_pendingSessionRestore={username,role};},
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
     setPiUrl(url){_piUrl=url;localStorage.setItem('shelter_pi_url',url);},
@@ -2516,6 +2517,10 @@ const _origAppInit=App.init.bind(App);
 App.init=async function(){
   const piUrlInput=document.getElementById('pi-url-input'),savedPiUrl=WsManager.getPiUrl();
   if(piUrlInput&&savedPiUrl)piUrlInput.value=savedPiUrl;
+  // 若有 session 待還原，在進入 await 前立刻顯示 🟡，避免 _origAppInit 期間停在 ⚫
+  if(localStorage.getItem('shelter_role')&&sessionStorage.getItem('shelter_session_id')&&savedPiUrl){
+    WsManager.markPending();
+  }
   // 先完成 App.init（含 serviceWorker.register + IndexedDB），再建立 WS
   // 避免 serviceWorker.register 佔用 iOS main thread，導致 WS onopen callback 被延遲
   await _origAppInit();
