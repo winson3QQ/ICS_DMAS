@@ -40,7 +40,7 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-const SERVER_VERSION = '2026-03-29-v19';
+const SERVER_VERSION = '2026-03-29-v20';
 log.info(`Shelter WS Server ${SERVER_VERSION} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
@@ -461,6 +461,17 @@ wss.on('connection', (ws, req) => {
       /* ── debug_ping（診斷用，記錄 connect() 呼叫來源） ── */
       case 'debug_ping': {
         log.info(`[WS] debug_ping from ${ip} source=${msg.source||'?'} device=${msg.device_id||'?'}`);
+        break;
+      }
+
+      /* ── session_restore（刷新頁面後透明還原身份，不重新驗 PIN） ── */
+      case 'session_restore': {
+        const { username, role, device_id } = msg;
+        if (username && role) {
+          const existing = clients.get(ws);
+          clients.set(ws, { deviceId: device_id || ip, username, role, connectedAt: existing?.connectedAt || nowISO() });
+          log.info(`[WS] Session restored: ${username} (${role}) device=${device_id||'?'}`);
+        }
         break;
       }
 

@@ -992,7 +992,8 @@ function goRosterFilter(status){App.rosterFilter=status;App.rosterTypeFilter='al
 function selectRole(role){handleLogin(role);}
 function switchRole(){
   PinLock.clear();PersonCrypto.clearKey();AuditManager.clearSession();
-  sessionStorage.removeItem('shelter_session_id');localStorage.removeItem('shelter_role');
+  sessionStorage.removeItem('shelter_session_id');sessionStorage.removeItem('shelter_session_username');
+  localStorage.removeItem('shelter_role');
   App.role=null;
   const uInp=document.getElementById('operator-username-input'),pInp=document.getElementById('operator-pin-input'),warn=document.getElementById('operator-warn');
   if(uInp)uInp.value='';if(pInp)pInp.value='';if(warn){warn.style.display='none';warn.textContent='';}
@@ -2146,9 +2147,11 @@ const WsManager = (function(){
   let _connectTimer=null; // 保存 connect timeout timer，供 visibilitychange 取消用
   let _connectedAt=0;    // 最近一次 onopen 的時間戳記，供 visibilitychange 判斷是否剛連線
   let _networkOffline=false; // offline event 發火後設 true；重連成功或 online event 後清除
+  let _pendingSessionRestore=null; // {username,role}：刷新還原時在 onopen 後告知 Pi
   const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=2000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
+    queueSessionRestore(username,role){_pendingSessionRestore={username,role};},
     piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
     setPiUrl(url){_piUrl=url;localStorage.setItem('shelter_pi_url',url);},
     getPiUrl(){if(!_piUrl)_piUrl=localStorage.getItem('shelter_pi_url')||'';return _piUrl;},
@@ -2185,6 +2188,10 @@ const WsManager = (function(){
         _backoffMs=RECONNECT_BASE; // 連線成功，重置 backoff
         _wsLog.info('connected ✓ (source='+source+')');
         _ws.send(JSON.stringify({type:'debug_ping',source,device_id:SyncManager.deviceId()}));
+        if(_pendingSessionRestore){
+          _ws.send(JSON.stringify({type:'session_restore',username:_pendingSessionRestore.username,role:_pendingSessionRestore.role,device_id:SyncManager.deviceId()}));
+          _pendingSessionRestore=null;
+        }
         _updateDot('ok');_updateLoginStatus('ok');
         const rg=document.getElementById('degraded-role-grid');if(rg)rg.style.display='none';
         this._startTimeSync();this._requestCatchup();
@@ -2368,14 +2375,29 @@ const PersonCrypto = (function(){
   'use strict';
   let _cryptoKey=null, _keyEnabled=false;
   const PERSONAL_FIELDS=['name','gender','age_group','health_flag','cmist','immediate_needs_note','notes','id_card_items','id_card_note','medication','audit_flags'];
+  const _SESSION_JWK_KEY='shelter_enc_key_jwk';
   function enc(str){return new TextEncoder().encode(str);}
   function hex2buf(h){return new Uint8Array(h.match(/.{2}/g).map(b=>parseInt(b,16)));}
   return{
     isEnabled(){return _keyEnabled;},
     async deriveKey(pin,saltHex){
       const raw=await crypto.subtle.importKey('raw',enc(pin),'PBKDF2',false,['deriveKey']);
-      _cryptoKey=await crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:hex2buf(saltHex),iterations:200000},raw,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+      // extractable:true 讓金鑰可匯出至 sessionStorage，供刷新頁面後透明還原
+      _cryptoKey=await crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:hex2buf(saltHex),iterations:200000},raw,{name:'AES-GCM',length:256},true,['encrypt','decrypt']);
       _keyEnabled=true;
+    },
+    async exportToSession(){
+      if(!_cryptoKey)return;
+      try{const jwk=await crypto.subtle.exportKey('jwk',_cryptoKey);sessionStorage.setItem(_SESSION_JWK_KEY,JSON.stringify(jwk));}
+      catch(e){console.warn('[PersonCrypto] exportToSession failed:',e);}
+    },
+    async restoreFromSession(){
+      const raw=sessionStorage.getItem(_SESSION_JWK_KEY);if(!raw)return false;
+      try{
+        const jwk=JSON.parse(raw);
+        _cryptoKey=await crypto.subtle.importKey('jwk',jwk,{name:'AES-GCM'},true,['encrypt','decrypt']);
+        _keyEnabled=true;return true;
+      }catch(e){console.warn('[PersonCrypto] restoreFromSession failed:',e);return false;}
     },
     async encryptPerson(person){
       if(!_keyEnabled||!_cryptoKey)return person;
@@ -2397,7 +2419,7 @@ const PersonCrypto = (function(){
       }catch(e){console.warn('[PersonCrypto] Decrypt failed for _id',person._id,e);return person;}
     },
     getKey(){return _cryptoKey;},
-    clearKey(){_cryptoKey=null;_keyEnabled=false;},
+    clearKey(){_cryptoKey=null;_keyEnabled=false;sessionStorage.removeItem(_SESSION_JWK_KEY);},
   };
 })();
 
@@ -2423,6 +2445,8 @@ async function handleLogin(roleHint) {
       const saltKey='shelter_enc_salt_'+username;let salt=localStorage.getItem(saltKey);
       if(!salt){salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');localStorage.setItem(saltKey,salt);}
       await PersonCrypto.deriveKey(pin,salt);
+      await PersonCrypto.exportToSession();
+      sessionStorage.setItem('shelter_session_username',result.username);
       AuditManager.setOperator(result.username);
       await AuditLogManager.write('login_success',{username:result.username,role:result.role,mode:'pi_auth'});
       App.startApp(result.role);
@@ -2448,6 +2472,7 @@ async function handleLogin(roleHint) {
   const saltKey='shelter_enc_salt_degraded';let salt=localStorage.getItem(saltKey);
   if(!salt){salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');localStorage.setItem(saltKey,salt);}
   await PersonCrypto.deriveKey(pin,salt);
+  await PersonCrypto.exportToSession();
   AuditManager.setOperator(name+'【降級】');
   await AuditLogManager.write('login_degraded',{name,role:roleHint});
   App.startApp(roleHint);
@@ -2493,6 +2518,21 @@ App.init=async function(){
   // 先完成 App.init（含 serviceWorker.register + IndexedDB），再建立 WS
   // 避免 serviceWorker.register 佔用 iOS main thread，導致 WS onopen callback 被延遲
   await _origAppInit();
+  // 刷新頁面後透明還原 session（業界做法：金鑰存 sessionStorage，關分頁才清除）
+  const _savedRole=localStorage.getItem('shelter_role');
+  if(_savedRole&&sessionStorage.getItem('shelter_session_id')&&AuditManager.getOperator()){
+    const _keyOk=await PersonCrypto.restoreFromSession();
+    if(_keyOk){
+      const _savedUsername=sessionStorage.getItem('shelter_session_username');
+      if(_savedUsername)WsManager.queueSessionRestore(_savedUsername,_savedRole);
+      if(PinLock.isSetup())PinLock.unlock(); // 啟動 idle timeout 計時器
+      App.startApp(_savedRole);
+      if(savedPiUrl){WsManager.connect(null,'App.init');}
+      else WsManager._enterDegraded('未設定 Pi URL');
+      return;
+    }
+  }
+  // 正常流程（需登入）
   if(savedPiUrl){WsManager.connect(null,'App.init');}
   else WsManager._enterDegraded('未設定 Pi URL');
 };
