@@ -2526,9 +2526,11 @@ App.init=async function(){
       const _savedUsername=sessionStorage.getItem('shelter_session_username');
       if(_savedUsername)WsManager.queueSessionRestore(_savedUsername,_savedRole);
       if(PinLock.isSetup())PinLock.unlock(); // 啟動 idle timeout 計時器
-      App.startApp(_savedRole);
+      // 先 connect（同步呼叫 _updateDot('pending') → 🟡），再 startApp，
+      // 確保儀表板顯示時 dot 已是 🟡 而非 ⚫
       if(savedPiUrl){WsManager.connect(null,'App.init');}
       else WsManager._enterDegraded('未設定 Pi URL');
+      App.startApp(_savedRole);
       return;
     }
   }
