@@ -990,7 +990,17 @@ function switchTab(tab){
 function renderCurrentTab(){switch(App.currentTab){case 'dashboard':renderDashboard();break;case 'intake':renderIntake();break;case 'beds':renderBeds();break;case 'resources':renderResources();break;case 'incidents':renderIncidents();break;case 'roster':renderRoster();break;}}
 function goRosterFilter(status){App.rosterFilter=status;App.rosterTypeFilter='all';App.rosterHealthFilter='all';switchTab('roster');}
 function selectRole(role){handleLogin(role);}
-function switchRole(){PinLock.clear();PersonCrypto.clearKey();sessionStorage.removeItem('shelter_session_id');localStorage.removeItem('shelter_role');location.reload();}
+function switchRole(){
+  PinLock.clear();PersonCrypto.clearKey();AuditManager.clearSession();
+  sessionStorage.removeItem('shelter_session_id');localStorage.removeItem('shelter_role');
+  App.role=null;
+  const uInp=document.getElementById('operator-username-input'),pInp=document.getElementById('operator-pin-input'),warn=document.getElementById('operator-warn');
+  if(uInp)uInp.value='';if(pInp)pInp.value='';if(warn){warn.style.display='none';warn.textContent='';}
+  const rg=document.getElementById('degraded-role-grid');if(rg)rg.style.display='none';
+  document.getElementById('role-screen').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+  setTimeout(()=>document.getElementById('operator-username-input')?.focus(),100);
+}
 </script>
 <script>
 /* ══ CAPACITY BANNER ═══════════════════════════════════════════ */
@@ -2134,6 +2144,7 @@ const WsManager = (function(){
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
   let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
   let _connectTimer=null; // 保存 connect timeout timer，供 visibilitychange 取消用
+  let _connectedAt=0; // 最近一次 onopen 的時間戳記，供 visibilitychange 判斷是否剛連線
   const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=2000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
@@ -2168,7 +2179,7 @@ const WsManager = (function(){
       w.onopen=()=>{
         if(_ws!==w)return;
         clearTimeout(_connectTimer);_connectTimer=null;
-        _connected=true;_degraded=false;
+        _connected=true;_degraded=false;_connectedAt=Date.now();
         _backoffMs=RECONNECT_BASE; // 連線成功，重置 backoff
         _wsLog.info('connected ✓ (source='+source+')');
         _ws.send(JSON.stringify({type:'debug_ping',source,device_id:SyncManager.deviceId()}));
@@ -2271,6 +2282,9 @@ const WsManager = (function(){
     const rs=_ws?_ws.readyState:null;
     _wsLog.debug('visibilitychange → visible, readyState='+rs);
     if(rs===WebSocket.OPEN){
+      // location.reload() 後 iOS 也會觸發 visibilitychange，此時連線是剛建立的，不需強制重建
+      // 只有連線超過 2s 才視為可能是 iOS 靜默 kill 的舊連線
+      if(Date.now()-_connectedAt<2000){_wsLog.debug('visibilitychange: WS just connected (<2s), skipping force-reconnect');return;}
       // OPEN 狀態：iOS 可能已靜默 kill 但未通知 JS，強制重建
       const dead=_ws;_ws=null;dead.onopen=null;dead.onclose=null;dead.onerror=null;dead.onmessage=null;
       if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
@@ -2475,7 +2489,7 @@ App.init=async function(){
   if(savedPiUrl){WsManager.connect(null,'App.init');}
   else WsManager._enterDegraded('未設定 Pi URL');
 };
-window.switchRole=function(){PinLock.clear();PersonCrypto.clearKey();sessionStorage.removeItem('shelter_session_id');localStorage.removeItem('shelter_role');location.reload();};
+window.switchRole=switchRole;
 
 /* ══ 帳號管理 Modal ══════════════════════════════════════════════ */
 (function(){
