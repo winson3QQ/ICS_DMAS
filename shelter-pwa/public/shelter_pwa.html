@@ -2307,6 +2307,7 @@ const WsManager = (function(){
       _wsLog.debug('visibilitychange: WS still CONNECTING, letting iOS finish TLS');
     } else {
       // null 或 CLOSED：直接重連
+      _wsLog.debug('visibilitychange: WS null/CLOSED → scheduling reconnect');
       if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
       _backoffMs=RECONNECT_BASE;
       _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},100);
@@ -2333,7 +2334,15 @@ const WsManager = (function(){
     // 網路一通就能連上，不依賴 online event 的時機
     _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'offline-retry');},_backoffMs);
   });
-  function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
+  function _updateDot(state){
+    const dot=document.getElementById('sync-dot');
+    const prev=dot?dot.textContent:'(no-dot)';
+    const caller=(new Error().stack||'').split('\n').slice(1,3).map(s=>s.trim()).join(' | ');
+    _wsLog.debug(`[dot] ${prev} → ${state} | ${caller}`);
+    if(!dot)return;
+    const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};
+    const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;
+  }
   function _updateLoginStatus(state, detail){
     const el=document.getElementById('login-pi-status');if(!el)return;
     const btn=document.getElementById('login-btn-text'),desc=document.getElementById('login-btn-desc');
@@ -2518,9 +2527,9 @@ App.init=async function(){
   const piUrlInput=document.getElementById('pi-url-input'),savedPiUrl=WsManager.getPiUrl();
   if(piUrlInput&&savedPiUrl)piUrlInput.value=savedPiUrl;
   // 若有 session 待還原，在進入 await 前立刻顯示 🟡，避免 _origAppInit 期間停在 ⚫
-  if(localStorage.getItem('shelter_role')&&sessionStorage.getItem('shelter_session_id')&&savedPiUrl){
-    WsManager.markPending();
-  }
+  const _hasSession=!!(localStorage.getItem('shelter_role')&&sessionStorage.getItem('shelter_session_id')&&savedPiUrl);
+  console.debug('[App.init] hasSession='+_hasSession+' role='+localStorage.getItem('shelter_role')+' sessionId='+!!sessionStorage.getItem('shelter_session_id')+' piUrl='+!!savedPiUrl);
+  if(_hasSession){WsManager.markPending();}
   // 先完成 App.init（含 serviceWorker.register + IndexedDB），再建立 WS
   // 避免 serviceWorker.register 佔用 iOS main thread，導致 WS onopen callback 被延遲
   await _origAppInit();
