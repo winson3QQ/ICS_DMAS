@@ -2144,7 +2144,8 @@ const WsManager = (function(){
   let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
   let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
   let _connectTimer=null; // 保存 connect timeout timer，供 visibilitychange 取消用
-  let _connectedAt=0; // 最近一次 onopen 的時間戳記，供 visibilitychange 判斷是否剛連線
+  let _connectedAt=0;    // 最近一次 onopen 的時間戳記，供 visibilitychange 判斷是否剛連線
+  let _networkOffline=false; // offline event 發火後設 true；重連成功或 online event 後清除
   const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=2000;
   return{
     isDegraded(){return _degraded;}, isConnected(){return _connected;},
@@ -2164,7 +2165,8 @@ const WsManager = (function(){
       if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws=null;}
       _connected=false;
       _wsLog.info('connecting to', url);
-      _updateDot('pending');_updateLoginStatus('pending');
+      // offline 期間靜默重試，不閃 🟡；網路恢復後 onopen 再更新 UI
+      if(!_networkOffline){_updateDot('pending');_updateLoginStatus('pending');}
       const w=new WebSocket(url+'?src='+encodeURIComponent(source));
       _ws=w;
       if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
@@ -2179,7 +2181,7 @@ const WsManager = (function(){
       w.onopen=()=>{
         if(_ws!==w)return;
         clearTimeout(_connectTimer);_connectTimer=null;
-        _connected=true;_degraded=false;_connectedAt=Date.now();
+        _connected=true;_degraded=false;_connectedAt=Date.now();_networkOffline=false;
         _backoffMs=RECONNECT_BASE; // 連線成功，重置 backoff
         _wsLog.info('connected ✓ (source='+source+')');
         _ws.send(JSON.stringify({type:'debug_ping',source,device_id:SyncManager.deviceId()}));
@@ -2304,6 +2306,8 @@ const WsManager = (function(){
   });
   window.addEventListener('online',()=>{
     _wsLog.info('network online — attempting reconnect');
+    if(_connected)return; // offline-retry 已搶先重連，跳過避免 UI 狀態倒退
+    _networkOffline=false;
     if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
     _backoffMs=RECONNECT_BASE;
     _updateDot('off');_updateLoginStatus('pending');
@@ -2314,8 +2318,11 @@ const WsManager = (function(){
     if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
     if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
     if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws=null;}
-    _connected=false;_backoffMs=RECONNECT_BASE;
+    _connected=false;_networkOffline=true;_backoffMs=RECONNECT_BASE;
     _updateDot('off');_updateLoginStatus('offline');
+    // iOS online event 可能延遲 2〜5s；不等它，直接開始 backoff 重試
+    // 網路一通就能連上，不依賴 online event 的時機
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'offline-retry');},_backoffMs);
   });
   function _updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','連線中…'],off:['⚫','離線/降級']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function _updateLoginStatus(state, detail){
