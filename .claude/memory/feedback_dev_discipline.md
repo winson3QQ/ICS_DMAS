@@ -79,7 +79,24 @@ git push origin main --tags
 
 ---
 
-### 4. 歡迎提升開發/debug 效率的建議
+### 4. Memory 更新必須同步 repo
+
+寫入或修改任何 memory 檔案後，**立即**同步至 repo 的 `.claude/memory/`，並 commit & push。
+
+```bash
+cp ~/.claude/projects/-Users-3qq-Desktop-ICS-DMAS/memory/<檔名>.md \
+   /Users/3qq/Desktop/ICS_DMAS/.claude/memory/<檔名>.md
+git add .claude/memory/ && git commit -m "chore: 同步 memory — ..."
+git push
+```
+
+**Why:** CLAUDE.md 明確規定 memory 存在 repo，不 push 則其他機器拿不到更新。只更新本機 `~/.claude/` 等於沒做。
+
+**How to apply:** 每次呼叫 Write 或 Edit 寫 memory 檔案，下一步就是 cp + commit + push，不等使用者提醒。
+
+---
+
+### 5. 歡迎提升開發/debug 效率的建議
 - 任何可增進開發或 debug 效率的工具、做法、架構改善，都可以主動提出。
 
 **Why:** 使用者明確表示開放這類建議，不需要等被問。
