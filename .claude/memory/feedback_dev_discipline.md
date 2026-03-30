@@ -17,13 +17,22 @@ type: feedback
 
 ---
 
-### 2. 版本流水號 + 重要突破即 commit & push
-- 每一個發布版本都要有清楚的版本流水號（例如 v25、2026-03-29-v24）。
-- 重要突破（功能完成、重大 bug 修復）要建議或執行 commit & push，不要讓成果只停在本地。
+### 2. 雙層版本號 + Milestone 才 commit & push
 
-**Why:** 確保工作成果有歷史紀錄，可回溯，跨機器同步。
+**雙層版本號：**
+| 層 | 用途 | 格式 | 說明 |
+|----|------|------|------|
+| Debug | 地端追蹤執行路徑 | `YYYY-MM-DD-vN` | 隨時改，不 commit，N 每次 debug 遞增 |
+| Milestone | 正式 commit & push 的版號 | `v001`, `v002`, ... | 功能/修復完成後統一更新，從 v001 開始 |
 
-**How to apply:** 完成重要里程碑時主動提醒使用者 commit & push，並建議版本號。
+**Commit 前 checklist（三個必須一致才 commit）：**
+1. `SERVER_VERSION`（shelter_ws_server.js）更新為 milestone 版號
+2. `PWA_VERSION`（shelter_pwa.html）同步
+3. `CACHE_NAME`（sw.js）只要 PWA 資產有改就 +0.1（觸發 iOS/Safari 強制更新快取）
+
+**Why:** Debug 版號是工具，不是歷史；milestone 版號才是 source of truth。地端開發時版號隨意，commit 時對齊，避免版號混亂。
+
+**How to apply:** 完成里程碑時提醒使用者對齊三個版本常數再 commit & push，並給出建議的下一個版號（vNNN+1）。
 
 ---
 

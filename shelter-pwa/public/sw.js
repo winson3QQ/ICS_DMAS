@@ -6,7 +6,7 @@
    ════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const CACHE_NAME = 'shelter-pwa-v3.6';
+const CACHE_NAME = 'shelter-pwa-v001';
 const STATIC_ASSETS = [
   './shelter_pwa.html',
   './sw.js',
