@@ -560,6 +560,17 @@ IP: 192.168.100.30
 
 建議資料表：patients、triages、slots、transfers、resources、incidents、shifts、snapshots、config。命名與同步格式應盡量比照收容組，方便共用工具函式與 WS 中繼。
 
+**snapshots 表必要欄位（與收容組 v2.3 對齊）：**
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | UUID v4 | 本地自動生成，本地主鍵 |
+| snapshot_uuid | UUID v4 | PWA 端生成的快照 UUID；作為 QR-MEDICAL payload 的 `snapshot_id` 及三 Pass 對齊主鍵；與指揮部 SNAPSHOT.id 不同，此欄由來源節點產生 |
+| snapshot_time | DateTime (UTC) | 快照時間戳 |
+| type | Enum | `auto` / `qr` / `manual` / `sync_recovery` / `merged` |
+
+> *※ snapshot_uuid 必須在 QR 產生時寫入；指揮部以此欄位進行三 Pass 去重合併。*
+
 ---
 
 ## 9　部署設定（★ v0.2 新增）
