@@ -1,5 +1,5 @@
 # ICS_DMAS 安全與網路架構規格
-# Security & Network Architecture Specification v1.1
+# Security & Network Architecture Specification v1.2
 
 整合對象：指揮部儀表板設計規格 v1.1、收容組規格 v2.2、民防輔助感知系統規格 v1.3
 
@@ -282,10 +282,15 @@ uvicorn main:app \
 
 ### 6.2 收容組 Pi（Node.js WebSocket）
 
-shelter_ws_server.js 需修改：
-- `http` 模組 → `https` 模組
-- `ws.Server` → `wss.Server`（載入憑證）
-- Admin HTTP server 同步改為 HTTPS
+shelter_ws_server.js 已支援 TLS，透過環境變數載入憑證：
+
+```bash
+CERT_PATH=/path/to/cert.pem \
+KEY_PATH=/path/to/key.pem \
+node shelter_ws_server.js
+```
+
+未設定 `CERT_PATH`/`KEY_PATH` 時自動退回 HTTP/WS（開發用）。
 
 ```
 WSS：  wss://192.168.100.20:8765
@@ -294,10 +299,7 @@ Admin：https://192.168.100.20:8766
 
 ### 6.3 前端 URL 更新
 
-所有 HTML 檔案中：
-- `http://` → `https://`
-- `ws://`  → `wss://`
-- `localStorage` 預設值同步更新
+已完成。shelter_pwa.html 的 Pi URL 由使用者在設定頁輸入並存入 localStorage，支援 wss:// 與 ws://。
 
 ---
 
@@ -320,7 +322,8 @@ Admin：https://192.168.100.20:8766
 
 ### Phase 1：Mac 模擬（現階段）
 - 所有服務跑在 Mac 本機
-- 使用 HTTP / WS（無 TLS，開發用）
+- TLS 可選：設定 `CERT_PATH`/`KEY_PATH` 啟用 HTTPS/WSS，未設定則退回 HTTP/WS
+- `start_mac.sh` 支援自動偵測 LAN IP / Tailscale IP，一鍵啟動
 - FileVault 保護開發資料
 - **目標**：端對端功能驗證（shelter PWA → 指揮部儀表板）
 
@@ -358,6 +361,8 @@ Admin：https://192.168.100.20:8766
 - `merged_from_qr`（改用 `merged`）
 - `shelter_push`（改用 `auto`）
 
+> ⚠️ **已知問題**：`shelter_ws_server.js` 第 506、534、541 行仍使用上述廢棄值，需在下次 PATCH 版本修正。
+
 ---
 
 ## 10. 待確認事項
@@ -366,10 +371,10 @@ Admin：https://192.168.100.20:8766
 |------|------|------|
 | Mini PC 品牌確認 | 待確認 | Beelink / ASUS / 其他 |
 | Anker 行動電源 | 待決定 | 總部深圳，依安全政策決定 |
-| 指揮官版儀表板 | 待開發 | 目前只有幕僚版 |
+| 指揮官版儀表板 | 已完成初版 | `commander_dashboard.html`，待端對端測試 |
 | YubiKey 雙人原則實作 | Phase 3 | 依民防感知系統規格 §4.3 |
 | Field Node 與 ICS_DMAS 整合 | Phase 3 | STT 輸出寫入 EVENT 表 |
 
 ---
 
-*文件版本：v1.1 | 整合來源：指揮部儀表板規格 v1.1、收容組規格 v2.2、民防感知系統規格 v1.3*
+*文件版本：v1.2 | 對應程式版本：v0.1.0 | 整合來源：指揮部儀表板規格 v1.1、收容組規格 v2.2、民防感知系統規格 v1.3*
