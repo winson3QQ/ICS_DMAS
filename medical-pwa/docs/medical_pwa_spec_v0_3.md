@@ -710,7 +710,7 @@ Admin： https://192.168.100.30:8776
 
 | 硬體 | 建議品牌/型號 | 狀態 |
 |------|-------------|------|
-| Intel N100 Mini PC（指揮部） | Beelink（台灣設計）、ASUS Mini PC | ✅ 待確認品牌 |
+| Intel N100 Mini PC（指揮部） | ASUS Mini PC ✅（台灣）；Beelink ⚠ 待驗證（現有資訊顯示為深圳品牌 SZBox，採購前必須確認） | |
 | Raspberry Pi 4B（各組 Pi） | 英國 Raspberry Pi Foundation | ✅ |
 | Raspberry Pi Zero 2W（Field Node） | 英國 Raspberry Pi Foundation | ✅ |
 | 官方 Raspberry Pi 電源供應器 | 原廠配件 | ✅ |
