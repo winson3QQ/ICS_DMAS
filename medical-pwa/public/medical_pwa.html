@@ -365,6 +365,8 @@ let _state = {
   intakeSource: 'A',    // A=前進MIST, B=收容, C=自行
   intakeInjury: null,   // 'trauma' | 'medical'
   intakeTriageColor: null,
+  morePage: null,       // null | 'resources' | 'incidents' | 'shift'
+  zoneTimer: null,      // interval for zone card countdown refresh
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -586,37 +588,45 @@ function generateSnapshotUUID() {
 ════════════════════════════════════════════════════════════════ */
 function switchTab(tab) {
   _state.currentTab = tab;
+  _state.morePage = null;
+  if (_state.zoneTimer) { clearInterval(_state.zoneTimer); _state.zoneTimer = null; }
   document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
   renderCurrentTab();
 }
 
 async function renderCurrentTab() {
   await loadPatients();
-  refreshAlertBanner();
+  await refreshAlertBanner();
   const content = document.getElementById('app-content');
+  if (_state.zoneTimer) { clearInterval(_state.zoneTimer); _state.zoneTimer = null; }
   switch(_state.currentTab) {
     case 'dashboard': renderDashboard(content); break;
     case 'intake':    renderIntake(content); break;
-    case 'zones':     renderZones(content); break;
-    case 'transfer':  renderStub(content,'🚑','後送頁','v0.5 實作（再評估倒數、後送佇列、ISBAR 交接）'); break;
-    case 'more':      renderMore(content); break;
+    case 'zones':
+      renderZones(content);
+      _state.zoneTimer = setInterval(()=>{ if(_state.currentTab==='zones') refreshZoneCountdowns(); }, 30000);
+      break;
+    case 'transfer':  await renderTransfer(content); break;
+    case 'more':      await renderMore(content); break;
   }
 }
 
 /* ════════════════════════════════════════════════════════════════
    ALERT BANNER
 ════════════════════════════════════════════════════════════════ */
-function refreshAlertBanner() {
+async function refreshAlertBanner() {
   const banner = document.getElementById('alert-banner');
-  const openIncidents = 0; // v0.5 實作
+  const openIncidents = await db.incidents.where('status').equals('open').count();
   const redFull = countByZone('紅區') > 0 && getRedSlotsFree() === 0;
-  if (redFull) {
-    banner.style.display='block';
-    banner.className = '';
+  const securityOpen = openIncidents > 0 && await db.incidents.where({status:'open',type:'security_threat'}).count() > 0;
+  if (securityOpen) {
+    banner.style.display='block'; banner.className='';
+    banner.textContent = '🚨 安全威脅事件 — 請立即確認';
+  } else if (redFull) {
+    banner.style.display='block'; banner.className='';
     banner.textContent = '🔴 紅區滿載 — 請立即通報組長';
   } else if (openIncidents > 0) {
-    banner.style.display='block';
-    banner.className = 'warn';
+    banner.style.display='block'; banner.className='warn';
     banner.textContent = `⚠️ ${openIncidents} 件開放事件`;
   } else {
     banner.style.display='none';
@@ -1048,7 +1058,7 @@ function renderPatientCard(p) {
     <div class="patient-card ${cls} ${overdue?'overdue':''}" onclick="openPatientDetail(${p.id})">
       <div class="pc-top">
         <span class="pc-id">${p.display_id}</span>
-        <span class="pc-timer ${timerCls}">再評估 ${timerStr}</span>
+        <span class="pc-timer ${timerCls}" ${due ? `data-due="${p.reassess_due_at}"` : ''}>再評估 ${timerStr}</span>
       </div>
       <div class="pc-issue">${p.chief_issue || '（無主訴摘要）'}</div>
       <div style="font-size:12px;color:var(--text3);">${p.vitals_summary||''}</div>
@@ -1114,17 +1124,29 @@ async function openPatientDetail(id) {
 /* ════════════════════════════════════════════════════════════════
    MORE PAGE
 ════════════════════════════════════════════════════════════════ */
-function renderMore(el) {
+async function renderMore(el) {
+  if (_state.morePage === 'resources') { await renderResources(el); return; }
+  if (_state.morePage === 'incidents') { await renderIncidents(el); return; }
+  if (_state.morePage === 'shift')     { await renderShift(el); return; }
+
+  const openInc = await db.incidents.where('status').equals('open').count();
+  const lowRes = await db.resources.filter(r => r.qty_current <= r.qty_low_threshold).count();
+  const lastShift = (await db.shifts.orderBy('started_at').last());
+  const shiftAgo = lastShift ? Math.floor((Date.now()-new Date(lastShift.started_at))/3600000) : null;
+
   el.innerHTML = `
-    <div class="section-hdr">功能（v0.5 實作）</div>
-    <div class="dash-row" onclick="renderStub(document.getElementById('app-content'),'📦','物資頁','低量警示、補給申請')" style="cursor:pointer;">
-      <span class="dash-row-label">📦 物資管理</span><span class="text-gray text-sm">→</span>
+    <div class="section-hdr">功能</div>
+    <div class="dash-row" onclick="_state.morePage='resources';renderCurrentTab()" style="cursor:pointer;">
+      <span class="dash-row-label">📦 物資管理</span>
+      <span class="flex items-center gap-1">${lowRes>0?`<span class="tag tag-yellow">${lowRes} 低量</span>`:''}  <span class="text-gray text-sm">→</span></span>
     </div>
-    <div class="dash-row" onclick="renderStub(document.getElementById('app-content'),'⚠️','事件頁','安全威脅、傳染疑慮、量能滿載')" style="cursor:pointer;">
-      <span class="dash-row-label">⚠️ 事件記錄</span><span class="text-gray text-sm">→</span>
+    <div class="dash-row" onclick="_state.morePage='incidents';renderCurrentTab()" style="cursor:pointer;">
+      <span class="dash-row-label">⚠️ 事件記錄</span>
+      <span class="flex items-center gap-1">${openInc>0?`<span class="tag tag-red">${openInc} 件</span>`:''}  <span class="text-gray text-sm">→</span></span>
     </div>
-    <div class="dash-row" onclick="renderStub(document.getElementById('app-content'),'🔄','交班 / 快照','傷患交接、班次紀錄')" style="cursor:pointer;">
-      <span class="dash-row-label">🔄 交班 / 快照</span><span class="text-gray text-sm">→</span>
+    <div class="dash-row" onclick="_state.morePage='shift';renderCurrentTab()" style="cursor:pointer;">
+      <span class="dash-row-label">🔄 交班 / 快照</span>
+      <span class="flex items-center gap-1">${shiftAgo!==null?`<span class="text-xs text-gray">${shiftAgo}h 前</span>`:''}  <span class="text-gray text-sm">→</span></span>
     </div>
     <div class="section-hdr">系統</div>
     <div class="dash-row" style="cursor:pointer;" onclick="doQrSnapshot()">
@@ -1139,8 +1161,402 @@ function renderMore(el) {
   `;
 }
 
+function refreshZoneCountdowns() {
+  const now = new Date();
+  document.querySelectorAll('[data-due]').forEach(el => {
+    const due = new Date(el.dataset.due);
+    const overdue = due < now;
+    const minLeft = Math.max(0, Math.floor((due - now) / 60000));
+    el.textContent = '再評估 ' + (overdue ? '逾時' : minLeft + '分');
+    el.classList.toggle('overdue', overdue);
+    el.closest('.patient-card')?.classList.toggle('overdue', overdue);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TRANSFER PAGE
+════════════════════════════════════════════════════════════════ */
+async function renderTransfer(el) {
+  const pending = _state.patients.filter(p => p.disposition === '後送');
+  const doneList = await db.transfers.toArray();
+
+  const pendingHtml = pending.length === 0
+    ? `<div style="padding:32px;text-align:center;color:var(--text3);">目前無待後送傷患</div>`
+    : pending.map(p => renderTransferCard(p)).join('');
+
+  el.innerHTML = `
+    <div class="section-hdr">待後送佇列 (${pending.length})</div>
+    ${pendingHtml}
+    ${doneList.length > 0 ? `
+    <div class="section-hdr">已完成後送 (${doneList.length})</div>
+    ${doneList.slice().reverse().slice(0,5).map(t => `
+      <div class="card mb-1" style="opacity:.7">
+        <div class="flex justify-between items-center">
+          <span class="text-sm font-semibold">${t.patient_display_id||'—'}</span>
+          <span class="tag tag-green">已交接</span>
+        </div>
+        <div class="text-xs text-gray mt-1">目的地：${t.destination||'—'} · ${(t.departed_at||'').slice(0,16)}</div>
+      </div>
+    `).join('')}` : ''}
+  `;
+}
+
+function renderTransferCard(p) {
+  const colorTag = { red:'tag-red', yellow:'tag-yellow', green:'tag-green', black:'tag-black' }[p.triage_color] || 'tag-gray';
+  const colorLabel = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
+  const waited = p.updated_at ? Math.floor((Date.now() - new Date(p.updated_at)) / 60000) : 0;
+  return `
+    <div class="card mb-2">
+      <div class="flex justify-between items-center mb-1">
+        <span class="font-bold">${p.display_id}</span>
+        <span class="tag ${colorTag}">${colorLabel[p.triage_color]||p.triage_color}</span>
+      </div>
+      <div class="text-sm mb-1">${p.chief_issue||'（無主訴）'}</div>
+      <div class="text-xs text-gray mb-2">生命徵象：${p.vitals_summary||'—'} · 等待 ${waited} 分鐘</div>
+      <div class="flex gap-1">
+        <button class="pc-btn primary" onclick="openIsbar(${p.id})">📋 ISBAR 交接</button>
+        <button class="pc-btn" onclick="openMoveZone(${p.id})">移區</button>
+      </div>
+    </div>
+  `;
+}
+
+async function openIsbar(patientId) {
+  const p = await db.patients.get(patientId);
+  if (!p) return;
+  const colorLabel = { red:'紅（危急）', yellow:'黃（需觀察）', green:'綠（輕傷）', black:'黑（死亡/無法救治）' };
+  const iText = `${p.display_id}，${colorLabel[p.triage_color]||p.triage_color}，${p.injury_type==='trauma'?'創傷':'非創'}`;
+  const sText = `${p.chief_issue||'—'}，目前位於 ${p.current_zone}`;
+  const aText = `生命徵象：${p.vitals_summary||'—'}`;
+
+  openModal('ISBAR 後送交接',
+    `<div class="flex flex-col gap-2">
+      <div class="info-box info text-sm"><b>I — Identify（識別）</b><br>${iText}</div>
+      <div class="info-box info text-sm"><b>S — Situation（情況）</b><br>${sText}</div>
+      <div class="info-box info text-sm"><b>A — Assessment（評估）</b><br>${aText}</div>
+      <div class="form-group">
+        <div class="form-label">B — Background（病史 / 已完成處置）</div>
+        <textarea class="form-input form-textarea" id="isbar-b" placeholder="既往病史、已完成的處置…"></textarea>
+      </div>
+      <div class="form-group">
+        <div class="form-label">R — Recommendation（建議 / 目的地）</div>
+        <textarea class="form-input form-textarea" id="isbar-r" placeholder="建議後送至…，需要…車輛…"></textarea>
+      </div>
+      <div class="form-group">
+        <div class="form-label">必要救命處置核對</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;">
+          ${['止血','呼吸道','給氧','靜脈通路','保暖','固定'].map(item =>
+            `<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="chk-${item}"> ${item}</label>`
+          ).join('')}
+        </div>
+      </div>
+    </div>`,
+    `<button class="btn btn-success flex-1" onclick="completeHandoff(${patientId})">✅ 交接完成</button>
+     <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+}
+
+async function completeHandoff(patientId) {
+  const p = await db.patients.get(patientId);
+  if (!p) return;
+  const b = document.getElementById('isbar-b')?.value || '';
+  const r = document.getElementById('isbar-r')?.value || '';
+  const checklist = ['止血','呼吸道','給氧','靜脈通路','保暖','固定']
+    .filter(item => document.getElementById('chk-'+item)?.checked).join('、');
+  const now = new Date().toISOString();
+  await db.transfers.add({
+    patient_id: patientId, patient_display_id: p.display_id,
+    status: 'completed', destination: r,
+    isbar_text: `B: ${b}\nR: ${r}\n已完成: ${checklist||'（未勾選）'}`,
+    departed_at: now, handoff_done_at: now, created_at: now,
+  });
+  await db.patients.update(patientId, { disposition:'離開', current_zone:'已離區', updated_at: now });
+  closeModal();
+  showToast(`${p.display_id} 後送交接完成`);
+  renderCurrentTab();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RESOURCES PAGE
+════════════════════════════════════════════════════════════════ */
+const DEFAULT_RESOURCES = [
+  { name:'止血帶', category:'止血類', qty_initial:10, qty_low_threshold:2 },
+  { name:'紗布/敷料組', category:'止血類', qty_initial:20, qty_low_threshold:5 },
+  { name:'呼吸道套件(OPA/NPA)', category:'呼吸道類', qty_initial:5, qty_low_threshold:1 },
+  { name:'BVM', category:'呼吸道類', qty_initial:2, qty_low_threshold:1 },
+  { name:'氧氣鋼瓶', category:'呼吸道類', qty_initial:2, qty_low_threshold:1 },
+  { name:'IV通路套件', category:'循環類', qty_initial:10, qty_low_threshold:2 },
+  { name:'急救藥品包', category:'藥品', qty_initial:1, qty_low_threshold:1 },
+  { name:'軟式護木', category:'固定類', qty_initial:6, qty_low_threshold:1 },
+  { name:'三角巾', category:'固定類', qty_initial:10, qty_low_threshold:2 },
+  { name:'頸圈', category:'固定類', qty_initial:4, qty_low_threshold:1 },
+  { name:'保暖棉被+鋁箔毯', category:'保暖類', qty_initial:10, qty_low_threshold:2 },
+  { name:'AED', category:'監測器材', qty_initial:1, qty_low_threshold:1 },
+];
+
+async function renderResources(el) {
+  const items = await db.resources.toArray();
+
+  if (items.length === 0) {
+    el.innerHTML = `
+      <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
+      <div class="section-hdr">開場盤點</div>
+      <div class="p-2">
+        <div class="info-box info mb-2 text-sm">系統載入預設物資清單，請依實際數量調整後確認。</div>
+        ${DEFAULT_RESOURCES.map((r,i) => `
+          <div class="flex items-center gap-2 mb-2">
+            <span class="flex-1 text-sm">${r.name}</span>
+            <input type="number" class="form-input" style="width:70px;padding:6px;" id="res-qty-${i}" value="${r.qty_initial}" min="0">
+          </div>`).join('')}
+        <button class="btn btn-primary btn-full mt-2" onclick="initResources()">確認盤點完成</button>
+      </div>
+    `;
+    return;
+  }
+
+  const lowItems = items.filter(r => r.qty_current <= r.qty_low_threshold);
+  const byCategory = {};
+  items.forEach(r => { if (!byCategory[r.category]) byCategory[r.category] = []; byCategory[r.category].push(r); });
+
+  const listHtml = Object.entries(byCategory).map(([cat, catItems]) => `
+    <div class="section-hdr">${cat}</div>
+    ${catItems.map(r => {
+      const low = r.qty_current <= r.qty_low_threshold;
+      return `
+        <div class="card mb-1" style="${low ? 'border-left:3px solid var(--orange)' : ''}">
+          <div class="flex justify-between items-center">
+            <span class="font-semibold text-sm">${r.name}</span>
+            <span class="${low ? 'text-red font-bold' : ''}">${r.qty_current} / ${r.qty_initial}</span>
+          </div>
+          ${low ? `<div class="text-xs" style="color:var(--orange);">⚠️ 低量（門檻 ${r.qty_low_threshold}）</div>` : ''}
+          <div class="flex gap-1 mt-1">
+            <button class="pc-btn" onclick="useResource(${r.id},1)">取用 1</button>
+            <button class="pc-btn" onclick="restockResource(${r.id})">補給</button>
+          </div>
+        </div>`;
+    }).join('')}
+  `).join('');
+
+  el.innerHTML = `
+    <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
+    ${lowItems.length > 0 ? `<div class="info-box warn" style="margin:0 14px 10px;">⚠️ ${lowItems.length} 項低量：${lowItems.map(r=>r.name).join('、')}</div>` : ''}
+    ${listHtml}
+    <div style="padding:14px;"><button class="btn btn-outline btn-full btn-sm" onclick="resetInventory()">重置盤點</button></div>
+  `;
+}
+
+async function initResources() {
+  const rows = DEFAULT_RESOURCES.map((r,i) => {
+    const qty = parseInt(document.getElementById('res-qty-'+i)?.value || r.qty_initial, 10);
+    return { ...r, qty_current: qty, qty_initial: qty };
+  });
+  await db.resources.bulkAdd(rows);
+  showToast('盤點完成');
+  renderCurrentTab();
+}
+
+async function useResource(id, qty) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const newQty = Math.max(0, r.qty_current - qty);
+  await db.resources.update(id, { qty_current: newQty });
+  if (newQty <= r.qty_low_threshold) {
+    await db.incidents.add({
+      type:'resource_shortage', severity:'medium', status:'open',
+      notes:`${r.name} 低量（剩 ${newQty}）`,
+      reported_by:_state.operatorName, assigned_to:'',
+      linked_patients:'', reported_at:new Date().toISOString()
+    });
+    showToast(`⚠️ ${r.name} 低量，事件已建立`);
+  } else {
+    showToast(`${r.name} 已取用 ${qty}`);
+  }
+  renderCurrentTab();
+}
+
+async function restockResource(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const input = prompt(`補給 ${r.name}，請輸入補充數量：`);
+  if (!input) return;
+  const qty = parseInt(input, 10);
+  if (isNaN(qty) || qty <= 0) return;
+  await db.resources.update(id, { qty_current: r.qty_current + qty });
+  showToast(`${r.name} 補給 +${qty}`);
+  renderCurrentTab();
+}
+
+async function resetInventory() {
+  if (!confirm('確定重置所有物資盤點資料？')) return;
+  await db.resources.clear();
+  renderCurrentTab();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   INCIDENTS PAGE
+════════════════════════════════════════════════════════════════ */
+const INCIDENT_TYPES = {
+  security_threat:'安全威脅', violent_patient:'暴力傷患',
+  infectious_risk:'傳染疑慮', resource_shortage:'物資短缺',
+  capacity_overload:'量能超載', equipment_failure:'設備故障', evacuation:'撤退'
+};
+
+async function renderIncidents(el) {
+  const all = await db.incidents.toArray();
+  const open = all.filter(i => i.status === 'open');
+  const closed = all.filter(i => i.status === 'closed');
+
+  el.innerHTML = `
+    <div style="padding:14px;display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button>
+      <button class="btn btn-danger btn-sm" onclick="openCreateIncident()">＋ 通報事件</button>
+    </div>
+    <div class="section-hdr">開放事件 (${open.length})</div>
+    ${open.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text3);">目前無開放事件</div>` : ''}
+    ${open.map(inc => renderIncidentCard(inc, true)).join('')}
+    ${closed.length > 0 ? `
+      <div class="section-hdr">已結案 (${closed.length})</div>
+      ${closed.slice().reverse().slice(0,5).map(inc => renderIncidentCard(inc, false)).join('')}
+    ` : ''}
+  `;
+}
+
+function renderIncidentCard(inc, isOpen) {
+  const sevColor = { high:'var(--red)', medium:'var(--orange)', low:'var(--green)' }[inc.severity] || 'var(--gray)';
+  const sevTag = inc.severity === 'high' ? 'tag-red' : inc.severity === 'medium' ? 'tag-yellow' : 'tag-green';
+  const sevLabel = inc.severity === 'high' ? '高' : inc.severity === 'medium' ? '中' : '低';
+  return `
+    <div class="card mb-2" style="${isOpen ? 'border-left:3px solid '+sevColor : 'opacity:.7'}">
+      <div class="flex justify-between items-center mb-1">
+        <span class="font-semibold">${INCIDENT_TYPES[inc.type]||inc.type}</span>
+        <span class="tag ${sevTag}">${sevLabel}</span>
+      </div>
+      <div class="text-sm mb-1">${inc.notes||'—'}</div>
+      <div class="text-xs text-gray">${inc.reported_by||''} · ${(inc.reported_at||'').slice(0,16)}</div>
+      ${isOpen ? `<button class="btn btn-outline btn-sm mt-1" onclick="closeIncident(${inc.id})">結案</button>` : `<span class="tag tag-gray" style="margin-top:4px;display:inline-block;">已結案</span>`}
+    </div>
+  `;
+}
+
+function openCreateIncident() {
+  openModal('通報事件',
+    `<div class="flex flex-col gap-2">
+      <div class="form-group">
+        <div class="form-label">事件類型</div>
+        <select class="form-select" id="inc-type">
+          ${Object.entries(INCIDENT_TYPES).map(([v,l]) => `<option value="${v}">${l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">嚴重程度</div>
+        <select class="form-select" id="inc-sev">
+          <option value="high">高（立即威脅）</option>
+          <option value="medium" selected>中（需追蹤）</option>
+          <option value="low">低（知悉）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">事件說明</div>
+        <textarea class="form-input form-textarea" id="inc-notes" placeholder="簡述事件狀況…"></textarea>
+      </div>
+    </div>`,
+    `<button class="btn btn-danger flex-1" onclick="createIncident()">通報</button>
+     <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`
+  );
+}
+
+async function createIncident() {
+  const type = document.getElementById('inc-type')?.value;
+  const severity = document.getElementById('inc-sev')?.value;
+  const notes = document.getElementById('inc-notes')?.value;
+  if (!notes?.trim()) { showToast('請填寫事件說明'); return; }
+  await db.incidents.add({
+    type, severity, status:'open', notes,
+    reported_by:_state.operatorName, assigned_to:'',
+    linked_patients:'', reported_at:new Date().toISOString()
+  });
+  closeModal();
+  showToast('事件已通報');
+  renderCurrentTab();
+}
+
+async function closeIncident(id) {
+  await db.incidents.update(id, { status:'closed', closed_at:new Date().toISOString() });
+  showToast('事件已結案');
+  renderCurrentTab();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SHIFT / SNAPSHOT PAGE
+════════════════════════════════════════════════════════════════ */
+async function renderShift(el) {
+  const shifts = await db.shifts.toArray();
+  const redPatients = _state.patients.filter(p => p.triage_color === 'red' && p.current_zone !== '已離區');
+  const openIncidents = await db.incidents.where('status').equals('open').count();
+  const lowResources = await db.resources.filter(r => r.qty_current <= r.qty_low_threshold).count();
+  const pendingEvac = getPendingTransfer();
+  const lastShift = shifts.length > 0 ? shifts[shifts.length-1] : null;
+  const shiftAgo = lastShift ? Math.floor((Date.now()-new Date(lastShift.started_at))/3600000) : null;
+  const needForceShift = shiftAgo !== null && shiftAgo >= 4;
+
+  el.innerHTML = `
+    <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
+    ${needForceShift ? `<div class="info-box warn" style="margin:0 14px 10px;">⚠️ 距上次交班已超過 4 小時，請立即辦理交班。</div>` : ''}
+    <div class="section-hdr">建立交班紀錄</div>
+    <div class="p-2">
+      <div class="card mb-2 text-sm">
+        <div class="flex justify-between mb-1"><span>傷患（在站）</span><span class="font-bold">${_state.patients.filter(p=>p.current_zone!=='已離區').length}</span></div>
+        <div class="flex justify-between mb-1"><span>🔴 紅區</span><span>${countByColor('紅')}</span></div>
+        <div class="flex justify-between mb-1"><span>🟡 黃區</span><span>${countByColor('黃')}</span></div>
+        <div class="flex justify-between mb-1"><span>🟢 綠區</span><span>${countByColor('綠')}</span></div>
+        <div class="flex justify-between mb-1"><span>⚫ 黑區</span><span>${countByColor('黑')}</span></div>
+        <div class="flex justify-between mb-1"><span>🚑 待後送</span><span>${pendingEvac}</span></div>
+        <div class="flex justify-between mb-1"><span>⚠️ 開放事件</span><span>${openIncidents}</span></div>
+        <div class="flex justify-between"><span>📦 低量物資</span><span>${lowResources}</span></div>
+      </div>
+      ${redPatients.length > 0 ? `
+        <div class="info-box error mb-2 text-sm">
+          <b>🔴 紅區傷患逐一交接（${redPatients.length} 人）</b><br>
+          ${redPatients.map(p => `${p.display_id}：${p.chief_issue||'—'} / ${p.vitals_summary||'—'}`).join('<br>')}
+        </div>` : ''}
+      <div class="form-group">
+        <div class="form-label">交班備註</div>
+        <textarea class="form-input form-textarea" id="shift-notes" placeholder="特別注意事項、未完成任務、下一班需追蹤項目…" style="min-height:100px;"></textarea>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="createShift()">建立交班紀錄</button>
+    </div>
+    ${shifts.length > 0 ? `
+    <div class="section-hdr">歷史交班 (${shifts.length})</div>
+    ${shifts.slice().reverse().map(s => {
+      let snapHtml = '';
+      if (s.snapshot) { try { const snap = JSON.parse(s.snapshot); snapHtml = `<div class="text-xs text-gray mt-1">紅${snap.red||0} 黃${snap.yellow||0} 綠${snap.green||0} 黑${snap.black||0} · 後送${snap.pending||0}</div>`; } catch(_) {} }
+      return `<div class="card mb-2 text-sm" style="opacity:.8">
+        <div class="flex justify-between mb-1">
+          <span class="font-semibold">${s.operator_name} · ${s.role}</span>
+          <span class="text-gray">${(s.started_at||'').slice(0,16)}</span>
+        </div>
+        ${s.handover_notes ? `<div>${s.handover_notes}</div>` : ''}
+        ${snapHtml}
+      </div>`;
+    }).join('')}
+    ` : ''}
+  `;
+}
+
+async function createShift() {
+  const notes = document.getElementById('shift-notes')?.value || '';
+  const snap = { red:countByColor('紅'), yellow:countByColor('黃'), green:countByColor('綠'), black:countByColor('黑'), pending:getPendingTransfer() };
+  await db.shifts.add({
+    started_at: new Date().toISOString(),
+    role: _state.role, operator_name: _state.operatorName,
+    handover_notes: notes, snapshot: JSON.stringify(snap)
+  });
+  showToast('交班紀錄已建立');
+  renderCurrentTab();
+}
+
 function renderStub(el, icon, title, desc) {
-  el.innerHTML = `<div class="stub-page"><div class="stub-icon">${icon}</div><div class="stub-title">${title}</div><div class="stub-desc">${desc}<br><br>規劃於 v0.5 實作。</div></div>`;
+  el.innerHTML = `<div class="stub-page"><div class="stub-icon">${icon}</div><div class="stub-title">${title}</div><div class="stub-desc">${desc}</div></div>`;
 }
 
 /* ════════════════════════════════════════════════════════════════
