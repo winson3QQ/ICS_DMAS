@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.1.0';</script>
+<script>const PWA_VERSION='v0.2.0';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -179,8 +179,9 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .triage-color-btn.black{background:var(--black-bg);color:var(--black-zone);}
 .triage-color-btn.selected{border-color:currentColor;box-shadow:0 0 0 2px currentColor;}
 .start-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.start-item{padding:10px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:#fff;display:flex;flex-direction:column;gap:4px;}
+.start-item{padding:10px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:#fff;display:flex;flex-direction:column;gap:3px;}
 .start-item label{font-size:11px;font-weight:700;color:var(--text3);}
+.start-hint{font-size:10px;color:var(--text3);font-weight:400;opacity:.75;}
 .start-item select{border:none;padding:0;font-size:14px;font-weight:600;background:transparent;}
 /* ── Modal / overlay ── */
 #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-end;justify-content:center;}
@@ -224,7 +225,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
     <button class="login-btn" onclick="handleLogin()">登入</button>
     <div class="login-warn" id="login-warn"></div>
     <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
-    <div class="login-version">醫療組 PWA v0.1.0 · 規格 v0.4</div>
+    <div class="login-version">醫療組 PWA v0.2.0 · 規格 v0.4</div>
   </div>
 </div>
 
@@ -284,17 +285,12 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div id="app-header">
     <div class="hdr-left">
       <div class="hdr-title">🏥 醫療組</div>
-      <div class="hdr-idle" id="hdr-idle"></div>
+      <div style="font-size:11px;opacity:.7" id="hdr-ws"></div>
     </div>
     <div class="hdr-right">
-      <div style="text-align:right">
-        <div id="hdr-role" style="font-size:13px;font-weight:700;background:rgba(255,255,255,.2);padding:2px 10px;border-radius:12px;"></div>
-        <div id="hdr-login-time" style="font-size:10px;opacity:.65;margin-top:2px;"></div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-        <div style="font-size:11px;opacity:.7" id="hdr-ws"></div>
-        <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;">登出</button>
-      </div>
+      <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
+      <span id="idle-countdown" style="font-size:11px;color:rgba(255,255,255,.65);white-space:nowrap;flex-shrink:0;min-width:32px;text-align:right;"></span>
+      <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">登出</button>
     </div>
   </div>
 
@@ -306,15 +302,17 @@ input,select,textarea{font-family:inherit;font-size:16px;}
     <button class="tab-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
       <span class="tab-icon">📊</span>儀表板
     </button>
-    <button class="tab-item" data-tab="intake" onclick="switchTab('intake')">
+    <button class="tab-item" data-tab="intake" onclick="switchTab('intake')" style="position:relative;">
       <span class="tab-icon">➕</span>接收
+      <span class="tab-badge hidden" id="tab-badge-intake"></span>
     </button>
-    <button class="tab-item" data-tab="zones" onclick="switchTab('zones')">
+    <button class="tab-item" data-tab="zones" onclick="switchTab('zones')" style="position:relative;">
       <span class="tab-icon">🏥</span>分區
       <span class="tab-badge hidden" id="tab-badge-zones"></span>
     </button>
-    <button class="tab-item" data-tab="transfer" onclick="switchTab('transfer')">
+    <button class="tab-item" data-tab="transfer" onclick="switchTab('transfer')" style="position:relative;">
       <span class="tab-icon">🚑</span>後送
+      <span class="tab-badge hidden" id="tab-badge-transfer"></span>
     </button>
     <button class="tab-item" data-tab="more" onclick="switchTab('more')">
       <span class="tab-icon">⋯</span>更多
@@ -339,6 +337,23 @@ input,select,textarea{font-family:inherit;font-size:16px;}
     </div>
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- ══ QR SCANNER ════════════════════════════════════════════════ -->
+<div id="qr-scan-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">
+  <div style="width:100%;max-width:360px;background:#222;border-radius:14px;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;">
+      <span style="color:#fff;font-weight:700;font-size:15px;">📷 掃描傷患 QR Code</span>
+      <button onclick="stopQrScan()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;font-family:inherit;">✕ 關閉</button>
+    </div>
+    <div style="position:relative;background:#000;">
+      <video id="qr-video" style="width:100%;display:block;max-height:280px;object-fit:cover;" autoplay playsinline muted></video>
+      <div style="position:absolute;inset:0;border:2px solid transparent;pointer-events:none;">
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:180px;height:180px;border:3px solid rgba(255,255,255,.7);border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.45);"></div>
+      </div>
+    </div>
+    <div id="qr-scan-msg" style="color:rgba(255,255,255,.7);font-size:13px;text-align:center;padding:12px 16px;">對準 QR Code 中央框線…</div>
   </div>
 </div>
 
@@ -368,6 +383,18 @@ db.version(1).stores({
 });
 db.version(2).stores({
   patients:  '++id, display_id, triage_color, current_zone, injury_type, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key',
+  accounts:  '++id, username, role, status'
+});
+db.version(3).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, care_status, disposition, updated_at',
   triages:   '++id, patient_id, triage_at, trauma_or_medical',
   slots:     '++id, zone, status',
   transfers: '++id, patient_id, status, created_at',
@@ -414,8 +441,12 @@ let _state = {
   intakeSource: 'A',    // A=前進MIST, B=收容, C=自行
   intakeInjury: null,   // 'trauma' | 'medical'
   intakeTriageColor: null,
+  intakeStart: { walk:'', breathing:'', circ:'', mental:'' },
   morePage: null,       // null | 'resources' | 'incidents' | 'shift'
   zoneTimer: null,      // interval for zone card countdown refresh
+  zoneColorFilter: null,
+  intakeMistMode: null,   // null | 'manual'
+  intakeMistData: { m:'', i:'', s:'', t:'' },
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -501,10 +532,14 @@ async function handleLogin() {
   document.getElementById('login-pin').value = '';
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  document.getElementById('hdr-role').textContent = `${acct.role}・${_state.operatorName}`;
   const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
-  document.getElementById('hdr-login-time').textContent = `登入 ${loginTime}`;
+  document.getElementById('hdr-role').innerHTML = `<span>${acct.role}・${_state.operatorName}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">登入 ${loginTime}</span>`;
   startIdleTimer();
+  // Role-based initial tab
+  const roleTabMap = { '檢傷官':'intake', '治療官':'zones', '後送官':'transfer', '後勤官':'more', '機動人員':'zones' };
+  const initTab = roleTabMap[acct.role] || 'dashboard';
+  _state.currentTab = initTab;
+  document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===initTab));
   loadPatients().then(renderCurrentTab);
   connectWS();
 }
@@ -515,9 +550,13 @@ async function handleLogin() {
 function startIdleTimer() {
   clearIdleTimers();
   _state.idleTimer = setTimeout(showIdleWarning, IDLE_WARN_S * 1000);
+  let secsLeft = IDLE_WARN_S;
+  _state.idleCountdown = setInterval(() => { secsLeft--; updateIdleHdr(secsLeft); }, 1000);
+  updateIdleHdr(IDLE_WARN_S);
 }
 
 function showIdleWarning() {
+  clearInterval(_state.idleCountdown); _state.idleCountdown = null;
   _state.idleWarning = true;
   document.getElementById('idle-warning').classList.remove('hidden');
   let cd = IDLE_LOCK_S;
@@ -557,10 +596,12 @@ function clearIdleTimers() {
 }
 
 function updateIdleHdr(secsLeft) {
-  const el = document.getElementById('hdr-idle');
+  const el = document.getElementById('idle-countdown');
   if (!el) return;
+  if (secsLeft <= 0) { el.textContent = ''; return; }
   const m = Math.floor(secsLeft/60), s = secsLeft%60;
-  el.textContent = secsLeft <= 30 ? `鎖定 ${s}s` : '';
+  el.textContent = m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
+  el.style.color = secsLeft <= 30 ? '#FF8A80' : 'rgba(255,255,255,.65)';
 }
 
 // 任何互動都重置
@@ -637,6 +678,7 @@ function switchTab(tab) {
 async function renderCurrentTab() {
   await loadPatients();
   await refreshAlertBanner();
+  updateTabBadges();
   const content = document.getElementById('app-content');
   if (_state.zoneTimer) { clearInterval(_state.zoneTimer); _state.zoneTimer = null; }
   switch(_state.currentTab) {
@@ -649,6 +691,22 @@ async function renderCurrentTab() {
     case 'transfer':  await renderTransfer(content); break;
     case 'more':      await renderMore(content); break;
   }
+}
+
+function updateTabBadges() {
+  const now = new Date();
+  // 分區：再評估逾時數
+  const overdue = _state.patients.filter(p => p.reassess_due_at && new Date(p.reassess_due_at) < now).length;
+  const bZones = document.getElementById('tab-badge-zones');
+  if (bZones) { bZones.textContent = overdue; bZones.classList.toggle('hidden', overdue === 0); }
+  // 接收：待治療評估（care_status = 'triaged'）
+  const needAssess = _state.patients.filter(p => (p.care_status || 'triaged') === 'triaged').length;
+  const bIntake = document.getElementById('tab-badge-intake');
+  if (bIntake) { bIntake.textContent = needAssess; bIntake.classList.toggle('hidden', needAssess === 0); }
+  // 後送：待後送佇列
+  const pendingTx = _state.patients.filter(p => p.disposition === '後送').length;
+  const bTransfer = document.getElementById('tab-badge-transfer');
+  if (bTransfer) { bTransfer.textContent = pendingTx; bTransfer.classList.toggle('hidden', pendingTx === 0); }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -685,15 +743,15 @@ function renderDashboard(el) {
   const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
   const total = r+y+g+b;
   const pending = getPendingTransfer();
-  const light = r>2 || pending>=2 ? '🔴 紅' : r>0 || pending>0 ? '🟡 黃' : '🟢 綠';
+  const light = r>2 || pending>=2 ? '紅：量能吃緊' : r>0 || pending>0 ? '黃：有傷患待處理' : '綠：量能正常';
   const lightColor = r>2||pending>=2 ? 'var(--red)' : r>0||pending>0 ? 'var(--orange)' : 'var(--green)';
 
   el.innerHTML = `
     <div class="cap-bar">
-      <div class="cap-stat red"><div class="cap-n">${r}</div><div class="cap-l">紅區</div></div>
-      <div class="cap-stat yellow"><div class="cap-n">${y}</div><div class="cap-l">黃區</div></div>
-      <div class="cap-stat green"><div class="cap-n">${g}</div><div class="cap-l">綠區</div></div>
-      <div class="cap-stat black"><div class="cap-n">${b}</div><div class="cap-l">黑區</div></div>
+      <div class="cap-stat red" onclick="filterZoneByColor('red')" style="cursor:pointer"><div class="cap-n">${r}</div><div class="cap-l">紅區</div></div>
+      <div class="cap-stat yellow" onclick="filterZoneByColor('yellow')" style="cursor:pointer"><div class="cap-n">${y}</div><div class="cap-l">黃區</div></div>
+      <div class="cap-stat green" onclick="filterZoneByColor('green')" style="cursor:pointer"><div class="cap-n">${g}</div><div class="cap-l">綠區</div></div>
+      <div class="cap-stat black" onclick="filterZoneByColor('black')" style="cursor:pointer"><div class="cap-n">${b}</div><div class="cap-l">黑區</div></div>
     </div>
     <div class="cap-light-row">
       <span class="text-sm text-gray">醫療量能</span>
@@ -717,7 +775,6 @@ function renderDashboard(el) {
     <div class="section-hdr">快速操作</div>
     <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-primary btn-full" onclick="switchTab('intake')">➕ 接收新傷患</button>
-      <button class="btn btn-outline btn-full" onclick="switchTab('zones')">🏥 查看分區看板</button>
       <button class="btn btn-ghost btn-full text-sm" onclick="doCapacityReport()">📻 產生量能回報文字</button>
     </div>
   `;
@@ -733,6 +790,11 @@ function doCapacityReport() {
      <button class="btn btn-outline btn-full mt-2" onclick="copyText('${txt}')">複製文字</button>`,
     `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
   );
+}
+
+function filterZoneByColor(color) {
+  _state.currentZone = color;
+  switchTab('zones');
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -754,128 +816,141 @@ function renderIntake(el) {
 
 function setIntakeSource(s) {
   _state.intakeSource = s;
+  _state.intakeMistMode = null;
+  _state.intakeMistData = { m:'', i:'', s:'', t:'' };
   renderCurrentTab();
 }
 
 function renderIntakeForm() {
-  const mistSection = _state.intakeSource === 'A' ? `
-    <div class="section-hdr">MIST 交接（前進組）</div>
-    <div class="form-group">
-      <div class="form-label">M — 傷害機轉</div>
-      <div class="mist-combo">
-        <select class="mist-select" id="mist-m-sel" onchange="mistFill('mist-m','mist-m-sel')">
-          <option value="">— 快速選擇 —</option>
-          <option>車禍（乘客）</option><option>車禍（行人）</option>
-          <option>高處墜落</option><option>爆炸傷</option>
-          <option>刀傷/穿刺傷</option><option>槍傷</option>
-          <option>燒燙傷</option><option>擠壓傷</option>
-          <option>鈍器傷</option><option>運動傷害</option>
-          <option>不明原因</option>
-        </select>
-        <input class="form-input" id="mist-m" placeholder="補充說明（可留空）">
-      </div>
-    </div>
-    <div class="form-group">
-      <div class="form-label">I — 傷害部位 / 傷情</div>
-      <div class="mist-combo">
-        <select class="mist-select" id="mist-i-sel" onchange="mistFill('mist-i','mist-i-sel')">
-          <option value="">— 快速選擇 —</option>
-          <option>頭部外傷</option><option>顏面傷</option>
-          <option>頸部傷</option><option>胸部外傷</option>
-          <option>腹部外傷</option><option>骨盆骨折</option>
-          <option>脊椎傷</option><option>上肢骨折</option>
-          <option>下肢骨折</option><option>多處外傷</option>
-          <option>無明顯外傷</option>
-        </select>
-        <input class="form-input" id="mist-i" placeholder="補充說明（可留空）">
-      </div>
-    </div>
-    <div class="form-group">
-      <div class="form-label">S — 徵象 / 生命徵象</div>
-      <div class="mist-combo">
-        <select class="mist-select" id="mist-s-sel" onchange="mistFill('mist-s','mist-s-sel')">
-          <option value="">— 快速選擇 —</option>
-          <option>穩定（HR&lt;100, BP&gt;90, SpO2&gt;94%, GCS 15）</option>
-          <option>輕微異常（HR 100–120, BP 80–90）</option>
-          <option>不穩定（HR&gt;120, BP&lt;80, SpO2&lt;90%）</option>
-          <option>意識喪失（GCS&lt;8）</option>
-          <option>無呼吸心跳</option>
-        </select>
-        <input class="form-input" id="mist-s" placeholder="HR __ BP __/__ RR __ SpO2 __% GCS __">
-      </div>
-    </div>
-    <div class="form-group">
-      <div class="form-label">T — 已完成處置</div>
-      <div class="mist-combo">
-        <select class="mist-select" id="mist-t-sel" onchange="mistAppend('mist-t','mist-t-sel')">
-          <option value="">— 點選即新增 —</option>
-          <option>已上止血帶</option><option>已包紮止血</option>
-          <option>已開放呼吸道</option><option>已給氧（面罩 10L）</option>
-          <option>已 BVM 輔助呼吸</option><option>已建立靜脈通路</option>
-          <option>已頸椎固定</option><option>已固定骨折</option>
-          <option>已保暖</option><option>已給止痛藥</option>
-          <option>CPR 進行中</option><option>無處置</option>
-        </select>
-        <input class="form-input" id="mist-t" placeholder="或自行輸入處置內容">
-      </div>
-    </div>
-    <div class="divider"></div>
-  ` : '';
+  let mistSection = '';
+  if (_state.intakeSource === 'A') {
+    if (_state.intakeMistMode === null) {
+      mistSection = `
+        <div class="section-hdr">MIST 交接（前進組）</div>
+        <div style="padding:0 14px 14px;display:flex;gap:10px;">
+          <button class="btn btn-primary flex-1" onclick="openQrScanModal()">📷 掃描 QR</button>
+          <button class="btn btn-outline flex-1" onclick="setMistMode('manual')">✏️ 手動輸入</button>
+        </div>
+      `;
+    } else {
+      const d = _state.intakeMistData;
+      mistSection = `
+        <div class="section-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>MIST 交接（前進組）</span>
+          <button class="btn btn-ghost btn-sm" onclick="setMistMode(null)" style="font-size:12px;padding:3px 8px;">重選</button>
+        </div>
+        <div class="form-group">
+          <div class="form-label">M — 傷害機轉</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-m-sel" onchange="mistFill('mist-m','mist-m-sel')">
+              <option value="">— 快速選擇 —</option>
+              <option>車禍（乘客）</option><option>車禍（行人）</option>
+              <option>高處墜落</option><option>爆炸傷</option>
+              <option>刀傷/穿刺傷</option><option>槍傷</option>
+              <option>燒燙傷</option><option>擠壓傷</option>
+              <option>鈍器傷</option><option>運動傷害</option>
+              <option>不明原因</option>
+            </select>
+            <input class="form-input" id="mist-m" placeholder="補充說明（可留空）" value="${d.m}">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">I — 傷害部位 / 傷情</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-i-sel" onchange="mistFill('mist-i','mist-i-sel')">
+              <option value="">— 快速選擇 —</option>
+              <option>頭部外傷</option><option>顏面傷</option>
+              <option>頸部傷</option><option>胸部外傷</option>
+              <option>腹部外傷</option><option>骨盆骨折</option>
+              <option>脊椎傷</option><option>上肢骨折</option>
+              <option>下肢骨折</option><option>多處外傷</option>
+              <option>無明顯外傷</option>
+            </select>
+            <input class="form-input" id="mist-i" placeholder="補充說明（可留空）" value="${d.i}">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">S — 徵象 / 生命徵象</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-s-sel" onchange="mistFill('mist-s','mist-s-sel')">
+              <option value="">— 快速選擇 —</option>
+              <option>穩定（HR&lt;100, BP&gt;90, SpO2&gt;94%, GCS 15）</option>
+              <option>輕微異常（HR 100–120, BP 80–90）</option>
+              <option>不穩定（HR&gt;120, BP&lt;80, SpO2&lt;90%）</option>
+              <option>意識喪失（GCS&lt;8）</option>
+              <option>無呼吸心跳</option>
+            </select>
+            <input class="form-input" id="mist-s" placeholder="HR __ BP __/__ RR __ SpO2 __% GCS __" value="${d.s}">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">T — 已完成處置</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-t-sel" onchange="mistAppend('mist-t','mist-t-sel')">
+              <option value="">— 點選即新增 —</option>
+              <option>已上止血帶</option><option>已包紮止血</option>
+              <option>已開放呼吸道</option><option>已給氧（面罩 10L）</option>
+              <option>已 BVM 輔助呼吸</option><option>已建立靜脈通路</option>
+              <option>已頸椎固定</option><option>已固定骨折</option>
+              <option>已保暖</option><option>已給止痛藥</option>
+              <option>CPR 進行中</option><option>無處置</option>
+            </select>
+            <input class="form-input" id="mist-t" placeholder="或自行輸入處置內容" value="${d.t}">
+          </div>
+        </div>
+        <div class="divider"></div>
+      `;
+    }
+  }
 
   return `
     ${mistSection}
+    <div class="section-hdr">安全檢查</div>
+    <div style="display:flex;gap:10px;padding:0 14px 14px;">
+      <div style="flex:1;">
+        <div class="form-label">安檢狀態</div>
+        <select class="form-select" id="intake-security">
+          <option value="yes">已完成</option>
+          <option value="pending">同步處理中（危急）</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <div class="form-label">收容組登記</div>
+        <select class="form-select" id="intake-shelter">
+          <option value="not_registered">未登記</option>
+          <option value="notify">已通知補登</option>
+          <option value="registered">已登記</option>
+        </select>
+      </div>
+    </div>
     <div class="section-hdr">START 檢傷</div>
     <div class="form-group">
       <div class="start-grid">
         <div class="start-item">
           <label>可自行行走</label>
-          <select id="start-walk"><option value="">—</option><option value="yes">是</option><option value="no">否</option></select>
+          <span class="start-hint">能走 → 綠區</span>
+          <select id="start-walk" onchange="autoTriageColor()"><option value="">—</option><option value="yes" ${_state.intakeStart.walk==='yes'?'selected':''}>是</option><option value="no" ${_state.intakeStart.walk==='no'?'selected':''}>否</option></select>
         </div>
         <div class="start-item">
           <label>呼吸狀態</label>
-          <select id="start-breathing"><option value="">—</option><option value="normal">正常</option><option value="abnormal">異常（開呼吸道後）</option><option value="absent">無</option></select>
+          <span class="start-hint">正常 = RR 12–29 次/分</span>
+          <select id="start-breathing" onchange="autoTriageColor()"><option value="">—</option><option value="normal" ${_state.intakeStart.breathing==='normal'?'selected':''}>正常（RR 12–29）</option><option value="abnormal" ${_state.intakeStart.breathing==='abnormal'?'selected':''}>異常（RR≥30，或開呼吸道後有呼吸）→ 紅</option><option value="absent" ${_state.intakeStart.breathing==='absent'?'selected':''}>無（開呼吸道後仍無呼吸）→ 黑</option></select>
         </div>
         <div class="start-item">
           <label>循環（橈動脈）</label>
-          <select id="start-circ"><option value="">—</option><option value="present">可觸及</option><option value="absent">無</option></select>
+          <span class="start-hint">橈動脈(+), CRT &lt; 2s</span>
+          <select id="start-circ" onchange="autoTriageColor()"><option value="">—</option><option value="present" ${_state.intakeStart.circ==='present'?'selected':''}>正常（橈動脈(+), CRT&lt;2s）</option><option value="absent" ${_state.intakeStart.circ==='absent'?'selected':''}>異常（CRT≥2s 或橈動脈(-)）→ 紅</option></select>
         </div>
         <div class="start-item">
           <label>意識（指令）</label>
-          <select id="start-mental"><option value="">—</option><option value="follows">可配合</option><option value="not_follows">無法配合</option></select>
+          <span class="start-hint">正常 = 可配合指令</span>
+          <select id="start-mental" onchange="autoTriageColor()"><option value="">—</option><option value="follows" ${_state.intakeStart.mental==='follows'?'selected':''}>可配合 → 黃</option><option value="not_follows" ${_state.intakeStart.mental==='not_follows'?'selected':''}>無法配合 → 紅</option></select>
         </div>
       </div>
     </div>
 
-    <div class="section-hdr">傷情分類</div>
-    <div class="form-group">
-      <div class="form-label">傷型</div>
-      <div class="trauma-btns">
-        <button class="trauma-btn ${_state.intakeInjury==='trauma'?'active trauma':''}" onclick="setInjury('trauma')">🩸 創傷<br><small>XABCDE</small></button>
-        <button class="trauma-btn ${_state.intakeInjury==='medical'?'active medical':''}" onclick="setInjury('medical')">💊 非創<br><small>SAMPLE/OPQRST</small></button>
-      </div>
-    </div>
+    ${renderTriageColorPicker()}
 
-    ${_state.intakeInjury === 'trauma' ? renderXABCDE() : ''}
-    ${_state.intakeInjury === 'medical' ? renderSampleOpqrst() : ''}
-    ${_state.intakeInjury ? renderTriageColorPicker() : ''}
-    ${_state.intakeInjury ? `
-    <div class="form-group">
-      <div class="form-label">安檢</div>
-      <select class="form-select" id="intake-security">
-        <option value="yes">已完成</option>
-        <option value="pending">同步處理中（危急）</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <div class="form-label">收容組登記</div>
-      <select class="form-select" id="intake-shelter">
-        <option value="registered">已登記</option>
-        <option value="notify">已通知補登</option>
-        <option value="not_registered">未登記</option>
-      </select>
-    </div>
-    <button class="btn btn-primary btn-full mt-2" onclick="submitIntake()">✅ 完成接收 / 分流</button>
-    ` : ''}
   `;
 }
 
@@ -1025,34 +1100,148 @@ function renderSampleOpqrst() {
 function renderTriageColorPicker() {
   const colors = ['紅','黃','綠','黑'];
   const vals  = ['red','yellow','green','black'];
+  const lbl   = {'red':'🔴 紅區','yellow':'🟡 黃區','green':'🟢 綠區','black':'⚫ 黑區'};
+  const sel   = _state.intakeTriageColor;
   return `
     <div class="section-hdr">檢傷分色</div>
     <div class="form-group">
       <div class="triage-color-btns">
-        ${colors.map((c,i)=>`<button class="triage-color-btn ${vals[i]} ${_state.intakeTriageColor===vals[i]?'selected':''}" onclick="setTriageColor('${vals[i]}')">${c}區</button>`).join('')}
+        ${colors.map((c,i)=>`<button class="triage-color-btn ${vals[i]}${sel===vals[i]?' selected':''}" onclick="setTriageColor('${vals[i]}')">${c}區</button>`).join('')}
       </div>
+      <div id="triage-hint" style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center;${sel?'display:none':''}">START 完整填寫後自動建議分色，或手動點選</div>
     </div>
-    <div class="form-group">
-      <div class="form-label">主訴摘要（chief issue）</div>
-      <textarea class="form-input form-textarea" id="chief-issue" placeholder="填寫主要傷情摘要，顯示於卡片上"></textarea>
+    <div id="triage-confirm" style="padding:0 0 4px;${sel?'':'display:none'}">
+      <button class="btn btn-success btn-full" onclick="confirmTriageColor()">✅ 確認分色：${lbl[sel]||''}</button>
     </div>
-    <div class="form-group">
-      <div class="form-label">生命徵象摘要</div>
-      <input class="form-input" id="vitals-summary" type="text" placeholder="HR, BP, RR, SpO2, GCS">
+    <div id="triage-submit" style="padding:0 0 12px;${sel?'':'display:none'}">
+      <button class="btn btn-primary btn-full" onclick="submitIntake()">✅ 完成檢傷 → 建檔</button>
     </div>
   `;
 }
 
 function setInjury(type) {
+  console.log('[intake] setInjury called:', type, '| current color=', _state.intakeTriageColor);
+  _state.intakeStart = {
+    walk:      document.getElementById('start-walk')?.value || '',
+    breathing: document.getElementById('start-breathing')?.value || '',
+    circ:      document.getElementById('start-circ')?.value || '',
+    mental:    document.getElementById('start-mental')?.value || ''
+  };
   _state.intakeInjury = _state.intakeInjury === type ? null : type;
   document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
 }
 
 function setTriageColor(c) {
+  console.log('[triage] setTriageColor called:', c);
   _state.intakeTriageColor = c;
+  // Toggle selected class without destroying DOM
   document.querySelectorAll('.triage-color-btn').forEach(el=>{
     el.classList.toggle('selected', el.classList.contains(c));
   });
+  // Hide hint, show confirm button
+  const hint = document.getElementById('triage-hint');
+  if (hint) hint.style.display = 'none';
+  const confirmDiv = document.getElementById('triage-confirm');
+  if (confirmDiv) {
+    const lbl = {'red':'🔴 紅區','yellow':'🟡 黃區','green':'🟢 綠區','black':'⚫ 黑區'};
+    confirmDiv.style.display = '';
+    confirmDiv.innerHTML = `<button class="btn btn-success btn-full" onclick="confirmTriageColor()">✅ 確認分色：${lbl[c]||c}</button>`;
+  }
+  const submitDiv = document.getElementById('triage-submit');
+  if (submitDiv) submitDiv.style.display = '';
+}
+
+function autoTriageColor() {
+  const walk     = document.getElementById('start-walk')?.value;
+  const breathing= document.getElementById('start-breathing')?.value;
+  const circ     = document.getElementById('start-circ')?.value;
+  const mental   = document.getElementById('start-mental')?.value;
+  if (!walk) return;
+  if (walk === 'yes') { setTriageColor('green'); return; }
+  if (!breathing) return;
+  if (breathing === 'absent')   { setTriageColor('black'); return; }
+  if (breathing === 'abnormal') { setTriageColor('red');   return; }
+  if (!circ) return;
+  if (circ === 'absent') { setTriageColor('red'); return; }
+  if (!mental) return;
+  setTriageColor(mental === 'follows' ? 'yellow' : 'red');
+}
+
+function confirmTriageColor() {
+  console.log('[triage] confirmTriageColor called, color=', _state.intakeTriageColor);
+  _state.intakeStart = {
+    walk:      document.getElementById('start-walk')?.value || '',
+    breathing: document.getElementById('start-breathing')?.value || '',
+    circ:      document.getElementById('start-circ')?.value || '',
+    mental:    document.getElementById('start-mental')?.value || ''
+  };
+  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
+  // Scroll to injury type section for clear feedback
+  setTimeout(() => {
+    const injEl = document.querySelector('.trauma-btns');
+    if (injEl) injEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 60);
+}
+
+function setMistMode(mode) {
+  if (mode === null) {
+    _state.intakeMistData = { m:'', i:'', s:'', t:'' };
+  }
+  _state.intakeMistMode = mode;
+  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
+}
+
+let _qrStream = null, _qrRaf = null;
+
+async function openQrScanModal() {
+  const overlay = document.getElementById('qr-scan-overlay');
+  overlay.classList.remove('hidden');
+  const video = document.getElementById('qr-video');
+  const msg   = document.getElementById('qr-scan-msg');
+  try {
+    _qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = _qrStream;
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      const detect = async () => {
+        if (!_qrStream) return;
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length > 0) { handleQrResult(codes[0].rawValue); return; }
+        } catch(e) {}
+        _qrRaf = requestAnimationFrame(detect);
+      };
+      video.addEventListener('play', () => { _qrRaf = requestAnimationFrame(detect); }, { once: true });
+    } else {
+      msg.textContent = '此裝置不支援 QR 掃描，請使用手動輸入';
+    }
+  } catch(e) {
+    msg.textContent = '無法開啟相機：' + e.message;
+  }
+}
+
+function stopQrScan() {
+  if (_qrStream) { _qrStream.getTracks().forEach(t => t.stop()); _qrStream = null; }
+  if (_qrRaf)    { cancelAnimationFrame(_qrRaf); _qrRaf = null; }
+  document.getElementById('qr-scan-overlay').classList.add('hidden');
+}
+
+function handleQrResult(raw) {
+  stopQrScan();
+  try {
+    const data = JSON.parse(raw);
+    _state.intakeMistData = {
+      m: data.m || data.mechanism || '',
+      i: data.i || data.injury    || '',
+      s: data.s || data.signs     || '',
+      t: data.t || data.treatment || ''
+    };
+    showToast('✅ QR 掃描成功，MIST 資料已填入');
+  } catch(e) {
+    showToast('QR 格式無法解析，請手動輸入');
+  }
+  _state.intakeMistMode = 'manual';
+  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
 }
 
 function gv(id) { const el=document.getElementById(id); return el ? el.value.trim() : ''; }
@@ -1088,45 +1277,25 @@ async function submitIntake() {
   const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
   const now = new Date().toISOString();
 
-  // Build triage record
   const triageData = {
     triage_at: now,
     triage_by: _state.operatorName,
-    trauma_or_medical: _state.intakeInjury,
     start_walk: gv('start-walk'),
     start_breathing: gv('start-breathing'),
     start_circulation: gv('start-circ'),
     start_mental: gv('start-mental'),
-    // MIST
     mist_m: getMist('mist-m-sel','mist-m'), mist_i: getMist('mist-i-sel','mist-i'),
     mist_s: getMist('mist-s-sel','mist-s'), mist_t: gv('mist-t'),
-    // XABCDE (trauma) — each field = select + free text combined
-    x_hemorrhage_controlled: getMist('x-hemorrhage','x-hemorrhage-notes'),
-    a_airway_patent: getMist('a-airway','a-airway-notes'),
-    b_breathing_status: getMist('b-breathing','b-interventions'),
-    c_pulse_quality: getMist('c-pulse','c-interventions'),
-    d_gcs: getMist('d-gcs','d-pupils'),
-    e_exposed: getMist('e-exposed','e-findings'),
-    // keep legacy field names pointing to combined values
-    a_airway_notes: gv('a-airway-notes'), b_interventions: gv('b-interventions'),
-    c_interventions: gv('c-interventions'), d_pupils: gv('d-pupils'), e_findings: gv('e-findings'),
-    // SAMPLE/OPQRST (medical)
-    abc_airway: gv('abc-airway'), abc_breathing: gv('abc-breathing'), abc_circulation: gv('abc-circulation'),
-    blood_glucose: gv('blood-glucose'),
-    sample_s: gv('sample-s'), sample_a: gv('sample-a'), sample_m: gv('sample-m'),
-    sample_p: gv('sample-p'), sample_l: gv('sample-l'), sample_e: gv('sample-e'),
-    opqrst_onset: gv('opqrst-o'), opqrst_provoke: gv('opqrst-p'), opqrst_quality: gv('opqrst-q'),
-    opqrst_radiation: gv('opqrst-r'), opqrst_severity: gv('opqrst-s'), opqrst_time: gv('opqrst-t'),
   };
 
   const patientData = {
     display_id: nextDisplayId(),
     triage_color: _state.intakeTriageColor,
-    injury_type: _state.intakeInjury,
+    care_status: 'triaged',
     current_zone: zoneMap[_state.intakeTriageColor],
     source_type: _state.intakeSource,
-    chief_issue: gv('chief-issue') || getMist('mist-i-sel','mist-i') || gv('sample-s') || '',
-    vitals_summary: gv('vitals-summary') || getMist('mist-s-sel','mist-s') || '',
+    chief_issue: getMist('mist-i-sel','mist-i') || '',
+    vitals_summary: getMist('mist-s-sel','mist-s') || '',
     security_cleared: gv('intake-security') !== 'pending',
     registered_with_shelter: gv('intake-shelter') || 'not_registered',
     disposition: '留觀',
@@ -1138,10 +1307,12 @@ async function submitIntake() {
   const patientId = await db.patients.add(patientData);
   await db.triages.add({ ...triageData, patient_id: patientId });
 
-  _state.intakeInjury = null;
   _state.intakeTriageColor = null;
-  showToast(`✅ ${patientData.display_id} 已接收，分至${zoneMap[_state.intakeTriageColor||'green']}`);
-  switchTab('zones');
+  _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
+  _state.intakeMistMode = null;
+  _state.intakeMistData = { m:'', i:'', s:'', t:'' };
+  showToast(`✅ ${patientData.display_id} 已建檔，分至${patientData.current_zone}`);
+  switchTab('dashboard');
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1167,13 +1338,7 @@ function renderZones(el) {
     ? `<div style="padding:32px;text-align:center;color:var(--text3);">本區目前無傷患</div>`
     : patients.map(p=>renderPatientCard(p)).join('');
 
-  // Update tab badge
-  const overdue = _state.patients.filter(p=>{
-    if (!p.reassess_due_at) return false;
-    return new Date(p.reassess_due_at) < new Date();
-  }).length;
-  const badge = document.getElementById('tab-badge-zones');
-  if (badge) { badge.textContent=overdue; badge.classList.toggle('hidden', overdue===0); }
+  updateTabBadges();
 
   el.innerHTML = `
     <div class="zone-tabs">${tabs}</div>
@@ -1193,19 +1358,52 @@ function renderPatientCard(p) {
   const now = new Date();
   const overdue = due && due < now;
   const minLeft = due ? Math.max(0, Math.floor((due-now)/60000)) : null;
-  const timerStr = due ? (overdue ? '逾時' : `${minLeft}分`) : '';
+  const timerStr = due ? (overdue ? '⚠️逾時' : `${minLeft}分`) : '';
   const timerCls = overdue ? 'overdue' : '';
+  const careStatus = p.care_status || 'triaged';
+  const transferDone = careStatus === 'pending_transfer' || p.disposition === '後送' || p.disposition === '離開';
+  const assessDone = careStatus === 'assessed' || transferDone;
+
+  // Inline progress strip
+  const steps = [
+    { label:'檢傷', done: true },
+    { label:'治療評估', done: assessDone },
+    { label:'後送', done: transferDone },
+  ];
+  const progressStrip = `<div style="display:flex;gap:2px;margin:6px 0 4px;">
+    ${steps.map(s=>`<span style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:3px 0;border-radius:4px;background:${s.done?'var(--green)':'var(--border)'};color:${s.done?'#fff':'var(--text3)'};">${s.done?'✓ ':''}${s.label}</span>`).join('')}
+  </div>`;
+
+  // Medical history lines
+  const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '';
+  const histLines = [];
+  histLines.push(`<span style="color:var(--text3)">建檔</span> ${p.operator_name}・${fmt(p.updated_at)}`);
+  if (assessDone && p.assessed_by) {
+    histLines.push(`<span style="color:var(--text3)">評估</span> ${p.assessed_by}・${fmt(p.assessed_at)}`);
+  } else if (!assessDone) {
+    histLines.push(`<span style="color:#E65100;font-weight:600;">⬜ 治療評估待接手</span>`);
+  }
+  const history = `<div style="font-size:11px;line-height:1.8;margin-top:4px;padding-top:4px;border-top:1px solid var(--border);">${histLines.join('<br>')}</div>`;
+
+  // Continue button only for triaged (not yet assessed)
+  const continueBtn = !assessDone
+    ? `<button class="pc-btn primary" onclick="event.stopPropagation();openTreatmentAssessment(${p.id})">▶ 評估</button>`
+    : '';
+
   return `
-    <div class="patient-card ${cls} ${overdue?'overdue':''}" onclick="openPatientDetail(${p.id})">
-      <div class="pc-top">
+    <div class="patient-card ${cls} ${overdue?'overdue':''}">
+      <div class="pc-top" onclick="openPatientDetail(${p.id})" style="cursor:pointer;">
         <span class="pc-id">${p.display_id}</span>
-        <span class="pc-timer ${timerCls}" ${due ? `data-due="${p.reassess_due_at}"` : ''}>再評估 ${timerStr}</span>
+        <span class="pc-timer ${timerCls}" ${due ? `data-due="${p.reassess_due_at}"` : ''}>${timerStr}</span>
       </div>
+      ${progressStrip}
       <div class="pc-issue">${p.chief_issue || '（無主訴摘要）'}</div>
       <div style="font-size:12px;color:var(--text3);">${p.vitals_summary||''}</div>
+      ${history}
       <div class="pc-actions mt-1">
-        <button class="pc-btn" onclick="event.stopPropagation();resetReassess(${p.id})">重設再評估</button>
+        <button class="pc-btn" onclick="event.stopPropagation();resetReassess(${p.id})">重設</button>
         <button class="pc-btn" onclick="event.stopPropagation();openMoveZone(${p.id})">移區</button>
+        ${continueBtn}
         <button class="pc-btn primary" onclick="event.stopPropagation();markTransfer(${p.id})">後送</button>
       </div>
     </div>
@@ -1245,19 +1443,41 @@ async function openPatientDetail(id) {
   const triages = await db.triages.where('patient_id').equals(id).toArray();
   const latest = triages[triages.length-1];
   const colorLabel = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
+  const careStatus = p.care_status || 'triaged';
+  // Progress steps
+  const steps = [
+    { key:'triage',    label:'檢傷',  done: true },
+    { key:'assess',    label:'治療評估', done: careStatus === 'assessed' || careStatus === 'pending_transfer' },
+    { key:'transfer',  label:'後送',  done: careStatus === 'pending_transfer' || p.disposition === '後送' || p.disposition === '離開' },
+  ];
+  const progressBar = `<div style="display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;">
+    ${steps.map((s,i)=>`
+      <div style="flex:1;padding:7px 4px;text-align:center;font-size:12px;font-weight:600;
+        background:${s.done?'var(--green)':'var(--border)'};
+        color:${s.done?'#fff':'var(--text3)'};
+        ${i>0?'border-left:1px solid rgba(255,255,255,.3)':''}">
+        ${s.done?'✓ ':''}${s.label}
+      </div>`).join('')}
+  </div>`;
+  const injuryLabel = p.injury_type === 'trauma' ? '🩸 創傷' : p.injury_type === 'medical' ? '💊 非創' : '—（待填）';
+  const continueBtn = careStatus === 'triaged'
+    ? `<button class="btn btn-warning flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 繼續評估</button>`
+    : `<button class="btn btn-outline flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 更新評估</button>`;
   openModal(
     `${p.display_id} 傷患詳情`,
     `<div class="flex flex-col gap-2">
+      ${progressBar}
       <div class="dash-row"><span class="dash-row-label">檢傷分色</span><span class="dash-row-val">${colorLabel[p.triage_color]||p.triage_color}</span></div>
       <div class="dash-row"><span class="dash-row-label">目前區域</span><span class="dash-row-val">${p.current_zone}</span></div>
-      <div class="dash-row"><span class="dash-row-label">傷型</span><span class="dash-row-val">${p.injury_type==='trauma'?'創傷':'非創'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">傷型</span><span class="dash-row-val">${injuryLabel}</span></div>
       <div class="dash-row"><span class="dash-row-label">主訴</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.chief_issue||'—'}</span></div>
       <div class="dash-row"><span class="dash-row-label">生命徵象</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.vitals_summary||'—'}</span></div>
       <div class="dash-row"><span class="dash-row-label">處置</span><span class="dash-row-val">${p.disposition}</span></div>
-      <div class="dash-row"><span class="dash-row-label">操作者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
-      ${latest ? `<div class="info-box info mt-1" style="font-size:12px;word-break:break-all;">最新檢傷：${latest.triage_at?.slice(0,16)||''} by ${latest.triage_by||''}</div>` : ''}
+      <div class="dash-row"><span class="dash-row-label">建檔者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
+      ${latest ? `<div class="info-box info mt-1" style="font-size:12px;">檢傷：${latest.triage_at?.slice(0,16)||''} by ${latest.triage_by||''}</div>` : ''}
     </div>`,
-    `<button class="btn btn-outline flex-1" onclick="openMoveZone(${id});closeModal()">移區</button>
+    `${continueBtn}
+     <button class="btn btn-outline flex-1" onclick="openMoveZone(${id});closeModal()">移區</button>
      <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
   );
 }
@@ -1360,6 +1580,85 @@ function renderTransferCard(p) {
       </div>
     </div>
   `;
+}
+
+/* ─── 治療評估（治療官從分區看板開啟，繼續填傷型+XABCDE/SAMPLE） ─── */
+const _treatState = { patientId: null, injuryType: null };
+
+function openTreatmentAssessment(id) {
+  _treatState.patientId = id;
+  _treatState.injuryType = null;
+  renderTreatmentModal();
+}
+
+function renderTreatmentModal() {
+  const id = _treatState.patientId;
+  const injType = _treatState.injuryType;
+  const body = `
+    <div class="section-hdr">傷情分類</div>
+    <div class="form-group">
+      <div class="trauma-btns">
+        <button class="trauma-btn ${injType==='trauma'?'active trauma':''}" onclick="_treatState.injuryType='trauma';renderTreatmentModal()">🩸 創傷<br><small>XABCDE</small></button>
+        <button class="trauma-btn ${injType==='medical'?'active medical':''}" onclick="_treatState.injuryType='medical';renderTreatmentModal()">💊 非創<br><small>SAMPLE/OPQRST</small></button>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">主訴摘要</div>
+      <textarea class="form-input form-textarea" id="ta-chief" placeholder="chief issue…"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="form-label">生命徵象摘要</div>
+      <input class="form-input" id="ta-vitals" placeholder="HR __ BP __/__ RR __ SpO2 __%">
+    </div>
+    ${injType === 'trauma' ? renderXABCDE() : ''}
+    ${injType === 'medical' ? renderSampleOpqrst() : ''}
+    ${injType ? `<button class="btn btn-primary btn-full mt-2" onclick="saveTreatmentAssessment(${id})">💾 儲存評估</button>` : ''}
+  `;
+  // Re-use openModal if already open, else open fresh
+  const existing = document.getElementById('modal-body');
+  if (existing) {
+    existing.innerHTML = body;
+  } else {
+    openModal('治療評估', body, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
+  }
+}
+
+async function saveTreatmentAssessment(id) {
+  const injType = _treatState.injuryType;
+  if (!injType) { showToast('請選擇傷型'); return; }
+  const now = new Date().toISOString();
+  const assessData = {
+    trauma_or_medical: injType,
+    triage_at: now,
+    triage_by: _state.operatorName,
+    // XABCDE
+    x_hemorrhage_controlled: getMist('x-hemorrhage','x-hemorrhage-notes'),
+    a_airway_patent: getMist('a-airway','a-airway-notes'),
+    b_breathing_status: getMist('b-breathing','b-interventions'),
+    c_pulse_quality: getMist('c-pulse','c-interventions'),
+    d_gcs: getMist('d-gcs','d-pupils'),
+    e_exposed: getMist('e-exposed','e-findings'),
+    // SAMPLE/OPQRST
+    abc_airway: gv('abc-airway'), abc_breathing: gv('abc-breathing'), abc_circulation: gv('abc-circulation'),
+    blood_glucose: gv('blood-glucose'),
+    sample_s: gv('sample-s'), sample_a: gv('sample-a'), sample_m: gv('sample-m'),
+    sample_p: gv('sample-p'), sample_l: gv('sample-l'), sample_e: gv('sample-e'),
+    opqrst_onset: gv('opqrst-o'), opqrst_provoke: gv('opqrst-p'), opqrst_quality: gv('opqrst-q'),
+    opqrst_radiation: gv('opqrst-r'), opqrst_severity: gv('opqrst-s'), opqrst_time: gv('opqrst-t'),
+  };
+  await db.triages.add({ ...assessData, patient_id: id });
+  await db.patients.update(id, {
+    injury_type: injType,
+    care_status: 'assessed',
+    assessed_by: _state.operatorName,
+    assessed_at: now,
+    chief_issue: gv('ta-chief') || '',
+    vitals_summary: gv('ta-vitals') || '',
+    updated_at: now,
+  });
+  closeModal();
+  showToast('✅ 治療評估已儲存');
+  renderCurrentTab();
 }
 
 async function openIsbar(patientId) {
@@ -1744,6 +2043,7 @@ function doLogout() {
   document.getElementById('idle-warning').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('login-warn').textContent = '';
+  const cdEl = document.getElementById('idle-countdown'); if (cdEl) cdEl.textContent = '';
 }
 
 /* ════════════════════════════════════════════════════════════════
