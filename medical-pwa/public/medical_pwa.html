@@ -1,0 +1,2470 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<script>const PWA_VERSION='v0.3.3';</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#8B0000">
+<title>醫療組</title>
+<link rel="manifest" href="manifest.json" id="manifest-link">
+<style>
+:root {
+  --primary:#C62828; --primary-dk:#8B0000; --primary-lt:#EF5350;
+  --bg:#F5F5F5; --surface:#FFFFFF; --surface2:#FAFAFA;
+  --text:#1A1A1A; --text2:#666; --text3:#999; --border:#E0E0E0;
+  --red:#C62828; --red-bg:#FFEBEE;
+  --yellow:#E65100; --yellow-bg:#FFF3E0;
+  --green:#2E7D32; --green-bg:#E8F5E9;
+  --black-zone:#212121; --black-bg:#EEEEEE;
+  --blue:#1565C0; --blue-bg:#E3F2FD;
+  --gray:#757575; --gray-bg:#F5F5F5;
+  --orange:#E65100; --orange-bg:#FFF3E0;
+  --shadow:0 2px 8px rgba(0,0,0,.12); --shadow-sm:0 1px 4px rgba(0,0,0,.08);
+  --r:10px; --r-sm:6px; --tab-h:62px; --hdr-h:52px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-size:16px;font-family:-apple-system,'PingFang TC','微軟正黑體',sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent;}
+button{font-family:inherit;cursor:pointer;border:none;outline:none;}
+input,select,textarea{font-family:inherit;font-size:16px;}
+.hidden{display:none!important;}
+.flex{display:flex;} .flex-col{flex-direction:column;} .items-center{align-items:center;}
+.justify-between{justify-content:space-between;} .gap-1{gap:6px;} .gap-2{gap:12px;} .gap-3{gap:18px;}
+.mt-1{margin-top:6px;} .mt-2{margin-top:12px;} .mt-3{margin-top:18px;}
+.mb-1{margin-bottom:6px;} .mb-2{margin-bottom:12px;}
+.w-full{width:100%;} .text-sm{font-size:13px;} .text-xs{font-size:11px;}
+.font-bold{font-weight:700;} .font-semibold{font-weight:600;}
+.text-center{text-align:center;} .text-primary{color:var(--primary);}
+.text-red{color:var(--red);} .text-green{color:var(--green);} .text-gray{color:var(--gray);}
+.rounded{border-radius:var(--r);} .rounded-sm{border-radius:var(--r-sm);}
+.p-2{padding:12px;} .p-3{padding:18px;} .px-3{padding-left:18px;padding-right:18px;}
+.py-2{padding-top:12px;padding-bottom:12px;} .overflow-y{overflow-y:auto;}
+.flex-1{flex:1;} .relative{position:relative;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:var(--r-sm);font-size:15px;font-weight:600;transition:opacity .15s;}
+.btn:active{opacity:.75;} .btn-primary{background:var(--primary);color:#fff;}
+.btn-outline{background:transparent;border:2px solid var(--primary);color:var(--primary);}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-ghost{background:transparent;color:var(--text2);padding:8px 12px;}
+.btn-sm{padding:6px 12px;font-size:13px;border-radius:var(--r-sm);}
+.btn-icon{padding:8px;border-radius:50%;background:transparent;}
+.btn-full{width:100%;}
+.btn-success{background:var(--green);color:#fff;}
+.btn-warning{background:var(--orange);color:#fff;}
+.tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;}
+.tag-red{background:var(--red-bg);color:var(--red);}
+.tag-yellow{background:var(--yellow-bg);color:var(--yellow);}
+.tag-green{background:var(--green-bg);color:var(--green);}
+.tag-black{background:var(--black-bg);color:var(--black-zone);}
+.tag-blue{background:var(--blue-bg);color:var(--blue);}
+.tag-gray{background:var(--gray-bg);color:var(--gray);}
+.divider{height:1px;background:var(--border);margin:12px 0;}
+.form-label{font-size:14px;font-weight:600;color:var(--text2);}
+.form-label .req{color:var(--red);margin-left:3px;}
+.form-input{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:var(--r-sm);font-size:16px;background:var(--surface);color:var(--text);transition:border-color .15s;}
+.form-input:focus{outline:none;border-color:var(--primary);}
+.form-select{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:var(--r-sm);font-size:16px;background:var(--surface);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;}
+.form-textarea{resize:vertical;min-height:80px;}
+.form-check{display:flex;align-items:flex-start;gap:10px;cursor:pointer;}
+.form-check input[type="checkbox"]{width:20px;height:20px;margin-top:2px;flex-shrink:0;accent-color:var(--primary);}
+.form-check-label{font-size:14px;line-height:1.5;}
+.form-hint{font-size:12px;color:var(--text3);}
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);padding:14px;}
+.card-sm{background:var(--surface);border-radius:var(--r-sm);box-shadow:var(--shadow-sm);padding:10px 12px;}
+.card-list{display:flex;flex-direction:column;gap:8px;}
+.info-box{padding:10px 14px;border-radius:var(--r-sm);font-size:13px;}
+.info-box.info{background:var(--blue-bg);color:var(--blue);}
+.info-box.warn{background:var(--yellow-bg);color:var(--orange);}
+.info-box.error{background:var(--red-bg);color:var(--red);}
+.info-box.success{background:var(--green-bg);color:var(--green);}
+/* ── Layout ── */
+#login-screen,#app{position:fixed;inset:0;display:flex;flex-direction:column;}
+#login-screen{background:var(--bg);color:var(--text);align-items:center;justify-content:center;padding:24px;overflow-y:auto;}
+/* ── Login screen ── */
+.login-wrap{width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;}
+.login-icon-wrap{width:88px;height:88px;border-radius:24px;background:linear-gradient(145deg,var(--primary) 0%,var(--primary-dk) 100%);display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:16px;box-shadow:0 6px 20px rgba(198,40,40,.3);}
+.login-logo{line-height:1;}
+.login-title{font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text);}
+.login-sub{font-size:13px;color:var(--text3);margin-bottom:28px;}
+.login-card{width:100%;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;margin-bottom:12px;}
+.login-notice{font-size:12px;background:var(--red-bg);color:var(--red);padding:6px 14px;border-radius:var(--r-sm);margin-bottom:14px;text-align:center;width:100%;}
+.login-field{width:100%;margin-bottom:12px;}
+.login-input{width:100%;padding:13px 16px;border-radius:var(--r-sm);border:2px solid var(--border);background:var(--surface);color:var(--text);font-size:16px;transition:border-color .15s;}
+.login-input::placeholder{color:var(--text3);}
+.login-input:focus{outline:none;border-color:var(--primary);}
+.login-btn{width:100%;padding:14px;border-radius:var(--r-sm);background:var(--primary);color:#fff;font-size:16px;font-weight:700;border:none;cursor:pointer;transition:opacity .15s;}
+.login-btn:active{opacity:.8;}
+.login-warn{min-height:18px;font-size:13px;color:var(--red);margin-top:8px;text-align:center;width:100%;}
+.login-admin-btn{background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px 12px;}
+.login-version{color:var(--text3);font-size:11px;margin-top:6px;}
+/* ── Admin panel (bottom sheet) ── */
+#admin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;}
+#admin-panel{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:18px 18px 0 0;z-index:301;max-height:90vh;flex-direction:column;}
+.adm-hdr{padding:16px 18px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;}
+.adm-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.adm-tab{flex:1;padding:10px 0;font-size:14px;font-weight:600;color:var(--text3);border:none;background:transparent;border-bottom:2px solid transparent;cursor:pointer;}
+.adm-tab.active{color:var(--primary);border-color:var(--primary);}
+.adm-body{overflow-y:auto;padding:14px 16px;flex:1;}
+.adm-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;}
+.adm-card-name{font-weight:700;font-size:15px;}
+.adm-card-meta{font-size:12px;color:var(--text2);margin-top:3px;}
+.adm-btn{padding:5px 12px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1.5px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-family:inherit;}
+.adm-btn-primary{border-color:var(--primary);color:var(--primary);}
+.adm-btn-del{border-color:var(--red);color:var(--red);}
+.adm-btn-toggle{border-color:var(--orange);color:var(--orange);}
+/* ── App shell ── */
+#app-header{height:var(--hdr-h);background:var(--surface);color:var(--text);border-bottom:3px solid var(--primary);display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0;position:relative;z-index:10;}
+.hdr-left{display:flex;flex-direction:column;gap:1px;}
+.hdr-right{display:flex;align-items:center;gap:8px;}
+.hdr-title{font-size:16px;font-weight:700;color:var(--primary);}
+.hdr-idle{font-size:11px;color:var(--text3);}
+#alert-banner{display:none;background:var(--red);color:#fff;padding:8px 14px;font-size:13px;font-weight:600;flex-shrink:0;z-index:9;}
+#alert-banner.warn{background:var(--orange);}
+#app-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+#app-tabs{height:var(--tab-h);background:var(--surface);border-top:1px solid var(--border);display:flex;flex-shrink:0;}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 0;background:transparent;border:none;color:var(--text3);font-size:11px;font-weight:600;position:relative;cursor:pointer;transition:color .15s;}
+.tab-item.active{color:var(--primary);}
+.tab-item .tab-icon{font-size:20px;}
+.tab-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
+/* ── Capacity bar ── */
+.cap-bar{display:flex;gap:8px;padding:12px 14px 0;background:var(--surface);margin-bottom:2px;}
+.cap-stat{flex:1;text-align:center;padding:8px 4px;border-radius:var(--r-sm);}
+.cap-stat .cap-n{font-size:24px;font-weight:700;}
+.cap-stat .cap-l{font-size:11px;font-weight:600;margin-top:2px;}
+.cap-stat.red{background:var(--red-bg);color:var(--red);}
+.cap-stat.yellow{background:var(--yellow-bg);color:var(--yellow);}
+.cap-stat.green{background:var(--green-bg);color:var(--green);}
+.cap-stat.black{background:var(--black-bg);color:var(--black-zone);}
+/* ── Capacity light ── */
+.cap-light-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);margin-bottom:8px;}
+.cap-light{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:14px;}
+.cap-light-dot{width:14px;height:14px;border-radius:50%;}
+/* ── Section header ── */
+.section-hdr{padding:10px 14px 4px;font-size:12px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;}
+/* ── Dashboard rows ── */
+.dash-row{background:var(--surface);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.dash-row-label{font-size:14px;color:var(--text2);}
+.dash-row-val{font-size:16px;font-weight:700;}
+/* ── Patient card ── */
+.patient-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);margin:6px 10px;padding:12px;border-left:4px solid transparent;}
+.patient-card.red{border-color:var(--red);}
+.patient-card.yellow{border-color:var(--yellow);}
+.patient-card.green{border-color:var(--green);}
+.patient-card.black{border-color:var(--black-zone);}
+.patient-card.overdue{box-shadow:0 0 0 2px var(--red);}
+.pc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.pc-id{font-size:16px;font-weight:700;}
+.pc-timer{font-size:13px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-bg);color:var(--blue);}
+.pc-timer.overdue{background:var(--red-bg);color:var(--red);}
+.pc-issue{font-size:13px;color:var(--text2);margin-bottom:6px;}
+.pc-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.pc-btn{padding:5px 10px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1.5px solid var(--border);background:transparent;color:var(--text);}
+.pc-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+.pc-btn.danger{background:var(--red);border-color:var(--red);color:#fff;}
+/* ── Zone tabs ── */
+.zone-tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;}
+.zone-tab{padding:10px 16px;font-size:14px;font-weight:600;color:var(--text3);border:none;background:transparent;border-bottom:3px solid transparent;white-space:nowrap;cursor:pointer;}
+.zone-tab.active.red{color:var(--red);border-color:var(--red);}
+.zone-tab.active.yellow{color:var(--yellow);border-color:var(--yellow);}
+.zone-tab.active.green{color:var(--green);border-color:var(--green);}
+.zone-tab.active.black{color:var(--black-zone);border-color:var(--black-zone);}
+/* ── MIST combo field ── */
+.mist-combo{display:flex;flex-direction:column;gap:6px;}
+.mist-select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:14px;background:#fff;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+/* ── Intake form ── */
+.source-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 28px;}
+.source-btn{padding:12px 6px;border-radius:var(--r-sm);border:2px solid var(--border);background:transparent;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;}
+.source-btn.active{border-color:var(--primary);background:var(--red-bg);color:var(--primary);}
+.intake-form{padding:0 14px 80px;}
+.trauma-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.trauma-btn{padding:14px;border-radius:var(--r-sm);border:2px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;}
+.trauma-btn.active.trauma{border-color:var(--red);background:var(--red-bg);color:var(--red);}
+.trauma-btn.active.medical{border-color:var(--blue);background:var(--blue-bg);color:var(--blue);}
+.triage-color-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.triage-color-btn{padding:12px 4px;border-radius:var(--r-sm);border:2px solid transparent;font-size:13px;font-weight:700;cursor:pointer;text-align:center;}
+.triage-color-btn.red{background:var(--red-bg);color:var(--red);}
+.triage-color-btn.yellow{background:var(--yellow-bg);color:var(--yellow);}
+.triage-color-btn.green{background:var(--green-bg);color:var(--green);}
+.triage-color-btn.black{background:var(--black-bg);color:var(--black-zone);}
+.triage-color-btn.selected{border-color:currentColor;box-shadow:0 0 0 2px currentColor;}
+.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.start-item{padding:10px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:#fff;display:flex;flex-direction:column;gap:3px;}
+.start-item label{font-size:11px;font-weight:700;color:var(--text3);}
+.start-hint{font-size:10px;color:var(--text3);font-weight:400;opacity:.75;}
+.start-item select{border:none;padding:0;font-size:14px;font-weight:600;background:transparent;}
+/* ── Modal / overlay ── */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-end;justify-content:center;}
+.modal{background:var(--surface);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;}
+.modal-hdr{padding:16px 18px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;}
+.modal-title{font-size:17px;font-weight:700;}
+.modal-body{overflow-y:auto;padding:16px 18px;flex:1;}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;}
+/* ── Toast ── */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 18px;border-radius:24px;font-size:14px;z-index:200;pointer-events:none;transition:opacity .3s;}
+/* ── Idle warning overlay ── */
+#idle-warning{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:150;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;gap:16px;}
+.idle-title{font-size:22px;font-weight:700;}
+.idle-sub{font-size:15px;opacity:.8;}
+.idle-cd{font-size:48px;font-weight:700;color:#FF8A80;}
+/* ── Stub page ── */
+.stub-page{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:32px;text-align:center;color:var(--text3);}
+.stub-icon{font-size:48px;margin-bottom:16px;}
+.stub-title{font-size:18px;font-weight:700;color:var(--text2);margin-bottom:8px;}
+.stub-desc{font-size:14px;line-height:1.6;}
+/* ── Print hide ── */
+@media print{#app-tabs,#app-header,#alert-banner{display:none!important;}}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-icon-wrap"><div class="login-logo">🏥</div></div>
+    <div class="login-title">醫療組管理系統</div>
+    <div class="login-sub">Medical Team PWA · 離線優先</div>
+    <div class="login-card">
+      <div class="login-notice" id="login-notice" style="display:none;"></div>
+      <div class="login-field">
+        <input class="login-input" id="login-username" type="text" placeholder="帳號（任務代號）" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div class="login-field">
+        <input class="login-input" id="login-pin" type="password" inputmode="numeric" placeholder="PIN（4–6 位數字）" maxlength="6" autocomplete="off"
+          onkeydown="if(event.key==='Enter')handleLogin()">
+      </div>
+      <button class="login-btn" onclick="handleLogin()">登入</button>
+      <div class="login-warn" id="login-warn"></div>
+    </div>
+    <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
+    <div class="login-version">醫療組 PWA v0.3.3 · 規格 v0.4</div>
+  </div>
+</div>
+
+<!-- ══ ADMIN PANEL ═══════════════════════════════════════════════ -->
+<div id="admin-overlay" onclick="closeAdminPanel()"></div>
+<div id="admin-panel">
+  <div class="adm-hdr">
+    <span style="font-size:17px;font-weight:700;">⚙️ 帳號管理</span>
+    <button class="btn btn-ghost" onclick="closeAdminPanel()" style="font-size:18px;">✕</button>
+  </div>
+  <!-- PIN verify -->
+  <div id="adm-pin-screen" style="padding:20px 18px;">
+    <div class="form-group"><label class="form-label">管理員 PIN</label>
+      <input id="adm-pin-input" type="password" inputmode="numeric" class="form-input" placeholder="輸入管理員 PIN" maxlength="6"
+        onkeydown="if(event.key==='Enter')adminVerify()">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="adminVerify()">確認</button>
+    <div id="adm-pin-err" style="color:var(--red);font-size:13px;margin-top:8px;min-height:16px;"></div>
+  </div>
+  <!-- Main tabs (hidden until verified) -->
+  <div id="adm-main" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+    <div class="adm-tabs">
+      <button class="adm-tab active" id="adm-tab-list" onclick="admShowTab('list')">帳號列表</button>
+      <button class="adm-tab" id="adm-tab-add" onclick="admShowTab('add')">新增帳號</button>
+      <button class="adm-tab" id="adm-tab-cfg" onclick="admShowTab('cfg')">設定</button>
+    </div>
+    <div class="adm-body">
+      <div id="adm-panel-list"></div>
+      <div id="adm-panel-add" style="display:none;">
+        <div class="form-group"><label class="form-label">帳號（唯一）</label><input class="form-input" id="adm-new-user" placeholder="例：醫官甲"></div>
+        <div class="form-group"><label class="form-label">顯示名稱</label><input class="form-input" id="adm-new-display" placeholder="姓名或工號"></div>
+        <div class="form-group"><label class="form-label">角色</label>
+          <select class="form-select" id="adm-new-role">
+            <option value="組長">組長</option><option value="副組長">副組長</option>
+            <option value="檢傷官">檢傷官</option><option value="治療官">治療官</option>
+            <option value="後送官">後送官</option><option value="後勤官">後勤官</option>
+            <option value="通訊官">通訊官</option><option value="機動人員">機動人員</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">PIN（4–6 位）</label><input class="form-input" id="adm-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="設定登入 PIN"></div>
+        <button class="btn btn-primary btn-full" onclick="admAddAccount()">建立帳號</button>
+        <div id="adm-add-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
+      </div>
+      <div id="adm-panel-cfg" style="display:none;">
+        <div class="form-group"><label class="form-label">修改管理員 PIN</label>
+          <input class="form-input" id="adm-cfg-pin" type="password" inputmode="numeric" maxlength="6" placeholder="新管理員 PIN（4–6 位）">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="admChangeAdminPin()">更新管理員 PIN</button>
+        <div id="adm-cfg-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ═══════════════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+  <div id="app-header">
+    <div class="hdr-left">
+      <div class="hdr-title">🏥 醫療組</div>
+      <div style="font-size:11px;color:var(--text3);" id="hdr-ws"></div>
+    </div>
+    <div class="hdr-right">
+      <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:var(--red-bg);color:var(--primary);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
+      <span id="idle-countdown" style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;min-width:32px;text-align:right;"></span>
+      <button onclick="doLogout()" style="background:transparent;border:1.5px solid var(--primary);color:var(--primary);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">登出</button>
+    </div>
+  </div>
+
+  <div id="alert-banner"></div>
+
+  <div id="app-content"></div>
+
+  <div id="app-tabs">
+    <button class="tab-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
+      <span class="tab-icon">📊</span>儀表板
+    </button>
+    <button class="tab-item" data-tab="intake" onclick="switchTab('intake')" style="position:relative;">
+      <span class="tab-icon">➕</span>接收
+      <span class="tab-badge hidden" id="tab-badge-intake"></span>
+    </button>
+    <button class="tab-item" data-tab="zones" onclick="switchTab('zones')" style="position:relative;">
+      <span class="tab-icon">🏥</span>分區
+      <span class="tab-badge hidden" id="tab-badge-zones"></span>
+    </button>
+    <button class="tab-item" data-tab="transfer" onclick="switchTab('transfer')" style="position:relative;">
+      <span class="tab-icon">🚑</span>後送
+      <span class="tab-badge hidden" id="tab-badge-transfer"></span>
+    </button>
+    <button class="tab-item" data-tab="more" onclick="switchTab('more')">
+      <span class="tab-icon">⋯</span>更多
+    </button>
+  </div>
+</div>
+
+<!-- ══ IDLE WARNING ══════════════════════════════════════════════ -->
+<div id="idle-warning" class="hidden">
+  <div class="idle-title">⚠️ 閒置中</div>
+  <div class="idle-sub">即將自動登出，請觸碰螢幕繼續</div>
+  <div class="idle-cd" id="idle-cd">30</div>
+  <button class="btn btn-primary" onclick="resetIdle()">繼續作業</button>
+</div>
+
+<!-- ══ MODAL ══════════════════════════════════════════════════════ -->
+<div id="modal-overlay" class="hidden" onclick="handleOverlayClick(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title"></div>
+      <button class="btn-icon btn" onclick="closeModal()" style="font-size:18px;">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- ══ QR SCANNER ════════════════════════════════════════════════ -->
+<div id="qr-scan-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">
+  <div style="width:100%;max-width:360px;background:#222;border-radius:14px;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;">
+      <span style="color:#fff;font-weight:700;font-size:15px;">📷 掃描傷患 QR Code</span>
+      <button onclick="stopQrScan()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;font-family:inherit;">✕ 關閉</button>
+    </div>
+    <div style="position:relative;background:#000;">
+      <video id="qr-video" style="width:100%;display:block;max-height:280px;object-fit:cover;" autoplay playsinline muted></video>
+      <div style="position:absolute;inset:0;border:2px solid transparent;pointer-events:none;">
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:180px;height:180px;border:3px solid rgba(255,255,255,.7);border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.45);"></div>
+      </div>
+    </div>
+    <div id="qr-scan-msg" style="color:rgba(255,255,255,.7);font-size:13px;text-align:center;padding:12px 16px;">對準 QR Code 中央框線…</div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══════════════════════════════════════════════════════ -->
+<div id="toast" class="hidden"></div>
+
+<!-- ══ SCRIPTS ════════════════════════════════════════════════════ -->
+<script src="lib/dexie.min.js"></script>
+<script src="lib/qrcode.js"></script>
+<script>
+'use strict';
+
+/* ════════════════════════════════════════════════════════════════
+   DATABASE
+════════════════════════════════════════════════════════════════ */
+const db = new Dexie('MedicalPWA_v1');
+db.version(1).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key'
+});
+db.version(2).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key',
+  accounts:  '++id, username, role, status'
+});
+db.version(3).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, care_status, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key',
+  accounts:  '++id, username, role, status'
+});
+db.version(4).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, care_status, source_sex, source_age, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key',
+  accounts:  '++id, username, role, status'
+});
+
+/* ════════════════════════════════════════════════════════════════
+   CRYPTO (PIN hash)
+════════════════════════════════════════════════════════════════ */
+const Crypto = {
+  async hashPin(pin, salt='medical-pwa-v2') {
+    const enc = new TextEncoder();
+    const raw = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+      { name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256' }, raw, 256
+    );
+    return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+};
+
+/* ════════════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════════════ */
+let _state = {
+  currentAccountId: null,
+  loginAttempts: 0,
+  loginCooldown: false,
+  operatorName: '',
+  role: '',
+  currentTab: 'dashboard',
+  currentZone: 'red',
+  ws: null,
+  wsConnected: false,
+  idleTimer: null,
+  idleWarnTimer: null,
+  idleCountdown: null,
+  idleWarning: false,
+  patients: [],
+  intakeSource: 'A',    // A=前進MIST, B=收容, C=自行
+  intakeInjury: null,   // 'trauma' | 'medical'
+  intakeTriageColor: null,
+  intakeStart: { walk:'', breathing:'', circ:'', mental:'' },
+  intakeSecurity: 'incomplete',  // 'incomplete' | 'yes' | 'pending'
+  intakeSex: '',   // 'M' | 'F' | 'U'
+  intakeAge: '',   // 'C' | 'J' | 'A' | 'E'
+  intakeDraftId: '',
+  morePage: null,       // null | 'resources' | 'incidents' | 'shift'
+  zoneTimer: null,      // interval for zone card countdown refresh
+  zoneColorFilter: null,
+  intakeMistMode: null,   // null | 'manual'
+  intakeMistData: { m:'', i:'', s:'', t:'' },
+};
+
+/* ════════════════════════════════════════════════════════════════
+   PIN LOGIC
+════════════════════════════════════════════════════════════════ */
+const IDLE_WARN_S = 90;
+const IDLE_LOCK_S = 30;
+
+/* ════════════════════════════════════════════════════════════════
+   DEFAULT ACCOUNTS
+════════════════════════════════════════════════════════════════ */
+const DEFAULT_ACCOUNTS_RAW = [
+  { username:'組長',     display_name:'組長',     role:'組長',   pin:'1234' },
+  { username:'副組長',   display_name:'副組長',   role:'副組長', pin:'1234' },
+  { username:'檢傷官甲', display_name:'檢傷官甲', role:'檢傷官', pin:'1234' },
+  { username:'檢傷官乙', display_name:'檢傷官乙', role:'檢傷官', pin:'1234' },
+  { username:'治療官',   display_name:'治療官',   role:'治療官', pin:'1234' },
+  { username:'後送官',   display_name:'後送官',   role:'後送官', pin:'1234' },
+  { username:'後勤官',   display_name:'後勤官',   role:'後勤官', pin:'1234' },
+  { username:'通訊官',   display_name:'通訊官',   role:'通訊官', pin:'1234' },
+  { username:'機動甲',   display_name:'機動甲',   role:'機動人員', pin:'1234' },
+];
+const DEFAULT_ADMIN_PIN = '0000';
+
+async function seedAccounts() {
+  const count = await db.accounts.count();
+  if (count > 0) return false;
+  const now = new Date().toISOString();
+  for (const a of DEFAULT_ACCOUNTS_RAW) {
+    const pin_hash = await Crypto.hashPin(a.pin);
+    await db.accounts.add({ username:a.username, display_name:a.display_name, role:a.role, pin_hash, status:'active', created_at:now });
+  }
+  const adminHash = await Crypto.hashPin(DEFAULT_ADMIN_PIN);
+  await db.config.put({ key:'adminPinHash', value:adminHash });
+  return true; // first boot
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LOGIN
+════════════════════════════════════════════════════════════════ */
+async function initLogin() {
+  await seedAccounts();
+}
+
+async function handleLogin() {
+  const warn = document.getElementById('login-warn');
+  warn.textContent = '';
+  if (_state.loginCooldown) { warn.textContent = '⚠️ 冷卻中，請稍候'; return; }
+
+  const username = document.getElementById('login-username').value.trim();
+  const pin = document.getElementById('login-pin').value;
+
+  if (!username) { warn.textContent = '⚠️ 請輸入帳號'; return; }
+  if (!pin || pin.length < 4 || !/^\d+$/.test(pin)) { warn.textContent = '⚠️ PIN 需為 4–6 位數字'; return; }
+
+  const acct = await db.accounts.where('username').equals(username).first();
+  if (!acct) { warn.textContent = '❌ 帳號不存在'; return; }
+  if (acct.status === 'suspended') { warn.textContent = '❌ 帳號已停用，請聯絡管理員'; return; }
+
+  const hash = await Crypto.hashPin(pin);
+  if (hash !== acct.pin_hash) {
+    _state.loginAttempts++;
+    document.getElementById('login-pin').value = '';
+    if (_state.loginAttempts >= 3) {
+      _state.loginCooldown = true;
+      let cd = 30;
+      warn.textContent = `❌ 錯誤次數過多，冷卻 ${cd}s`;
+      const t = setInterval(()=>{
+        cd--;
+        warn.textContent = cd > 0 ? `冷卻中：${cd}s` : '';
+        if (cd <= 0) { clearInterval(t); _state.loginCooldown=false; _state.loginAttempts=0; }
+      }, 1000);
+    } else {
+      warn.textContent = `❌ PIN 錯誤（${_state.loginAttempts}/3）`;
+    }
+    return;
+  }
+
+  _state.loginAttempts = 0;
+  _state.currentAccountId = acct.id;
+  _state.role = acct.role;
+  _state.operatorName = acct.display_name || acct.username;
+  document.getElementById('login-pin').value = '';
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
+  document.getElementById('hdr-role').innerHTML = `<span>${acct.role}・${_state.operatorName}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">登入 ${loginTime}</span>`;
+  startIdleTimer();
+  // Role-based initial tab
+  const roleTabMap = { '檢傷官':'intake', '治療官':'zones', '後送官':'transfer', '後勤官':'more', '機動人員':'zones' };
+  const initTab = roleTabMap[acct.role] || 'dashboard';
+  _state.currentTab = initTab;
+  document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===initTab));
+  loadPatients().then(renderCurrentTab);
+  connectWS();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   IDLE TIMER  (90s 警告 + 30s 自動登出)
+════════════════════════════════════════════════════════════════ */
+function startIdleTimer() {
+  clearIdleTimers();
+  _state.idleTimer = setTimeout(showIdleWarning, IDLE_WARN_S * 1000);
+  let secsLeft = IDLE_WARN_S;
+  _state.idleCountdown = setInterval(() => { secsLeft--; updateIdleHdr(secsLeft); }, 1000);
+  updateIdleHdr(IDLE_WARN_S);
+}
+
+function showIdleWarning() {
+  clearInterval(_state.idleCountdown); _state.idleCountdown = null;
+  _state.idleWarning = true;
+  document.getElementById('idle-warning').classList.remove('hidden');
+  let cd = IDLE_LOCK_S;
+  document.getElementById('idle-cd').textContent = cd;
+  _state.idleWarnTimer = setInterval(()=>{
+    cd--;
+    document.getElementById('idle-cd').textContent = cd;
+    updateIdleHdr(cd);
+    if (cd <= 0) { clearIdleTimers(); doLock(); }
+  }, 1000);
+}
+
+function resetIdle() {
+  clearIdleTimers();
+  document.getElementById('idle-warning').classList.add('hidden');
+  _state.idleWarning = false;
+  startIdleTimer();
+  updateIdleHdr(IDLE_WARN_S);
+}
+
+function doLock() {
+  document.getElementById('idle-warning').classList.add('hidden');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  const warn = document.getElementById('login-warn');
+  warn.textContent = '⚠️ 閒置登出，請重新登入';
+  _state.idleWarning = false;
+  _state.currentAccountId = null;
+  _state.role = '';
+  _state.operatorName = '';
+}
+
+function clearIdleTimers() {
+  clearTimeout(_state.idleTimer);
+  clearInterval(_state.idleWarnTimer);
+  clearInterval(_state.idleCountdown);
+}
+
+function updateIdleHdr(secsLeft) {
+  const el = document.getElementById('idle-countdown');
+  if (!el) return;
+  if (secsLeft <= 0) { el.textContent = ''; return; }
+  const m = Math.floor(secsLeft/60), s = secsLeft%60;
+  el.textContent = m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
+  el.style.color = secsLeft <= 30 ? '#C62828' : '#999';
+}
+
+// 任何互動都重置
+['touchstart','mousedown','keydown','scroll'].forEach(ev=>{
+  document.addEventListener(ev, ()=>{ if(!_state.idleWarning && _state.role) startIdleTimer(); }, { passive:true });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   WEBSOCKET
+════════════════════════════════════════════════════════════════ */
+function connectWS() {
+  const piIp = '192.168.100.30';
+  const url = `ws://${piIp}:8775`;
+  try {
+    _state.ws = new WebSocket(url);
+    _state.ws.onopen = ()=>{ _state.wsConnected=true; setWsStatus('●','#69F0AE'); };
+    _state.ws.onclose = ()=>{ _state.wsConnected=false; setWsStatus('○','rgba(255,255,255,.5)'); setTimeout(connectWS, 5000); };
+    _state.ws.onerror = ()=>{ _state.wsConnected=false; setWsStatus('○','rgba(255,255,255,.5)'); };
+    _state.ws.onmessage = e=>{ try{ handleWsMsg(JSON.parse(e.data)); }catch(_){} };
+  } catch(_) {}
+}
+
+function setWsStatus(sym, color) {
+  const el = document.getElementById('hdr-ws');
+  if (el) { el.textContent = `WS ${sym}`; el.style.color = color; }
+}
+
+function handleWsMsg(msg) {
+  // 未來處理 Pi 推送的同步訊息
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DB HELPERS
+════════════════════════════════════════════════════════════════ */
+async function loadPatients() {
+  _state.patients = await db.patients.where('disposition').notEqual('discharged').toArray();
+}
+
+function countByColor(color) {
+  return _state.patients.filter(p=>p.triage_color===color && p.current_zone !== '已離區').length;
+}
+
+function countByZone(zone) {
+  return _state.patients.filter(p=>p.current_zone===zone).length;
+}
+
+function getPendingTransfer() {
+  return _state.patients.filter(p=>p.disposition==='後送').length;
+}
+
+function nextDisplayId() {
+  const n = _state.patients.length + 1;
+  return `M${String(n).padStart(3,'0')}`;
+}
+
+function generateSnapshotUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TAB ROUTING
+════════════════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  _state.currentTab = tab;
+  _state.morePage = null;
+  if (_state.zoneTimer) { clearInterval(_state.zoneTimer); _state.zoneTimer = null; }
+  document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
+  renderCurrentTab();
+}
+
+async function renderCurrentTab() {
+  await loadPatients();
+  await refreshAlertBanner();
+  updateTabBadges();
+  const content = document.getElementById('app-content');
+  if (_state.zoneTimer) { clearInterval(_state.zoneTimer); _state.zoneTimer = null; }
+  switch(_state.currentTab) {
+    case 'dashboard': renderDashboard(content); break;
+    case 'intake':    renderIntake(content); break;
+    case 'zones':
+      renderZones(content);
+      _state.zoneTimer = setInterval(()=>{ if(_state.currentTab==='zones') refreshZoneCountdowns(); }, 30000);
+      break;
+    case 'transfer':  await renderTransfer(content); break;
+    case 'more':      await renderMore(content); break;
+  }
+}
+
+function updateTabBadges() {
+  const now = new Date();
+  // 分區：再評估逾時數
+  const overdue = _state.patients.filter(p => p.reassess_due_at && new Date(p.reassess_due_at) < now).length;
+  const bZones = document.getElementById('tab-badge-zones');
+  if (bZones) { bZones.textContent = overdue; bZones.classList.toggle('hidden', overdue === 0); }
+  // 接收：待治療評估（care_status = 'triaged'）
+  const needAssess = _state.patients.filter(p => (p.care_status || 'triaged') === 'triaged').length;
+  const bIntake = document.getElementById('tab-badge-intake');
+  if (bIntake) { bIntake.textContent = needAssess; bIntake.classList.toggle('hidden', needAssess === 0); }
+  // 後送：待後送佇列
+  const pendingTx = _state.patients.filter(p => p.disposition === '後送').length;
+  const bTransfer = document.getElementById('tab-badge-transfer');
+  if (bTransfer) { bTransfer.textContent = pendingTx; bTransfer.classList.toggle('hidden', pendingTx === 0); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ALERT BANNER
+════════════════════════════════════════════════════════════════ */
+async function refreshAlertBanner() {
+  const banner = document.getElementById('alert-banner');
+  const openIncidents = await db.incidents.where('status').equals('open').count();
+  const redFull = countByZone('紅區') > 0 && getRedSlotsFree() === 0;
+  const securityOpen = openIncidents > 0 && await db.incidents.where({status:'open',type:'security_threat'}).count() > 0;
+  if (securityOpen) {
+    banner.style.display='block'; banner.className='';
+    banner.textContent = '🚨 安全威脅事件 — 請立即確認';
+  } else if (redFull) {
+    banner.style.display='block'; banner.className='';
+    banner.textContent = '🔴 紅區滿載 — 請立即通報組長';
+  } else if (openIncidents > 0) {
+    banner.style.display='block'; banner.className='warn';
+    banner.textContent = `⚠️ ${openIncidents} 件開放事件`;
+  } else {
+    banner.style.display='none';
+  }
+}
+
+function getRedSlotsFree() {
+  // TODO: 從 slots 表讀取；先用簡單估算
+  return 999;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DASHBOARD
+════════════════════════════════════════════════════════════════ */
+function renderDashboard(el) {
+  const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
+  const total = r+y+g+b;
+  const pending = getPendingTransfer();
+  const light = r>2 || pending>=2 ? '紅：量能吃緊' : r>0 || pending>0 ? '黃：有傷患待處理' : '綠：量能正常';
+  const lightColor = r>2||pending>=2 ? 'var(--red)' : r>0||pending>0 ? 'var(--orange)' : 'var(--green)';
+
+  el.innerHTML = `
+    <div class="cap-bar">
+      <div class="cap-stat red" onclick="filterZoneByColor('red')" style="cursor:pointer"><div class="cap-n">${r}</div><div class="cap-l">紅區</div></div>
+      <div class="cap-stat yellow" onclick="filterZoneByColor('yellow')" style="cursor:pointer"><div class="cap-n">${y}</div><div class="cap-l">黃區</div></div>
+      <div class="cap-stat green" onclick="filterZoneByColor('green')" style="cursor:pointer"><div class="cap-n">${g}</div><div class="cap-l">綠區</div></div>
+      <div class="cap-stat black" onclick="filterZoneByColor('black')" style="cursor:pointer"><div class="cap-n">${b}</div><div class="cap-l">黑區</div></div>
+    </div>
+    <div class="cap-light-row">
+      <span class="text-sm text-gray">醫療量能</span>
+      <span class="cap-light" style="color:${lightColor}">
+        <span class="cap-light-dot" style="background:${lightColor}"></span>${light}
+      </span>
+    </div>
+    <div class="section-hdr">即時狀態</div>
+    <div class="dash-row">
+      <span class="dash-row-label">傷患總數</span>
+      <span class="dash-row-val">${total}</span>
+    </div>
+    <div class="dash-row">
+      <span class="dash-row-label">待後送</span>
+      <span class="dash-row-val" style="color:${pending>0?'var(--red)':'inherit'}">${pending}</span>
+    </div>
+    <div class="dash-row">
+      <span class="dash-row-label">已後送 / 離區</span>
+      <span class="dash-row-val">${_state.patients.filter(p=>p.disposition==='discharged'||p.current_zone==='已離區').length}</span>
+    </div>
+    <div class="section-hdr">快速操作</div>
+    <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;">
+      <button class="btn btn-primary btn-full" onclick="switchTab('intake')">➕ 接收新傷患</button>
+      <button class="btn btn-ghost btn-full text-sm" onclick="doCapacityReport()">📻 產生量能回報文字</button>
+    </div>
+  `;
+}
+
+function doCapacityReport() {
+  const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
+  const pending = getPendingTransfer();
+  const now = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const txt = `【醫療量能回報 ${now}】紅${r}、黃${y}、綠${g}、黑${b}、待後送${pending}`;
+  openModal('量能回報文字',
+    `<div class="info-box info" style="font-size:15px;line-height:1.7;word-break:break-all;">${txt}</div>
+     <button class="btn btn-outline btn-full mt-2" onclick="copyText('${txt}')">複製文字</button>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+}
+
+function filterZoneByColor(color) {
+  _state.currentZone = color;
+  switchTab('zones');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   INTAKE / TRIAGE
+════════════════════════════════════════════════════════════════ */
+function renderIntake(el) {
+  el.innerHTML = `
+    <div class="section-hdr">來源</div>
+    <div class="source-btns">
+      <button class="source-btn ${_state.intakeSource==='A'?'active':''}" onclick="setIntakeSource('A')">🚒 前進<br>MIST</button>
+      <button class="source-btn ${_state.intakeSource==='B'?'active':''}" onclick="setIntakeSource('B')">🏠 收容<br>轉送</button>
+      <button class="source-btn ${_state.intakeSource==='C'?'active':''}" onclick="setIntakeSource('C')">🚶 自行<br>抵達</button>
+    </div>
+    <div class="intake-form" id="intake-form-body">
+      ${renderIntakeForm()}
+    </div>
+  `;
+}
+
+function setIntakeSource(s) {
+  _state.intakeSource = s;
+  _state.intakeMistMode = null;
+  _state.intakeMistData = { m:'', i:'', s:'', t:'' };
+  _state.intakeSecurity = 'incomplete';
+  _state.intakeSex = '';
+  _state.intakeAge = '';
+  _state.intakeDraftId = '';
+  _state.intakeTriageColor = null;
+  _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
+  renderCurrentTab();
+}
+
+function renderIntakeForm() {
+  let mistSection = '';
+  if (_state.intakeSource === 'A') {
+    if (_state.intakeMistMode === null) {
+      mistSection = `
+        <div class="section-hdr">MIST 交接（前進組）</div>
+        <div style="padding:0 14px 14px;display:flex;gap:10px;">
+          <button class="btn btn-primary flex-1" onclick="openQrScanModal()">📷 掃描 QR</button>
+          <button class="btn btn-outline flex-1" onclick="setMistMode('manual')">✏️ 手動輸入</button>
+        </div>
+      `;
+    } else {
+      const d = _state.intakeMistData;
+      mistSection = `
+        <div class="section-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>MIST 交接（前進組）</span>
+          <button class="btn btn-ghost btn-sm" onclick="setMistMode(null)" style="font-size:12px;padding:3px 8px;">重選</button>
+        </div>
+        <div class="form-group">
+          <div class="form-label">M — 傷害機轉</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-m-sel" onchange="mistFill('mist-m','mist-m-sel')">
+              <option value="">— 快速選擇 —</option>
+              <option>車禍（乘客）</option><option>車禍（行人）</option>
+              <option>高處墜落</option><option>爆炸傷</option>
+              <option>刀傷/穿刺傷</option><option>槍傷</option>
+              <option>燒燙傷</option><option>擠壓傷</option>
+              <option>鈍器傷</option><option>運動傷害</option>
+              <option>不明原因</option>
+            </select>
+            <input class="form-input" id="mist-m" placeholder="補充說明（可留空）" value="${d.m}">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">I — 傷害部位 / 傷情</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-i-sel" onchange="mistFill('mist-i','mist-i-sel')">
+              <option value="">— 快速選擇 —</option>
+              <option>頭部外傷</option><option>顏面傷</option>
+              <option>頸部傷</option><option>胸部外傷</option>
+              <option>腹部外傷</option><option>骨盆骨折</option>
+              <option>脊椎傷</option><option>上肢骨折</option>
+              <option>下肢骨折</option><option>多處外傷</option>
+              <option>無明顯外傷</option>
+            </select>
+            <input class="form-input" id="mist-i" placeholder="補充說明（可留空）" value="${d.i}">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">S — 徵象 / 生命徵象</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-s-sel" onchange="mistFill('mist-s','mist-s-sel')">
+              <option value="">— 快速選擇 —</option>
+              <option>穩定（HR&lt;100, BP&gt;90, SpO2&gt;94%, GCS 15）</option>
+              <option>輕微異常（HR 100–120, BP 80–90）</option>
+              <option>不穩定（HR&gt;120, BP&lt;80, SpO2&lt;90%）</option>
+              <option>意識喪失（GCS&lt;8）</option>
+              <option>無呼吸心跳</option>
+            </select>
+            <input class="form-input" id="mist-s" placeholder="HR __ BP __/__ RR __ SpO2 __% GCS __" value="${d.s}">
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">T — 已完成處置</div>
+          <div class="mist-combo">
+            <select class="mist-select" id="mist-t-sel" onchange="mistAppend('mist-t','mist-t-sel')">
+              <option value="">— 點選即新增 —</option>
+              <option>已上止血帶</option><option>已包紮止血</option>
+              <option>已開放呼吸道</option><option>已給氧（面罩 10L）</option>
+              <option>已 BVM 輔助呼吸</option><option>已建立靜脈通路</option>
+              <option>已頸椎固定</option><option>已固定骨折</option>
+              <option>已保暖</option><option>已給止痛藥</option>
+              <option>CPR 進行中</option><option>無處置</option>
+            </select>
+            <input class="form-input" id="mist-t" placeholder="或自行輸入處置內容" value="${d.t}">
+          </div>
+        </div>
+        <div class="divider"></div>
+      `;
+    }
+  }
+
+  return `
+    ${mistSection}
+    <div class="section-hdr">安全檢查</div>
+    <div style="display:flex;gap:10px;padding:0 14px 14px;">
+      <div style="flex:1;">
+        <div class="form-label">安檢狀態<span class="req">*</span></div>
+        <select class="form-select" id="intake-security" onchange="onSecurityChange()">
+          <option value="incomplete" ${_state.intakeSecurity==='incomplete'?'selected':''}>⛔ 未完成</option>
+          <option value="yes" ${_state.intakeSecurity==='yes'?'selected':''}>✅ 已完成</option>
+          <option value="pending" ${_state.intakeSecurity==='pending'?'selected':''}>⚡ 同步處理中（危急）</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <div class="form-label">收容組登記</div>
+        <select class="form-select" id="intake-shelter">
+          <option value="not_registered">未登記</option>
+          <option value="notify">已通知補登</option>
+          <option value="registered">已登記</option>
+        </select>
+      </div>
+    </div>
+    <div class="section-hdr">最少化個人特徵（觀察估計）</div>
+    <div style="display:flex;gap:10px;padding:0 14px 10px;">
+      <div style="flex:1;">
+        <div class="form-label">性別</div>
+        <select class="form-select" id="intake-sex" onchange="onPersonChanged()">
+          <option value="" ${!_state.intakeSex?'selected':''}>—</option>
+          <option value="M" ${_state.intakeSex==='M'?'selected':''}>男</option>
+          <option value="F" ${_state.intakeSex==='F'?'selected':''}>女</option>
+          <option value="U" ${_state.intakeSex==='U'?'selected':''}>不明</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <div class="form-label">年齡段</div>
+        <select class="form-select" id="intake-age" onchange="onPersonChanged()">
+          <option value="" ${!_state.intakeAge?'selected':''}>—</option>
+          <option value="C" ${_state.intakeAge==='C'?'selected':''}>幼童 (&lt;12)</option>
+          <option value="J" ${_state.intakeAge==='J'?'selected':''}>青少年 (12–17)</option>
+          <option value="A" ${_state.intakeAge==='A'?'selected':''}>成人 (18–64)</option>
+          <option value="E" ${_state.intakeAge==='E'?'selected':''}>老年 (65+)</option>
+        </select>
+      </div>
+    </div>
+    <div id="patient-id-preview" style="padding:0 0 10px;${_state.intakeDraftId ? '' : 'display:none'}">
+      <div class="info-box info" style="font-size:14px;">傷患識別碼（預覽）：<strong id="patient-id-val">${_state.intakeDraftId}</strong></div>
+    </div>
+    <div class="section-hdr">START 檢傷</div>
+    <div class="form-group">
+      <div class="start-grid">
+        <div class="start-item">
+          <label>可自行行走</label>
+          <span class="start-hint">能走 → 綠區</span>
+          <select id="start-walk" onchange="autoTriageColor()"><option value="">—</option><option value="yes" ${_state.intakeStart.walk==='yes'?'selected':''}>是</option><option value="no" ${_state.intakeStart.walk==='no'?'selected':''}>否</option></select>
+        </div>
+        <div class="start-item">
+          <label>呼吸狀態</label>
+          <span class="start-hint">正常 = RR 12–29 次/分</span>
+          <select id="start-breathing" onchange="autoTriageColor()"><option value="">—</option><option value="normal" ${_state.intakeStart.breathing==='normal'?'selected':''}>正常（RR 12–29）</option><option value="abnormal" ${_state.intakeStart.breathing==='abnormal'?'selected':''}>異常（RR≥30，或開呼吸道後有呼吸）→ 紅</option><option value="absent" ${_state.intakeStart.breathing==='absent'?'selected':''}>無（開呼吸道後仍無呼吸）→ 黑</option></select>
+        </div>
+        <div class="start-item">
+          <label>循環（橈動脈）</label>
+          <span class="start-hint">橈動脈(+), CRT &lt; 2s</span>
+          <select id="start-circ" onchange="autoTriageColor()"><option value="">—</option><option value="present" ${_state.intakeStart.circ==='present'?'selected':''}>正常（橈動脈(+), CRT&lt;2s）</option><option value="absent" ${_state.intakeStart.circ==='absent'?'selected':''}>異常（CRT≥2s 或橈動脈(-)）→ 紅</option></select>
+        </div>
+        <div class="start-item">
+          <label>意識（指令）</label>
+          <span class="start-hint">正常 = 可配合指令</span>
+          <select id="start-mental" onchange="autoTriageColor()"><option value="">—</option><option value="follows" ${_state.intakeStart.mental==='follows'?'selected':''}>可配合 → 黃</option><option value="not_follows" ${_state.intakeStart.mental==='not_follows'?'selected':''}>無法配合 → 紅</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div id="triage-section">${renderTriageColorPicker()}</div>
+
+  `;
+}
+
+function renderXABCDE() {
+  return `
+    <div class="section-hdr">XABCDE 評估（創傷）</div>
+
+    <div class="form-group">
+      <div class="form-label">X — 大出血控制 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝無活動性出血</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="x-hemorrhage" onchange="mistFill('x-hemorrhage-notes','x-hemorrhage')">
+          <option value="">未評估</option>
+          <option value="無大出血">無大出血</option>
+          <option value="直接加壓止血中">直接加壓止血中</option>
+          <option value="止血帶已上（控制中）">止血帶已上（控制中）</option>
+          <option value="傷口填塞止血中">傷口填塞止血中</option>
+          <option value="大出血未控制">大出血未控制 ⚠️</option>
+        </select>
+        <input class="form-input" id="x-hemorrhage-notes" placeholder="補充（部位、止血帶上緊時間…）">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">A — 呼吸道 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝自然通暢</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="a-airway" onchange="mistFill('a-airway-notes','a-airway')">
+          <option value="">未評估</option>
+          <option value="自然通暢">自然通暢 ✓</option>
+          <option value="手法開放後通暢（頭頸後仰/下顎推移）">手法開放後通暢</option>
+          <option value="OPA 置入維持">OPA 置入維持</option>
+          <option value="NPA 置入維持">NPA 置入維持</option>
+          <option value="呼吸道阻塞（需立即處置）">呼吸道阻塞 ⚠️</option>
+        </select>
+        <input class="form-input" id="a-airway-notes" placeholder="補充（異物、分泌物、吸引…）">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">B — 呼吸 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常 RR 12–20/min，SpO₂ ≥94%</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="b-breathing" onchange="mistFill('b-interventions','b-breathing')">
+          <option value="">未評估</option>
+          <option value="正常（RR 12-20，SpO₂≥94%）">正常 ✓</option>
+          <option value="輕微異常（RR 20-30，SpO₂ 90-94%）">輕微異常（RR 20-30）</option>
+          <option value="呼吸費力（輔助肌使用）">呼吸費力</option>
+          <option value="缺氧（SpO₂<90%）">缺氧 SpO₂&lt;90% ⚠️</option>
+          <option value="無自主呼吸">無自主呼吸 ⚠️</option>
+        </select>
+        <input class="form-input" id="b-interventions" placeholder="RR __/min  SpO₂ __%  處置：給氧/BVM…">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">C — 循環 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常 HR 60–100，橈動脈可觸及，BP&gt;90</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="c-pulse" onchange="mistFill('c-interventions','c-pulse')">
+          <option value="">未評估</option>
+          <option value="正常（HR 60-100，橈動脈強）">正常 ✓</option>
+          <option value="輕微異常（HR 100-120）">輕微異常（HR 100–120）</option>
+          <option value="心搏過快（HR>120）">心搏過快 HR&gt;120 ⚠️</option>
+          <option value="橈動脈細弱（低血壓疑慮）">橈動脈細弱 ⚠️</option>
+          <option value="橈動脈無法觸及（BP<80）">橈動脈無法觸及 ⚠️</option>
+          <option value="無脈搏">無脈搏 ⚠️</option>
+        </select>
+        <input class="form-input" id="c-interventions" placeholder="HR __  BP __/__  處置：IV/輸液/加壓…">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">D — 意識 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常 GCS 15，AVPU＝A</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="d-gcs" onchange="mistFill('d-pupils','d-gcs')">
+          <option value="">未評估</option>
+          <option value="GCS 15，完全清醒（A）">GCS 15，清醒（A）✓</option>
+          <option value="GCS 13-14，輕微意識改變">GCS 13–14，輕度改變</option>
+          <option value="GCS 9-12，對聲音有反應（V）">GCS 9–12（V）⚠️</option>
+          <option value="GCS 6-8，對疼痛有反應（P）">GCS 6–8（P）⚠️</option>
+          <option value="GCS 3-5，無反應（U）">GCS 3–5，無反應（U）⚠️</option>
+        </select>
+        <input class="form-input" id="d-pupils" placeholder="GCS 實際分數（E_V_M_）、瞳孔大小/反應">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">E — 全身暴露 <span style="font-size:11px;color:var(--text3);font-weight:400;">全身檢查（含背面）＋保暖</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="e-exposed" onchange="mistFill('e-findings','e-exposed')">
+          <option value="">未評估</option>
+          <option value="全身暴露完成，無明顯異常">全身完成，無異常 ✓</option>
+          <option value="全身暴露完成，有發現（見備注）">全身完成，有發現</option>
+          <option value="部分暴露（環境或傷患配合限制）">部分暴露</option>
+        </select>
+        <input class="form-input" id="e-findings" placeholder="發現：背部穿刺傷、骨盆不穩定、長骨骨折、燒傷…">
+      </div>
+    </div>
+  `;
+}
+
+function renderSampleOpqrst() {
+  return `
+    <div class="section-hdr">ABC 初步評估（非創）</div>
+    <div class="form-group">
+      <div class="form-label">A — 呼吸道 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝自然通暢</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="abc-airway" onchange="mistFill('abc-airway-note','abc-airway')">
+          <option value="">未評估</option>
+          <option value="自然通暢">自然通暢 ✓</option>
+          <option value="手法開放後通暢">手法開放後通暢</option>
+          <option value="OPA 置入維持">OPA 置入維持</option>
+          <option value="呼吸道阻塞（需立即處置）">呼吸道阻塞 ⚠️</option>
+        </select>
+        <input class="form-input" id="abc-airway-note" placeholder="補充說明">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">B — 呼吸 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝RR 12–20/分，SpO₂≥94%</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="abc-breathing" onchange="mistFill('abc-breathing-note','abc-breathing')">
+          <option value="">未評估</option>
+          <option value="正常（RR 12–20，SpO₂≥94%）">正常 ✓</option>
+          <option value="輕度異常（RR 20–30 或 SpO₂ 90–93%）">輕度異常</option>
+          <option value="重度異常（RR＞30 或 SpO₂＜90%）">重度異常 ⚠️</option>
+          <option value="呼吸停止">呼吸停止 🚨</option>
+        </select>
+        <input class="form-input" id="abc-breathing-note" placeholder="RR __ SpO₂ __%">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">C — 循環 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝橈動脈可觸及，CRT＜2s</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="abc-circulation" onchange="mistFill('abc-circulation-note','abc-circulation')">
+          <option value="">未評估</option>
+          <option value="正常（橈動脈可觸及，CRT＜2s）">正常 ✓</option>
+          <option value="輕度異常（HR 100–120 或 CRT 2–3s）">輕度異常</option>
+          <option value="重度異常（HR＞120 或 CRT≥3s 或橈動脈消失）">重度異常 ⚠️</option>
+          <option value="無脈搏">無脈搏 🚨</option>
+        </select>
+        <input class="form-input" id="abc-circulation-note" placeholder="HR __ BP __/__">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">血糖 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝70–140 mg/dL</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="blood-glucose-sel" onchange="mistFill('blood-glucose','blood-glucose-sel')">
+          <option value="">未測</option>
+          <option value="正常（70–140 mg/dL）">正常</option>
+          <option value="低血糖（＜70 mg/dL）">低血糖 ＜70 ⚠️</option>
+          <option value="高血糖（＞250 mg/dL）">高血糖 ＞250 ⚠️</option>
+        </select>
+        <input class="form-input" id="blood-glucose" placeholder="數值 mg/dL（可留空）" type="number">
+      </div>
+    </div>
+    <div class="section-hdr">SAMPLE</div>
+    <div class="form-group">
+      <div class="form-label">S — 主訴 / 症狀</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-s-sel" onchange="mistAppend('sample-s','sample-s-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>胸痛</option><option>呼吸困難</option><option>心悸</option>
+          <option>腹痛</option><option>頭痛</option><option>頭暈 / 暈厥</option>
+          <option>噁心 / 嘔吐</option><option>肢體無力 / 麻木</option>
+          <option>意識改變</option><option>發燒</option>
+        </select>
+        <textarea class="form-input form-textarea" id="sample-s" placeholder="或自行描述主訴…" style="min-height:60px;"></textarea>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">A — 過敏史</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-a-sel" onchange="mistFill('sample-a','sample-a-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無已知過敏">無已知過敏 ✓</option>
+          <option>藥物過敏（詳見補充）</option>
+          <option>食物過敏</option>
+          <option>不明</option>
+        </select>
+        <input class="form-input" id="sample-a" placeholder="補充（如：盤尼西林、NSAIDs…）">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">M — 用藥史</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-m-sel" onchange="mistAppend('sample-m','sample-m-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無長期用藥">無長期用藥</option>
+          <option>降壓藥</option><option>血糖藥 / 胰島素</option>
+          <option>抗凝血藥（warfarin / aspirin）</option>
+          <option>心臟藥</option><option>多種長期用藥（詳見補充）</option>
+        </select>
+        <input class="form-input" id="sample-m" placeholder="補充藥名">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">P — 過去病史</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-p-sel" onchange="mistAppend('sample-p','sample-p-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無重大病史">無重大病史</option>
+          <option>高血壓</option><option>糖尿病</option>
+          <option>心臟病 / 冠心症</option><option>腦中風</option>
+          <option>氣喘 / COPD</option><option>腎臟病</option>
+        </select>
+        <input class="form-input" id="sample-p" placeholder="補充病史">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">L — 最後進食時間</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-l-sel" onchange="mistFill('sample-l','sample-l-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>30 分鐘內</option><option>1 小時前</option>
+          <option>2 小時前</option><option>4 小時以上</option><option>不明</option>
+        </select>
+        <input class="form-input" id="sample-l" placeholder="或輸入時間">
+      </div>
+    </div>
+    <div class="form-group"><div class="form-label">E — 事件經過</div>
+      <textarea class="form-input form-textarea" id="sample-e" placeholder="何時、何地、發生什麼、已做了什麼…"></textarea></div>
+    <div class="section-hdr">OPQRST（疼痛評估）</div>
+    <div class="form-group">
+      <div class="form-label">O — 發作時機</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-o-sel" onchange="mistFill('opqrst-o','opqrst-o-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>突發（如撕裂感）</option><option>漸進加重</option>
+          <option>運動 / 用力後</option><option>休息時發作</option><option>飯後發作</option>
+        </select>
+        <input class="form-input" id="opqrst-o" placeholder="補充（幾分鐘前、做什麼時…）">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">P — 加重 / 緩解因素</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-p-sel" onchange="mistAppend('opqrst-p','opqrst-p-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>深呼吸加重</option><option>活動加重</option>
+          <option>按壓加重</option><option>休息緩解</option>
+          <option>硝化甘油緩解</option><option>姿勢改變緩解</option>
+        </select>
+        <input class="form-input" id="opqrst-p" placeholder="補充">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">Q — 疼痛性質</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-q-sel" onchange="mistFill('opqrst-q','opqrst-q-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>刺痛</option><option>悶痛 / 壓迫感</option>
+          <option>燒灼感</option><option>撕裂痛</option>
+          <option>絞痛</option><option>脹痛</option>
+        </select>
+        <input class="form-input" id="opqrst-q" placeholder="補充描述">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">R — 放射部位</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-r-sel" onchange="mistFill('opqrst-r','opqrst-r-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無放射">無放射 ✓</option>
+          <option>放射至左肩 / 左臂（⚠️ 心臟）</option>
+          <option>放射至下顎（⚠️ 心臟）</option>
+          <option>放射至後背（⚠️ 主動脈）</option>
+          <option>放射至右肩（⚠️ 膽道）</option>
+        </select>
+        <input class="form-input" id="opqrst-r" placeholder="補充">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">S — 疼痛分級 <span style="font-size:11px;color:var(--text3);font-weight:400;">1–3 輕度 · 4–6 中度 · 7–10 重度</span></div>
+      <input class="form-input" id="opqrst-s" type="number" min="0" max="10" placeholder="0=無，10=最痛">
+    </div>
+    <div class="form-group">
+      <div class="form-label">T — 持續時間與趨勢</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-t-sel" onchange="mistFill('opqrst-t','opqrst-t-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>持續性（不間斷）</option><option>間歇性</option>
+          <option>逐漸加重</option><option>逐漸緩解</option><option>波動起伏</option>
+        </select>
+        <input class="form-input" id="opqrst-t" placeholder="補充（幾分鐘、幾小時…）">
+      </div>
+    </div>
+  `;
+}
+
+function renderTriageColorPicker() {
+  const colors = ['紅','黃','綠','黑'];
+  const vals  = ['red','yellow','green','black'];
+  const lbl   = {'red':'🔴 紅區','yellow':'🟡 黃區','green':'🟢 綠區','black':'⚫ 黑區'};
+  const sel   = _state.intakeTriageColor;
+  const locked = !canPickTriageColor();
+  const lockReason = _state.intakeSecurity === 'incomplete'
+    ? '⛔ 請先完成安檢（將安檢狀態改為已完成或同步處理中）'
+    : (!_state.intakeSex || !_state.intakeAge)
+      ? '請先填寫個人特徵（性別及年齡段均須選擇）'
+      : '請先完成 START 評估第一項（可自行行走）';
+  return `
+    <div class="section-hdr">檢傷分色</div>
+    ${locked ? `<div style="padding:0 14px 10px;"><div class="info-box warn">${lockReason}</div></div>` : ''}
+    <div class="form-group" ${locked ? 'style="opacity:.4;pointer-events:none;"' : ''}>
+      <div class="triage-color-btns">
+        ${colors.map((c,i)=>`<button class="triage-color-btn ${vals[i]}${sel===vals[i]?' selected':''}" onclick="setTriageColor('${vals[i]}')">${c}區</button>`).join('')}
+      </div>
+      <div id="triage-hint" style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center;${sel?'display:none':''}">START 完整填寫後自動建議分色，或手動點選</div>
+    </div>
+    <div id="triage-submit" style="padding:0 0 12px;${sel&&!locked?'':'display:none'}">
+      <button class="btn btn-primary btn-full" onclick="submitIntake()">✅ 完成檢傷 → 建檔</button>
+    </div>
+  `;
+}
+
+function setInjury(type) {
+  console.log('[intake] setInjury called:', type, '| current color=', _state.intakeTriageColor);
+  _state.intakeStart = {
+    walk:      document.getElementById('start-walk')?.value || '',
+    breathing: document.getElementById('start-breathing')?.value || '',
+    circ:      document.getElementById('start-circ')?.value || '',
+    mental:    document.getElementById('start-mental')?.value || ''
+  };
+  _state.intakeInjury = _state.intakeInjury === type ? null : type;
+  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
+}
+
+function setTriageColor(c) {
+  if (!canPickTriageColor()) {
+    showToast(_state.intakeSecurity === 'incomplete' ? '⛔ 請先完成安檢' : '請先完成 START 評估');
+    return;
+  }
+  console.log('[triage] setTriageColor called:', c);
+  _state.intakeTriageColor = c;
+  // Toggle selected class without destroying DOM
+  document.querySelectorAll('.triage-color-btn').forEach(el=>{
+    el.classList.toggle('selected', el.classList.contains(c));
+  });
+  // Hide hint, show submit button
+  const hint = document.getElementById('triage-hint');
+  if (hint) hint.style.display = 'none';
+  const submitDiv = document.getElementById('triage-submit');
+  if (submitDiv) submitDiv.style.display = '';
+}
+
+function autoTriageColor() {
+  const walk     = document.getElementById('start-walk')?.value;
+  const breathing= document.getElementById('start-breathing')?.value;
+  const circ     = document.getElementById('start-circ')?.value;
+  const mental   = document.getElementById('start-mental')?.value;
+  _state.intakeStart = { walk: walk||'', breathing: breathing||'', circ: circ||'', mental: mental||'' };
+  // Re-render triage section to update lock state
+  const sec = document.getElementById('triage-section');
+  if (sec) sec.innerHTML = renderTriageColorPicker();
+  if (!walk) return;
+  if (walk === 'yes') { setTriageColor('green'); return; }
+  if (!breathing) return;
+  if (breathing === 'absent')   { setTriageColor('black'); return; }
+  if (breathing === 'abnormal') { setTriageColor('red');   return; }
+  if (!circ) return;
+  if (circ === 'absent') { setTriageColor('red'); return; }
+  if (!mental) return;
+  setTriageColor(mental === 'follows' ? 'yellow' : 'red');
+}
+
+
+function setMistMode(mode) {
+  if (mode === null) {
+    _state.intakeMistData = { m:'', i:'', s:'', t:'' };
+  }
+  _state.intakeMistMode = mode;
+  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
+}
+
+let _qrStream = null, _qrRaf = null;
+
+async function openQrScanModal() {
+  const overlay = document.getElementById('qr-scan-overlay');
+  overlay.classList.remove('hidden');
+  const video = document.getElementById('qr-video');
+  const msg   = document.getElementById('qr-scan-msg');
+  try {
+    _qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = _qrStream;
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      const detect = async () => {
+        if (!_qrStream) return;
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length > 0) { handleQrResult(codes[0].rawValue); return; }
+        } catch(e) {}
+        _qrRaf = requestAnimationFrame(detect);
+      };
+      video.addEventListener('play', () => { _qrRaf = requestAnimationFrame(detect); }, { once: true });
+    } else {
+      msg.textContent = '此裝置不支援 QR 掃描，請使用手動輸入';
+    }
+  } catch(e) {
+    msg.textContent = '無法開啟相機：' + e.message;
+  }
+}
+
+function stopQrScan() {
+  if (_qrStream) { _qrStream.getTracks().forEach(t => t.stop()); _qrStream = null; }
+  if (_qrRaf)    { cancelAnimationFrame(_qrRaf); _qrRaf = null; }
+  document.getElementById('qr-scan-overlay').classList.add('hidden');
+}
+
+function handleQrResult(raw) {
+  stopQrScan();
+  try {
+    const data = JSON.parse(raw);
+    _state.intakeMistData = {
+      m: data.m || data.mechanism || '',
+      i: data.i || data.injury    || '',
+      s: data.s || data.signs     || '',
+      t: data.t || data.treatment || ''
+    };
+    showToast('✅ QR 掃描成功，MIST 資料已填入');
+  } catch(e) {
+    showToast('QR 格式無法解析，請手動輸入');
+  }
+  _state.intakeMistMode = 'manual';
+  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
+}
+
+function gv(id) { const el=document.getElementById(id); return el ? el.value.trim() : ''; }
+
+// MIST: 合併下拉選擇 + 補充文字
+function getMist(selId, txtId) {
+  const sel = gv(selId);
+  const txt = gv(txtId);
+  if (sel && txt) return `${sel}；${txt}`;
+  return sel || txt;
+}
+
+// M/I/S 欄位：點選下拉後填入文字框（若文字框為空則直接填；否則附加）
+function mistFill(txtId, selId) {
+  const sel = document.getElementById(selId);
+  const txt = document.getElementById(txtId);
+  if (!sel || !sel.value || !txt) return;
+  txt.value = txt.value.trim() ? `${txt.value.trim()}；${sel.value}` : sel.value;
+}
+
+// T 欄位：點選下拉即附加到文字框，允許多選
+function mistAppend(txtId, selId) {
+  const sel = document.getElementById(selId);
+  const txt = document.getElementById(txtId);
+  if (!sel || !sel.value || !txt) return;
+  const cur = txt.value.trim();
+  txt.value = cur ? `${cur}、${sel.value}` : sel.value;
+  sel.value = '';
+}
+
+function canPickTriageColor() {
+  if (_state.intakeSecurity === 'incomplete') return false;
+  if (!_state.intakeSex || !_state.intakeAge) return false;
+  // Check DOM first (live), fall back to state
+  const walkEl = document.getElementById('start-walk');
+  const walk = walkEl ? walkEl.value : _state.intakeStart.walk;
+  return !!walk;
+}
+
+function onSecurityChange() {
+  const val = document.getElementById('intake-security')?.value;
+  if (val) {
+    _state.intakeSecurity = val;
+    if (val === 'incomplete') _state.intakeTriageColor = null;
+  }
+  const sec = document.getElementById('triage-section');
+  if (sec) sec.innerHTML = renderTriageColorPicker();
+}
+
+async function onPersonChanged() {
+  const sex = document.getElementById('intake-sex')?.value || '';
+  const age = document.getElementById('intake-age')?.value || '';
+  _state.intakeSex = sex;
+  _state.intakeAge = age;
+
+  const preview = document.getElementById('patient-id-preview');
+  const valEl = document.getElementById('patient-id-val');
+
+  if (sex && age) {
+    _state.intakeDraftId = await generateDraftId(sex, age);
+    if (valEl) valEl.textContent = _state.intakeDraftId;
+    if (preview) preview.style.display = '';
+  } else {
+    _state.intakeDraftId = '';
+    if (preview) preview.style.display = 'none';
+  }
+
+  // Always refresh triage section to update lock state
+  const sec = document.getElementById('triage-section');
+  if (sec) sec.innerHTML = renderTriageColorPicker();
+}
+
+async function generateDraftId(sexCode, ageCode) {
+  const last = await db.patients.orderBy('id').last();
+  const seq = last ? last.id + 1 : 1;
+  return `M${String(seq).padStart(3,'0')}-${sexCode}${ageCode}`;
+}
+
+async function submitIntake() {
+  if (!_state.intakeTriageColor) { showToast('請選擇檢傷分色'); return; }
+  const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
+  const now = new Date().toISOString();
+
+  const triageData = {
+    triage_at: now,
+    triage_by: _state.operatorName,
+    start_walk: gv('start-walk'),
+    start_breathing: gv('start-breathing'),
+    start_circulation: gv('start-circ'),
+    start_mental: gv('start-mental'),
+    mist_m: getMist('mist-m-sel','mist-m'), mist_i: getMist('mist-i-sel','mist-i'),
+    mist_s: getMist('mist-s-sel','mist-s'), mist_t: gv('mist-t'),
+  };
+
+  const sexCode = _state.intakeSex || 'U';
+  const ageCode = _state.intakeAge || 'A';
+  const displayId = _state.intakeDraftId || await generateDraftId(sexCode, ageCode);
+
+  const patientData = {
+    display_id: displayId,
+    triage_color: _state.intakeTriageColor,
+    care_status: 'triaged',
+    current_zone: zoneMap[_state.intakeTriageColor],
+    source_type: _state.intakeSource,
+    source_sex: sexCode,
+    source_age: ageCode,
+    chief_issue: getMist('mist-i-sel','mist-i') || '',
+    vitals_summary: getMist('mist-s-sel','mist-s') || '',
+    security_cleared: _state.intakeSecurity !== 'incomplete',
+    registered_with_shelter: gv('intake-shelter') || 'not_registered',
+    disposition: '留觀',
+    reassess_due_at: new Date(Date.now() + (_state.intakeTriageColor==='red'?5:15)*60000).toISOString(),
+    operator_name: _state.operatorName,
+    updated_at: now,
+  };
+
+  const patientId = await db.patients.add(patientData);
+  await db.triages.add({ ...triageData, patient_id: patientId });
+
+  _state.intakeTriageColor = null;
+  _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
+  _state.intakeMistMode = null;
+  _state.intakeMistData = { m:'', i:'', s:'', t:'' };
+  _state.intakeSecurity = 'incomplete';
+  _state.intakeSex = '';
+  _state.intakeAge = '';
+  _state.intakeDraftId = '';
+  showToast(`✅ ${patientData.display_id} 已建檔，分至${patientData.current_zone}`);
+  switchTab('dashboard');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ZONES
+════════════════════════════════════════════════════════════════ */
+function renderZones(el) {
+  const zones = [
+    { id:'red',    label:'紅區', cls:'red' },
+    { id:'yellow', label:'黃區', cls:'yellow' },
+    { id:'green',  label:'綠區', cls:'green' },
+    { id:'black',  label:'黑區', cls:'black' },
+  ];
+  const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
+
+  const tabs = zones.map(z=>{
+    const n = countByZone(z.label);
+    return `<button class="zone-tab ${_state.currentZone===z.id?'active '+z.cls:''}" onclick="setZone('${z.id}')">${z.label} ${n>0?`(${n})`:''}</button>`;
+  }).join('');
+
+  const cur = zoneMap[_state.currentZone];
+  const patients = _state.patients.filter(p=>p.current_zone===cur);
+  const cards = patients.length === 0
+    ? `<div style="padding:32px;text-align:center;color:var(--text3);">本區目前無傷患</div>`
+    : patients.map(p=>renderPatientCard(p)).join('');
+
+  updateTabBadges();
+
+  el.innerHTML = `
+    <div class="zone-tabs">${tabs}</div>
+    <div id="zone-cards">${cards}</div>
+  `;
+}
+
+function setZone(z) {
+  _state.currentZone = z;
+  renderCurrentTab();
+}
+
+function renderPatientCard(p) {
+  const colorMap = { red:'red', yellow:'yellow', green:'green', black:'black' };
+  const cls = colorMap[p.triage_color] || '';
+  const due = p.reassess_due_at ? new Date(p.reassess_due_at) : null;
+  const now = new Date();
+  const overdue = due && due < now;
+  const minLeft = due ? Math.max(0, Math.floor((due-now)/60000)) : null;
+  const timerStr = due ? (overdue ? '⚠️逾時' : `${minLeft}分`) : '';
+  const timerCls = overdue ? 'overdue' : '';
+  const careStatus = p.care_status || 'triaged';
+  const transferDone = careStatus === 'pending_transfer' || p.disposition === '後送' || p.disposition === '離開';
+  const assessDone = careStatus === 'assessed' || transferDone;
+
+  // Inline progress strip
+  const steps = [
+    { label:'檢傷', done: true },
+    { label:'治療評估', done: assessDone },
+    { label:'後送', done: transferDone },
+  ];
+  const progressStrip = `<div style="display:flex;gap:2px;margin:6px 0 4px;">
+    ${steps.map(s=>`<span style="flex:1;text-align:center;font-size:11px;font-weight:600;padding:3px 0;border-radius:4px;background:${s.done?'var(--green)':'var(--border)'};color:${s.done?'#fff':'var(--text3)'};">${s.done?'✓ ':''}${s.label}</span>`).join('')}
+  </div>`;
+
+  // Medical history lines
+  const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '';
+  const histLines = [];
+  histLines.push(`<span style="color:var(--text3)">建檔</span> ${p.operator_name}・${fmt(p.updated_at)}`);
+  if (assessDone && p.assessed_by) {
+    histLines.push(`<span style="color:var(--text3)">評估</span> ${p.assessed_by}・${fmt(p.assessed_at)}`);
+  } else if (!assessDone) {
+    histLines.push(`<span style="color:#E65100;font-weight:600;">⬜ 治療評估待接手</span>`);
+  }
+  const history = `<div style="font-size:11px;line-height:1.8;margin-top:4px;padding-top:4px;border-top:1px solid var(--border);">${histLines.join('<br>')}</div>`;
+
+  // Continue button only for triaged (not yet assessed)
+  const continueBtn = !assessDone
+    ? `<button class="pc-btn primary" onclick="event.stopPropagation();openTreatmentAssessment(${p.id})">▶ 評估</button>`
+    : '';
+
+  return `
+    <div class="patient-card ${cls} ${overdue?'overdue':''}">
+      <div class="pc-top" onclick="openPatientDetail(${p.id})" style="cursor:pointer;">
+        <span class="pc-id">${p.display_id}</span>
+        <span class="pc-timer ${timerCls}" ${due ? `data-due="${p.reassess_due_at}"` : ''}>${timerStr}</span>
+      </div>
+      ${progressStrip}
+      <div class="pc-issue">${p.chief_issue || '（無主訴摘要）'}</div>
+      <div style="font-size:12px;color:var(--text3);">${p.vitals_summary||''}</div>
+      ${history}
+      <div class="pc-actions mt-1">
+        <button class="pc-btn" onclick="event.stopPropagation();resetReassess(${p.id})">重設</button>
+        <button class="pc-btn" onclick="event.stopPropagation();openMoveZone(${p.id})">移區</button>
+        ${continueBtn}
+        <button class="pc-btn primary" onclick="event.stopPropagation();markTransfer(${p.id})">後送</button>
+      </div>
+    </div>
+  `;
+}
+
+async function resetReassess(id) {
+  const p = await db.patients.get(id);
+  if (!p) return;
+  const mins = p.triage_color === 'red' ? 5 : 15;
+  await db.patients.update(id, { reassess_due_at: new Date(Date.now()+mins*60000).toISOString(), updated_at: new Date().toISOString() });
+  showToast('再評估計時重設');
+  renderCurrentTab();
+}
+
+async function markTransfer(id) {
+  await db.patients.update(id, { disposition:'後送', updated_at:new Date().toISOString() });
+  showToast('已標記待後送');
+  renderCurrentTab();
+}
+
+function openMoveZone(id) {
+  const zones = ['紅區','黃區','綠區','黑區','後送區','已離區'];
+  const opts = zones.map(z=>`<button class="btn btn-outline btn-full mb-1" onclick="moveZone(${id},'${z}');closeModal()">${z}</button>`).join('');
+  openModal('移轉區域', opts, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
+}
+
+async function moveZone(id, zone) {
+  await db.patients.update(id, { current_zone:zone, updated_at:new Date().toISOString() });
+  showToast(`已移至 ${zone}`);
+  renderCurrentTab();
+}
+
+async function openPatientDetail(id) {
+  const p = await db.patients.get(id);
+  if (!p) return;
+  const triages = await db.triages.where('patient_id').equals(id).toArray();
+  const latest = triages[triages.length-1];
+  const colorLabel = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
+  const careStatus = p.care_status || 'triaged';
+  // Progress steps
+  const steps = [
+    { key:'triage',    label:'檢傷',  done: true },
+    { key:'assess',    label:'治療評估', done: careStatus === 'assessed' || careStatus === 'pending_transfer' },
+    { key:'transfer',  label:'後送',  done: careStatus === 'pending_transfer' || p.disposition === '後送' || p.disposition === '離開' },
+  ];
+  const progressBar = `<div style="display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;">
+    ${steps.map((s,i)=>`
+      <div style="flex:1;padding:7px 4px;text-align:center;font-size:12px;font-weight:600;
+        background:${s.done?'var(--green)':'var(--border)'};
+        color:${s.done?'#fff':'var(--text3)'};
+        ${i>0?'border-left:1px solid rgba(255,255,255,.3)':''}">
+        ${s.done?'✓ ':''}${s.label}
+      </div>`).join('')}
+  </div>`;
+  const injuryLabel = p.injury_type === 'trauma' ? '🩸 創傷' : p.injury_type === 'medical' ? '💊 非創' : '—（待填）';
+  const continueBtn = careStatus === 'triaged'
+    ? `<button class="btn btn-warning flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 繼續評估</button>`
+    : `<button class="btn btn-outline flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 更新評估</button>`;
+  openModal(
+    `${p.display_id} 傷患詳情`,
+    `<div class="flex flex-col gap-2">
+      ${progressBar}
+      <div class="dash-row"><span class="dash-row-label">檢傷分色</span><span class="dash-row-val">${colorLabel[p.triage_color]||p.triage_color}</span></div>
+      <div class="dash-row"><span class="dash-row-label">目前區域</span><span class="dash-row-val">${p.current_zone}</span></div>
+      <div class="dash-row"><span class="dash-row-label">傷型</span><span class="dash-row-val">${injuryLabel}</span></div>
+      <div class="dash-row"><span class="dash-row-label">主訴</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.chief_issue||'—'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">生命徵象</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.vitals_summary||'—'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">安檢狀態</span><span class="dash-row-val">${p.security_cleared ? '✅ 已完成' : '⛔ 未完成 / 同步中'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">處置</span><span class="dash-row-val">${p.disposition}</span></div>
+      <div class="dash-row"><span class="dash-row-label">建檔者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
+      ${latest ? `<div class="info-box info mt-1" style="font-size:12px;">檢傷：${latest.triage_at?.slice(0,16)||''} by ${latest.triage_by||''}</div>` : ''}
+    </div>`,
+    `${continueBtn}
+     <button class="btn btn-outline flex-1" onclick="openMoveZone(${id});closeModal()">移區</button>
+     <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MORE PAGE
+════════════════════════════════════════════════════════════════ */
+async function renderMore(el) {
+  if (_state.morePage === 'resources') { await renderResources(el); return; }
+  if (_state.morePage === 'incidents') { await renderIncidents(el); return; }
+  if (_state.morePage === 'shift')     { await renderShift(el); return; }
+
+  const openInc = await db.incidents.where('status').equals('open').count();
+  const lowRes = await db.resources.filter(r => r.qty_current <= r.qty_low_threshold).count();
+  const lastShift = (await db.shifts.orderBy('started_at').last());
+  const shiftAgo = lastShift ? Math.floor((Date.now()-new Date(lastShift.started_at))/3600000) : null;
+
+  el.innerHTML = `
+    <div class="section-hdr">功能</div>
+    <div class="dash-row" onclick="_state.morePage='resources';renderCurrentTab()" style="cursor:pointer;">
+      <span class="dash-row-label">📦 物資管理</span>
+      <span class="flex items-center gap-1">${lowRes>0?`<span class="tag tag-yellow">${lowRes} 低量</span>`:''}  <span class="text-gray text-sm">→</span></span>
+    </div>
+    <div class="dash-row" onclick="_state.morePage='incidents';renderCurrentTab()" style="cursor:pointer;">
+      <span class="dash-row-label">⚠️ 事件記錄</span>
+      <span class="flex items-center gap-1">${openInc>0?`<span class="tag tag-red">${openInc} 件</span>`:''}  <span class="text-gray text-sm">→</span></span>
+    </div>
+    <div class="dash-row" onclick="_state.morePage='shift';renderCurrentTab()" style="cursor:pointer;">
+      <span class="dash-row-label">🔄 交班 / 快照</span>
+      <span class="flex items-center gap-1">${shiftAgo!==null?`<span class="text-xs text-gray">${shiftAgo}h 前</span>`:''}  <span class="text-gray text-sm">→</span></span>
+    </div>
+    <div class="section-hdr">系統</div>
+    <div class="dash-row" style="cursor:pointer;" onclick="doQrSnapshot()">
+      <span class="dash-row-label">📷 產生 QR 快照</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="dash-row" style="cursor:pointer;" onclick="doLogout()">
+      <span class="dash-row-label">🔒 登出（切換角色）</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div style="padding:14px;font-size:12px;color:var(--text3);text-align:center;">
+      醫療組 PWA ${PWA_VERSION} · 規格 v0.4
+    </div>
+  `;
+}
+
+function refreshZoneCountdowns() {
+  const now = new Date();
+  document.querySelectorAll('[data-due]').forEach(el => {
+    const due = new Date(el.dataset.due);
+    const overdue = due < now;
+    const minLeft = Math.max(0, Math.floor((due - now) / 60000));
+    el.textContent = '再評估 ' + (overdue ? '逾時' : minLeft + '分');
+    el.classList.toggle('overdue', overdue);
+    el.closest('.patient-card')?.classList.toggle('overdue', overdue);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TRANSFER PAGE
+════════════════════════════════════════════════════════════════ */
+async function renderTransfer(el) {
+  const pending = _state.patients.filter(p => p.disposition === '後送');
+  const doneList = await db.transfers.toArray();
+
+  const pendingHtml = pending.length === 0
+    ? `<div style="padding:32px;text-align:center;color:var(--text3);">目前無待後送傷患</div>`
+    : pending.map(p => renderTransferCard(p)).join('');
+
+  el.innerHTML = `
+    <div class="section-hdr">待後送佇列 (${pending.length})</div>
+    ${pendingHtml}
+    ${doneList.length > 0 ? `
+    <div class="section-hdr">已完成後送 (${doneList.length})</div>
+    ${doneList.slice().reverse().slice(0,5).map(t => `
+      <div class="card mb-1" style="opacity:.7">
+        <div class="flex justify-between items-center">
+          <span class="text-sm font-semibold">${t.patient_display_id||'—'}</span>
+          <span class="tag tag-green">已交接</span>
+        </div>
+        <div class="text-xs text-gray mt-1">目的地：${t.destination||'—'} · ${(t.departed_at||'').slice(0,16)}</div>
+      </div>
+    `).join('')}` : ''}
+  `;
+}
+
+function renderTransferCard(p) {
+  const colorTag = { red:'tag-red', yellow:'tag-yellow', green:'tag-green', black:'tag-black' }[p.triage_color] || 'tag-gray';
+  const colorLabel = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
+  const waited = p.updated_at ? Math.floor((Date.now() - new Date(p.updated_at)) / 60000) : 0;
+  return `
+    <div class="card mb-2">
+      <div class="flex justify-between items-center mb-1">
+        <span class="font-bold">${p.display_id}</span>
+        <span class="tag ${colorTag}">${colorLabel[p.triage_color]||p.triage_color}</span>
+      </div>
+      <div class="text-sm mb-1">${p.chief_issue||'（無主訴）'}</div>
+      <div class="text-xs text-gray mb-2">生命徵象：${p.vitals_summary||'—'} · 等待 ${waited} 分鐘</div>
+      <div class="flex gap-1">
+        <button class="pc-btn primary" onclick="openIsbar(${p.id})">📋 ISBAR 交接</button>
+        <button class="pc-btn" onclick="openMoveZone(${p.id})">移區</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ─── 治療評估（治療官從分區看板開啟，繼續填傷型+XABCDE/SAMPLE） ─── */
+const _treatState = { patientId: null, injuryType: null };
+
+function openTreatmentAssessment(id) {
+  _treatState.patientId = id;
+  _treatState.injuryType = null;
+  renderTreatmentModal();
+}
+
+function renderTreatmentModal() {
+  const id = _treatState.patientId;
+  const injType = _treatState.injuryType;
+  const body = `
+    <div class="section-hdr">傷情分類</div>
+    <div class="form-group">
+      <div class="trauma-btns">
+        <button class="trauma-btn ${injType==='trauma'?'active trauma':''}" onclick="_treatState.injuryType='trauma';renderTreatmentModal()">🩸 創傷<br><small>XABCDE</small></button>
+        <button class="trauma-btn ${injType==='medical'?'active medical':''}" onclick="_treatState.injuryType='medical';renderTreatmentModal()">💊 非創<br><small>SAMPLE/OPQRST</small></button>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">主訴摘要</div>
+      <textarea class="form-input form-textarea" id="ta-chief" placeholder="chief issue…"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="form-label">生命徵象摘要</div>
+      <input class="form-input" id="ta-vitals" placeholder="HR __ BP __/__ RR __ SpO2 __%">
+    </div>
+    ${injType === 'trauma' ? renderXABCDE() : ''}
+    ${injType === 'medical' ? renderSampleOpqrst() : ''}
+    ${injType ? `<button class="btn btn-primary btn-full mt-2" onclick="saveTreatmentAssessment(${id})">💾 儲存評估</button>` : ''}
+  `;
+  // Re-use modal content if already visible, else open fresh
+  const overlay = document.getElementById('modal-overlay');
+  if (overlay && !overlay.classList.contains('hidden')) {
+    document.getElementById('modal-body').innerHTML = body;
+  } else {
+    openModal('治療評估', body, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
+  }
+}
+
+async function saveTreatmentAssessment(id) {
+  const injType = _treatState.injuryType;
+  if (!injType) { showToast('請選擇傷型'); return; }
+  const now = new Date().toISOString();
+  const assessData = {
+    trauma_or_medical: injType,
+    triage_at: now,
+    triage_by: _state.operatorName,
+    // XABCDE
+    x_hemorrhage_controlled: getMist('x-hemorrhage','x-hemorrhage-notes'),
+    a_airway_patent: getMist('a-airway','a-airway-notes'),
+    b_breathing_status: getMist('b-breathing','b-interventions'),
+    c_pulse_quality: getMist('c-pulse','c-interventions'),
+    d_gcs: getMist('d-gcs','d-pupils'),
+    e_exposed: getMist('e-exposed','e-findings'),
+    // SAMPLE/OPQRST
+    abc_airway: gv('abc-airway'), abc_breathing: gv('abc-breathing'), abc_circulation: gv('abc-circulation'),
+    blood_glucose: gv('blood-glucose'),
+    sample_s: gv('sample-s'), sample_a: gv('sample-a'), sample_m: gv('sample-m'),
+    sample_p: gv('sample-p'), sample_l: gv('sample-l'), sample_e: gv('sample-e'),
+    opqrst_onset: gv('opqrst-o'), opqrst_provoke: gv('opqrst-p'), opqrst_quality: gv('opqrst-q'),
+    opqrst_radiation: gv('opqrst-r'), opqrst_severity: gv('opqrst-s'), opqrst_time: gv('opqrst-t'),
+  };
+  await db.triages.add({ ...assessData, patient_id: id });
+  await db.patients.update(id, {
+    injury_type: injType,
+    care_status: 'assessed',
+    assessed_by: _state.operatorName,
+    assessed_at: now,
+    chief_issue: gv('ta-chief') || '',
+    vitals_summary: gv('ta-vitals') || '',
+    updated_at: now,
+  });
+  closeModal();
+  showToast('✅ 治療評估已儲存');
+  renderCurrentTab();
+}
+
+async function openIsbar(patientId) {
+  const p = await db.patients.get(patientId);
+  if (!p) return;
+  const colorLabel = { red:'紅（危急）', yellow:'黃（需觀察）', green:'綠（輕傷）', black:'黑（死亡/無法救治）' };
+  const iText = `${p.display_id}，${colorLabel[p.triage_color]||p.triage_color}，${p.injury_type==='trauma'?'創傷':'非創'}`;
+  const sText = `${p.chief_issue||'—'}，目前位於 ${p.current_zone}`;
+  const aText = `生命徵象：${p.vitals_summary||'—'}`;
+
+  openModal('ISBAR 後送交接',
+    `<div class="flex flex-col gap-2">
+      <div class="info-box info text-sm"><b>I — Identify（識別）</b><br>${iText}</div>
+      <div class="info-box info text-sm"><b>S — Situation（情況）</b><br>${sText}</div>
+      <div class="info-box info text-sm"><b>A — Assessment（評估）</b><br>${aText}</div>
+      <div class="form-group">
+        <div class="form-label">B — Background（病史 / 已完成處置）</div>
+        <textarea class="form-input form-textarea" id="isbar-b" placeholder="既往病史、已完成的處置…"></textarea>
+      </div>
+      <div class="form-group">
+        <div class="form-label">R — Recommendation（建議 / 目的地）</div>
+        <textarea class="form-input form-textarea" id="isbar-r" placeholder="建議後送至…，需要…車輛…"></textarea>
+      </div>
+      <div class="form-group">
+        <div class="form-label">必要救命處置核對</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;">
+          ${['止血','呼吸道','給氧','靜脈通路','保暖','固定'].map(item =>
+            `<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="chk-${item}"> ${item}</label>`
+          ).join('')}
+        </div>
+      </div>
+    </div>`,
+    `<button class="btn btn-success flex-1" onclick="completeHandoff(${patientId})">✅ 交接完成</button>
+     <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+}
+
+async function completeHandoff(patientId) {
+  const p = await db.patients.get(patientId);
+  if (!p) return;
+  const b = document.getElementById('isbar-b')?.value || '';
+  const r = document.getElementById('isbar-r')?.value || '';
+  const checklist = ['止血','呼吸道','給氧','靜脈通路','保暖','固定']
+    .filter(item => document.getElementById('chk-'+item)?.checked).join('、');
+  const now = new Date().toISOString();
+  await db.transfers.add({
+    patient_id: patientId, patient_display_id: p.display_id,
+    status: 'completed', destination: r,
+    isbar_text: `B: ${b}\nR: ${r}\n已完成: ${checklist||'（未勾選）'}`,
+    departed_at: now, handoff_done_at: now, created_at: now,
+  });
+  await db.patients.update(patientId, { disposition:'離開', current_zone:'已離區', updated_at: now });
+  closeModal();
+  showToast(`${p.display_id} 後送交接完成`);
+  renderCurrentTab();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RESOURCES PAGE
+════════════════════════════════════════════════════════════════ */
+const DEFAULT_RESOURCES = [
+  { name:'止血帶', category:'止血類', qty_initial:10, qty_low_threshold:2 },
+  { name:'紗布/敷料組', category:'止血類', qty_initial:20, qty_low_threshold:5 },
+  { name:'呼吸道套件(OPA/NPA)', category:'呼吸道類', qty_initial:5, qty_low_threshold:1 },
+  { name:'BVM', category:'呼吸道類', qty_initial:2, qty_low_threshold:1 },
+  { name:'氧氣鋼瓶', category:'呼吸道類', qty_initial:2, qty_low_threshold:1 },
+  { name:'IV通路套件', category:'循環類', qty_initial:10, qty_low_threshold:2 },
+  { name:'急救藥品包', category:'藥品', qty_initial:1, qty_low_threshold:1 },
+  { name:'軟式護木', category:'固定類', qty_initial:6, qty_low_threshold:1 },
+  { name:'三角巾', category:'固定類', qty_initial:10, qty_low_threshold:2 },
+  { name:'頸圈', category:'固定類', qty_initial:4, qty_low_threshold:1 },
+  { name:'保暖棉被+鋁箔毯', category:'保暖類', qty_initial:10, qty_low_threshold:2 },
+  { name:'AED', category:'監測器材', qty_initial:1, qty_low_threshold:1 },
+];
+
+async function renderResources(el) {
+  const items = await db.resources.toArray();
+
+  if (items.length === 0) {
+    el.innerHTML = `
+      <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
+      <div class="section-hdr">開場盤點</div>
+      <div class="p-2">
+        <div class="info-box info mb-2 text-sm">系統載入預設物資清單，請依實際數量調整後確認。</div>
+        ${DEFAULT_RESOURCES.map((r,i) => `
+          <div class="flex items-center gap-2 mb-2">
+            <span class="flex-1 text-sm">${r.name}</span>
+            <input type="number" class="form-input" style="width:70px;padding:6px;" id="res-qty-${i}" value="${r.qty_initial}" min="0">
+          </div>`).join('')}
+        <button class="btn btn-primary btn-full mt-2" onclick="initResources()">確認盤點完成</button>
+      </div>
+    `;
+    return;
+  }
+
+  const lowItems = items.filter(r => r.qty_current <= r.qty_low_threshold);
+  const byCategory = {};
+  items.forEach(r => { if (!byCategory[r.category]) byCategory[r.category] = []; byCategory[r.category].push(r); });
+
+  const listHtml = Object.entries(byCategory).map(([cat, catItems]) => `
+    <div class="section-hdr">${cat}</div>
+    ${catItems.map(r => {
+      const low = r.qty_current <= r.qty_low_threshold;
+      return `
+        <div class="card mb-1" style="${low ? 'border-left:3px solid var(--orange)' : ''}">
+          <div class="flex justify-between items-center">
+            <span class="font-semibold text-sm">${r.name}</span>
+            <span class="${low ? 'text-red font-bold' : ''}">${r.qty_current} / ${r.qty_initial}</span>
+          </div>
+          ${low ? `<div class="text-xs" style="color:var(--orange);">⚠️ 低量（門檻 ${r.qty_low_threshold}）</div>` : ''}
+          <div class="flex gap-1 mt-1">
+            <button class="pc-btn" onclick="useResource(${r.id},1)">取用 1</button>
+            <button class="pc-btn" onclick="restockResource(${r.id})">補給</button>
+          </div>
+        </div>`;
+    }).join('')}
+  `).join('');
+
+  el.innerHTML = `
+    <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
+    ${lowItems.length > 0 ? `<div class="info-box warn" style="margin:0 14px 10px;">⚠️ ${lowItems.length} 項低量：${lowItems.map(r=>r.name).join('、')}</div>` : ''}
+    ${listHtml}
+    <div style="padding:14px;"><button class="btn btn-outline btn-full btn-sm" onclick="resetInventory()">重置盤點</button></div>
+  `;
+}
+
+async function initResources() {
+  const rows = DEFAULT_RESOURCES.map((r,i) => {
+    const qty = parseInt(document.getElementById('res-qty-'+i)?.value || r.qty_initial, 10);
+    return { ...r, qty_current: qty, qty_initial: qty };
+  });
+  await db.resources.bulkAdd(rows);
+  showToast('盤點完成');
+  renderCurrentTab();
+}
+
+async function useResource(id, qty) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const newQty = Math.max(0, r.qty_current - qty);
+  await db.resources.update(id, { qty_current: newQty });
+  if (newQty <= r.qty_low_threshold) {
+    await db.incidents.add({
+      type:'resource_shortage', severity:'medium', status:'open',
+      notes:`${r.name} 低量（剩 ${newQty}）`,
+      reported_by:_state.operatorName, assigned_to:'',
+      linked_patients:'', reported_at:new Date().toISOString()
+    });
+    showToast(`⚠️ ${r.name} 低量，事件已建立`);
+  } else {
+    showToast(`${r.name} 已取用 ${qty}`);
+  }
+  renderCurrentTab();
+}
+
+async function restockResource(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const input = prompt(`補給 ${r.name}，請輸入補充數量：`);
+  if (!input) return;
+  const qty = parseInt(input, 10);
+  if (isNaN(qty) || qty <= 0) return;
+  await db.resources.update(id, { qty_current: r.qty_current + qty });
+  showToast(`${r.name} 補給 +${qty}`);
+  renderCurrentTab();
+}
+
+async function resetInventory() {
+  if (!confirm('確定重置所有物資盤點資料？')) return;
+  await db.resources.clear();
+  renderCurrentTab();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   INCIDENTS PAGE
+════════════════════════════════════════════════════════════════ */
+const INCIDENT_TYPES = {
+  security_threat:'安全威脅', violent_patient:'暴力傷患',
+  infectious_risk:'傳染疑慮', resource_shortage:'物資短缺',
+  capacity_overload:'量能超載', equipment_failure:'設備故障', evacuation:'撤退'
+};
+
+async function renderIncidents(el) {
+  const all = await db.incidents.toArray();
+  const open = all.filter(i => i.status === 'open');
+  const closed = all.filter(i => i.status === 'closed');
+
+  el.innerHTML = `
+    <div style="padding:14px;display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button>
+      <button class="btn btn-danger btn-sm" onclick="openCreateIncident()">＋ 通報事件</button>
+    </div>
+    <div class="section-hdr">開放事件 (${open.length})</div>
+    ${open.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--text3);">目前無開放事件</div>` : ''}
+    ${open.map(inc => renderIncidentCard(inc, true)).join('')}
+    ${closed.length > 0 ? `
+      <div class="section-hdr">已結案 (${closed.length})</div>
+      ${closed.slice().reverse().slice(0,5).map(inc => renderIncidentCard(inc, false)).join('')}
+    ` : ''}
+  `;
+}
+
+function renderIncidentCard(inc, isOpen) {
+  const sevColor = { high:'var(--red)', medium:'var(--orange)', low:'var(--green)' }[inc.severity] || 'var(--gray)';
+  const sevTag = inc.severity === 'high' ? 'tag-red' : inc.severity === 'medium' ? 'tag-yellow' : 'tag-green';
+  const sevLabel = inc.severity === 'high' ? '高' : inc.severity === 'medium' ? '中' : '低';
+  return `
+    <div class="card mb-2" style="${isOpen ? 'border-left:3px solid '+sevColor : 'opacity:.7'}">
+      <div class="flex justify-between items-center mb-1">
+        <span class="font-semibold">${INCIDENT_TYPES[inc.type]||inc.type}</span>
+        <span class="tag ${sevTag}">${sevLabel}</span>
+      </div>
+      <div class="text-sm mb-1">${inc.notes||'—'}</div>
+      <div class="text-xs text-gray">${inc.reported_by||''} · ${(inc.reported_at||'').slice(0,16)}</div>
+      ${isOpen ? `<button class="btn btn-outline btn-sm mt-1" onclick="closeIncident(${inc.id})">結案</button>` : `<span class="tag tag-gray" style="margin-top:4px;display:inline-block;">已結案</span>`}
+    </div>
+  `;
+}
+
+function openCreateIncident() {
+  openModal('通報事件',
+    `<div class="flex flex-col gap-2">
+      <div class="form-group">
+        <div class="form-label">事件類型</div>
+        <select class="form-select" id="inc-type">
+          ${Object.entries(INCIDENT_TYPES).map(([v,l]) => `<option value="${v}">${l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">嚴重程度</div>
+        <select class="form-select" id="inc-sev">
+          <option value="high">高（立即威脅）</option>
+          <option value="medium" selected>中（需追蹤）</option>
+          <option value="low">低（知悉）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">事件說明</div>
+        <textarea class="form-input form-textarea" id="inc-notes" placeholder="簡述事件狀況…"></textarea>
+      </div>
+    </div>`,
+    `<button class="btn btn-danger flex-1" onclick="createIncident()">通報</button>
+     <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`
+  );
+}
+
+async function createIncident() {
+  const type = document.getElementById('inc-type')?.value;
+  const severity = document.getElementById('inc-sev')?.value;
+  const notes = document.getElementById('inc-notes')?.value;
+  if (!notes?.trim()) { showToast('請填寫事件說明'); return; }
+  await db.incidents.add({
+    type, severity, status:'open', notes,
+    reported_by:_state.operatorName, assigned_to:'',
+    linked_patients:'', reported_at:new Date().toISOString()
+  });
+  closeModal();
+  showToast('事件已通報');
+  renderCurrentTab();
+}
+
+async function closeIncident(id) {
+  await db.incidents.update(id, { status:'closed', closed_at:new Date().toISOString() });
+  showToast('事件已結案');
+  renderCurrentTab();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SHIFT / SNAPSHOT PAGE
+════════════════════════════════════════════════════════════════ */
+async function renderShift(el) {
+  const shifts = await db.shifts.toArray();
+  const redPatients = _state.patients.filter(p => p.triage_color === 'red' && p.current_zone !== '已離區');
+  const openIncidents = await db.incidents.where('status').equals('open').count();
+  const lowResources = await db.resources.filter(r => r.qty_current <= r.qty_low_threshold).count();
+  const pendingEvac = getPendingTransfer();
+  const lastShift = shifts.length > 0 ? shifts[shifts.length-1] : null;
+  const shiftAgo = lastShift ? Math.floor((Date.now()-new Date(lastShift.started_at))/3600000) : null;
+  const needForceShift = shiftAgo !== null && shiftAgo >= 4;
+
+  el.innerHTML = `
+    <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
+    ${needForceShift ? `<div class="info-box warn" style="margin:0 14px 10px;">⚠️ 距上次交班已超過 4 小時，請立即辦理交班。</div>` : ''}
+    <div class="section-hdr">建立交班紀錄</div>
+    <div class="p-2">
+      <div class="card mb-2 text-sm">
+        <div class="flex justify-between mb-1"><span>傷患（在站）</span><span class="font-bold">${_state.patients.filter(p=>p.current_zone!=='已離區').length}</span></div>
+        <div class="flex justify-between mb-1"><span>🔴 紅區</span><span>${countByColor('red')}</span></div>
+        <div class="flex justify-between mb-1"><span>🟡 黃區</span><span>${countByColor('yellow')}</span></div>
+        <div class="flex justify-between mb-1"><span>🟢 綠區</span><span>${countByColor('green')}</span></div>
+        <div class="flex justify-between mb-1"><span>⚫ 黑區</span><span>${countByColor('black')}</span></div>
+        <div class="flex justify-between mb-1"><span>🚑 待後送</span><span>${pendingEvac}</span></div>
+        <div class="flex justify-between mb-1"><span>⚠️ 開放事件</span><span>${openIncidents}</span></div>
+        <div class="flex justify-between"><span>📦 低量物資</span><span>${lowResources}</span></div>
+      </div>
+      ${redPatients.length > 0 ? `
+        <div class="info-box error mb-2 text-sm">
+          <b>🔴 紅區傷患逐一交接（${redPatients.length} 人）</b><br>
+          ${redPatients.map(p => `${p.display_id}：${p.chief_issue||'—'} / ${p.vitals_summary||'—'}`).join('<br>')}
+        </div>` : ''}
+      <div class="form-group">
+        <div class="form-label">交班備註</div>
+        <textarea class="form-input form-textarea" id="shift-notes" placeholder="特別注意事項、未完成任務、下一班需追蹤項目…" style="min-height:100px;"></textarea>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="createShift()">建立交班紀錄</button>
+    </div>
+    ${shifts.length > 0 ? `
+    <div class="section-hdr">歷史交班 (${shifts.length})</div>
+    ${shifts.slice().reverse().map(s => {
+      let snapHtml = '';
+      if (s.snapshot) { try { const snap = JSON.parse(s.snapshot); snapHtml = `<div class="text-xs text-gray mt-1">紅${snap.red||0} 黃${snap.yellow||0} 綠${snap.green||0} 黑${snap.black||0} · 後送${snap.pending||0}</div>`; } catch(_) {} }
+      return `<div class="card mb-2 text-sm" style="opacity:.8">
+        <div class="flex justify-between mb-1">
+          <span class="font-semibold">${s.operator_name} · ${s.role}</span>
+          <span class="text-gray">${(s.started_at||'').slice(0,16)}</span>
+        </div>
+        ${s.handover_notes ? `<div>${s.handover_notes}</div>` : ''}
+        ${snapHtml}
+      </div>`;
+    }).join('')}
+    ` : ''}
+  `;
+}
+
+async function createShift() {
+  const notes = document.getElementById('shift-notes')?.value || '';
+  const snap = { red:countByColor('red'), yellow:countByColor('yellow'), green:countByColor('green'), black:countByColor('black'), pending:getPendingTransfer() };
+  await db.shifts.add({
+    started_at: new Date().toISOString(),
+    role: _state.role, operator_name: _state.operatorName,
+    handover_notes: notes, snapshot: JSON.stringify(snap)
+  });
+  showToast('交班紀錄已建立');
+  renderCurrentTab();
+}
+
+function renderStub(el, icon, title, desc) {
+  el.innerHTML = `<div class="stub-page"><div class="stub-icon">${icon}</div><div class="stub-title">${title}</div><div class="stub-desc">${desc}</div></div>`;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   QR SNAPSHOT
+════════════════════════════════════════════════════════════════ */
+async function doQrSnapshot() {
+  const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
+  const pending = getPendingTransfer();
+  const uuid = generateSnapshotUUID();
+  const now = new Date().toISOString();
+  const payload = {
+    v:1, type:'snapshot_medical', snapshot_id:uuid, t:now,
+    src:'medical', casualties:{ red:r, yellow:y, green:g, black:b },
+    pending_evac:pending
+  };
+  const payloadStr = JSON.stringify(payload);
+  await db.snapshots.add({ snapshot_uuid:uuid, snapshot_time:now, type:'qr', payload:payloadStr });
+
+  openModal('QR 快照',
+    `<div style="text-align:center">
+      <div id="qr-render" style="display:inline-block;margin:16px auto;"></div>
+      <div class="info-box info mt-2 text-sm">${uuid.slice(0,8)}…<br>${now.slice(0,16)}</div>
+      <div class="text-xs text-gray mt-1">供指揮部幕僚掃描（每 20 分鐘更新一次）</div>
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+  setTimeout(()=>{
+    try {
+      new QRCode(document.getElementById('qr-render'), {
+        text: payloadStr, width:200, height:200, correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e) {
+      document.getElementById('qr-render').textContent = payloadStr.slice(0,80)+'…';
+    }
+  }, 100);
+}
+
+function doLogout() {
+  clearIdleTimers();
+  _state.role = '';
+  _state.operatorName = '';
+  _state.currentAccountId = null;
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('idle-warning').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-warn').textContent = '';
+  const cdEl = document.getElementById('idle-countdown'); if (cdEl) cdEl.textContent = '';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MODAL / TOAST
+════════════════════════════════════════════════════════════════ */
+function openModal(title, body, footer) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-footer').innerHTML = footer || `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function handleOverlayClick(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+
+let _toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.remove('hidden'); el.style.opacity='1';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.classList.add('hidden'),300); }, 2500);
+}
+
+function copyText(txt) {
+  navigator.clipboard?.writeText(txt).then(()=>showToast('已複製')).catch(()=>showToast('複製失敗'));
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ADMIN PANEL
+════════════════════════════════════════════════════════════════ */
+let _adminAuthed = false;
+
+function openAdminPanel() {
+  document.getElementById('admin-overlay').style.display = 'block';
+  document.getElementById('admin-panel').style.display = 'flex';
+  if (_adminAuthed) { admShowMain(); } else { document.getElementById('adm-pin-screen').style.display='block'; document.getElementById('adm-main').style.display='none'; }
+}
+
+function closeAdminPanel() {
+  document.getElementById('admin-overlay').style.display = 'none';
+  document.getElementById('admin-panel').style.display = 'none';
+}
+
+async function adminVerify() {
+  const pin = document.getElementById('adm-pin-input').value;
+  const errEl = document.getElementById('adm-pin-err');
+  errEl.textContent = '';
+  if (!pin) { errEl.textContent = '請輸入 PIN'; return; }
+  const cfg = await db.config.get('adminPinHash');
+  if (!cfg?.value) { errEl.textContent = '管理員 PIN 未設定'; return; }
+  const hash = await Crypto.hashPin(pin);
+  if (hash !== cfg.value) { errEl.textContent = 'PIN 不正確'; document.getElementById('adm-pin-input').value=''; return; }
+  document.getElementById('adm-pin-input').value = '';
+  _adminAuthed = true;
+  admShowMain();
+}
+
+function admShowMain() {
+  document.getElementById('adm-pin-screen').style.display = 'none';
+  const main = document.getElementById('adm-main');
+  main.style.display = 'flex';
+  admShowTab('list');
+}
+
+function admShowTab(tab) {
+  ['list','add','cfg'].forEach(t => {
+    document.getElementById('adm-panel-'+t).style.display = t===tab ? 'block' : 'none';
+    document.getElementById('adm-tab-'+t).classList.toggle('active', t===tab);
+  });
+  if (tab === 'list') admLoadAccounts();
+}
+
+async function admLoadAccounts() {
+  const el = document.getElementById('adm-panel-list');
+  const accounts = await db.accounts.toArray();
+  if (!accounts.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0;">尚無帳號</div>'; return; }
+  el.innerHTML = accounts.map(a => `
+    <div class="adm-card" id="adm-card-${a.id}">
+      <div class="adm-card-name">${a.username}${a.display_name&&a.display_name!==a.username?`（${a.display_name}）`:''}</div>
+      <div class="adm-card-meta">${a.role} · <span style="color:${a.status==='active'?'var(--green)':'var(--red)'}">${a.status==='active'?'啟用':'停用'}</span></div>
+      <div id="adm-edit-${a.id}" style="display:none;margin-top:8px;">
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input type="password" inputmode="numeric" id="adm-newpin-${a.id}" class="form-input" placeholder="新 PIN（4-6碼，留空不改）" style="flex:1;padding:7px 10px;font-size:14px;">
+          <select id="adm-newrole-${a.id}" class="form-input form-select" style="flex:1;padding:7px 10px;font-size:14px;">
+            ${['組長','副組長','檢傷官','治療官','後送官','後勤官','通訊官','機動人員'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${r}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="adm-btn adm-btn-primary" style="flex:1;" onclick="admSave(${a.id})">儲存</button>
+          <button class="adm-btn" style="flex:1;" onclick="admToggleEdit(${a.id},false)">取消</button>
+        </div>
+        <div id="adm-edit-msg-${a.id}" style="font-size:12px;margin-top:4px;color:var(--green);min-height:16px;"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <button class="adm-btn adm-btn-primary" onclick="admToggleEdit(${a.id},true)">修改</button>
+        <button class="adm-btn adm-btn-toggle" onclick="admToggleStatus(${a.id},'${a.status}')">${a.status==='active'?'停用':'啟用'}</button>
+        <button class="adm-btn adm-btn-del" onclick="admDelete(${a.id},'${a.username}')">刪除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function admToggleEdit(id, show) {
+  document.getElementById('adm-edit-'+id).style.display = show ? 'block' : 'none';
+}
+
+async function admSave(id) {
+  const pin = document.getElementById('adm-newpin-'+id).value;
+  const role = document.getElementById('adm-newrole-'+id).value;
+  const msgEl = document.getElementById('adm-edit-msg-'+id);
+  const upd = { role };
+  if (pin) {
+    if (!/^\d{4,6}$/.test(pin)) { msgEl.style.color='var(--red)'; msgEl.textContent='PIN 需 4-6 位數字'; return; }
+    upd.pin_hash = await Crypto.hashPin(pin);
+  }
+  await db.accounts.update(id, upd);
+  msgEl.style.color = 'var(--green)'; msgEl.textContent = '已儲存';
+  setTimeout(() => admLoadAccounts(), 800);
+}
+
+async function admToggleStatus(id, cur) {
+  await db.accounts.update(id, { status: cur==='active' ? 'suspended' : 'active' });
+  admLoadAccounts();
+}
+
+async function admDelete(id, username) {
+  if (!confirm(`確定刪除帳號「${username}」？`)) return;
+  await db.accounts.delete(id);
+  admLoadAccounts();
+}
+
+async function admAddAccount() {
+  const u = document.getElementById('adm-new-user').value.trim();
+  const dn = document.getElementById('adm-new-display').value.trim();
+  const role = document.getElementById('adm-new-role').value;
+  const pin = document.getElementById('adm-new-pin').value;
+  const msg = document.getElementById('adm-add-msg');
+  msg.style.color = 'var(--red)'; msg.textContent = '';
+  if (!u) { msg.textContent = '請填帳號名稱'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { msg.textContent = 'PIN 需 4-6 位數字'; return; }
+  const exists = await db.accounts.where('username').equals(u).first();
+  if (exists) { msg.textContent = '帳號已存在'; return; }
+  const pin_hash = await Crypto.hashPin(pin);
+  await db.accounts.add({ username:u, display_name:dn||u, role, pin_hash, status:'active', created_at:new Date().toISOString() });
+  msg.style.color = 'var(--green)'; msg.textContent = `帳號「${u}」已建立`;
+  document.getElementById('adm-new-user').value=''; document.getElementById('adm-new-display').value=''; document.getElementById('adm-new-pin').value='';
+}
+
+async function admChangeAdminPin() {
+  const pin = document.getElementById('adm-cfg-pin').value;
+  const msg = document.getElementById('adm-cfg-msg');
+  msg.style.color = 'var(--red)'; msg.textContent = '';
+  if (!/^\d{4,6}$/.test(pin)) { msg.textContent = 'PIN 需 4-6 位數字'; return; }
+  const hash = await Crypto.hashPin(pin);
+  await db.config.put({ key:'adminPinHash', value:hash });
+  msg.style.color = 'var(--green)'; msg.textContent = '管理員 PIN 已更新';
+  document.getElementById('adm-cfg-pin').value = '';
+  _adminAuthed = false;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BOOT
+════════════════════════════════════════════════════════════════ */
+async function boot() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+  await initLogin();
+}
+
+boot();
+</script>
+</body>
+</html>
