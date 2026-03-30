@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<script>const PWA_VERSION='v0.1.0';</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1565C0">
+<title>醫療組</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root {
+  --primary:#1565C0; --primary-dk:#0D47A1; --primary-lt:#1976D2;
+  --bg:#F5F5F5; --surface:#FFFFFF; --surface2:#FAFAFA;
+  --text:#1A1A1A; --text2:#666; --text3:#999; --border:#E0E0E0;
+  --red:#C62828; --red-bg:#FFEBEE; --red-lt:#EF5350;
+  --yellow:#E65100; --yellow-bg:#FFF3E0;
+  --green:#2E7D32; --green-bg:#E8F5E9;
+  --black-zone:#212121; --black-bg:#EEEEEE;
+  --blue:#1565C0; --blue-bg:#E3F2FD;
+  --gray:#757575; --gray-bg:#F5F5F5;
+  --orange:#E65100; --orange-bg:#FFF3E0;
+  --shadow:0 2px 8px rgba(0,0,0,.12); --shadow-sm:0 1px 4px rgba(0,0,0,.08);
+  --r:10px; --r-sm:6px; --tab-h:62px; --hdr-h:52px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-size:16px;font-family:-apple-system,'PingFang TC','微軟正黑體',sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent;}
+button{font-family:inherit;cursor:pointer;border:none;outline:none;}
+input,select,textarea{font-family:inherit;font-size:16px;}
+.hidden{display:none!important;}
+.flex{display:flex;} .flex-col{flex-direction:column;} .items-center{align-items:center;}
+.justify-between{justify-content:space-between;} .gap-1{gap:6px;} .gap-2{gap:12px;} .gap-3{gap:18px;}
+.mt-1{margin-top:6px;} .mt-2{margin-top:12px;} .mt-3{margin-top:18px;}
+.mb-1{margin-bottom:6px;} .mb-2{margin-bottom:12px;}
+.w-full{width:100%;} .text-sm{font-size:13px;} .text-xs{font-size:11px;}
+.font-bold{font-weight:700;} .font-semibold{font-weight:600;}
+.text-center{text-align:center;} .text-primary{color:var(--primary);}
+.text-red{color:var(--red);} .text-green{color:var(--green);} .text-gray{color:var(--gray);}
+.rounded{border-radius:var(--r);} .rounded-sm{border-radius:var(--r-sm);}
+.p-2{padding:12px;} .p-3{padding:18px;} .px-3{padding-left:18px;padding-right:18px;}
+.py-2{padding-top:12px;padding-bottom:12px;} .overflow-y{overflow-y:auto;}
+.flex-1{flex:1;} .relative{position:relative;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:var(--r-sm);font-size:15px;font-weight:600;transition:opacity .15s;}
+.btn:active{opacity:.75;} .btn-primary{background:var(--primary);color:#fff;}
+.btn-outline{background:transparent;border:2px solid var(--primary);color:var(--primary);}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-ghost{background:transparent;color:var(--text2);padding:8px 12px;}
+.btn-sm{padding:6px 12px;font-size:13px;}
+.btn-full{width:100%;}
+.btn-success{background:var(--green);color:#fff;}
+.btn-warning{background:var(--orange);color:#fff;}
+.tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;}
+.tag-red{background:var(--red-bg);color:var(--red);}
+.tag-yellow{background:var(--yellow-bg);color:var(--yellow);}
+.tag-green{background:var(--green-bg);color:var(--green);}
+.tag-black{background:var(--black-bg);color:var(--black-zone);}
+.tag-blue{background:var(--blue-bg);color:var(--blue);}
+.tag-gray{background:var(--gray-bg);color:var(--gray);}
+.divider{height:1px;background:var(--border);margin:12px 0;}
+.form-label{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px;}
+.form-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:15px;background:#fff;color:var(--text);}
+.form-input:focus{outline:none;border-color:var(--primary);}
+.form-select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:15px;background:#fff;appearance:none;}
+.form-textarea{resize:vertical;min-height:72px;}
+.form-group{margin-bottom:14px;}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);padding:14px;}
+.info-box{padding:10px 14px;border-radius:var(--r-sm);font-size:13px;}
+.info-box.info{background:var(--blue-bg);color:var(--blue);}
+.info-box.warn{background:var(--yellow-bg);color:var(--orange);}
+.info-box.error{background:var(--red-bg);color:var(--red);}
+.info-box.success{background:var(--green-bg);color:var(--green);}
+/* ── Layout ── */
+#pin-lock-screen,#role-screen,#app{position:fixed;inset:0;display:flex;flex-direction:column;}
+#pin-lock-screen,#role-screen{background:var(--primary);color:#fff;align-items:center;justify-content:center;padding:24px;}
+/* ── PIN lock screen ── */
+.pin-lock-wrap{width:100%;max-width:340px;text-align:center;}
+.pin-lock-title{font-size:22px;font-weight:700;margin-bottom:6px;}
+.pin-lock-sub{font-size:14px;opacity:.8;margin-bottom:28px;}
+.pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:20px;}
+.pin-dot{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .15s;}
+.pin-dot.filled{background:#fff;}
+.pin-numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:260px;margin:0 auto;}
+.pin-key{padding:16px;border-radius:var(--r);background:rgba(255,255,255,.15);color:#fff;font-size:20px;font-weight:700;border:none;cursor:pointer;transition:background .1s;}
+.pin-key:active{background:rgba(255,255,255,.35);}
+.pin-error{color:#FF8A80;font-size:13px;margin-top:8px;min-height:18px;}
+.pin-countdown{font-size:13px;opacity:.8;margin-top:6px;}
+/* ── Role screen ── */
+.role-title{font-size:20px;font-weight:700;margin-bottom:6px;text-align:center;}
+.role-sub{font-size:13px;opacity:.8;margin-bottom:20px;text-align:center;}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:360px;}
+.role-btn{padding:14px 10px;border-radius:var(--r);background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600;border:none;cursor:pointer;text-align:center;transition:background .1s;}
+.role-btn:active{background:rgba(255,255,255,.3);}
+.role-name-wrap{margin-top:20px;width:100%;max-width:360px;}
+.role-name-input{width:100%;padding:12px;border-radius:var(--r-sm);border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.1);color:#fff;font-size:15px;text-align:center;}
+.role-name-input::placeholder{color:rgba(255,255,255,.5);}
+.role-name-input:focus{outline:none;border-color:#fff;}
+/* ── App shell ── */
+#app-header{height:var(--hdr-h);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0;position:relative;z-index:10;}
+.hdr-title{font-size:16px;font-weight:700;}
+.hdr-role{font-size:12px;opacity:.85;}
+.hdr-idle{font-size:11px;opacity:.7;}
+#alert-banner{display:none;background:var(--red);color:#fff;padding:8px 14px;font-size:13px;font-weight:600;flex-shrink:0;z-index:9;}
+#alert-banner.warn{background:var(--orange);}
+#app-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+#app-tabs{height:var(--tab-h);background:var(--surface);border-top:1px solid var(--border);display:flex;flex-shrink:0;}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 2px;background:transparent;border:none;color:var(--text3);font-size:10px;font-weight:600;position:relative;cursor:pointer;transition:color .15s;}
+.tab-item.active{color:var(--primary);}
+.tab-item .tab-icon{font-size:20px;}
+.tab-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
+/* ── Capacity bar ── */
+.cap-bar{display:flex;gap:8px;padding:12px 14px 0;background:var(--surface);margin-bottom:2px;}
+.cap-stat{flex:1;text-align:center;padding:8px 4px;border-radius:var(--r-sm);}
+.cap-stat .cap-n{font-size:24px;font-weight:700;}
+.cap-stat .cap-l{font-size:11px;font-weight:600;margin-top:2px;}
+.cap-stat.red{background:var(--red-bg);color:var(--red);}
+.cap-stat.yellow{background:var(--yellow-bg);color:var(--yellow);}
+.cap-stat.green{background:var(--green-bg);color:var(--green);}
+.cap-stat.black{background:var(--black-bg);color:var(--black-zone);}
+/* ── Capacity light ── */
+.cap-light-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);margin-bottom:8px;}
+.cap-light{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:14px;}
+.cap-light-dot{width:14px;height:14px;border-radius:50%;}
+/* ── Section header ── */
+.section-hdr{padding:10px 14px 4px;font-size:12px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;}
+/* ── Dashboard rows ── */
+.dash-row{background:var(--surface);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.dash-row-label{font-size:14px;color:var(--text2);}
+.dash-row-val{font-size:16px;font-weight:700;}
+/* ── Patient card ── */
+.patient-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);margin:6px 10px;padding:12px;border-left:4px solid transparent;}
+.patient-card.red{border-color:var(--red);}
+.patient-card.yellow{border-color:var(--yellow);}
+.patient-card.green{border-color:var(--green);}
+.patient-card.black{border-color:var(--black-zone);}
+.patient-card.overdue{box-shadow:0 0 0 2px var(--red);}
+.pc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.pc-id{font-size:16px;font-weight:700;}
+.pc-timer{font-size:13px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-bg);color:var(--blue);}
+.pc-timer.overdue{background:var(--red-bg);color:var(--red);}
+.pc-issue{font-size:13px;color:var(--text2);margin-bottom:6px;}
+.pc-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.pc-btn{padding:5px 10px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1.5px solid var(--border);background:transparent;color:var(--text);}
+.pc-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+.pc-btn.danger{background:var(--red);border-color:var(--red);color:#fff;}
+/* ── Zone tabs ── */
+.zone-tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;}
+.zone-tab{padding:10px 16px;font-size:14px;font-weight:600;color:var(--text3);border:none;background:transparent;border-bottom:3px solid transparent;white-space:nowrap;cursor:pointer;}
+.zone-tab.active.red{color:var(--red);border-color:var(--red);}
+.zone-tab.active.yellow{color:var(--yellow);border-color:var(--yellow);}
+.zone-tab.active.green{color:var(--green);border-color:var(--green);}
+.zone-tab.active.black{color:var(--black-zone);border-color:var(--black-zone);}
+/* ── Intake form ── */
+.source-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 14px;}
+.source-btn{padding:12px 6px;border-radius:var(--r-sm);border:2px solid var(--border);background:transparent;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;}
+.source-btn.active{border-color:var(--primary);background:var(--blue-bg);color:var(--primary);}
+.intake-form{padding:0 14px 80px;}
+.trauma-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.trauma-btn{padding:14px;border-radius:var(--r-sm);border:2px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;}
+.trauma-btn.active.trauma{border-color:var(--red);background:var(--red-bg);color:var(--red);}
+.trauma-btn.active.medical{border-color:var(--blue);background:var(--blue-bg);color:var(--blue);}
+.triage-color-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.triage-color-btn{padding:12px 4px;border-radius:var(--r-sm);border:2px solid transparent;font-size:13px;font-weight:700;cursor:pointer;text-align:center;}
+.triage-color-btn.red{background:var(--red-bg);color:var(--red);}
+.triage-color-btn.yellow{background:var(--yellow-bg);color:var(--yellow);}
+.triage-color-btn.green{background:var(--green-bg);color:var(--green);}
+.triage-color-btn.black{background:var(--black-bg);color:var(--black-zone);}
+.triage-color-btn.selected{border-color:currentColor;box-shadow:0 0 0 2px currentColor;}
+.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.start-item{padding:10px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:#fff;display:flex;flex-direction:column;gap:4px;}
+.start-item label{font-size:11px;font-weight:700;color:var(--text3);}
+.start-item select{border:none;padding:0;font-size:14px;font-weight:600;background:transparent;}
+/* ── Modal / overlay ── */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-end;justify-content:center;}
+.modal{background:var(--surface);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;}
+.modal-hdr{padding:16px 18px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;}
+.modal-title{font-size:17px;font-weight:700;}
+.modal-body{overflow-y:auto;padding:16px 18px;flex:1;}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;}
+/* ── Toast ── */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 18px;border-radius:24px;font-size:14px;z-index:200;pointer-events:none;transition:opacity .3s;}
+/* ── Idle warning overlay ── */
+#idle-warning{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:150;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;gap:16px;}
+.idle-title{font-size:22px;font-weight:700;}
+.idle-sub{font-size:15px;opacity:.8;}
+.idle-cd{font-size:48px;font-weight:700;color:#FF8A80;}
+/* ── Stub page ── */
+.stub-page{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:32px;text-align:center;color:var(--text3);}
+.stub-icon{font-size:48px;margin-bottom:16px;}
+.stub-title{font-size:18px;font-weight:700;color:var(--text2);margin-bottom:8px;}
+.stub-desc{font-size:14px;line-height:1.6;}
+/* ── Print hide ── */
+@media print{#app-tabs,#app-header,#alert-banner{display:none!important;}}
+</style>
+</head>
+<body>
+
+<!-- ══ PIN LOCK SCREEN ══════════════════════════════════════════ -->
+<div id="pin-lock-screen">
+  <div class="pin-lock-wrap">
+    <div class="pin-lock-title">🏥 醫療組</div>
+    <div class="pin-lock-sub" id="pin-lock-sub">請設定 PIN（4–6位數字）</div>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+      <div class="pin-dot" id="d4"></div>
+      <div class="pin-dot" id="d5"></div>
+    </div>
+    <div class="pin-numpad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinKey('clr')" style="font-size:14px;">清除</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key" onclick="pinKey('del')">⌫</button>
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-countdown" id="pin-countdown"></div>
+  </div>
+</div>
+
+<!-- ══ ROLE SCREEN ══════════════════════════════════════════════ -->
+<div id="role-screen" class="hidden">
+  <div class="role-title">選擇角色</div>
+  <div class="role-sub" id="role-sub">選擇你的職務後開始作業</div>
+  <div class="role-grid">
+    <button class="role-btn" onclick="selectRole('組長')">👑 組長</button>
+    <button class="role-btn" onclick="selectRole('副組長')">🔰 副組長</button>
+    <button class="role-btn" onclick="selectRole('檢傷官')">🔍 檢傷官</button>
+    <button class="role-btn" onclick="selectRole('治療官')">💊 治療官</button>
+    <button class="role-btn" onclick="selectRole('後送官')">🚑 後送官</button>
+    <button class="role-btn" onclick="selectRole('後勤官')">📦 後勤官</button>
+    <button class="role-btn" onclick="selectRole('通訊官')">📻 通訊官</button>
+    <button class="role-btn" onclick="selectRole('機動人員')">⚡ 機動</button>
+  </div>
+  <div class="role-name-wrap">
+    <input class="role-name-input" id="operator-name-input" type="text" placeholder="輸入姓名或工號" maxlength="20">
+  </div>
+</div>
+
+<!-- ══ APP ═══════════════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+  <div id="app-header">
+    <div>
+      <div class="hdr-title">🏥 醫療組</div>
+      <div class="hdr-role" id="hdr-role"></div>
+    </div>
+    <div style="text-align:right">
+      <div class="hdr-idle" id="hdr-idle"></div>
+      <div style="font-size:11px;opacity:.7" id="hdr-ws"></div>
+    </div>
+  </div>
+
+  <div id="alert-banner"></div>
+
+  <div id="app-content"></div>
+
+  <div id="app-tabs">
+    <button class="tab-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
+      <span class="tab-icon">📊</span>儀表板
+    </button>
+    <button class="tab-item" data-tab="intake" onclick="switchTab('intake')">
+      <span class="tab-icon">➕</span>接收
+    </button>
+    <button class="tab-item" data-tab="zones" onclick="switchTab('zones')">
+      <span class="tab-icon">🏥</span>分區
+      <span class="tab-badge hidden" id="tab-badge-zones"></span>
+    </button>
+    <button class="tab-item" data-tab="transfer" onclick="switchTab('transfer')">
+      <span class="tab-icon">🚑</span>後送
+    </button>
+    <button class="tab-item" data-tab="more" onclick="switchTab('more')">
+      <span class="tab-icon">⋯</span>更多
+    </button>
+  </div>
+</div>
+
+<!-- ══ IDLE WARNING ══════════════════════════════════════════════ -->
+<div id="idle-warning" class="hidden">
+  <div class="idle-title">⚠️ 閒置中</div>
+  <div class="idle-sub">即將自動登出，請觸碰螢幕繼續</div>
+  <div class="idle-cd" id="idle-cd">30</div>
+  <button class="btn btn-primary" onclick="resetIdle()">繼續作業</button>
+</div>
+
+<!-- ══ MODAL ══════════════════════════════════════════════════════ -->
+<div id="modal-overlay" class="hidden" onclick="handleOverlayClick(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title"></div>
+      <button class="btn-icon btn" onclick="closeModal()" style="font-size:18px;">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══════════════════════════════════════════════════════ -->
+<div id="toast" class="hidden"></div>
+
+<!-- ══ SCRIPTS ════════════════════════════════════════════════════ -->
+<script src="lib/dexie.min.js"></script>
+<script src="lib/qrcode.js"></script>
+<script>
+'use strict';
+
+/* ════════════════════════════════════════════════════════════════
+   DATABASE
+════════════════════════════════════════════════════════════════ */
+const db = new Dexie('MedicalPWA_v1');
+db.version(1).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key'
+});
+
+/* ════════════════════════════════════════════════════════════════
+   CRYPTO (PIN)
+════════════════════════════════════════════════════════════════ */
+const Crypto = {
+  async deriveKey(pin) {
+    const enc = new TextEncoder();
+    const raw = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+      { name:'PBKDF2', salt:enc.encode('medical-pwa-salt'), iterations:100000, hash:'SHA-256' }, raw, 256
+    );
+    return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+};
+
+/* ════════════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════════════ */
+let _state = {
+  pinHash: null,
+  pinSetMode: true,    // true = 設定PIN, false = 輸入PIN
+  pinBuffer: '',
+  pinAttempts: 0,
+  pinCooldown: false,
+  operatorName: '',
+  role: '',
+  currentTab: 'dashboard',
+  currentZone: 'red',
+  ws: null,
+  wsConnected: false,
+  idleTimer: null,
+  idleWarnTimer: null,
+  idleCountdown: null,
+  idleWarning: false,
+  patients: [],
+  intakeSource: 'A',    // A=前進MIST, B=收容, C=自行
+  intakeInjury: null,   // 'trauma' | 'medical'
+  intakeTriageColor: null,
+};
+
+/* ════════════════════════════════════════════════════════════════
+   PIN LOGIC
+════════════════════════════════════════════════════════════════ */
+const IDLE_WARN_S = 90;
+const IDLE_LOCK_S = 30;
+
+async function initPin() {
+  const cfg = await db.config.get('pinHash');
+  if (cfg?.value) {
+    _state.pinHash = cfg.value;
+    _state.pinSetMode = false;
+    document.getElementById('pin-lock-sub').textContent = '請輸入 PIN 解鎖';
+  } else {
+    _state.pinSetMode = true;
+    document.getElementById('pin-lock-sub').textContent = '請設定 PIN（4–6位數字）';
+  }
+}
+
+function updatePinDots(n) {
+  for (let i=0;i<6;i++) {
+    document.getElementById('d'+i).classList.toggle('filled', i<n);
+  }
+}
+
+async function pinKey(k) {
+  if (_state.pinCooldown) return;
+  const err = document.getElementById('pin-error');
+  if (k === 'clr') { _state.pinBuffer = ''; updatePinDots(0); err.textContent=''; return; }
+  if (k === 'del') { _state.pinBuffer = _state.pinBuffer.slice(0,-1); updatePinDots(_state.pinBuffer.length); return; }
+  if (_state.pinBuffer.length >= 6) return;
+  _state.pinBuffer += k;
+  updatePinDots(_state.pinBuffer.length);
+  if (_state.pinBuffer.length >= 4) {
+    await tryPin(_state.pinBuffer);
+  }
+}
+
+async function tryPin(pin) {
+  const err = document.getElementById('pin-error');
+  if (pin.length < 4) return;
+  const hash = await Crypto.deriveKey(pin);
+  if (_state.pinSetMode) {
+    // 第一次輸入：存起來進 role screen
+    _state.pinHash = hash;
+    await db.config.put({ key:'pinHash', value:hash });
+    _state.pinBuffer = '';
+    updatePinDots(0);
+    showRoleScreen();
+  } else {
+    if (hash === _state.pinHash) {
+      _state.pinAttempts = 0;
+      _state.pinBuffer = '';
+      updatePinDots(0);
+      err.textContent = '';
+      showRoleScreen();
+    } else {
+      _state.pinAttempts++;
+      _state.pinBuffer = '';
+      updatePinDots(0);
+      if (_state.pinAttempts >= 3) {
+        _state.pinCooldown = true;
+        err.textContent = '錯誤次數過多，等待 30 秒…';
+        let cd = 30;
+        document.getElementById('pin-countdown').textContent = `冷卻中：${cd}s`;
+        const t = setInterval(()=>{
+          cd--;
+          document.getElementById('pin-countdown').textContent = cd > 0 ? `冷卻中：${cd}s` : '';
+          if (cd <= 0) { clearInterval(t); _state.pinCooldown=false; _state.pinAttempts=0; err.textContent=''; }
+        }, 1000);
+      } else {
+        err.textContent = `PIN 錯誤（${_state.pinAttempts}/3）`;
+      }
+    }
+  }
+}
+
+function showRoleScreen() {
+  document.getElementById('pin-lock-screen').classList.add('hidden');
+  document.getElementById('idle-warning').classList.add('hidden');
+  document.getElementById('role-screen').classList.remove('hidden');
+  document.getElementById('operator-name-input').value = _state.operatorName || '';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ROLE
+════════════════════════════════════════════════════════════════ */
+function selectRole(role) {
+  const nameInput = document.getElementById('operator-name-input');
+  const name = nameInput.value.trim();
+  if (!name) { nameInput.focus(); nameInput.style.borderColor='#FF8A80'; setTimeout(()=>nameInput.style.borderColor='',1500); return; }
+  _state.role = role;
+  _state.operatorName = name;
+  document.getElementById('role-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('hdr-role').textContent = `${role}・${name}`;
+  startIdleTimer();
+  loadPatients().then(renderCurrentTab);
+  connectWS();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   IDLE TIMER  (90s 警告 + 30s 自動登出)
+════════════════════════════════════════════════════════════════ */
+function startIdleTimer() {
+  clearIdleTimers();
+  _state.idleTimer = setTimeout(showIdleWarning, IDLE_WARN_S * 1000);
+}
+
+function showIdleWarning() {
+  _state.idleWarning = true;
+  document.getElementById('idle-warning').classList.remove('hidden');
+  let cd = IDLE_LOCK_S;
+  document.getElementById('idle-cd').textContent = cd;
+  _state.idleWarnTimer = setInterval(()=>{
+    cd--;
+    document.getElementById('idle-cd').textContent = cd;
+    updateIdleHdr(cd);
+    if (cd <= 0) { clearIdleTimers(); doLock(); }
+  }, 1000);
+}
+
+function resetIdle() {
+  clearIdleTimers();
+  document.getElementById('idle-warning').classList.add('hidden');
+  _state.idleWarning = false;
+  startIdleTimer();
+  updateIdleHdr(IDLE_WARN_S);
+}
+
+function doLock() {
+  document.getElementById('idle-warning').classList.add('hidden');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('role-screen').classList.add('hidden');
+  document.getElementById('pin-lock-screen').classList.remove('hidden');
+  _state.pinSetMode = false;
+  _state.pinBuffer = '';
+  updatePinDots(0);
+  document.getElementById('pin-lock-sub').textContent = '閒置登出，請重新輸入 PIN';
+  _state.idleWarning = false;
+}
+
+function clearIdleTimers() {
+  clearTimeout(_state.idleTimer);
+  clearInterval(_state.idleWarnTimer);
+  clearInterval(_state.idleCountdown);
+}
+
+function updateIdleHdr(secsLeft) {
+  const el = document.getElementById('hdr-idle');
+  if (!el) return;
+  const m = Math.floor(secsLeft/60), s = secsLeft%60;
+  el.textContent = secsLeft <= 30 ? `鎖定 ${s}s` : '';
+}
+
+// 任何互動都重置
+['touchstart','mousedown','keydown','scroll'].forEach(ev=>{
+  document.addEventListener(ev, ()=>{ if(!_state.idleWarning && _state.role) startIdleTimer(); }, { passive:true });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   WEBSOCKET
+════════════════════════════════════════════════════════════════ */
+function connectWS() {
+  const piIp = '192.168.100.30';
+  const url = `ws://${piIp}:8775`;
+  try {
+    _state.ws = new WebSocket(url);
+    _state.ws.onopen = ()=>{ _state.wsConnected=true; setWsStatus('●','#69F0AE'); };
+    _state.ws.onclose = ()=>{ _state.wsConnected=false; setWsStatus('○','rgba(255,255,255,.5)'); setTimeout(connectWS, 5000); };
+    _state.ws.onerror = ()=>{ _state.wsConnected=false; setWsStatus('○','rgba(255,255,255,.5)'); };
+    _state.ws.onmessage = e=>{ try{ handleWsMsg(JSON.parse(e.data)); }catch(_){} };
+  } catch(_) {}
+}
+
+function setWsStatus(sym, color) {
+  const el = document.getElementById('hdr-ws');
+  if (el) { el.textContent = `WS ${sym}`; el.style.color = color; }
+}
+
+function handleWsMsg(msg) {
+  // 未來處理 Pi 推送的同步訊息
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DB HELPERS
+════════════════════════════════════════════════════════════════ */
+async function loadPatients() {
+  _state.patients = await db.patients.where('disposition').notEqual('discharged').toArray();
+}
+
+function countByColor(color) {
+  return _state.patients.filter(p=>p.triage_color===color && p.current_zone !== '已離區').length;
+}
+
+function countByZone(zone) {
+  return _state.patients.filter(p=>p.current_zone===zone).length;
+}
+
+function getPendingTransfer() {
+  return _state.patients.filter(p=>p.disposition==='後送').length;
+}
+
+function nextDisplayId() {
+  const n = _state.patients.length + 1;
+  return `M${String(n).padStart(3,'0')}`;
+}
+
+function generateSnapshotUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TAB ROUTING
+════════════════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  _state.currentTab = tab;
+  document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
+  renderCurrentTab();
+}
+
+async function renderCurrentTab() {
+  await loadPatients();
+  refreshAlertBanner();
+  const content = document.getElementById('app-content');
+  switch(_state.currentTab) {
+    case 'dashboard': renderDashboard(content); break;
+    case 'intake':    renderIntake(content); break;
+    case 'zones':     renderZones(content); break;
+    case 'transfer':  renderStub(content,'🚑','後送頁','v0.5 實作（再評估倒數、後送佇列、ISBAR 交接）'); break;
+    case 'more':      renderMore(content); break;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ALERT BANNER
+════════════════════════════════════════════════════════════════ */
+function refreshAlertBanner() {
+  const banner = document.getElementById('alert-banner');
+  const openIncidents = 0; // v0.5 實作
+  const redFull = countByZone('紅區') > 0 && getRedSlotsFree() === 0;
+  if (redFull) {
+    banner.style.display='block';
+    banner.className = '';
+    banner.textContent = '🔴 紅區滿載 — 請立即通報組長';
+  } else if (openIncidents > 0) {
+    banner.style.display='block';
+    banner.className = 'warn';
+    banner.textContent = `⚠️ ${openIncidents} 件開放事件`;
+  } else {
+    banner.style.display='none';
+  }
+}
+
+function getRedSlotsFree() {
+  // TODO: 從 slots 表讀取；先用簡單估算
+  return 999;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DASHBOARD
+════════════════════════════════════════════════════════════════ */
+function renderDashboard(el) {
+  const r=countByColor('紅'), y=countByColor('黃'), g=countByColor('綠'), b=countByColor('黑');
+  const total = r+y+g+b;
+  const pending = getPendingTransfer();
+  const light = r>2 || pending>=2 ? '🔴 紅' : r>0 || pending>0 ? '🟡 黃' : '🟢 綠';
+  const lightColor = r>2||pending>=2 ? 'var(--red)' : r>0||pending>0 ? 'var(--orange)' : 'var(--green)';
+
+  el.innerHTML = `
+    <div class="cap-bar">
+      <div class="cap-stat red"><div class="cap-n">${r}</div><div class="cap-l">紅區</div></div>
+      <div class="cap-stat yellow"><div class="cap-n">${y}</div><div class="cap-l">黃區</div></div>
+      <div class="cap-stat green"><div class="cap-n">${g}</div><div class="cap-l">綠區</div></div>
+      <div class="cap-stat black"><div class="cap-n">${b}</div><div class="cap-l">黑區</div></div>
+    </div>
+    <div class="cap-light-row">
+      <span class="text-sm text-gray">醫療量能</span>
+      <span class="cap-light" style="color:${lightColor}">
+        <span class="cap-light-dot" style="background:${lightColor}"></span>${light}
+      </span>
+    </div>
+    <div class="section-hdr">即時狀態</div>
+    <div class="dash-row">
+      <span class="dash-row-label">傷患總數</span>
+      <span class="dash-row-val">${total}</span>
+    </div>
+    <div class="dash-row">
+      <span class="dash-row-label">待後送</span>
+      <span class="dash-row-val" style="color:${pending>0?'var(--red)':'inherit'}">${pending}</span>
+    </div>
+    <div class="dash-row">
+      <span class="dash-row-label">已後送 / 離區</span>
+      <span class="dash-row-val">${_state.patients.filter(p=>p.disposition==='discharged'||p.current_zone==='已離區').length}</span>
+    </div>
+    <div class="section-hdr">快速操作</div>
+    <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;">
+      <button class="btn btn-primary btn-full" onclick="switchTab('intake')">➕ 接收新傷患</button>
+      <button class="btn btn-outline btn-full" onclick="switchTab('zones')">🏥 查看分區看板</button>
+      <button class="btn btn-ghost btn-full text-sm" onclick="doCapacityReport()">📻 產生量能回報文字</button>
+    </div>
+  `;
+}
+
+function doCapacityReport() {
+  const r=countByColor('紅'), y=countByColor('黃'), g=countByColor('綠'), b=countByColor('黑');
+  const pending = getPendingTransfer();
+  const now = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const txt = `【醫療量能回報 ${now}】紅${r}、黃${y}、綠${g}、黑${b}、待後送${pending}`;
+  openModal('量能回報文字',
+    `<div class="info-box info" style="font-size:15px;line-height:1.7;word-break:break-all;">${txt}</div>
+     <button class="btn btn-outline btn-full mt-2" onclick="copyText('${txt}')">複製文字</button>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   INTAKE / TRIAGE
+════════════════════════════════════════════════════════════════ */
+function renderIntake(el) {
+  el.innerHTML = `
+    <div class="section-hdr">來源</div>
+    <div class="source-btns">
+      <button class="source-btn ${_state.intakeSource==='A'?'active':''}" onclick="setIntakeSource('A')">🚒 前進<br>MIST</button>
+      <button class="source-btn ${_state.intakeSource==='B'?'active':''}" onclick="setIntakeSource('B')">🏠 收容<br>轉送</button>
+      <button class="source-btn ${_state.intakeSource==='C'?'active':''}" onclick="setIntakeSource('C')">🚶 自行<br>抵達</button>
+    </div>
+    <div class="intake-form" id="intake-form-body">
+      ${renderIntakeForm()}
+    </div>
+  `;
+}
+
+function setIntakeSource(s) {
+  _state.intakeSource = s;
+  renderCurrentTab();
+}
+
+function renderIntakeForm() {
+  const mistSection = _state.intakeSource === 'A' ? `
+    <div class="section-hdr">MIST 交接（前進組）</div>
+    <div class="form-group">
+      <div class="form-label">M — 傷害機轉</div>
+      <textarea class="form-input form-textarea" id="mist-m" placeholder="車禍、墜落、爆炸…"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="form-label">I — 傷害部位</div>
+      <textarea class="form-input form-textarea" id="mist-i" placeholder="頭部外傷、右腿骨折…"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="form-label">S — 徵象生命徵象</div>
+      <textarea class="form-input form-textarea" id="mist-s" placeholder="HR 120, BP 90/60, GCS 13…"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="form-label">T — 已完成處置</div>
+      <textarea class="form-input form-textarea" id="mist-t" placeholder="已上止血帶、已給氧 10L…"></textarea>
+    </div>
+    <div class="divider"></div>
+  ` : '';
+
+  return `
+    ${mistSection}
+    <div class="section-hdr">START 檢傷</div>
+    <div class="form-group">
+      <div class="start-grid">
+        <div class="start-item">
+          <label>可自行行走</label>
+          <select id="start-walk"><option value="">—</option><option value="yes">是</option><option value="no">否</option></select>
+        </div>
+        <div class="start-item">
+          <label>呼吸狀態</label>
+          <select id="start-breathing"><option value="">—</option><option value="normal">正常</option><option value="abnormal">異常（開呼吸道後）</option><option value="absent">無</option></select>
+        </div>
+        <div class="start-item">
+          <label>循環（橈動脈）</label>
+          <select id="start-circ"><option value="">—</option><option value="present">可觸及</option><option value="absent">無</option></select>
+        </div>
+        <div class="start-item">
+          <label>意識（指令）</label>
+          <select id="start-mental"><option value="">—</option><option value="follows">可配合</option><option value="not_follows">無法配合</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-hdr">傷情分類</div>
+    <div class="form-group">
+      <div class="form-label">傷型</div>
+      <div class="trauma-btns">
+        <button class="trauma-btn ${_state.intakeInjury==='trauma'?'active trauma':''}" onclick="setInjury('trauma')">🩸 創傷<br><small>XABCDE</small></button>
+        <button class="trauma-btn ${_state.intakeInjury==='medical'?'active medical':''}" onclick="setInjury('medical')">💊 非創<br><small>SAMPLE/OPQRST</small></button>
+      </div>
+    </div>
+
+    ${_state.intakeInjury === 'trauma' ? renderXABCDE() : ''}
+    ${_state.intakeInjury === 'medical' ? renderSampleOpqrst() : ''}
+    ${_state.intakeInjury ? renderTriageColorPicker() : ''}
+    ${_state.intakeInjury ? `
+    <div class="form-group">
+      <div class="form-label">安檢</div>
+      <select class="form-select" id="intake-security">
+        <option value="yes">已完成</option>
+        <option value="pending">同步處理中（危急）</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">收容組登記</div>
+      <select class="form-select" id="intake-shelter">
+        <option value="registered">已登記</option>
+        <option value="notify">已通知補登</option>
+        <option value="not_registered">未登記</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-full mt-2" onclick="submitIntake()">✅ 完成接收 / 分流</button>
+    ` : ''}
+  `;
+}
+
+function renderXABCDE() {
+  return `
+    <div class="section-hdr">XABCDE 評估（創傷）</div>
+    <div class="form-group">
+      <div class="form-label">X — 大出血控制</div>
+      <select class="form-select" id="x-hemorrhage">
+        <option value="">未評估</option><option value="controlled">已止血</option>
+        <option value="tourniquet">止血帶中</option><option value="uncontrolled">未控制</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">A — 呼吸道</div>
+      <select class="form-select" id="a-airway">
+        <option value="">未評估</option><option value="patent">通暢</option>
+        <option value="opened">開放後通暢</option><option value="obstructed">阻塞</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">A — 呼吸道處置備注</div>
+      <input class="form-input" id="a-airway-notes" type="text" placeholder="如：頭頸後仰、吸引">
+    </div>
+    <div class="form-group">
+      <div class="form-label">B — 呼吸品質</div>
+      <select class="form-select" id="b-breathing">
+        <option value="">未評估</option><option value="normal">正常</option>
+        <option value="labored">費力</option><option value="hypoxic">缺氧</option><option value="absent">無自主呼吸</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">B — 呼吸處置</div>
+      <input class="form-input" id="b-interventions" type="text" placeholder="給氧 / BVM 輔助 / 封閉胸腔傷口">
+    </div>
+    <div class="form-group">
+      <div class="form-label">C — 脈搏</div>
+      <select class="form-select" id="c-pulse">
+        <option value="">未評估</option><option value="normal">正常</option>
+        <option value="weak">細速</option><option value="absent">無</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">C — 循環處置</div>
+      <input class="form-input" id="c-interventions" type="text" placeholder="IV 建立 / 加壓包紮 / 輸液">
+    </div>
+    <div class="form-group">
+      <div class="form-label">D — GCS（3–15）</div>
+      <input class="form-input" id="d-gcs" type="number" min="3" max="15" placeholder="GCS 總分">
+    </div>
+    <div class="form-group">
+      <div class="form-label">D — 瞳孔反應</div>
+      <select class="form-select" id="d-pupils">
+        <option value="">未評估</option><option value="normal">正常等大</option>
+        <option value="unequal">不等大</option><option value="fixed">無反應</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">E — 全身暴露檢查</div>
+      <select class="form-select" id="e-exposed">
+        <option value="">未評估</option><option value="done">已完成</option><option value="partial">部分</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">E — 暴露檢查發現</div>
+      <textarea class="form-input form-textarea" id="e-findings" placeholder="如：背部穿刺傷、骨盆不穩定"></textarea>
+    </div>
+  `;
+}
+
+function renderSampleOpqrst() {
+  return `
+    <div class="section-hdr">ABC 評估（非創）</div>
+    <div class="form-group">
+      <div class="start-grid">
+        <div class="start-item"><label>A — 呼吸道</label>
+          <select id="abc-airway"><option value="">—</option><option value="patent">通暢</option><option value="needs_tx">需處置</option></select>
+        </div>
+        <div class="start-item"><label>B — 呼吸</label>
+          <select id="abc-breathing"><option value="">—</option><option value="normal">正常</option><option value="abnormal">異常</option></select>
+        </div>
+        <div class="start-item"><label>C — 循環</label>
+          <select id="abc-circulation"><option value="">—</option><option value="normal">正常</option><option value="abnormal">異常</option></select>
+        </div>
+        <div class="start-item"><label>血糖 (mg/dL)</label>
+          <input type="number" id="blood-glucose" placeholder="選填" style="border:none;font-size:14px;font-weight:600;background:transparent;">
+        </div>
+      </div>
+    </div>
+    <div class="section-hdr">SAMPLE</div>
+    <div class="form-group"><div class="form-label">S — 主訴 / 症狀</div>
+      <textarea class="form-input form-textarea" id="sample-s" placeholder="胸痛、呼吸困難…"></textarea></div>
+    <div class="form-group"><div class="form-label">A — 過敏史</div>
+      <input class="form-input" id="sample-a" type="text" placeholder="無 / 盤尼西林…"></div>
+    <div class="form-group"><div class="form-label">M — 用藥史</div>
+      <input class="form-input" id="sample-m" type="text" placeholder="降壓藥、血糖藥…"></div>
+    <div class="form-group"><div class="form-label">P — 過去病史</div>
+      <input class="form-input" id="sample-p" type="text" placeholder="高血壓、糖尿病…"></div>
+    <div class="form-group"><div class="form-label">L — 最後進食時間</div>
+      <input class="form-input" id="sample-l" type="text" placeholder="如：3小時前"></div>
+    <div class="form-group"><div class="form-label">E — 事件經過</div>
+      <textarea class="form-input form-textarea" id="sample-e" placeholder="何時、何地、發生什麼…"></textarea></div>
+    <div class="section-hdr">OPQRST（疼痛）</div>
+    <div class="form-group"><div class="form-label">O — 何時開始</div>
+      <input class="form-input" id="opqrst-o" type="text" placeholder="30 分鐘前突發…"></div>
+    <div class="form-group"><div class="form-label">P — 加重 / 緩解因素</div>
+      <input class="form-input" id="opqrst-p" type="text" placeholder="深呼吸加重，休息緩解…"></div>
+    <div class="form-group"><div class="form-label">Q — 疼痛性質</div>
+      <input class="form-input" id="opqrst-q" type="text" placeholder="刺痛、悶痛、燒灼感…"></div>
+    <div class="form-group"><div class="form-label">R — 放射</div>
+      <input class="form-input" id="opqrst-r" type="text" placeholder="放射至左肩 / 無"></div>
+    <div class="form-group"><div class="form-label">S — 疼痛分級（0–10）</div>
+      <input class="form-input" id="opqrst-s" type="number" min="0" max="10" placeholder="0=無，10=最痛"></div>
+    <div class="form-group"><div class="form-label">T — 持續時間與趨勢</div>
+      <input class="form-input" id="opqrst-t" type="text" placeholder="持續 30 分鐘，逐漸加重…"></div>
+  `;
+}
+
+function renderTriageColorPicker() {
+  const colors = ['紅','黃','綠','黑'];
+  const vals  = ['red','yellow','green','black'];
+  return `
+    <div class="section-hdr">檢傷分色</div>
+    <div class="form-group">
+      <div class="triage-color-btns">
+        ${colors.map((c,i)=>`<button class="triage-color-btn ${vals[i]} ${_state.intakeTriageColor===vals[i]?'selected':''}" onclick="setTriageColor('${vals[i]}')">${c}區</button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">主訴摘要（chief issue）</div>
+      <textarea class="form-input form-textarea" id="chief-issue" placeholder="填寫主要傷情摘要，顯示於卡片上"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="form-label">生命徵象摘要</div>
+      <input class="form-input" id="vitals-summary" type="text" placeholder="HR, BP, RR, SpO2, GCS">
+    </div>
+  `;
+}
+
+function setInjury(type) {
+  _state.intakeInjury = _state.intakeInjury === type ? null : type;
+  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
+}
+
+function setTriageColor(c) {
+  _state.intakeTriageColor = c;
+  document.querySelectorAll('.triage-color-btn').forEach(el=>{
+    el.classList.toggle('selected', el.classList.contains(c));
+  });
+}
+
+function gv(id) { const el=document.getElementById(id); return el ? el.value.trim() : ''; }
+
+async function submitIntake() {
+  if (!_state.intakeTriageColor) { showToast('請選擇檢傷分色'); return; }
+  const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
+  const now = new Date().toISOString();
+
+  // Build triage record
+  const triageData = {
+    triage_at: now,
+    triage_by: _state.operatorName,
+    trauma_or_medical: _state.intakeInjury,
+    start_walk: gv('start-walk'),
+    start_breathing: gv('start-breathing'),
+    start_circulation: gv('start-circ'),
+    start_mental: gv('start-mental'),
+    // MIST
+    mist_m: gv('mist-m'), mist_i: gv('mist-i'), mist_s: gv('mist-s'), mist_t: gv('mist-t'),
+    // XABCDE (trauma)
+    x_hemorrhage_controlled: gv('x-hemorrhage'),
+    a_airway_patent: gv('a-airway'), a_airway_notes: gv('a-airway-notes'),
+    b_breathing_status: gv('b-breathing'), b_interventions: gv('b-interventions'),
+    c_pulse_quality: gv('c-pulse'), c_interventions: gv('c-interventions'),
+    d_gcs: gv('d-gcs'), d_pupils: gv('d-pupils'),
+    e_exposed: gv('e-exposed'), e_findings: gv('e-findings'),
+    // SAMPLE/OPQRST (medical)
+    abc_airway: gv('abc-airway'), abc_breathing: gv('abc-breathing'), abc_circulation: gv('abc-circulation'),
+    blood_glucose: gv('blood-glucose'),
+    sample_s: gv('sample-s'), sample_a: gv('sample-a'), sample_m: gv('sample-m'),
+    sample_p: gv('sample-p'), sample_l: gv('sample-l'), sample_e: gv('sample-e'),
+    opqrst_onset: gv('opqrst-o'), opqrst_provoke: gv('opqrst-p'), opqrst_quality: gv('opqrst-q'),
+    opqrst_radiation: gv('opqrst-r'), opqrst_severity: gv('opqrst-s'), opqrst_time: gv('opqrst-t'),
+  };
+
+  const patientData = {
+    display_id: nextDisplayId(),
+    triage_color: _state.intakeTriageColor,
+    injury_type: _state.intakeInjury,
+    current_zone: zoneMap[_state.intakeTriageColor],
+    source_type: _state.intakeSource,
+    chief_issue: gv('chief-issue') || gv('mist-i') || gv('sample-s') || '',
+    vitals_summary: gv('vitals-summary') || gv('mist-s') || '',
+    security_cleared: gv('intake-security') !== 'pending',
+    registered_with_shelter: gv('intake-shelter') || 'not_registered',
+    disposition: '留觀',
+    reassess_due_at: new Date(Date.now() + (_state.intakeTriageColor==='red'?5:15)*60000).toISOString(),
+    operator_name: _state.operatorName,
+    updated_at: now,
+  };
+
+  const patientId = await db.patients.add(patientData);
+  await db.triages.add({ ...triageData, patient_id: patientId });
+
+  _state.intakeInjury = null;
+  _state.intakeTriageColor = null;
+  showToast(`✅ ${patientData.display_id} 已接收，分至${zoneMap[_state.intakeTriageColor||'green']}`);
+  switchTab('zones');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ZONES
+════════════════════════════════════════════════════════════════ */
+function renderZones(el) {
+  const zones = [
+    { id:'red',    label:'紅區', cls:'red' },
+    { id:'yellow', label:'黃區', cls:'yellow' },
+    { id:'green',  label:'綠區', cls:'green' },
+    { id:'black',  label:'黑區', cls:'black' },
+  ];
+  const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
+
+  const tabs = zones.map(z=>{
+    const n = countByZone(z.label);
+    return `<button class="zone-tab ${_state.currentZone===z.id?'active '+z.cls:''}" onclick="setZone('${z.id}')">${z.label} ${n>0?`(${n})`:''}</button>`;
+  }).join('');
+
+  const cur = zoneMap[_state.currentZone];
+  const patients = _state.patients.filter(p=>p.current_zone===cur);
+  const cards = patients.length === 0
+    ? `<div style="padding:32px;text-align:center;color:var(--text3);">本區目前無傷患</div>`
+    : patients.map(p=>renderPatientCard(p)).join('');
+
+  // Update tab badge
+  const overdue = _state.patients.filter(p=>{
+    if (!p.reassess_due_at) return false;
+    return new Date(p.reassess_due_at) < new Date();
+  }).length;
+  const badge = document.getElementById('tab-badge-zones');
+  if (badge) { badge.textContent=overdue; badge.classList.toggle('hidden', overdue===0); }
+
+  el.innerHTML = `
+    <div class="zone-tabs">${tabs}</div>
+    <div id="zone-cards">${cards}</div>
+  `;
+}
+
+function setZone(z) {
+  _state.currentZone = z;
+  renderCurrentTab();
+}
+
+function renderPatientCard(p) {
+  const colorMap = { red:'red', yellow:'yellow', green:'green', black:'black' };
+  const cls = colorMap[p.triage_color] || '';
+  const due = p.reassess_due_at ? new Date(p.reassess_due_at) : null;
+  const now = new Date();
+  const overdue = due && due < now;
+  const minLeft = due ? Math.max(0, Math.floor((due-now)/60000)) : null;
+  const timerStr = due ? (overdue ? '逾時' : `${minLeft}分`) : '';
+  const timerCls = overdue ? 'overdue' : '';
+  return `
+    <div class="patient-card ${cls} ${overdue?'overdue':''}" onclick="openPatientDetail(${p.id})">
+      <div class="pc-top">
+        <span class="pc-id">${p.display_id}</span>
+        <span class="pc-timer ${timerCls}">再評估 ${timerStr}</span>
+      </div>
+      <div class="pc-issue">${p.chief_issue || '（無主訴摘要）'}</div>
+      <div style="font-size:12px;color:var(--text3);">${p.vitals_summary||''}</div>
+      <div class="pc-actions mt-1">
+        <button class="pc-btn" onclick="event.stopPropagation();resetReassess(${p.id})">重設再評估</button>
+        <button class="pc-btn" onclick="event.stopPropagation();openMoveZone(${p.id})">移區</button>
+        <button class="pc-btn primary" onclick="event.stopPropagation();markTransfer(${p.id})">後送</button>
+      </div>
+    </div>
+  `;
+}
+
+async function resetReassess(id) {
+  const p = await db.patients.get(id);
+  if (!p) return;
+  const mins = p.triage_color === 'red' ? 5 : 15;
+  await db.patients.update(id, { reassess_due_at: new Date(Date.now()+mins*60000).toISOString(), updated_at: new Date().toISOString() });
+  showToast('再評估計時重設');
+  renderCurrentTab();
+}
+
+async function markTransfer(id) {
+  await db.patients.update(id, { disposition:'後送', updated_at:new Date().toISOString() });
+  showToast('已標記待後送');
+  renderCurrentTab();
+}
+
+function openMoveZone(id) {
+  const zones = ['紅區','黃區','綠區','黑區','後送區','已離區'];
+  const opts = zones.map(z=>`<button class="btn btn-outline btn-full mb-1" onclick="moveZone(${id},'${z}');closeModal()">${z}</button>`).join('');
+  openModal('移轉區域', opts, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
+}
+
+async function moveZone(id, zone) {
+  await db.patients.update(id, { current_zone:zone, updated_at:new Date().toISOString() });
+  showToast(`已移至 ${zone}`);
+  renderCurrentTab();
+}
+
+async function openPatientDetail(id) {
+  const p = await db.patients.get(id);
+  if (!p) return;
+  const triages = await db.triages.where('patient_id').equals(id).toArray();
+  const latest = triages[triages.length-1];
+  const colorLabel = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
+  openModal(
+    `${p.display_id} 傷患詳情`,
+    `<div class="flex flex-col gap-2">
+      <div class="dash-row"><span class="dash-row-label">檢傷分色</span><span class="dash-row-val">${colorLabel[p.triage_color]||p.triage_color}</span></div>
+      <div class="dash-row"><span class="dash-row-label">目前區域</span><span class="dash-row-val">${p.current_zone}</span></div>
+      <div class="dash-row"><span class="dash-row-label">傷型</span><span class="dash-row-val">${p.injury_type==='trauma'?'創傷':'非創'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">主訴</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.chief_issue||'—'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">生命徵象</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.vitals_summary||'—'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">處置</span><span class="dash-row-val">${p.disposition}</span></div>
+      <div class="dash-row"><span class="dash-row-label">操作者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
+      ${latest ? `<div class="info-box info mt-1" style="font-size:12px;word-break:break-all;">最新檢傷：${latest.triage_at?.slice(0,16)||''} by ${latest.triage_by||''}</div>` : ''}
+    </div>`,
+    `<button class="btn btn-outline flex-1" onclick="openMoveZone(${id});closeModal()">移區</button>
+     <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MORE PAGE
+════════════════════════════════════════════════════════════════ */
+function renderMore(el) {
+  el.innerHTML = `
+    <div class="section-hdr">功能（v0.5 實作）</div>
+    <div class="dash-row" onclick="renderStub(document.getElementById('app-content'),'📦','物資頁','低量警示、補給申請')" style="cursor:pointer;">
+      <span class="dash-row-label">📦 物資管理</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="dash-row" onclick="renderStub(document.getElementById('app-content'),'⚠️','事件頁','安全威脅、傳染疑慮、量能滿載')" style="cursor:pointer;">
+      <span class="dash-row-label">⚠️ 事件記錄</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="dash-row" onclick="renderStub(document.getElementById('app-content'),'🔄','交班 / 快照','傷患交接、班次紀錄')" style="cursor:pointer;">
+      <span class="dash-row-label">🔄 交班 / 快照</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="section-hdr">系統</div>
+    <div class="dash-row" style="cursor:pointer;" onclick="doQrSnapshot()">
+      <span class="dash-row-label">📷 產生 QR 快照</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="dash-row" style="cursor:pointer;" onclick="doLogout()">
+      <span class="dash-row-label">🔒 登出（切換角色）</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div style="padding:14px;font-size:12px;color:var(--text3);text-align:center;">
+      醫療組 PWA ${PWA_VERSION} · 規格 v0.4
+    </div>
+  `;
+}
+
+function renderStub(el, icon, title, desc) {
+  el.innerHTML = `<div class="stub-page"><div class="stub-icon">${icon}</div><div class="stub-title">${title}</div><div class="stub-desc">${desc}<br><br>規劃於 v0.5 實作。</div></div>`;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   QR SNAPSHOT
+════════════════════════════════════════════════════════════════ */
+async function doQrSnapshot() {
+  const r=countByColor('紅'), y=countByColor('黃'), g=countByColor('綠'), b=countByColor('黑');
+  const pending = getPendingTransfer();
+  const uuid = generateSnapshotUUID();
+  const now = new Date().toISOString();
+  const payload = {
+    v:1, type:'snapshot_medical', snapshot_id:uuid, t:now,
+    src:'medical', casualties:{ red:r, yellow:y, green:g, black:b },
+    pending_evac:pending
+  };
+  const payloadStr = JSON.stringify(payload);
+  await db.snapshots.add({ snapshot_uuid:uuid, snapshot_time:now, type:'qr', payload:payloadStr });
+
+  openModal('QR 快照',
+    `<div style="text-align:center">
+      <div id="qr-render" style="display:inline-block;margin:16px auto;"></div>
+      <div class="info-box info mt-2 text-sm">${uuid.slice(0,8)}…<br>${now.slice(0,16)}</div>
+      <div class="text-xs text-gray mt-1">供指揮部幕僚掃描（每 20 分鐘更新一次）</div>
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+  );
+  setTimeout(()=>{
+    try {
+      new QRCode(document.getElementById('qr-render'), {
+        text: payloadStr, width:200, height:200, correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e) {
+      document.getElementById('qr-render').textContent = payloadStr.slice(0,80)+'…';
+    }
+  }, 100);
+}
+
+function doLogout() {
+  _state.role = '';
+  _state.operatorName = '';
+  document.getElementById('app').classList.add('hidden');
+  showRoleScreen();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MODAL / TOAST
+════════════════════════════════════════════════════════════════ */
+function openModal(title, body, footer) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-footer').innerHTML = footer || `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function handleOverlayClick(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+
+let _toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.remove('hidden'); el.style.opacity='1';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.classList.add('hidden'),300); }, 2500);
+}
+
+function copyText(txt) {
+  navigator.clipboard?.writeText(txt).then(()=>showToast('已複製')).catch(()=>showToast('複製失敗'));
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BOOT
+════════════════════════════════════════════════════════════════ */
+async function boot() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+  await initPin();
+}
+
+boot();
+</script>
+</body>
+</html>
