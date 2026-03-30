@@ -105,8 +105,9 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .adm-btn-toggle{border-color:var(--orange);color:var(--orange);}
 /* ── App shell ── */
 #app-header{height:var(--hdr-h);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0;position:relative;z-index:10;}
+.hdr-left{display:flex;flex-direction:column;gap:1px;}
+.hdr-right{display:flex;align-items:center;gap:8px;}
 .hdr-title{font-size:16px;font-weight:700;}
-.hdr-role{font-size:12px;opacity:.85;}
 .hdr-idle{font-size:11px;opacity:.7;}
 #alert-banner{display:none;background:var(--red);color:#fff;padding:8px 14px;font-size:13px;font-weight:600;flex-shrink:0;z-index:9;}
 #alert-banner.warn{background:var(--orange);}
@@ -281,13 +282,19 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 <!-- ══ APP ═══════════════════════════════════════════════════════ -->
 <div id="app" class="hidden">
   <div id="app-header">
-    <div>
+    <div class="hdr-left">
       <div class="hdr-title">🏥 醫療組</div>
-      <div class="hdr-role" id="hdr-role"></div>
-    </div>
-    <div style="text-align:right">
       <div class="hdr-idle" id="hdr-idle"></div>
-      <div style="font-size:11px;opacity:.7" id="hdr-ws"></div>
+    </div>
+    <div class="hdr-right">
+      <div style="text-align:right">
+        <div id="hdr-role" style="font-size:13px;font-weight:700;background:rgba(255,255,255,.2);padding:2px 10px;border-radius:12px;"></div>
+        <div id="hdr-login-time" style="font-size:10px;opacity:.65;margin-top:2px;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="font-size:11px;opacity:.7" id="hdr-ws"></div>
+        <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;">登出</button>
+      </div>
     </div>
   </div>
 
@@ -450,12 +457,7 @@ async function seedAccounts() {
    LOGIN
 ════════════════════════════════════════════════════════════════ */
 async function initLogin() {
-  const firstBoot = await seedAccounts();
-  if (firstBoot) {
-    const notice = document.getElementById('login-notice');
-    notice.textContent = '首次啟動：預設帳號已建立，PIN 均為 1234，管理員 PIN 為 0000。請儘早修改。';
-    notice.style.display = 'block';
-  }
+  await seedAccounts();
 }
 
 async function handleLogin() {
@@ -500,6 +502,8 @@ async function handleLogin() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('hdr-role').textContent = `${acct.role}・${_state.operatorName}`;
+  const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
+  document.getElementById('hdr-login-time').textContent = `登入 ${loginTime}`;
   startIdleTimer();
   loadPatients().then(renderCurrentTab);
   connectWS();
@@ -678,7 +682,7 @@ function getRedSlotsFree() {
    DASHBOARD
 ════════════════════════════════════════════════════════════════ */
 function renderDashboard(el) {
-  const r=countByColor('紅'), y=countByColor('黃'), g=countByColor('綠'), b=countByColor('黑');
+  const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
   const total = r+y+g+b;
   const pending = getPendingTransfer();
   const light = r>2 || pending>=2 ? '🔴 紅' : r>0 || pending>0 ? '🟡 黃' : '🟢 綠';
@@ -720,7 +724,7 @@ function renderDashboard(el) {
 }
 
 function doCapacityReport() {
-  const r=countByColor('紅'), y=countByColor('黃'), g=countByColor('綠'), b=countByColor('黑');
+  const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
   const pending = getPendingTransfer();
   const now = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
   const txt = `【醫療量能回報 ${now}】紅${r}、黃${y}、綠${g}、黑${b}、待後送${pending}`;
@@ -878,66 +882,94 @@ function renderIntakeForm() {
 function renderXABCDE() {
   return `
     <div class="section-hdr">XABCDE 評估（創傷）</div>
+
     <div class="form-group">
-      <div class="form-label">X — 大出血控制</div>
-      <select class="form-select" id="x-hemorrhage">
-        <option value="">未評估</option><option value="controlled">已止血</option>
-        <option value="tourniquet">止血帶中</option><option value="uncontrolled">未控制</option>
-      </select>
+      <div class="form-label">X — 大出血控制 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝無活動性出血</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="x-hemorrhage" onchange="mistFill('x-hemorrhage-notes','x-hemorrhage')">
+          <option value="">未評估</option>
+          <option value="無大出血">無大出血</option>
+          <option value="直接加壓止血中">直接加壓止血中</option>
+          <option value="止血帶已上（控制中）">止血帶已上（控制中）</option>
+          <option value="傷口填塞止血中">傷口填塞止血中</option>
+          <option value="大出血未控制">大出血未控制 ⚠️</option>
+        </select>
+        <input class="form-input" id="x-hemorrhage-notes" placeholder="補充（部位、止血帶上緊時間…）">
+      </div>
     </div>
+
     <div class="form-group">
-      <div class="form-label">A — 呼吸道</div>
-      <select class="form-select" id="a-airway">
-        <option value="">未評估</option><option value="patent">通暢</option>
-        <option value="opened">開放後通暢</option><option value="obstructed">阻塞</option>
-      </select>
+      <div class="form-label">A — 呼吸道 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝自然通暢</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="a-airway" onchange="mistFill('a-airway-notes','a-airway')">
+          <option value="">未評估</option>
+          <option value="自然通暢">自然通暢 ✓</option>
+          <option value="手法開放後通暢（頭頸後仰/下顎推移）">手法開放後通暢</option>
+          <option value="OPA 置入維持">OPA 置入維持</option>
+          <option value="NPA 置入維持">NPA 置入維持</option>
+          <option value="呼吸道阻塞（需立即處置）">呼吸道阻塞 ⚠️</option>
+        </select>
+        <input class="form-input" id="a-airway-notes" placeholder="補充（異物、分泌物、吸引…）">
+      </div>
     </div>
+
     <div class="form-group">
-      <div class="form-label">A — 呼吸道處置備注</div>
-      <input class="form-input" id="a-airway-notes" type="text" placeholder="如：頭頸後仰、吸引">
+      <div class="form-label">B — 呼吸 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常 RR 12–20/min，SpO₂ ≥94%</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="b-breathing" onchange="mistFill('b-interventions','b-breathing')">
+          <option value="">未評估</option>
+          <option value="正常（RR 12-20，SpO₂≥94%）">正常 ✓</option>
+          <option value="輕微異常（RR 20-30，SpO₂ 90-94%）">輕微異常（RR 20-30）</option>
+          <option value="呼吸費力（輔助肌使用）">呼吸費力</option>
+          <option value="缺氧（SpO₂<90%）">缺氧 SpO₂&lt;90% ⚠️</option>
+          <option value="無自主呼吸">無自主呼吸 ⚠️</option>
+        </select>
+        <input class="form-input" id="b-interventions" placeholder="RR __/min  SpO₂ __%  處置：給氧/BVM…">
+      </div>
     </div>
+
     <div class="form-group">
-      <div class="form-label">B — 呼吸品質</div>
-      <select class="form-select" id="b-breathing">
-        <option value="">未評估</option><option value="normal">正常</option>
-        <option value="labored">費力</option><option value="hypoxic">缺氧</option><option value="absent">無自主呼吸</option>
-      </select>
+      <div class="form-label">C — 循環 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常 HR 60–100，橈動脈可觸及，BP&gt;90</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="c-pulse" onchange="mistFill('c-interventions','c-pulse')">
+          <option value="">未評估</option>
+          <option value="正常（HR 60-100，橈動脈強）">正常 ✓</option>
+          <option value="輕微異常（HR 100-120）">輕微異常（HR 100–120）</option>
+          <option value="心搏過快（HR>120）">心搏過快 HR&gt;120 ⚠️</option>
+          <option value="橈動脈細弱（低血壓疑慮）">橈動脈細弱 ⚠️</option>
+          <option value="橈動脈無法觸及（BP<80）">橈動脈無法觸及 ⚠️</option>
+          <option value="無脈搏">無脈搏 ⚠️</option>
+        </select>
+        <input class="form-input" id="c-interventions" placeholder="HR __  BP __/__  處置：IV/輸液/加壓…">
+      </div>
     </div>
+
     <div class="form-group">
-      <div class="form-label">B — 呼吸處置</div>
-      <input class="form-input" id="b-interventions" type="text" placeholder="給氧 / BVM 輔助 / 封閉胸腔傷口">
+      <div class="form-label">D — 意識 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常 GCS 15，AVPU＝A</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="d-gcs" onchange="mistFill('d-pupils','d-gcs')">
+          <option value="">未評估</option>
+          <option value="GCS 15，完全清醒（A）">GCS 15，清醒（A）✓</option>
+          <option value="GCS 13-14，輕微意識改變">GCS 13–14，輕度改變</option>
+          <option value="GCS 9-12，對聲音有反應（V）">GCS 9–12（V）⚠️</option>
+          <option value="GCS 6-8，對疼痛有反應（P）">GCS 6–8（P）⚠️</option>
+          <option value="GCS 3-5，無反應（U）">GCS 3–5，無反應（U）⚠️</option>
+        </select>
+        <input class="form-input" id="d-pupils" placeholder="GCS 實際分數（E_V_M_）、瞳孔大小/反應">
+      </div>
     </div>
+
     <div class="form-group">
-      <div class="form-label">C — 脈搏</div>
-      <select class="form-select" id="c-pulse">
-        <option value="">未評估</option><option value="normal">正常</option>
-        <option value="weak">細速</option><option value="absent">無</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <div class="form-label">C — 循環處置</div>
-      <input class="form-input" id="c-interventions" type="text" placeholder="IV 建立 / 加壓包紮 / 輸液">
-    </div>
-    <div class="form-group">
-      <div class="form-label">D — GCS（3–15）</div>
-      <input class="form-input" id="d-gcs" type="number" min="3" max="15" placeholder="GCS 總分">
-    </div>
-    <div class="form-group">
-      <div class="form-label">D — 瞳孔反應</div>
-      <select class="form-select" id="d-pupils">
-        <option value="">未評估</option><option value="normal">正常等大</option>
-        <option value="unequal">不等大</option><option value="fixed">無反應</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <div class="form-label">E — 全身暴露檢查</div>
-      <select class="form-select" id="e-exposed">
-        <option value="">未評估</option><option value="done">已完成</option><option value="partial">部分</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <div class="form-label">E — 暴露檢查發現</div>
-      <textarea class="form-input form-textarea" id="e-findings" placeholder="如：背部穿刺傷、骨盆不穩定"></textarea>
+      <div class="form-label">E — 全身暴露 <span style="font-size:11px;color:var(--text3);font-weight:400;">全身檢查（含背面）＋保暖</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="e-exposed" onchange="mistFill('e-findings','e-exposed')">
+          <option value="">未評估</option>
+          <option value="全身暴露完成，無明顯異常">全身完成，無異常 ✓</option>
+          <option value="全身暴露完成，有發現（見備注）">全身完成，有發現</option>
+          <option value="部分暴露（環境或傷患配合限制）">部分暴露</option>
+        </select>
+        <input class="form-input" id="e-findings" placeholder="發現：背部穿刺傷、骨盆不穩定、長骨骨折、燒傷…">
+      </div>
     </div>
   `;
 }
@@ -1068,13 +1100,16 @@ async function submitIntake() {
     // MIST
     mist_m: getMist('mist-m-sel','mist-m'), mist_i: getMist('mist-i-sel','mist-i'),
     mist_s: getMist('mist-s-sel','mist-s'), mist_t: gv('mist-t'),
-    // XABCDE (trauma)
-    x_hemorrhage_controlled: gv('x-hemorrhage'),
-    a_airway_patent: gv('a-airway'), a_airway_notes: gv('a-airway-notes'),
-    b_breathing_status: gv('b-breathing'), b_interventions: gv('b-interventions'),
-    c_pulse_quality: gv('c-pulse'), c_interventions: gv('c-interventions'),
-    d_gcs: gv('d-gcs'), d_pupils: gv('d-pupils'),
-    e_exposed: gv('e-exposed'), e_findings: gv('e-findings'),
+    // XABCDE (trauma) — each field = select + free text combined
+    x_hemorrhage_controlled: getMist('x-hemorrhage','x-hemorrhage-notes'),
+    a_airway_patent: getMist('a-airway','a-airway-notes'),
+    b_breathing_status: getMist('b-breathing','b-interventions'),
+    c_pulse_quality: getMist('c-pulse','c-interventions'),
+    d_gcs: getMist('d-gcs','d-pupils'),
+    e_exposed: getMist('e-exposed','e-findings'),
+    // keep legacy field names pointing to combined values
+    a_airway_notes: gv('a-airway-notes'), b_interventions: gv('b-interventions'),
+    c_interventions: gv('c-interventions'), d_pupils: gv('d-pupils'), e_findings: gv('e-findings'),
     // SAMPLE/OPQRST (medical)
     abc_airway: gv('abc-airway'), abc_breathing: gv('abc-breathing'), abc_circulation: gv('abc-circulation'),
     blood_glucose: gv('blood-glucose'),
@@ -1612,10 +1647,10 @@ async function renderShift(el) {
     <div class="p-2">
       <div class="card mb-2 text-sm">
         <div class="flex justify-between mb-1"><span>傷患（在站）</span><span class="font-bold">${_state.patients.filter(p=>p.current_zone!=='已離區').length}</span></div>
-        <div class="flex justify-between mb-1"><span>🔴 紅區</span><span>${countByColor('紅')}</span></div>
-        <div class="flex justify-between mb-1"><span>🟡 黃區</span><span>${countByColor('黃')}</span></div>
-        <div class="flex justify-between mb-1"><span>🟢 綠區</span><span>${countByColor('綠')}</span></div>
-        <div class="flex justify-between mb-1"><span>⚫ 黑區</span><span>${countByColor('黑')}</span></div>
+        <div class="flex justify-between mb-1"><span>🔴 紅區</span><span>${countByColor('red')}</span></div>
+        <div class="flex justify-between mb-1"><span>🟡 黃區</span><span>${countByColor('yellow')}</span></div>
+        <div class="flex justify-between mb-1"><span>🟢 綠區</span><span>${countByColor('green')}</span></div>
+        <div class="flex justify-between mb-1"><span>⚫ 黑區</span><span>${countByColor('black')}</span></div>
         <div class="flex justify-between mb-1"><span>🚑 待後送</span><span>${pendingEvac}</span></div>
         <div class="flex justify-between mb-1"><span>⚠️ 開放事件</span><span>${openIncidents}</span></div>
         <div class="flex justify-between"><span>📦 低量物資</span><span>${lowResources}</span></div>
@@ -1651,7 +1686,7 @@ async function renderShift(el) {
 
 async function createShift() {
   const notes = document.getElementById('shift-notes')?.value || '';
-  const snap = { red:countByColor('紅'), yellow:countByColor('黃'), green:countByColor('綠'), black:countByColor('黑'), pending:getPendingTransfer() };
+  const snap = { red:countByColor('red'), yellow:countByColor('yellow'), green:countByColor('green'), black:countByColor('black'), pending:getPendingTransfer() };
   await db.shifts.add({
     started_at: new Date().toISOString(),
     role: _state.role, operator_name: _state.operatorName,
@@ -1669,7 +1704,7 @@ function renderStub(el, icon, title, desc) {
    QR SNAPSHOT
 ════════════════════════════════════════════════════════════════ */
 async function doQrSnapshot() {
-  const r=countByColor('紅'), y=countByColor('黃'), g=countByColor('綠'), b=countByColor('黑');
+  const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
   const pending = getPendingTransfer();
   const uuid = generateSnapshotUUID();
   const now = new Date().toISOString();
