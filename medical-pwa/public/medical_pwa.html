@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <style>
 :root {
-  --primary:#1565C0; --primary-dk:#0D47A1; --primary-lt:#1976D2;
+  --primary:#8D0000; --primary-dk:#6B0000; --primary-lt:#B71C1C;
   --bg:#F5F5F5; --surface:#FFFFFF; --surface2:#FAFAFA;
   --text:#1A1A1A; --text2:#666; --text3:#999; --border:#E0E0E0;
   --red:#C62828; --red-bg:#FFEBEE; --red-lt:#EF5350;
@@ -71,30 +71,38 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .info-box.error{background:var(--red-bg);color:var(--red);}
 .info-box.success{background:var(--green-bg);color:var(--green);}
 /* ── Layout ── */
-#pin-lock-screen,#role-screen,#app{position:fixed;inset:0;display:flex;flex-direction:column;}
-#pin-lock-screen,#role-screen{background:var(--primary);color:#fff;align-items:center;justify-content:center;padding:24px;}
-/* ── PIN lock screen ── */
-.pin-lock-wrap{width:100%;max-width:340px;text-align:center;}
-.pin-lock-title{font-size:22px;font-weight:700;margin-bottom:6px;}
-.pin-lock-sub{font-size:14px;opacity:.8;margin-bottom:28px;}
-.pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:20px;}
-.pin-dot{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .15s;}
-.pin-dot.filled{background:#fff;}
-.pin-numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:260px;margin:0 auto;}
-.pin-key{padding:16px;border-radius:var(--r);background:rgba(255,255,255,.15);color:#fff;font-size:20px;font-weight:700;border:none;cursor:pointer;transition:background .1s;}
-.pin-key:active{background:rgba(255,255,255,.35);}
-.pin-error{color:#FF8A80;font-size:13px;margin-top:8px;min-height:18px;}
-.pin-countdown{font-size:13px;opacity:.8;margin-top:6px;}
-/* ── Role screen ── */
-.role-title{font-size:20px;font-weight:700;margin-bottom:6px;text-align:center;}
-.role-sub{font-size:13px;opacity:.8;margin-bottom:20px;text-align:center;}
-.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:360px;}
-.role-btn{padding:14px 10px;border-radius:var(--r);background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600;border:none;cursor:pointer;text-align:center;transition:background .1s;}
-.role-btn:active{background:rgba(255,255,255,.3);}
-.role-name-wrap{margin-top:20px;width:100%;max-width:360px;}
-.role-name-input{width:100%;padding:12px;border-radius:var(--r-sm);border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.1);color:#fff;font-size:15px;text-align:center;}
-.role-name-input::placeholder{color:rgba(255,255,255,.5);}
-.role-name-input:focus{outline:none;border-color:#fff;}
+#login-screen,#app{position:fixed;inset:0;display:flex;flex-direction:column;}
+#login-screen{background:linear-gradient(160deg,var(--primary-dk) 0%,var(--primary) 55%,var(--primary-lt) 100%);color:#fff;align-items:center;justify-content:center;padding:24px;overflow-y:auto;}
+/* ── Login screen ── */
+.login-wrap{width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;}
+.login-logo{font-size:60px;margin-bottom:8px;}
+.login-title{font-size:24px;font-weight:700;margin-bottom:3px;}
+.login-sub{font-size:13px;opacity:.75;margin-bottom:24px;}
+.login-notice{font-size:12px;background:rgba(255,255,255,.15);padding:6px 14px;border-radius:8px;color:rgba(255,255,255,.85);margin-bottom:18px;text-align:center;width:100%;}
+.login-field{width:100%;margin-bottom:10px;}
+.login-input{width:100%;padding:13px 16px;border-radius:var(--r-sm);border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font-size:16px;}
+.login-input::placeholder{color:rgba(255,255,255,.5);}
+.login-input:focus{outline:none;border-color:#fff;}
+.login-btn{width:100%;padding:14px;border-radius:var(--r-sm);background:#fff;color:var(--primary);font-size:16px;font-weight:700;border:none;cursor:pointer;margin-top:6px;transition:opacity .15s;}
+.login-btn:active{opacity:.8;}
+.login-warn{min-height:18px;font-size:13px;color:#FF8A80;margin-top:8px;text-align:center;width:100%;}
+.login-admin-btn{margin-top:18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.8);border-radius:20px;padding:7px 20px;font-size:13px;cursor:pointer;font-family:inherit;}
+.login-version{color:rgba(255,255,255,.4);font-size:11px;margin-top:14px;}
+/* ── Admin panel (bottom sheet) ── */
+#admin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;}
+#admin-panel{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:18px 18px 0 0;z-index:301;max-height:90vh;flex-direction:column;}
+.adm-hdr{padding:16px 18px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;}
+.adm-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.adm-tab{flex:1;padding:10px 0;font-size:14px;font-weight:600;color:var(--text3);border:none;background:transparent;border-bottom:2px solid transparent;cursor:pointer;}
+.adm-tab.active{color:var(--primary);border-color:var(--primary);}
+.adm-body{overflow-y:auto;padding:14px 16px;flex:1;}
+.adm-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;}
+.adm-card-name{font-weight:700;font-size:15px;}
+.adm-card-meta{font-size:12px;color:var(--text2);margin-top:3px;}
+.adm-btn{padding:5px 12px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1.5px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-family:inherit;}
+.adm-btn-primary{border-color:var(--primary);color:var(--primary);}
+.adm-btn-del{border-color:var(--red);color:var(--red);}
+.adm-btn-toggle{border-color:var(--orange);color:var(--orange);}
 /* ── App shell ── */
 #app-header{height:var(--hdr-h);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0;position:relative;z-index:10;}
 .hdr-title{font-size:16px;font-weight:700;}
@@ -195,54 +203,75 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 </head>
 <body>
 
-<!-- ══ PIN LOCK SCREEN ══════════════════════════════════════════ -->
-<div id="pin-lock-screen">
-  <div class="pin-lock-wrap">
-    <div class="pin-lock-title">🏥 醫療組</div>
-    <div class="pin-lock-sub" id="pin-lock-sub">請設定 PIN（4–6位數字）</div>
-    <div class="pin-dots" id="pin-dots">
-      <div class="pin-dot" id="d0"></div>
-      <div class="pin-dot" id="d1"></div>
-      <div class="pin-dot" id="d2"></div>
-      <div class="pin-dot" id="d3"></div>
-      <div class="pin-dot" id="d4"></div>
-      <div class="pin-dot" id="d5"></div>
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-logo">🏥</div>
+    <div class="login-title">醫療組管理系統</div>
+    <div class="login-sub">Medical Team PWA · 離線優先</div>
+    <div class="login-notice" id="login-notice" style="display:none;"></div>
+    <div class="login-field">
+      <input class="login-input" id="login-username" type="text" placeholder="帳號（任務代號）" autocomplete="off" autocorrect="off" spellcheck="false">
     </div>
-    <div class="pin-numpad">
-      <button class="pin-key" onclick="pinKey('1')">1</button>
-      <button class="pin-key" onclick="pinKey('2')">2</button>
-      <button class="pin-key" onclick="pinKey('3')">3</button>
-      <button class="pin-key" onclick="pinKey('4')">4</button>
-      <button class="pin-key" onclick="pinKey('5')">5</button>
-      <button class="pin-key" onclick="pinKey('6')">6</button>
-      <button class="pin-key" onclick="pinKey('7')">7</button>
-      <button class="pin-key" onclick="pinKey('8')">8</button>
-      <button class="pin-key" onclick="pinKey('9')">9</button>
-      <button class="pin-key" onclick="pinKey('clr')" style="font-size:14px;">清除</button>
-      <button class="pin-key" onclick="pinKey('0')">0</button>
-      <button class="pin-key" onclick="pinKey('del')">⌫</button>
+    <div class="login-field">
+      <input class="login-input" id="login-pin" type="password" inputmode="numeric" placeholder="PIN（4–6 位數字）" maxlength="6" autocomplete="off"
+        onkeydown="if(event.key==='Enter')handleLogin()">
     </div>
-    <div class="pin-error" id="pin-error"></div>
-    <div class="pin-countdown" id="pin-countdown"></div>
+    <button class="login-btn" onclick="handleLogin()">登入</button>
+    <div class="login-warn" id="login-warn"></div>
+    <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
+    <div class="login-version">醫療組 PWA v0.1.0 · 規格 v0.4</div>
   </div>
 </div>
 
-<!-- ══ ROLE SCREEN ══════════════════════════════════════════════ -->
-<div id="role-screen" class="hidden">
-  <div class="role-title">選擇角色</div>
-  <div class="role-sub" id="role-sub">選擇你的職務後開始作業</div>
-  <div class="role-grid">
-    <button class="role-btn" onclick="selectRole('組長')">👑 組長</button>
-    <button class="role-btn" onclick="selectRole('副組長')">🔰 副組長</button>
-    <button class="role-btn" onclick="selectRole('檢傷官')">🔍 檢傷官</button>
-    <button class="role-btn" onclick="selectRole('治療官')">💊 治療官</button>
-    <button class="role-btn" onclick="selectRole('後送官')">🚑 後送官</button>
-    <button class="role-btn" onclick="selectRole('後勤官')">📦 後勤官</button>
-    <button class="role-btn" onclick="selectRole('通訊官')">📻 通訊官</button>
-    <button class="role-btn" onclick="selectRole('機動人員')">⚡ 機動</button>
+<!-- ══ ADMIN PANEL ═══════════════════════════════════════════════ -->
+<div id="admin-overlay" onclick="closeAdminPanel()"></div>
+<div id="admin-panel">
+  <div class="adm-hdr">
+    <span style="font-size:17px;font-weight:700;">⚙️ 帳號管理</span>
+    <button class="btn btn-ghost" onclick="closeAdminPanel()" style="font-size:18px;">✕</button>
   </div>
-  <div class="role-name-wrap">
-    <input class="role-name-input" id="operator-name-input" type="text" placeholder="輸入姓名或工號" maxlength="20">
+  <!-- PIN verify -->
+  <div id="adm-pin-screen" style="padding:20px 18px;">
+    <div class="form-group"><label class="form-label">管理員 PIN</label>
+      <input id="adm-pin-input" type="password" inputmode="numeric" class="form-input" placeholder="輸入管理員 PIN" maxlength="6"
+        onkeydown="if(event.key==='Enter')adminVerify()">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="adminVerify()">確認</button>
+    <div id="adm-pin-err" style="color:var(--red);font-size:13px;margin-top:8px;min-height:16px;"></div>
+  </div>
+  <!-- Main tabs (hidden until verified) -->
+  <div id="adm-main" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+    <div class="adm-tabs">
+      <button class="adm-tab active" id="adm-tab-list" onclick="admShowTab('list')">帳號列表</button>
+      <button class="adm-tab" id="adm-tab-add" onclick="admShowTab('add')">新增帳號</button>
+      <button class="adm-tab" id="adm-tab-cfg" onclick="admShowTab('cfg')">設定</button>
+    </div>
+    <div class="adm-body">
+      <div id="adm-panel-list"></div>
+      <div id="adm-panel-add" style="display:none;">
+        <div class="form-group"><label class="form-label">帳號（唯一）</label><input class="form-input" id="adm-new-user" placeholder="例：醫官甲"></div>
+        <div class="form-group"><label class="form-label">顯示名稱</label><input class="form-input" id="adm-new-display" placeholder="姓名或工號"></div>
+        <div class="form-group"><label class="form-label">角色</label>
+          <select class="form-select" id="adm-new-role">
+            <option value="組長">組長</option><option value="副組長">副組長</option>
+            <option value="檢傷官">檢傷官</option><option value="治療官">治療官</option>
+            <option value="後送官">後送官</option><option value="後勤官">後勤官</option>
+            <option value="通訊官">通訊官</option><option value="機動人員">機動人員</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">PIN（4–6 位）</label><input class="form-input" id="adm-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="設定登入 PIN"></div>
+        <button class="btn btn-primary btn-full" onclick="admAddAccount()">建立帳號</button>
+        <div id="adm-add-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
+      </div>
+      <div id="adm-panel-cfg" style="display:none;">
+        <div class="form-group"><label class="form-label">修改管理員 PIN</label>
+          <input class="form-input" id="adm-cfg-pin" type="password" inputmode="numeric" maxlength="6" placeholder="新管理員 PIN（4–6 位）">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="admChangeAdminPin()">更新管理員 PIN</button>
+        <div id="adm-cfg-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -327,16 +356,28 @@ db.version(1).stores({
   snapshots: '++id, snapshot_uuid, snapshot_time, type',
   config:    'key'
 });
+db.version(2).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key',
+  accounts:  '++id, username, role, status'
+});
 
 /* ════════════════════════════════════════════════════════════════
-   CRYPTO (PIN)
+   CRYPTO (PIN hash)
 ════════════════════════════════════════════════════════════════ */
 const Crypto = {
-  async deriveKey(pin) {
+  async hashPin(pin, salt='medical-pwa-v2') {
     const enc = new TextEncoder();
     const raw = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits(
-      { name:'PBKDF2', salt:enc.encode('medical-pwa-salt'), iterations:100000, hash:'SHA-256' }, raw, 256
+      { name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256' }, raw, 256
     );
     return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }
@@ -346,11 +387,9 @@ const Crypto = {
    STATE
 ════════════════════════════════════════════════════════════════ */
 let _state = {
-  pinHash: null,
-  pinSetMode: true,    // true = 設定PIN, false = 輸入PIN
-  pinBuffer: '',
-  pinAttempts: 0,
-  pinCooldown: false,
+  currentAccountId: null,
+  loginAttempts: 0,
+  loginCooldown: false,
   operatorName: '',
   role: '',
   currentTab: 'dashboard',
@@ -375,95 +414,89 @@ let _state = {
 const IDLE_WARN_S = 90;
 const IDLE_LOCK_S = 30;
 
-async function initPin() {
-  const cfg = await db.config.get('pinHash');
-  if (cfg?.value) {
-    _state.pinHash = cfg.value;
-    _state.pinSetMode = false;
-    document.getElementById('pin-lock-sub').textContent = '請輸入 PIN 解鎖';
-  } else {
-    _state.pinSetMode = true;
-    document.getElementById('pin-lock-sub').textContent = '請設定 PIN（4–6位數字）';
-  }
-}
+/* ════════════════════════════════════════════════════════════════
+   DEFAULT ACCOUNTS
+════════════════════════════════════════════════════════════════ */
+const DEFAULT_ACCOUNTS_RAW = [
+  { username:'組長',     display_name:'組長',     role:'組長',   pin:'1234' },
+  { username:'副組長',   display_name:'副組長',   role:'副組長', pin:'1234' },
+  { username:'檢傷官甲', display_name:'檢傷官甲', role:'檢傷官', pin:'1234' },
+  { username:'檢傷官乙', display_name:'檢傷官乙', role:'檢傷官', pin:'1234' },
+  { username:'治療官',   display_name:'治療官',   role:'治療官', pin:'1234' },
+  { username:'後送官',   display_name:'後送官',   role:'後送官', pin:'1234' },
+  { username:'後勤官',   display_name:'後勤官',   role:'後勤官', pin:'1234' },
+  { username:'通訊官',   display_name:'通訊官',   role:'通訊官', pin:'1234' },
+  { username:'機動甲',   display_name:'機動甲',   role:'機動人員', pin:'1234' },
+];
+const DEFAULT_ADMIN_PIN = '0000';
 
-function updatePinDots(n) {
-  for (let i=0;i<6;i++) {
-    document.getElementById('d'+i).classList.toggle('filled', i<n);
+async function seedAccounts() {
+  const count = await db.accounts.count();
+  if (count > 0) return false;
+  const now = new Date().toISOString();
+  for (const a of DEFAULT_ACCOUNTS_RAW) {
+    const pin_hash = await Crypto.hashPin(a.pin);
+    await db.accounts.add({ username:a.username, display_name:a.display_name, role:a.role, pin_hash, status:'active', created_at:now });
   }
-}
-
-async function pinKey(k) {
-  if (_state.pinCooldown) return;
-  const err = document.getElementById('pin-error');
-  if (k === 'clr') { _state.pinBuffer = ''; updatePinDots(0); err.textContent=''; return; }
-  if (k === 'del') { _state.pinBuffer = _state.pinBuffer.slice(0,-1); updatePinDots(_state.pinBuffer.length); return; }
-  if (_state.pinBuffer.length >= 6) return;
-  _state.pinBuffer += k;
-  updatePinDots(_state.pinBuffer.length);
-  if (_state.pinBuffer.length >= 4) {
-    await tryPin(_state.pinBuffer);
-  }
-}
-
-async function tryPin(pin) {
-  const err = document.getElementById('pin-error');
-  if (pin.length < 4) return;
-  const hash = await Crypto.deriveKey(pin);
-  if (_state.pinSetMode) {
-    // 第一次輸入：存起來進 role screen
-    _state.pinHash = hash;
-    await db.config.put({ key:'pinHash', value:hash });
-    _state.pinBuffer = '';
-    updatePinDots(0);
-    showRoleScreen();
-  } else {
-    if (hash === _state.pinHash) {
-      _state.pinAttempts = 0;
-      _state.pinBuffer = '';
-      updatePinDots(0);
-      err.textContent = '';
-      showRoleScreen();
-    } else {
-      _state.pinAttempts++;
-      _state.pinBuffer = '';
-      updatePinDots(0);
-      if (_state.pinAttempts >= 3) {
-        _state.pinCooldown = true;
-        err.textContent = '錯誤次數過多，等待 30 秒…';
-        let cd = 30;
-        document.getElementById('pin-countdown').textContent = `冷卻中：${cd}s`;
-        const t = setInterval(()=>{
-          cd--;
-          document.getElementById('pin-countdown').textContent = cd > 0 ? `冷卻中：${cd}s` : '';
-          if (cd <= 0) { clearInterval(t); _state.pinCooldown=false; _state.pinAttempts=0; err.textContent=''; }
-        }, 1000);
-      } else {
-        err.textContent = `PIN 錯誤（${_state.pinAttempts}/3）`;
-      }
-    }
-  }
-}
-
-function showRoleScreen() {
-  document.getElementById('pin-lock-screen').classList.add('hidden');
-  document.getElementById('idle-warning').classList.add('hidden');
-  document.getElementById('role-screen').classList.remove('hidden');
-  document.getElementById('operator-name-input').value = _state.operatorName || '';
+  const adminHash = await Crypto.hashPin(DEFAULT_ADMIN_PIN);
+  await db.config.put({ key:'adminPinHash', value:adminHash });
+  return true; // first boot
 }
 
 /* ════════════════════════════════════════════════════════════════
-   ROLE
+   LOGIN
 ════════════════════════════════════════════════════════════════ */
-function selectRole(role) {
-  const nameInput = document.getElementById('operator-name-input');
-  const name = nameInput.value.trim();
-  if (!name) { nameInput.focus(); nameInput.style.borderColor='#FF8A80'; setTimeout(()=>nameInput.style.borderColor='',1500); return; }
-  _state.role = role;
-  _state.operatorName = name;
-  document.getElementById('role-screen').classList.add('hidden');
+async function initLogin() {
+  const firstBoot = await seedAccounts();
+  if (firstBoot) {
+    const notice = document.getElementById('login-notice');
+    notice.textContent = '首次啟動：預設帳號已建立，PIN 均為 1234，管理員 PIN 為 0000。請儘早修改。';
+    notice.style.display = 'block';
+  }
+}
+
+async function handleLogin() {
+  const warn = document.getElementById('login-warn');
+  warn.textContent = '';
+  if (_state.loginCooldown) { warn.textContent = '⚠️ 冷卻中，請稍候'; return; }
+
+  const username = document.getElementById('login-username').value.trim();
+  const pin = document.getElementById('login-pin').value;
+
+  if (!username) { warn.textContent = '⚠️ 請輸入帳號'; return; }
+  if (!pin || pin.length < 4 || !/^\d+$/.test(pin)) { warn.textContent = '⚠️ PIN 需為 4–6 位數字'; return; }
+
+  const acct = await db.accounts.where('username').equals(username).first();
+  if (!acct) { warn.textContent = '❌ 帳號不存在'; return; }
+  if (acct.status === 'suspended') { warn.textContent = '❌ 帳號已停用，請聯絡管理員'; return; }
+
+  const hash = await Crypto.hashPin(pin);
+  if (hash !== acct.pin_hash) {
+    _state.loginAttempts++;
+    document.getElementById('login-pin').value = '';
+    if (_state.loginAttempts >= 3) {
+      _state.loginCooldown = true;
+      let cd = 30;
+      warn.textContent = `❌ 錯誤次數過多，冷卻 ${cd}s`;
+      const t = setInterval(()=>{
+        cd--;
+        warn.textContent = cd > 0 ? `冷卻中：${cd}s` : '';
+        if (cd <= 0) { clearInterval(t); _state.loginCooldown=false; _state.loginAttempts=0; }
+      }, 1000);
+    } else {
+      warn.textContent = `❌ PIN 錯誤（${_state.loginAttempts}/3）`;
+    }
+    return;
+  }
+
+  _state.loginAttempts = 0;
+  _state.currentAccountId = acct.id;
+  _state.role = acct.role;
+  _state.operatorName = acct.display_name || acct.username;
+  document.getElementById('login-pin').value = '';
+  document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  document.getElementById('hdr-role').textContent = `${role}・${name}`;
+  document.getElementById('hdr-role').textContent = `${acct.role}・${_state.operatorName}`;
   startIdleTimer();
   loadPatients().then(renderCurrentTab);
   connectWS();
@@ -501,13 +534,13 @@ function resetIdle() {
 function doLock() {
   document.getElementById('idle-warning').classList.add('hidden');
   document.getElementById('app').classList.add('hidden');
-  document.getElementById('role-screen').classList.add('hidden');
-  document.getElementById('pin-lock-screen').classList.remove('hidden');
-  _state.pinSetMode = false;
-  _state.pinBuffer = '';
-  updatePinDots(0);
-  document.getElementById('pin-lock-sub').textContent = '閒置登出，請重新輸入 PIN';
+  document.getElementById('login-screen').classList.remove('hidden');
+  const warn = document.getElementById('login-warn');
+  warn.textContent = '⚠️ 閒置登出，請重新登入';
   _state.idleWarning = false;
+  _state.currentAccountId = null;
+  _state.role = '';
+  _state.operatorName = '';
 }
 
 function clearIdleTimers() {
@@ -1595,10 +1628,14 @@ async function doQrSnapshot() {
 }
 
 function doLogout() {
+  clearIdleTimers();
   _state.role = '';
   _state.operatorName = '';
+  _state.currentAccountId = null;
   document.getElementById('app').classList.add('hidden');
-  showRoleScreen();
+  document.getElementById('idle-warning').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-warn').textContent = '';
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1626,13 +1663,146 @@ function copyText(txt) {
 }
 
 /* ════════════════════════════════════════════════════════════════
+   ADMIN PANEL
+════════════════════════════════════════════════════════════════ */
+let _adminAuthed = false;
+
+function openAdminPanel() {
+  document.getElementById('admin-overlay').style.display = 'block';
+  document.getElementById('admin-panel').style.display = 'flex';
+  if (_adminAuthed) { admShowMain(); } else { document.getElementById('adm-pin-screen').style.display='block'; document.getElementById('adm-main').style.display='none'; }
+}
+
+function closeAdminPanel() {
+  document.getElementById('admin-overlay').style.display = 'none';
+  document.getElementById('admin-panel').style.display = 'none';
+}
+
+async function adminVerify() {
+  const pin = document.getElementById('adm-pin-input').value;
+  const errEl = document.getElementById('adm-pin-err');
+  errEl.textContent = '';
+  if (!pin) { errEl.textContent = '請輸入 PIN'; return; }
+  const cfg = await db.config.get('adminPinHash');
+  if (!cfg?.value) { errEl.textContent = '管理員 PIN 未設定'; return; }
+  const hash = await Crypto.hashPin(pin);
+  if (hash !== cfg.value) { errEl.textContent = 'PIN 不正確'; document.getElementById('adm-pin-input').value=''; return; }
+  document.getElementById('adm-pin-input').value = '';
+  _adminAuthed = true;
+  admShowMain();
+}
+
+function admShowMain() {
+  document.getElementById('adm-pin-screen').style.display = 'none';
+  const main = document.getElementById('adm-main');
+  main.style.display = 'flex';
+  admShowTab('list');
+}
+
+function admShowTab(tab) {
+  ['list','add','cfg'].forEach(t => {
+    document.getElementById('adm-panel-'+t).style.display = t===tab ? 'block' : 'none';
+    document.getElementById('adm-tab-'+t).classList.toggle('active', t===tab);
+  });
+  if (tab === 'list') admLoadAccounts();
+}
+
+async function admLoadAccounts() {
+  const el = document.getElementById('adm-panel-list');
+  const accounts = await db.accounts.toArray();
+  if (!accounts.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0;">尚無帳號</div>'; return; }
+  el.innerHTML = accounts.map(a => `
+    <div class="adm-card" id="adm-card-${a.id}">
+      <div class="adm-card-name">${a.username}${a.display_name&&a.display_name!==a.username?`（${a.display_name}）`:''}</div>
+      <div class="adm-card-meta">${a.role} · <span style="color:${a.status==='active'?'var(--green)':'var(--red)'}">${a.status==='active'?'啟用':'停用'}</span></div>
+      <div id="adm-edit-${a.id}" style="display:none;margin-top:8px;">
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input type="password" inputmode="numeric" id="adm-newpin-${a.id}" class="form-input" placeholder="新 PIN（4-6碼，留空不改）" style="flex:1;padding:7px 10px;font-size:14px;">
+          <select id="adm-newrole-${a.id}" class="form-input form-select" style="flex:1;padding:7px 10px;font-size:14px;">
+            ${['組長','副組長','檢傷官','治療官','後送官','後勤官','通訊官','機動人員'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${r}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="adm-btn adm-btn-primary" style="flex:1;" onclick="admSave(${a.id})">儲存</button>
+          <button class="adm-btn" style="flex:1;" onclick="admToggleEdit(${a.id},false)">取消</button>
+        </div>
+        <div id="adm-edit-msg-${a.id}" style="font-size:12px;margin-top:4px;color:var(--green);min-height:16px;"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <button class="adm-btn adm-btn-primary" onclick="admToggleEdit(${a.id},true)">修改</button>
+        <button class="adm-btn adm-btn-toggle" onclick="admToggleStatus(${a.id},'${a.status}')">${a.status==='active'?'停用':'啟用'}</button>
+        <button class="adm-btn adm-btn-del" onclick="admDelete(${a.id},'${a.username}')">刪除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function admToggleEdit(id, show) {
+  document.getElementById('adm-edit-'+id).style.display = show ? 'block' : 'none';
+}
+
+async function admSave(id) {
+  const pin = document.getElementById('adm-newpin-'+id).value;
+  const role = document.getElementById('adm-newrole-'+id).value;
+  const msgEl = document.getElementById('adm-edit-msg-'+id);
+  const upd = { role };
+  if (pin) {
+    if (!/^\d{4,6}$/.test(pin)) { msgEl.style.color='var(--red)'; msgEl.textContent='PIN 需 4-6 位數字'; return; }
+    upd.pin_hash = await Crypto.hashPin(pin);
+  }
+  await db.accounts.update(id, upd);
+  msgEl.style.color = 'var(--green)'; msgEl.textContent = '已儲存';
+  setTimeout(() => admLoadAccounts(), 800);
+}
+
+async function admToggleStatus(id, cur) {
+  await db.accounts.update(id, { status: cur==='active' ? 'suspended' : 'active' });
+  admLoadAccounts();
+}
+
+async function admDelete(id, username) {
+  if (!confirm(`確定刪除帳號「${username}」？`)) return;
+  await db.accounts.delete(id);
+  admLoadAccounts();
+}
+
+async function admAddAccount() {
+  const u = document.getElementById('adm-new-user').value.trim();
+  const dn = document.getElementById('adm-new-display').value.trim();
+  const role = document.getElementById('adm-new-role').value;
+  const pin = document.getElementById('adm-new-pin').value;
+  const msg = document.getElementById('adm-add-msg');
+  msg.style.color = 'var(--red)'; msg.textContent = '';
+  if (!u) { msg.textContent = '請填帳號名稱'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { msg.textContent = 'PIN 需 4-6 位數字'; return; }
+  const exists = await db.accounts.where('username').equals(u).first();
+  if (exists) { msg.textContent = '帳號已存在'; return; }
+  const pin_hash = await Crypto.hashPin(pin);
+  await db.accounts.add({ username:u, display_name:dn||u, role, pin_hash, status:'active', created_at:new Date().toISOString() });
+  msg.style.color = 'var(--green)'; msg.textContent = `帳號「${u}」已建立`;
+  document.getElementById('adm-new-user').value=''; document.getElementById('adm-new-display').value=''; document.getElementById('adm-new-pin').value='';
+}
+
+async function admChangeAdminPin() {
+  const pin = document.getElementById('adm-cfg-pin').value;
+  const msg = document.getElementById('adm-cfg-msg');
+  msg.style.color = 'var(--red)'; msg.textContent = '';
+  if (!/^\d{4,6}$/.test(pin)) { msg.textContent = 'PIN 需 4-6 位數字'; return; }
+  const hash = await Crypto.hashPin(pin);
+  await db.config.put({ key:'adminPinHash', value:hash });
+  msg.style.color = 'var(--green)'; msg.textContent = '管理員 PIN 已更新';
+  document.getElementById('adm-cfg-pin').value = '';
+  _adminAuthed = false;
+}
+
+/* ════════════════════════════════════════════════════════════════
    BOOT
 ════════════════════════════════════════════════════════════════ */
 async function boot() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   }
-  await initPin();
+  await initLogin();
 }
 
 boot();
