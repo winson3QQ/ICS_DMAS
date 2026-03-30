@@ -158,6 +158,9 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .zone-tab.active.yellow{color:var(--yellow);border-color:var(--yellow);}
 .zone-tab.active.green{color:var(--green);border-color:var(--green);}
 .zone-tab.active.black{color:var(--black-zone);border-color:var(--black-zone);}
+/* ── MIST combo field ── */
+.mist-combo{display:flex;flex-direction:column;gap:6px;}
+.mist-select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:14px;background:#fff;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
 /* ── Intake form ── */
 .source-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 14px;}
 .source-btn{padding:12px 6px;border-radius:var(--r-sm);border:2px solid var(--border);background:transparent;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;}
@@ -755,19 +758,62 @@ function renderIntakeForm() {
     <div class="section-hdr">MIST 交接（前進組）</div>
     <div class="form-group">
       <div class="form-label">M — 傷害機轉</div>
-      <textarea class="form-input form-textarea" id="mist-m" placeholder="車禍、墜落、爆炸…"></textarea>
+      <div class="mist-combo">
+        <select class="mist-select" id="mist-m-sel" onchange="mistFill('mist-m','mist-m-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>車禍（乘客）</option><option>車禍（行人）</option>
+          <option>高處墜落</option><option>爆炸傷</option>
+          <option>刀傷/穿刺傷</option><option>槍傷</option>
+          <option>燒燙傷</option><option>擠壓傷</option>
+          <option>鈍器傷</option><option>運動傷害</option>
+          <option>不明原因</option>
+        </select>
+        <input class="form-input" id="mist-m" placeholder="補充說明（可留空）">
+      </div>
     </div>
     <div class="form-group">
-      <div class="form-label">I — 傷害部位</div>
-      <textarea class="form-input form-textarea" id="mist-i" placeholder="頭部外傷、右腿骨折…"></textarea>
+      <div class="form-label">I — 傷害部位 / 傷情</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="mist-i-sel" onchange="mistFill('mist-i','mist-i-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>頭部外傷</option><option>顏面傷</option>
+          <option>頸部傷</option><option>胸部外傷</option>
+          <option>腹部外傷</option><option>骨盆骨折</option>
+          <option>脊椎傷</option><option>上肢骨折</option>
+          <option>下肢骨折</option><option>多處外傷</option>
+          <option>無明顯外傷</option>
+        </select>
+        <input class="form-input" id="mist-i" placeholder="補充說明（可留空）">
+      </div>
     </div>
     <div class="form-group">
-      <div class="form-label">S — 徵象生命徵象</div>
-      <textarea class="form-input form-textarea" id="mist-s" placeholder="HR 120, BP 90/60, GCS 13…"></textarea>
+      <div class="form-label">S — 徵象 / 生命徵象</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="mist-s-sel" onchange="mistFill('mist-s','mist-s-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>穩定（HR&lt;100, BP&gt;90, SpO2&gt;94%, GCS 15）</option>
+          <option>輕微異常（HR 100–120, BP 80–90）</option>
+          <option>不穩定（HR&gt;120, BP&lt;80, SpO2&lt;90%）</option>
+          <option>意識喪失（GCS&lt;8）</option>
+          <option>無呼吸心跳</option>
+        </select>
+        <input class="form-input" id="mist-s" placeholder="HR __ BP __/__ RR __ SpO2 __% GCS __">
+      </div>
     </div>
     <div class="form-group">
       <div class="form-label">T — 已完成處置</div>
-      <textarea class="form-input form-textarea" id="mist-t" placeholder="已上止血帶、已給氧 10L…"></textarea>
+      <div class="mist-combo">
+        <select class="mist-select" id="mist-t-sel" onchange="mistAppend('mist-t','mist-t-sel')">
+          <option value="">— 點選即新增 —</option>
+          <option>已上止血帶</option><option>已包紮止血</option>
+          <option>已開放呼吸道</option><option>已給氧（面罩 10L）</option>
+          <option>已 BVM 輔助呼吸</option><option>已建立靜脈通路</option>
+          <option>已頸椎固定</option><option>已固定骨折</option>
+          <option>已保暖</option><option>已給止痛藥</option>
+          <option>CPR 進行中</option><option>無處置</option>
+        </select>
+        <input class="form-input" id="mist-t" placeholder="或自行輸入處置內容">
+      </div>
     </div>
     <div class="divider"></div>
   ` : '';
@@ -979,6 +1025,32 @@ function setTriageColor(c) {
 
 function gv(id) { const el=document.getElementById(id); return el ? el.value.trim() : ''; }
 
+// MIST: 合併下拉選擇 + 補充文字
+function getMist(selId, txtId) {
+  const sel = gv(selId);
+  const txt = gv(txtId);
+  if (sel && txt) return `${sel}；${txt}`;
+  return sel || txt;
+}
+
+// M/I/S 欄位：點選下拉後填入文字框（若文字框為空則直接填；否則附加）
+function mistFill(txtId, selId) {
+  const sel = document.getElementById(selId);
+  const txt = document.getElementById(txtId);
+  if (!sel || !sel.value || !txt) return;
+  txt.value = txt.value.trim() ? `${txt.value.trim()}；${sel.value}` : sel.value;
+}
+
+// T 欄位：點選下拉即附加到文字框，允許多選
+function mistAppend(txtId, selId) {
+  const sel = document.getElementById(selId);
+  const txt = document.getElementById(txtId);
+  if (!sel || !sel.value || !txt) return;
+  const cur = txt.value.trim();
+  txt.value = cur ? `${cur}、${sel.value}` : sel.value;
+  sel.value = '';
+}
+
 async function submitIntake() {
   if (!_state.intakeTriageColor) { showToast('請選擇檢傷分色'); return; }
   const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
@@ -994,7 +1066,8 @@ async function submitIntake() {
     start_circulation: gv('start-circ'),
     start_mental: gv('start-mental'),
     // MIST
-    mist_m: gv('mist-m'), mist_i: gv('mist-i'), mist_s: gv('mist-s'), mist_t: gv('mist-t'),
+    mist_m: getMist('mist-m-sel','mist-m'), mist_i: getMist('mist-i-sel','mist-i'),
+    mist_s: getMist('mist-s-sel','mist-s'), mist_t: gv('mist-t'),
     // XABCDE (trauma)
     x_hemorrhage_controlled: gv('x-hemorrhage'),
     a_airway_patent: gv('a-airway'), a_airway_notes: gv('a-airway-notes'),
@@ -1017,8 +1090,8 @@ async function submitIntake() {
     injury_type: _state.intakeInjury,
     current_zone: zoneMap[_state.intakeTriageColor],
     source_type: _state.intakeSource,
-    chief_issue: gv('chief-issue') || gv('mist-i') || gv('sample-s') || '',
-    vitals_summary: gv('vitals-summary') || gv('mist-s') || '',
+    chief_issue: gv('chief-issue') || getMist('mist-i-sel','mist-i') || gv('sample-s') || '',
+    vitals_summary: gv('vitals-summary') || getMist('mist-s-sel','mist-s') || '',
     security_cleared: gv('intake-security') !== 'pending',
     registered_with_shelter: gv('intake-shelter') || 'not_registered',
     disposition: '留觀',
