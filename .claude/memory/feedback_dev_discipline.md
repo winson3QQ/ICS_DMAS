@@ -34,8 +34,11 @@ type: feedback
 2. `PWA_VERSION`（shelter_pwa.html）
 3. `CACHE_NAME`（sw.js，只要 PWA 資產有改就同步更新）
 4. **規格書同步**：若有介面、資料格式、或功能行為變更，需更新對應規格文件
-   - `docs/民防輔助感知系統__規格書_v1_3.docx`（功能/流程規格）
-   - `docs/security_network_spec_v1.0.md`（安全與網路架構規格）
+   - `docs/民防輔助感知系統__規格書_v1_3.docx`（系統總規格）
+   - `docs/security_network_spec_v1.0.md`（安全與網路架構）
+   - `shelter-pwa/docs/shelter_pwa_spec_v2_2.docx`（收容組 PWA 規格）
+   - `command-dashboard/docs/指揮部儀表板設計規格_v1_1.docx`（指揮部儀表板規格）
+   - `medical-pwa/docs/medical_pwa_spec_v0_2.docx`（醫療組 PWA 規格）
 
 **版號 bump 流程：**
 ```bash
