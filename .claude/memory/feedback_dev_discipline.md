@@ -29,6 +29,14 @@ type: feedback
 
 **Debug 版號（地端，不 commit）：** `YYYY-MM-DD-vN`，隨時改，用來追蹤執行路徑。
 
+**版號 bump checklist（缺一不可）：**
+1. `SERVER_VERSION`（shelter_ws_server.js）
+2. `PWA_VERSION`（shelter_pwa.html）
+3. `CACHE_NAME`（sw.js，只要 PWA 資產有改就同步更新）
+4. **規格書同步**：若有介面、資料格式、或功能行為變更，需更新對應規格文件
+   - `docs/民防輔助感知系統__規格書_v1_3.docx`（功能/流程規格）
+   - `docs/security_network_spec_v1.0.md`（安全與網路架構規格）
+
 **版號 bump 流程：**
 ```bash
 # 平常：隨時 commit & push，不改版本號
@@ -36,10 +44,7 @@ git commit -m "fix: ..."
 git push
 
 # 決定這個狀態值得一個版號時：
-# 1. 對齊三個版本常數（必須一致）：
-#    SERVER_VERSION（shelter_ws_server.js）
-#    PWA_VERSION（shelter_pwa.html）
-#    CACHE_NAME（sw.js，只要 PWA 資產有改就同步更新）
+# 1. 完成上方 checklist（四項）
 # 2. commit + tag
 git commit -m "chore: bump vX.Y.Z"
 git tag vX.Y.Z
