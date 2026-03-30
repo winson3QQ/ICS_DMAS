@@ -287,7 +287,7 @@ node shelter_ws_server.js
 
 ## 7　安全與網路架構
 
-> **【v2.2新增】** 本節整合自 security_network_spec_v1_0.md v1.0。
+> **【v2.2新增】** 本節整合自 security_network_spec_v1_0.md v1.0；v2.3 版號更新至 v1.2。
 
 ### 7.1　系統整體架構
 
@@ -496,7 +496,7 @@ scp 192.168.100.20+1-key.pem pi@192.168.100.20:~/certs/
 
 ## 附錄 A　硬體安全清單（v2.2 更新）
 
-> **【v2.2新增】** 整合自 security_network_spec_v1_0.md §2.2。新增 Mini PC、Pi Zero 2W；更新 Lexar、D-Link、Anker 評等。
+> **【v2.2新增】** 整合自 security_network_spec_v1_0.md §2.2；v2.3 版號更新至 v1.2。新增 Mini PC、Pi Zero 2W；更新 Lexar、D-Link、Anker 評等。
 
 ### A.1　建議使用（非中國品牌）
 
@@ -598,7 +598,7 @@ scp 192.168.100.20+1-key.pem pi@192.168.100.20:~/certs/
 
 ## 附錄 E　變更摘要
 
-### v2.2 變更
+### v2.2 變更（規格先行，無對應程式里程碑）
 
 > 整合 security_network_spec_v1.0，補強傳輸層與靜態加密，確立開發三 Phase 路線圖。
 
