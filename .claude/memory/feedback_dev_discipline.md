@@ -17,22 +17,38 @@ type: feedback
 
 ---
 
-### 2. 雙層版本號 + Milestone 才 commit & push
+### 2. 版本號與 git commit 解耦
 
-**雙層版本號：**
-| 層 | 用途 | 格式 | 說明 |
-|----|------|------|------|
-| Debug | 地端追蹤執行路徑 | `YYYY-MM-DD-vN` | 隨時改，不 commit，N 每次 debug 遞增 |
-| Milestone | 正式 commit & push 的版號 | `v001`, `v002`, ... | 功能/修復完成後統一更新，從 v001 開始 |
+**原則：git commit 隨時 push，版號只在值得標記時才動。**
 
-**Commit 前 checklist（三個必須一致才 commit）：**
-1. `SERVER_VERSION`（shelter_ws_server.js）更新為 milestone 版號
-2. `PWA_VERSION`（shelter_pwa.html）同步
-3. `CACHE_NAME`（sw.js）只要 PWA 資產有改就 +0.1（觸發 iOS/Safari 強制更新快取）
+**版本號格式：SemVer** — `vMAJOR.MINOR.PATCH`（起點 `v0.1.0`）
+- `PATCH` +1：bug fix 完成，行為有改變
+- `MINOR` +1：一個功能完整可用
+- `MAJOR` +1：介面或資料格式有破壞性變更（Pi ↔ 指揮部 API、DB schema 等）
+- `MAJOR=0`：開發期，介面仍可能變動
 
-**Why:** Debug 版號是工具，不是歷史；milestone 版號才是 source of truth。地端開發時版號隨意，commit 時對齊，避免版號混亂。
+**Debug 版號（地端，不 commit）：** `YYYY-MM-DD-vN`，隨時改，用來追蹤執行路徑。
 
-**How to apply:** 完成里程碑時提醒使用者對齊三個版本常數再 commit & push，並給出建議的下一個版號（vNNN+1）。
+**版號 bump 流程：**
+```bash
+# 平常：隨時 commit & push，不改版本號
+git commit -m "fix: ..."
+git push
+
+# 決定這個狀態值得一個版號時：
+# 1. 對齊三個版本常數（必須一致）：
+#    SERVER_VERSION（shelter_ws_server.js）
+#    PWA_VERSION（shelter_pwa.html）
+#    CACHE_NAME（sw.js，只要 PWA 資產有改就同步更新）
+# 2. commit + tag
+git commit -m "chore: bump vX.Y.Z"
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+**Why:** 頻繁 push 保留進展，版號有語意（讓人知道這個版本的成熟度和變動幅度），git tag 讓版本可回溯。
+
+**How to apply:** 使用者決定 bump 版號時，建議正確的 SemVer 版號，提醒對齊三個常數，並執行 tag。
 
 ---
 
