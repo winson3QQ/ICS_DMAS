@@ -1,10 +1,11 @@
-name: Deploy Medical PWA to GitHub Pages
+name: Deploy PWAs to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
       - 'medical-pwa/public/**'
+      - 'shelter-pwa/public/**'
   workflow_dispatch:
 
 permissions:
@@ -25,11 +26,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 組合部署目錄
+        run: |
+          mkdir -p _site/medical
+          mkdir -p _site/shelter
+          cp -r medical-pwa/public/. _site/medical/
+          cp -r shelter-pwa/public/. _site/shelter/
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: medical-pwa/public
+          path: _site
 
       - id: deployment
         uses: actions/deploy-pages@v4
