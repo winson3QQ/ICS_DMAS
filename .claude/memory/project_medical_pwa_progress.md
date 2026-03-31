@@ -4,62 +4,81 @@ description: medical-pwa 目前架構狀態、已完成工作、待處理事項
 type: project
 ---
 
-## 已完成（本次 session）
+## 目前版本：v0.3.3（最後 commit：b646a5a）
 
-### 架構重構：以傷患狀態為中心
-- **DB version 3**：patients 表新增 `care_status` 索引欄位
-- `care_status` 值：`'triaged'`（已建檔待評估）→ `'assessed'`（治療評估完成）→ `'pending_transfer'`（待後送）
-- 同時儲存 `assessed_by`、`assessed_at` 於 patient 記錄，供卡片顯示履歷用
-
-### 接收流程（檢傷官）
-- Intake 表單順序：安全檢查（安檢+收容組登記並排）→ START 四格 → 確認分色 → 「完成檢傷 → 建檔」
-- 提交按鈕緊接在「確認分色」按鈕正下方（`triage-submit` div）
-- **不再要求填傷型**，建檔即存，`care_status='triaged'`，儀表板立即更新
-
-### 分區看板（治療官）
-- 傷患卡片直接顯示三步驟進度條：`✓ 檢傷 ｜ ○ 治療評估 ｜ ○ 後送`
-- 醫療履歷：`建檔 陳一・15:37` / `評估 王二・15:45`（或「⬜ 治療評估待接手」）
-- 「▶ 評估」快捷按鈕：care_status='triaged' 的傷患才顯示
-- 點「▶ 評估」→ `openTreatmentAssessment(id)` → modal 選傷型 + XABCDE/SAMPLE → 儲存 → care_status='assessed'
-
-### 角色導向初始 tab
-登入後根據角色自動跳頁：
-- 檢傷官 → 接收 tab
-- 治療官 / 機動人員 → 分區 tab
-- 後送官 → 後送 tab
-- 其他（組長等）→ 儀表板
-
-### Tab Badge
-- **分區**：再評估逾時人數（`reassess_due_at` 過期）
-- **接收**：care_status='triaged' 待評估人數（**待討論是否移到分區**）
-- **後送**：disposition='後送' 待後送人數
-- 三個 badge 在每次 `renderCurrentTab()` 時統一由 `updateTabBadges()` 更新
-
-### 儀表板燈號 bug 修正
-- 原本 emoji + CSS dot 重疊顯示兩顆，已改為純 CSS dot + 中文狀態文字
+分支：`feat/medical-pwa-ui-redesign`（worktree：`.claude/worktrees/charming-neumann`）
+預覽伺服器：`python -m http.server 8001`，目錄 `medical-pwa/public/`
 
 ---
 
-## 待決定 / 待實作
+## 本 session 完成（v0.3.0 → v0.3.3）
 
-### Badge 定義討論（未完成）
-用戶確認 badge 定義有點模糊，下次繼續：
-1. 接收 tab badge → 建議移除（檢傷官自己建單，不需提醒）
-2. 分區 tab badge → 建議改為「待評估 + 逾時合計」（治療官主要關注點）
-3. 分區看板「全部待評估」篩選 tab → 待確認是否需要
+### v0.3.0 — Intake 頁面功能強化
 
-### 其他已識別但未處理
-- `setInjury` 函式和 `confirmTriageColor` 的 console.log 還在（偵錯用，正式版可移除）
-- 治療評估 modal 的 `renderTreatmentModal` 使用 `existing = document.getElementById('modal-body')` 判斷是否已開啟，需驗證切換傷型時是否正常重繪
-- QR snapshot、交班、物資管理功能未動，維持原樣
+#### 倒數計時可見（Item 0）
+- `updateIdleHdr()` 原本將倒數文字設為白色（白字白底看不見）
+- 修正為 `#999`（正常）/ `#C62828`（最後 30 秒警急紅色）
+
+#### 安檢預設「未完成」+ 鎖定分色（Item 1）
+- `intakeSecurity` 預設 `'incomplete'`
+- 安檢未改變時，`renderTriageColorPicker()` 鎖定（opacity 0.4, pointer-events none）並顯示警告
+- `onSecurityChange()` 更新 state 並局部重繪 `#triage-section`
+
+#### 個人特徵（性別/年齡）+ Draft ID（Item 2）
+- `_state.intakeSex`, `_state.intakeAge`, `_state.intakeDraftId` 新增至 state
+- DB 升至 version 4，patients 表加 `source_sex`, `source_age`
+- `onPersonChanged()` 更新 state，呼叫 `generateDraftId(sex, age)`
+- `generateDraftId()` async，從 `db.patients.orderBy('id').last()` 取序號，格式 `M001-FA`
+- Draft ID 預覽區塊（`#patient-id-preview`）常駐 DOM，`display:none` 控制顯示
+- 性別 / 年齡其中一個恢復「—」→ draft ID 收回（`display:none`）
+
+#### START walk 未選鎖定分色（Item 3）
+- `canPickTriageColor()` 三重鎖：`intakeSecurity !== 'incomplete'` + `intakeSex && intakeAge` + `start-walk` 已選
+- 鎖定原因訊息依序判斷，顯示最前面未滿足的條件
+
+### v0.3.1 — Source 按鈕對齊（patch）
+- `.source-btns` padding 從 `12px 14px` 改為 `12px 28px`
+- 與「掃描 QR」/ 「手動輸入」按鈕左右邊距對齊（用 `getBoundingClientRect()` 驗證，差距 < 0.01px）
+
+### v0.3.2 — Bug 修正
+
+1. **個人特徵未填仍可分色**：`canPickTriageColor()` 加入 sex/age 雙重判斷
+2. **Draft ID 收回**：`onPersonChanged()` 偵測到 sex 或 age 為空時隱藏預覽 div
+3. **評估按鈕無效（zones 分區 ▶ 評估）**：
+   - 原因：`renderTreatmentModal()` 檢查 `document.getElementById('modal-body')` 存在性（always true）
+   - 修正：改為檢查 `modal-overlay.classList.contains('hidden')`，未開啟時才呼叫 `openModal()`
+
+### v0.3.3 — 三項改善
+
+1. **移除「確認分色」按鈕**：`renderTriageColorPicker()` 移除 `#triage-confirm` 區塊，`setTriageColor()` 移除對應邏輯，`confirmTriageColor()` 函式刪除
+2. **非創評估加臨床參考值**：`renderSampleOpqrst()` 全面改寫，所有欄位改用 `mist-combo` 模式（select 快選 + input 補充）。ABC 加正常值提示，SAMPLE 加常見選項，OPQRST 加警示（R 放射部位標注心臟/主動脈模式）
+3. **傷患詳情加安檢狀態**：`openPatientDetail()` 加入 `security_cleared` 欄位顯示
 
 ---
 
-## 關鍵檔案
-- `medical-pwa/public/medical_pwa.html`（所有邏輯在此單一檔案）
-- `medical-pwa/public/sw.js`（Service Worker，改完要 Cmd+Shift+R 強制重整）
-- `medical-pwa/docs/醫療組SOP_20260323.md`（流程設計依據）
-- `medical-pwa/docs/medical_pwa_spec_v0_4.md`（規格書）
+## 架構重點（給下次繼續的快速參考）
 
-**Why:** 跨機器作業，此機器處理 medical PWA，另一台機器處理 shelter PWA，不可混用記憶。
-**How to apply:** 下次繼續時先確認 badge 定義方向，再實作分區看板「待評估」篩選。
+- **單一檔案**：`medical-pwa/public/medical_pwa.html`，所有 CSS/HTML/JS inline
+- **DB version 4**：patients 表含 `source_sex`, `source_age`
+- **State 相關欄位**：`intakeSecurity`（'incomplete'|'yes'|'pending'）、`intakeSex`、`intakeAge`、`intakeDraftId`
+- **triage lock 機制**：`canPickTriageColor()` 三重鎖 → `renderTriageColorPicker()` 局部重繪 `#triage-section`
+- **modal 系統**：`#modal-overlay`（hidden/visible）、`#modal-body`（always in DOM）
+- **idle timer**：`IDLE_WARN_S=90s`, `IDLE_LOCK_S=30s`，`clearIdleTimers()` + `startIdleTimer()`
+
+---
+
+## 待處理（issues.md 對照）
+
+| 項目 | 狀態 | 說明 |
+|------|------|------|
+| P1 — C 來源表單 | ❌ 待做 | 演習前必修 |
+| P2 — ID 重複 bug | ✅ 完成 | DB v4、格式 M001-FA、async 序號，`arrival_mode` 欄位待確認 |
+| P3 — 紅區容量 | ❌ 待決定方案 | — |
+| P4 — 到院生命徵象 | ❌ 待做 | — |
+| P7 — 腕帶 QR 產生 | ❌ 待做 | 演習前必修 |
+| P8 — 全域掃碼查詢 | ❌ 待做 | 演習前必修 |
+| Badge 定義 | ❌ 待決定 | — |
+| 治療評估 modal 重繪 | ✅ 已修 | v0.3.2 修復（評估按鈕無效 bug） |
+
+**Why:** 跨機器作業，此 memory 是 medical PWA session 的快速恢復依據。
+**How to apply:** 開始 medical PWA session 時先讀此 memory，確認版本號與 git branch，再繼續 P1/P7/P8。

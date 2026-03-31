@@ -2,19 +2,19 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.2.0';</script>
+<script>const PWA_VERSION='v0.3.3';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#1565C0">
+<meta name="theme-color" content="#8B0000">
 <title>醫療組</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json" id="manifest-link">
 <style>
 :root {
-  --primary:#8D0000; --primary-dk:#6B0000; --primary-lt:#B71C1C;
+  --primary:#C62828; --primary-dk:#8B0000; --primary-lt:#EF5350;
   --bg:#F5F5F5; --surface:#FFFFFF; --surface2:#FAFAFA;
   --text:#1A1A1A; --text2:#666; --text3:#999; --border:#E0E0E0;
-  --red:#C62828; --red-bg:#FFEBEE; --red-lt:#EF5350;
+  --red:#C62828; --red-bg:#FFEBEE;
   --yellow:#E65100; --yellow-bg:#FFF3E0;
   --green:#2E7D32; --green-bg:#E8F5E9;
   --black-zone:#212121; --black-bg:#EEEEEE;
@@ -46,7 +46,8 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .btn-outline{background:transparent;border:2px solid var(--primary);color:var(--primary);}
 .btn-danger{background:var(--red);color:#fff;}
 .btn-ghost{background:transparent;color:var(--text2);padding:8px 12px;}
-.btn-sm{padding:6px 12px;font-size:13px;}
+.btn-sm{padding:6px 12px;font-size:13px;border-radius:var(--r-sm);}
+.btn-icon{padding:8px;border-radius:50%;background:transparent;}
 .btn-full{width:100%;}
 .btn-success{background:var(--green);color:#fff;}
 .btn-warning{background:var(--orange);color:#fff;}
@@ -58,13 +59,21 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .tag-blue{background:var(--blue-bg);color:var(--blue);}
 .tag-gray{background:var(--gray-bg);color:var(--gray);}
 .divider{height:1px;background:var(--border);margin:12px 0;}
-.form-label{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px;}
-.form-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:15px;background:#fff;color:var(--text);}
+.form-label{font-size:14px;font-weight:600;color:var(--text2);}
+.form-label .req{color:var(--red);margin-left:3px;}
+.form-input{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:var(--r-sm);font-size:16px;background:var(--surface);color:var(--text);transition:border-color .15s;}
 .form-input:focus{outline:none;border-color:var(--primary);}
-.form-select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:15px;background:#fff;appearance:none;}
-.form-textarea{resize:vertical;min-height:72px;}
-.form-group{margin-bottom:14px;}
+.form-select{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:var(--r-sm);font-size:16px;background:var(--surface);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;}
+.form-textarea{resize:vertical;min-height:80px;}
+.form-check{display:flex;align-items:flex-start;gap:10px;cursor:pointer;}
+.form-check input[type="checkbox"]{width:20px;height:20px;margin-top:2px;flex-shrink:0;accent-color:var(--primary);}
+.form-check-label{font-size:14px;line-height:1.5;}
+.form-hint{font-size:12px;color:var(--text3);}
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;background:var(--red);color:#fff;border-radius:10px;font-size:11px;font-weight:700;}
 .card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);padding:14px;}
+.card-sm{background:var(--surface);border-radius:var(--r-sm);box-shadow:var(--shadow-sm);padding:10px 12px;}
+.card-list{display:flex;flex-direction:column;gap:8px;}
 .info-box{padding:10px 14px;border-radius:var(--r-sm);font-size:13px;}
 .info-box.info{background:var(--blue-bg);color:var(--blue);}
 .info-box.warn{background:var(--yellow-bg);color:var(--orange);}
@@ -72,22 +81,24 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .info-box.success{background:var(--green-bg);color:var(--green);}
 /* ── Layout ── */
 #login-screen,#app{position:fixed;inset:0;display:flex;flex-direction:column;}
-#login-screen{background:linear-gradient(160deg,var(--primary-dk) 0%,var(--primary) 55%,var(--primary-lt) 100%);color:#fff;align-items:center;justify-content:center;padding:24px;overflow-y:auto;}
+#login-screen{background:var(--bg);color:var(--text);align-items:center;justify-content:center;padding:24px;overflow-y:auto;}
 /* ── Login screen ── */
-.login-wrap{width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;}
-.login-logo{font-size:60px;margin-bottom:8px;}
-.login-title{font-size:24px;font-weight:700;margin-bottom:3px;}
-.login-sub{font-size:13px;opacity:.75;margin-bottom:24px;}
-.login-notice{font-size:12px;background:rgba(255,255,255,.15);padding:6px 14px;border-radius:8px;color:rgba(255,255,255,.85);margin-bottom:18px;text-align:center;width:100%;}
-.login-field{width:100%;margin-bottom:10px;}
-.login-input{width:100%;padding:13px 16px;border-radius:var(--r-sm);border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font-size:16px;}
-.login-input::placeholder{color:rgba(255,255,255,.5);}
-.login-input:focus{outline:none;border-color:#fff;}
-.login-btn{width:100%;padding:14px;border-radius:var(--r-sm);background:#fff;color:var(--primary);font-size:16px;font-weight:700;border:none;cursor:pointer;margin-top:6px;transition:opacity .15s;}
+.login-wrap{width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;}
+.login-icon-wrap{width:88px;height:88px;border-radius:24px;background:linear-gradient(145deg,var(--primary) 0%,var(--primary-dk) 100%);display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:16px;box-shadow:0 6px 20px rgba(198,40,40,.3);}
+.login-logo{line-height:1;}
+.login-title{font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text);}
+.login-sub{font-size:13px;color:var(--text3);margin-bottom:28px;}
+.login-card{width:100%;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;margin-bottom:12px;}
+.login-notice{font-size:12px;background:var(--red-bg);color:var(--red);padding:6px 14px;border-radius:var(--r-sm);margin-bottom:14px;text-align:center;width:100%;}
+.login-field{width:100%;margin-bottom:12px;}
+.login-input{width:100%;padding:13px 16px;border-radius:var(--r-sm);border:2px solid var(--border);background:var(--surface);color:var(--text);font-size:16px;transition:border-color .15s;}
+.login-input::placeholder{color:var(--text3);}
+.login-input:focus{outline:none;border-color:var(--primary);}
+.login-btn{width:100%;padding:14px;border-radius:var(--r-sm);background:var(--primary);color:#fff;font-size:16px;font-weight:700;border:none;cursor:pointer;transition:opacity .15s;}
 .login-btn:active{opacity:.8;}
-.login-warn{min-height:18px;font-size:13px;color:#FF8A80;margin-top:8px;text-align:center;width:100%;}
-.login-admin-btn{margin-top:18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.8);border-radius:20px;padding:7px 20px;font-size:13px;cursor:pointer;font-family:inherit;}
-.login-version{color:rgba(255,255,255,.4);font-size:11px;margin-top:14px;}
+.login-warn{min-height:18px;font-size:13px;color:var(--red);margin-top:8px;text-align:center;width:100%;}
+.login-admin-btn{background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px 12px;}
+.login-version{color:var(--text3);font-size:11px;margin-top:6px;}
 /* ── Admin panel (bottom sheet) ── */
 #admin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;}
 #admin-panel{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:18px 18px 0 0;z-index:301;max-height:90vh;flex-direction:column;}
@@ -104,16 +115,16 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .adm-btn-del{border-color:var(--red);color:var(--red);}
 .adm-btn-toggle{border-color:var(--orange);color:var(--orange);}
 /* ── App shell ── */
-#app-header{height:var(--hdr-h);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0;position:relative;z-index:10;}
+#app-header{height:var(--hdr-h);background:var(--surface);color:var(--text);border-bottom:3px solid var(--primary);display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0;position:relative;z-index:10;}
 .hdr-left{display:flex;flex-direction:column;gap:1px;}
 .hdr-right{display:flex;align-items:center;gap:8px;}
-.hdr-title{font-size:16px;font-weight:700;}
-.hdr-idle{font-size:11px;opacity:.7;}
+.hdr-title{font-size:16px;font-weight:700;color:var(--primary);}
+.hdr-idle{font-size:11px;color:var(--text3);}
 #alert-banner{display:none;background:var(--red);color:#fff;padding:8px 14px;font-size:13px;font-weight:600;flex-shrink:0;z-index:9;}
 #alert-banner.warn{background:var(--orange);}
 #app-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 #app-tabs{height:var(--tab-h);background:var(--surface);border-top:1px solid var(--border);display:flex;flex-shrink:0;}
-.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 2px;background:transparent;border:none;color:var(--text3);font-size:10px;font-weight:600;position:relative;cursor:pointer;transition:color .15s;}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 0;background:transparent;border:none;color:var(--text3);font-size:11px;font-weight:600;position:relative;cursor:pointer;transition:color .15s;}
 .tab-item.active{color:var(--primary);}
 .tab-item .tab-icon{font-size:20px;}
 .tab-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
@@ -163,9 +174,9 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .mist-combo{display:flex;flex-direction:column;gap:6px;}
 .mist-select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:14px;background:#fff;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
 /* ── Intake form ── */
-.source-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 14px;}
+.source-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px 28px;}
 .source-btn{padding:12px 6px;border-radius:var(--r-sm);border:2px solid var(--border);background:transparent;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;}
-.source-btn.active{border-color:var(--primary);background:var(--blue-bg);color:var(--primary);}
+.source-btn.active{border-color:var(--primary);background:var(--red-bg);color:var(--primary);}
 .intake-form{padding:0 14px 80px;}
 .trauma-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .trauma-btn{padding:14px;border-radius:var(--r-sm);border:2px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;}
@@ -211,21 +222,23 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 <!-- ══ LOGIN SCREEN ══════════════════════════════════════════════ -->
 <div id="login-screen">
   <div class="login-wrap">
-    <div class="login-logo">🏥</div>
+    <div class="login-icon-wrap"><div class="login-logo">🏥</div></div>
     <div class="login-title">醫療組管理系統</div>
     <div class="login-sub">Medical Team PWA · 離線優先</div>
-    <div class="login-notice" id="login-notice" style="display:none;"></div>
-    <div class="login-field">
-      <input class="login-input" id="login-username" type="text" placeholder="帳號（任務代號）" autocomplete="off" autocorrect="off" spellcheck="false">
+    <div class="login-card">
+      <div class="login-notice" id="login-notice" style="display:none;"></div>
+      <div class="login-field">
+        <input class="login-input" id="login-username" type="text" placeholder="帳號（任務代號）" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div class="login-field">
+        <input class="login-input" id="login-pin" type="password" inputmode="numeric" placeholder="PIN（4–6 位數字）" maxlength="6" autocomplete="off"
+          onkeydown="if(event.key==='Enter')handleLogin()">
+      </div>
+      <button class="login-btn" onclick="handleLogin()">登入</button>
+      <div class="login-warn" id="login-warn"></div>
     </div>
-    <div class="login-field">
-      <input class="login-input" id="login-pin" type="password" inputmode="numeric" placeholder="PIN（4–6 位數字）" maxlength="6" autocomplete="off"
-        onkeydown="if(event.key==='Enter')handleLogin()">
-    </div>
-    <button class="login-btn" onclick="handleLogin()">登入</button>
-    <div class="login-warn" id="login-warn"></div>
     <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
-    <div class="login-version">醫療組 PWA v0.2.0 · 規格 v0.4</div>
+    <div class="login-version">醫療組 PWA v0.3.3 · 規格 v0.4</div>
   </div>
 </div>
 
@@ -285,12 +298,12 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div id="app-header">
     <div class="hdr-left">
       <div class="hdr-title">🏥 醫療組</div>
-      <div style="font-size:11px;opacity:.7" id="hdr-ws"></div>
+      <div style="font-size:11px;color:var(--text3);" id="hdr-ws"></div>
     </div>
     <div class="hdr-right">
-      <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
-      <span id="idle-countdown" style="font-size:11px;color:rgba(255,255,255,.65);white-space:nowrap;flex-shrink:0;min-width:32px;text-align:right;"></span>
-      <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">登出</button>
+      <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:var(--red-bg);color:var(--primary);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
+      <span id="idle-countdown" style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;min-width:32px;text-align:right;"></span>
+      <button onclick="doLogout()" style="background:transparent;border:1.5px solid var(--primary);color:var(--primary);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">登出</button>
     </div>
   </div>
 
@@ -405,6 +418,18 @@ db.version(3).stores({
   config:    'key',
   accounts:  '++id, username, role, status'
 });
+db.version(4).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, care_status, source_sex, source_age, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key',
+  accounts:  '++id, username, role, status'
+});
 
 /* ════════════════════════════════════════════════════════════════
    CRYPTO (PIN hash)
@@ -442,6 +467,10 @@ let _state = {
   intakeInjury: null,   // 'trauma' | 'medical'
   intakeTriageColor: null,
   intakeStart: { walk:'', breathing:'', circ:'', mental:'' },
+  intakeSecurity: 'incomplete',  // 'incomplete' | 'yes' | 'pending'
+  intakeSex: '',   // 'M' | 'F' | 'U'
+  intakeAge: '',   // 'C' | 'J' | 'A' | 'E'
+  intakeDraftId: '',
   morePage: null,       // null | 'resources' | 'incidents' | 'shift'
   zoneTimer: null,      // interval for zone card countdown refresh
   zoneColorFilter: null,
@@ -601,7 +630,7 @@ function updateIdleHdr(secsLeft) {
   if (secsLeft <= 0) { el.textContent = ''; return; }
   const m = Math.floor(secsLeft/60), s = secsLeft%60;
   el.textContent = m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
-  el.style.color = secsLeft <= 30 ? '#FF8A80' : 'rgba(255,255,255,.65)';
+  el.style.color = secsLeft <= 30 ? '#C62828' : '#999';
 }
 
 // 任何互動都重置
@@ -818,6 +847,12 @@ function setIntakeSource(s) {
   _state.intakeSource = s;
   _state.intakeMistMode = null;
   _state.intakeMistData = { m:'', i:'', s:'', t:'' };
+  _state.intakeSecurity = 'incomplete';
+  _state.intakeSex = '';
+  _state.intakeAge = '';
+  _state.intakeDraftId = '';
+  _state.intakeTriageColor = null;
+  _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
   renderCurrentTab();
 }
 
@@ -908,10 +943,11 @@ function renderIntakeForm() {
     <div class="section-hdr">安全檢查</div>
     <div style="display:flex;gap:10px;padding:0 14px 14px;">
       <div style="flex:1;">
-        <div class="form-label">安檢狀態</div>
-        <select class="form-select" id="intake-security">
-          <option value="yes">已完成</option>
-          <option value="pending">同步處理中（危急）</option>
+        <div class="form-label">安檢狀態<span class="req">*</span></div>
+        <select class="form-select" id="intake-security" onchange="onSecurityChange()">
+          <option value="incomplete" ${_state.intakeSecurity==='incomplete'?'selected':''}>⛔ 未完成</option>
+          <option value="yes" ${_state.intakeSecurity==='yes'?'selected':''}>✅ 已完成</option>
+          <option value="pending" ${_state.intakeSecurity==='pending'?'selected':''}>⚡ 同步處理中（危急）</option>
         </select>
       </div>
       <div style="flex:1;">
@@ -922,6 +958,31 @@ function renderIntakeForm() {
           <option value="registered">已登記</option>
         </select>
       </div>
+    </div>
+    <div class="section-hdr">最少化個人特徵（觀察估計）</div>
+    <div style="display:flex;gap:10px;padding:0 14px 10px;">
+      <div style="flex:1;">
+        <div class="form-label">性別</div>
+        <select class="form-select" id="intake-sex" onchange="onPersonChanged()">
+          <option value="" ${!_state.intakeSex?'selected':''}>—</option>
+          <option value="M" ${_state.intakeSex==='M'?'selected':''}>男</option>
+          <option value="F" ${_state.intakeSex==='F'?'selected':''}>女</option>
+          <option value="U" ${_state.intakeSex==='U'?'selected':''}>不明</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <div class="form-label">年齡段</div>
+        <select class="form-select" id="intake-age" onchange="onPersonChanged()">
+          <option value="" ${!_state.intakeAge?'selected':''}>—</option>
+          <option value="C" ${_state.intakeAge==='C'?'selected':''}>幼童 (&lt;12)</option>
+          <option value="J" ${_state.intakeAge==='J'?'selected':''}>青少年 (12–17)</option>
+          <option value="A" ${_state.intakeAge==='A'?'selected':''}>成人 (18–64)</option>
+          <option value="E" ${_state.intakeAge==='E'?'selected':''}>老年 (65+)</option>
+        </select>
+      </div>
+    </div>
+    <div id="patient-id-preview" style="padding:0 0 10px;${_state.intakeDraftId ? '' : 'display:none'}">
+      <div class="info-box info" style="font-size:14px;">傷患識別碼（預覽）：<strong id="patient-id-val">${_state.intakeDraftId}</strong></div>
     </div>
     <div class="section-hdr">START 檢傷</div>
     <div class="form-group">
@@ -949,7 +1010,7 @@ function renderIntakeForm() {
       </div>
     </div>
 
-    ${renderTriageColorPicker()}
+    <div id="triage-section">${renderTriageColorPicker()}</div>
 
   `;
 }
@@ -1051,49 +1112,189 @@ function renderXABCDE() {
 
 function renderSampleOpqrst() {
   return `
-    <div class="section-hdr">ABC 評估（非創）</div>
+    <div class="section-hdr">ABC 初步評估（非創）</div>
     <div class="form-group">
-      <div class="start-grid">
-        <div class="start-item"><label>A — 呼吸道</label>
-          <select id="abc-airway"><option value="">—</option><option value="patent">通暢</option><option value="needs_tx">需處置</option></select>
-        </div>
-        <div class="start-item"><label>B — 呼吸</label>
-          <select id="abc-breathing"><option value="">—</option><option value="normal">正常</option><option value="abnormal">異常</option></select>
-        </div>
-        <div class="start-item"><label>C — 循環</label>
-          <select id="abc-circulation"><option value="">—</option><option value="normal">正常</option><option value="abnormal">異常</option></select>
-        </div>
-        <div class="start-item"><label>血糖 (mg/dL)</label>
-          <input type="number" id="blood-glucose" placeholder="選填" style="border:none;font-size:14px;font-weight:600;background:transparent;">
-        </div>
+      <div class="form-label">A — 呼吸道 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝自然通暢</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="abc-airway" onchange="mistFill('abc-airway-note','abc-airway')">
+          <option value="">未評估</option>
+          <option value="自然通暢">自然通暢 ✓</option>
+          <option value="手法開放後通暢">手法開放後通暢</option>
+          <option value="OPA 置入維持">OPA 置入維持</option>
+          <option value="呼吸道阻塞（需立即處置）">呼吸道阻塞 ⚠️</option>
+        </select>
+        <input class="form-input" id="abc-airway-note" placeholder="補充說明">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">B — 呼吸 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝RR 12–20/分，SpO₂≥94%</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="abc-breathing" onchange="mistFill('abc-breathing-note','abc-breathing')">
+          <option value="">未評估</option>
+          <option value="正常（RR 12–20，SpO₂≥94%）">正常 ✓</option>
+          <option value="輕度異常（RR 20–30 或 SpO₂ 90–93%）">輕度異常</option>
+          <option value="重度異常（RR＞30 或 SpO₂＜90%）">重度異常 ⚠️</option>
+          <option value="呼吸停止">呼吸停止 🚨</option>
+        </select>
+        <input class="form-input" id="abc-breathing-note" placeholder="RR __ SpO₂ __%">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">C — 循環 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝橈動脈可觸及，CRT＜2s</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="abc-circulation" onchange="mistFill('abc-circulation-note','abc-circulation')">
+          <option value="">未評估</option>
+          <option value="正常（橈動脈可觸及，CRT＜2s）">正常 ✓</option>
+          <option value="輕度異常（HR 100–120 或 CRT 2–3s）">輕度異常</option>
+          <option value="重度異常（HR＞120 或 CRT≥3s 或橈動脈消失）">重度異常 ⚠️</option>
+          <option value="無脈搏">無脈搏 🚨</option>
+        </select>
+        <input class="form-input" id="abc-circulation-note" placeholder="HR __ BP __/__">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">血糖 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝70–140 mg/dL</span></div>
+      <div class="mist-combo">
+        <select class="mist-select" id="blood-glucose-sel" onchange="mistFill('blood-glucose','blood-glucose-sel')">
+          <option value="">未測</option>
+          <option value="正常（70–140 mg/dL）">正常</option>
+          <option value="低血糖（＜70 mg/dL）">低血糖 ＜70 ⚠️</option>
+          <option value="高血糖（＞250 mg/dL）">高血糖 ＞250 ⚠️</option>
+        </select>
+        <input class="form-input" id="blood-glucose" placeholder="數值 mg/dL（可留空）" type="number">
       </div>
     </div>
     <div class="section-hdr">SAMPLE</div>
-    <div class="form-group"><div class="form-label">S — 主訴 / 症狀</div>
-      <textarea class="form-input form-textarea" id="sample-s" placeholder="胸痛、呼吸困難…"></textarea></div>
-    <div class="form-group"><div class="form-label">A — 過敏史</div>
-      <input class="form-input" id="sample-a" type="text" placeholder="無 / 盤尼西林…"></div>
-    <div class="form-group"><div class="form-label">M — 用藥史</div>
-      <input class="form-input" id="sample-m" type="text" placeholder="降壓藥、血糖藥…"></div>
-    <div class="form-group"><div class="form-label">P — 過去病史</div>
-      <input class="form-input" id="sample-p" type="text" placeholder="高血壓、糖尿病…"></div>
-    <div class="form-group"><div class="form-label">L — 最後進食時間</div>
-      <input class="form-input" id="sample-l" type="text" placeholder="如：3小時前"></div>
+    <div class="form-group">
+      <div class="form-label">S — 主訴 / 症狀</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-s-sel" onchange="mistAppend('sample-s','sample-s-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>胸痛</option><option>呼吸困難</option><option>心悸</option>
+          <option>腹痛</option><option>頭痛</option><option>頭暈 / 暈厥</option>
+          <option>噁心 / 嘔吐</option><option>肢體無力 / 麻木</option>
+          <option>意識改變</option><option>發燒</option>
+        </select>
+        <textarea class="form-input form-textarea" id="sample-s" placeholder="或自行描述主訴…" style="min-height:60px;"></textarea>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">A — 過敏史</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-a-sel" onchange="mistFill('sample-a','sample-a-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無已知過敏">無已知過敏 ✓</option>
+          <option>藥物過敏（詳見補充）</option>
+          <option>食物過敏</option>
+          <option>不明</option>
+        </select>
+        <input class="form-input" id="sample-a" placeholder="補充（如：盤尼西林、NSAIDs…）">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">M — 用藥史</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-m-sel" onchange="mistAppend('sample-m','sample-m-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無長期用藥">無長期用藥</option>
+          <option>降壓藥</option><option>血糖藥 / 胰島素</option>
+          <option>抗凝血藥（warfarin / aspirin）</option>
+          <option>心臟藥</option><option>多種長期用藥（詳見補充）</option>
+        </select>
+        <input class="form-input" id="sample-m" placeholder="補充藥名">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">P — 過去病史</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-p-sel" onchange="mistAppend('sample-p','sample-p-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無重大病史">無重大病史</option>
+          <option>高血壓</option><option>糖尿病</option>
+          <option>心臟病 / 冠心症</option><option>腦中風</option>
+          <option>氣喘 / COPD</option><option>腎臟病</option>
+        </select>
+        <input class="form-input" id="sample-p" placeholder="補充病史">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">L — 最後進食時間</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-l-sel" onchange="mistFill('sample-l','sample-l-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>30 分鐘內</option><option>1 小時前</option>
+          <option>2 小時前</option><option>4 小時以上</option><option>不明</option>
+        </select>
+        <input class="form-input" id="sample-l" placeholder="或輸入時間">
+      </div>
+    </div>
     <div class="form-group"><div class="form-label">E — 事件經過</div>
-      <textarea class="form-input form-textarea" id="sample-e" placeholder="何時、何地、發生什麼…"></textarea></div>
-    <div class="section-hdr">OPQRST（疼痛）</div>
-    <div class="form-group"><div class="form-label">O — 何時開始</div>
-      <input class="form-input" id="opqrst-o" type="text" placeholder="30 分鐘前突發…"></div>
-    <div class="form-group"><div class="form-label">P — 加重 / 緩解因素</div>
-      <input class="form-input" id="opqrst-p" type="text" placeholder="深呼吸加重，休息緩解…"></div>
-    <div class="form-group"><div class="form-label">Q — 疼痛性質</div>
-      <input class="form-input" id="opqrst-q" type="text" placeholder="刺痛、悶痛、燒灼感…"></div>
-    <div class="form-group"><div class="form-label">R — 放射</div>
-      <input class="form-input" id="opqrst-r" type="text" placeholder="放射至左肩 / 無"></div>
-    <div class="form-group"><div class="form-label">S — 疼痛分級（0–10）</div>
-      <input class="form-input" id="opqrst-s" type="number" min="0" max="10" placeholder="0=無，10=最痛"></div>
-    <div class="form-group"><div class="form-label">T — 持續時間與趨勢</div>
-      <input class="form-input" id="opqrst-t" type="text" placeholder="持續 30 分鐘，逐漸加重…"></div>
+      <textarea class="form-input form-textarea" id="sample-e" placeholder="何時、何地、發生什麼、已做了什麼…"></textarea></div>
+    <div class="section-hdr">OPQRST（疼痛評估）</div>
+    <div class="form-group">
+      <div class="form-label">O — 發作時機</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-o-sel" onchange="mistFill('opqrst-o','opqrst-o-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>突發（如撕裂感）</option><option>漸進加重</option>
+          <option>運動 / 用力後</option><option>休息時發作</option><option>飯後發作</option>
+        </select>
+        <input class="form-input" id="opqrst-o" placeholder="補充（幾分鐘前、做什麼時…）">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">P — 加重 / 緩解因素</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-p-sel" onchange="mistAppend('opqrst-p','opqrst-p-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>深呼吸加重</option><option>活動加重</option>
+          <option>按壓加重</option><option>休息緩解</option>
+          <option>硝化甘油緩解</option><option>姿勢改變緩解</option>
+        </select>
+        <input class="form-input" id="opqrst-p" placeholder="補充">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">Q — 疼痛性質</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-q-sel" onchange="mistFill('opqrst-q','opqrst-q-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>刺痛</option><option>悶痛 / 壓迫感</option>
+          <option>燒灼感</option><option>撕裂痛</option>
+          <option>絞痛</option><option>脹痛</option>
+        </select>
+        <input class="form-input" id="opqrst-q" placeholder="補充描述">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">R — 放射部位</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-r-sel" onchange="mistFill('opqrst-r','opqrst-r-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無放射">無放射 ✓</option>
+          <option>放射至左肩 / 左臂（⚠️ 心臟）</option>
+          <option>放射至下顎（⚠️ 心臟）</option>
+          <option>放射至後背（⚠️ 主動脈）</option>
+          <option>放射至右肩（⚠️ 膽道）</option>
+        </select>
+        <input class="form-input" id="opqrst-r" placeholder="補充">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">S — 疼痛分級 <span style="font-size:11px;color:var(--text3);font-weight:400;">1–3 輕度 · 4–6 中度 · 7–10 重度</span></div>
+      <input class="form-input" id="opqrst-s" type="number" min="0" max="10" placeholder="0=無，10=最痛">
+    </div>
+    <div class="form-group">
+      <div class="form-label">T — 持續時間與趨勢</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="opqrst-t-sel" onchange="mistFill('opqrst-t','opqrst-t-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>持續性（不間斷）</option><option>間歇性</option>
+          <option>逐漸加重</option><option>逐漸緩解</option><option>波動起伏</option>
+        </select>
+        <input class="form-input" id="opqrst-t" placeholder="補充（幾分鐘、幾小時…）">
+      </div>
+    </div>
   `;
 }
 
@@ -1102,18 +1303,22 @@ function renderTriageColorPicker() {
   const vals  = ['red','yellow','green','black'];
   const lbl   = {'red':'🔴 紅區','yellow':'🟡 黃區','green':'🟢 綠區','black':'⚫ 黑區'};
   const sel   = _state.intakeTriageColor;
+  const locked = !canPickTriageColor();
+  const lockReason = _state.intakeSecurity === 'incomplete'
+    ? '⛔ 請先完成安檢（將安檢狀態改為已完成或同步處理中）'
+    : (!_state.intakeSex || !_state.intakeAge)
+      ? '請先填寫個人特徵（性別及年齡段均須選擇）'
+      : '請先完成 START 評估第一項（可自行行走）';
   return `
     <div class="section-hdr">檢傷分色</div>
-    <div class="form-group">
+    ${locked ? `<div style="padding:0 14px 10px;"><div class="info-box warn">${lockReason}</div></div>` : ''}
+    <div class="form-group" ${locked ? 'style="opacity:.4;pointer-events:none;"' : ''}>
       <div class="triage-color-btns">
         ${colors.map((c,i)=>`<button class="triage-color-btn ${vals[i]}${sel===vals[i]?' selected':''}" onclick="setTriageColor('${vals[i]}')">${c}區</button>`).join('')}
       </div>
       <div id="triage-hint" style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center;${sel?'display:none':''}">START 完整填寫後自動建議分色，或手動點選</div>
     </div>
-    <div id="triage-confirm" style="padding:0 0 4px;${sel?'':'display:none'}">
-      <button class="btn btn-success btn-full" onclick="confirmTriageColor()">✅ 確認分色：${lbl[sel]||''}</button>
-    </div>
-    <div id="triage-submit" style="padding:0 0 12px;${sel?'':'display:none'}">
+    <div id="triage-submit" style="padding:0 0 12px;${sel&&!locked?'':'display:none'}">
       <button class="btn btn-primary btn-full" onclick="submitIntake()">✅ 完成檢傷 → 建檔</button>
     </div>
   `;
@@ -1132,21 +1337,19 @@ function setInjury(type) {
 }
 
 function setTriageColor(c) {
+  if (!canPickTriageColor()) {
+    showToast(_state.intakeSecurity === 'incomplete' ? '⛔ 請先完成安檢' : '請先完成 START 評估');
+    return;
+  }
   console.log('[triage] setTriageColor called:', c);
   _state.intakeTriageColor = c;
   // Toggle selected class without destroying DOM
   document.querySelectorAll('.triage-color-btn').forEach(el=>{
     el.classList.toggle('selected', el.classList.contains(c));
   });
-  // Hide hint, show confirm button
+  // Hide hint, show submit button
   const hint = document.getElementById('triage-hint');
   if (hint) hint.style.display = 'none';
-  const confirmDiv = document.getElementById('triage-confirm');
-  if (confirmDiv) {
-    const lbl = {'red':'🔴 紅區','yellow':'🟡 黃區','green':'🟢 綠區','black':'⚫ 黑區'};
-    confirmDiv.style.display = '';
-    confirmDiv.innerHTML = `<button class="btn btn-success btn-full" onclick="confirmTriageColor()">✅ 確認分色：${lbl[c]||c}</button>`;
-  }
   const submitDiv = document.getElementById('triage-submit');
   if (submitDiv) submitDiv.style.display = '';
 }
@@ -1156,6 +1359,10 @@ function autoTriageColor() {
   const breathing= document.getElementById('start-breathing')?.value;
   const circ     = document.getElementById('start-circ')?.value;
   const mental   = document.getElementById('start-mental')?.value;
+  _state.intakeStart = { walk: walk||'', breathing: breathing||'', circ: circ||'', mental: mental||'' };
+  // Re-render triage section to update lock state
+  const sec = document.getElementById('triage-section');
+  if (sec) sec.innerHTML = renderTriageColorPicker();
   if (!walk) return;
   if (walk === 'yes') { setTriageColor('green'); return; }
   if (!breathing) return;
@@ -1167,21 +1374,6 @@ function autoTriageColor() {
   setTriageColor(mental === 'follows' ? 'yellow' : 'red');
 }
 
-function confirmTriageColor() {
-  console.log('[triage] confirmTriageColor called, color=', _state.intakeTriageColor);
-  _state.intakeStart = {
-    walk:      document.getElementById('start-walk')?.value || '',
-    breathing: document.getElementById('start-breathing')?.value || '',
-    circ:      document.getElementById('start-circ')?.value || '',
-    mental:    document.getElementById('start-mental')?.value || ''
-  };
-  document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
-  // Scroll to injury type section for clear feedback
-  setTimeout(() => {
-    const injEl = document.querySelector('.trauma-btns');
-    if (injEl) injEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 60);
-}
 
 function setMistMode(mode) {
   if (mode === null) {
@@ -1272,6 +1464,54 @@ function mistAppend(txtId, selId) {
   sel.value = '';
 }
 
+function canPickTriageColor() {
+  if (_state.intakeSecurity === 'incomplete') return false;
+  if (!_state.intakeSex || !_state.intakeAge) return false;
+  // Check DOM first (live), fall back to state
+  const walkEl = document.getElementById('start-walk');
+  const walk = walkEl ? walkEl.value : _state.intakeStart.walk;
+  return !!walk;
+}
+
+function onSecurityChange() {
+  const val = document.getElementById('intake-security')?.value;
+  if (val) {
+    _state.intakeSecurity = val;
+    if (val === 'incomplete') _state.intakeTriageColor = null;
+  }
+  const sec = document.getElementById('triage-section');
+  if (sec) sec.innerHTML = renderTriageColorPicker();
+}
+
+async function onPersonChanged() {
+  const sex = document.getElementById('intake-sex')?.value || '';
+  const age = document.getElementById('intake-age')?.value || '';
+  _state.intakeSex = sex;
+  _state.intakeAge = age;
+
+  const preview = document.getElementById('patient-id-preview');
+  const valEl = document.getElementById('patient-id-val');
+
+  if (sex && age) {
+    _state.intakeDraftId = await generateDraftId(sex, age);
+    if (valEl) valEl.textContent = _state.intakeDraftId;
+    if (preview) preview.style.display = '';
+  } else {
+    _state.intakeDraftId = '';
+    if (preview) preview.style.display = 'none';
+  }
+
+  // Always refresh triage section to update lock state
+  const sec = document.getElementById('triage-section');
+  if (sec) sec.innerHTML = renderTriageColorPicker();
+}
+
+async function generateDraftId(sexCode, ageCode) {
+  const last = await db.patients.orderBy('id').last();
+  const seq = last ? last.id + 1 : 1;
+  return `M${String(seq).padStart(3,'0')}-${sexCode}${ageCode}`;
+}
+
 async function submitIntake() {
   if (!_state.intakeTriageColor) { showToast('請選擇檢傷分色'); return; }
   const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
@@ -1288,15 +1528,21 @@ async function submitIntake() {
     mist_s: getMist('mist-s-sel','mist-s'), mist_t: gv('mist-t'),
   };
 
+  const sexCode = _state.intakeSex || 'U';
+  const ageCode = _state.intakeAge || 'A';
+  const displayId = _state.intakeDraftId || await generateDraftId(sexCode, ageCode);
+
   const patientData = {
-    display_id: nextDisplayId(),
+    display_id: displayId,
     triage_color: _state.intakeTriageColor,
     care_status: 'triaged',
     current_zone: zoneMap[_state.intakeTriageColor],
     source_type: _state.intakeSource,
+    source_sex: sexCode,
+    source_age: ageCode,
     chief_issue: getMist('mist-i-sel','mist-i') || '',
     vitals_summary: getMist('mist-s-sel','mist-s') || '',
-    security_cleared: gv('intake-security') !== 'pending',
+    security_cleared: _state.intakeSecurity !== 'incomplete',
     registered_with_shelter: gv('intake-shelter') || 'not_registered',
     disposition: '留觀',
     reassess_due_at: new Date(Date.now() + (_state.intakeTriageColor==='red'?5:15)*60000).toISOString(),
@@ -1311,6 +1557,10 @@ async function submitIntake() {
   _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
   _state.intakeMistMode = null;
   _state.intakeMistData = { m:'', i:'', s:'', t:'' };
+  _state.intakeSecurity = 'incomplete';
+  _state.intakeSex = '';
+  _state.intakeAge = '';
+  _state.intakeDraftId = '';
   showToast(`✅ ${patientData.display_id} 已建檔，分至${patientData.current_zone}`);
   switchTab('dashboard');
 }
@@ -1472,6 +1722,7 @@ async function openPatientDetail(id) {
       <div class="dash-row"><span class="dash-row-label">傷型</span><span class="dash-row-val">${injuryLabel}</span></div>
       <div class="dash-row"><span class="dash-row-label">主訴</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.chief_issue||'—'}</span></div>
       <div class="dash-row"><span class="dash-row-label">生命徵象</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.vitals_summary||'—'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">安檢狀態</span><span class="dash-row-val">${p.security_cleared ? '✅ 已完成' : '⛔ 未完成 / 同步中'}</span></div>
       <div class="dash-row"><span class="dash-row-label">處置</span><span class="dash-row-val">${p.disposition}</span></div>
       <div class="dash-row"><span class="dash-row-label">建檔者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
       ${latest ? `<div class="info-box info mt-1" style="font-size:12px;">檢傷：${latest.triage_at?.slice(0,16)||''} by ${latest.triage_by||''}</div>` : ''}
@@ -1614,10 +1865,10 @@ function renderTreatmentModal() {
     ${injType === 'medical' ? renderSampleOpqrst() : ''}
     ${injType ? `<button class="btn btn-primary btn-full mt-2" onclick="saveTreatmentAssessment(${id})">💾 儲存評估</button>` : ''}
   `;
-  // Re-use openModal if already open, else open fresh
-  const existing = document.getElementById('modal-body');
-  if (existing) {
-    existing.innerHTML = body;
+  // Re-use modal content if already visible, else open fresh
+  const overlay = document.getElementById('modal-overlay');
+  if (overlay && !overlay.classList.contains('hidden')) {
+    document.getElementById('modal-body').innerHTML = body;
   } else {
     openModal('治療評估', body, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
   }
