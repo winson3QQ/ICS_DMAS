@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "指揮部後端 (FastAPI)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "port": 8000,
+      "cwd": "command-dashboard"
+    },
+    {
       "name": "醫療組 PWA (靜態預覽)",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8001"],

@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.3.49';</script>
+<script>const PWA_VERSION='v0.3.50';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -191,7 +191,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .triage-color-btn.green{background:var(--green-bg);color:var(--green);}
 .triage-color-btn.black{background:var(--black-bg);color:var(--black-zone);}
 .triage-color-btn.selected{border-color:currentColor;box-shadow:0 0 0 2px currentColor;}
-.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.start-grid{display:grid;grid-template-columns:1fr;gap:10px;}
 .start-item{padding:10px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:#fff;display:flex;flex-direction:column;gap:3px;}
 .start-item label{font-size:13px;font-weight:700;color:var(--text2);}
 .start-hint{font-size:11px;color:var(--text3);font-weight:400;}
@@ -2265,8 +2265,13 @@ async function openIsbar(patientId) {
   const sText = `${p.chief_issue||'—'}，目前位於 ${p.current_zone}`;
   const aText = `生命徵象：${p.vitals_summary||'—'}`;
 
+  const needAppearance = !p.appearance_notes;
   openModal('ISBAR 後送交接',
     `<div class="flex flex-col gap-2">
+      ${needAppearance ? `<div class="info-box warning text-sm" style="border-color:var(--orange);background:#fff8f0;">
+        <b>⚠ 外觀特徵尚未填寫</b>　<span style="font-size:11px;color:var(--text3);">供事後身份比對</span>
+        <input class="form-input" id="isbar-appearance" placeholder="例：藍色上衣、右手紋身、黑框眼鏡…" style="margin-top:6px;">
+      </div>` : ''}
       <div class="info-box info text-sm"><b>I — Identify（識別）</b><br>${iText}</div>
       <div class="info-box info text-sm"><b>S — Situation（情況）</b><br>${sText}</div>
       <div class="info-box info text-sm"><b>A — Assessment（評估）</b><br>${aText}</div>
@@ -2302,7 +2307,8 @@ async function completeHandoff(patientId) {
   if (!r.trim()) { showToast('請填寫 R — 後送目的地與建議'); return; }
   const checklist = ['止血','呼吸道','給氧','靜脈通路','保暖','固定']
     .filter(item => document.getElementById('chk-'+item)?.checked).join('、');
-  _pendingHandoff = { patientId, b, r, checklist };
+  const appearanceFill = document.getElementById('isbar-appearance')?.value || '';
+  _pendingHandoff = { patientId, b, r, checklist, appearanceFill };
   _confirmInModal(
     '確認後送交接',
     `<strong>${p.display_id}</strong> 交接至「<strong>${r}</strong>」後無法修改，確認繼續？`,
@@ -2312,7 +2318,7 @@ async function completeHandoff(patientId) {
 }
 
 async function doCompleteHandoff() {
-  const { patientId, b, r, checklist } = _pendingHandoff;
+  const { patientId, b, r, checklist, appearanceFill } = _pendingHandoff;
   _pendingHandoff = null;
   const p = await db.patients.get(patientId);
   if (!p) return;
@@ -2323,7 +2329,9 @@ async function doCompleteHandoff() {
     isbar_text: `B: ${b}\nR: ${r}\n已完成: ${checklist||'（未勾選）'}`,
     departed_at: now, handoff_done_at: now, created_at: now,
   });
-  await db.patients.update(patientId, { disposition:'離開', current_zone:'已離區', handoff_by: _state.operatorName, handoff_at: now, updated_at: now });
+  const patientUpdate = { disposition:'離開', current_zone:'已離區', handoff_by: _state.operatorName, handoff_at: now, updated_at: now };
+  if (appearanceFill) patientUpdate.appearance_notes = appearanceFill;
+  await db.patients.update(patientId, patientUpdate);
   closeModal();
   showToast(`${p.display_id} 後送交接完成`);
   const linkedThreats = await db.incidents
