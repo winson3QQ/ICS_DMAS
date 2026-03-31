@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'medical-pwa-v0.3.48';
+const CACHE_NAME = 'medical-pwa-v0.3.49';
 const STATIC_ASSETS = [
   './medical_pwa.html',
   './sw.js',
