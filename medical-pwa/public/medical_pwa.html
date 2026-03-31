@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.3.50';</script>
+<script>const PWA_VERSION='v0.3.52';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -82,10 +82,10 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .info-box.success{background:var(--green-bg);color:var(--green);}
 /* ── Layout ── */
 #login-screen,#app{position:fixed;inset:0;display:flex;flex-direction:column;}
-#login-screen{background:var(--bg);color:var(--text);align-items:center;justify-content:center;padding:24px;overflow-y:auto;}
+#login-screen{background:var(--bg);color:var(--text);align-items:center;padding:24px;overflow-y:auto;}
 /* ── Login screen ── */
-.login-wrap{width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;}
-.login-icon-wrap{width:88px;height:88px;border-radius:24px;background:linear-gradient(145deg,var(--primary) 0%,var(--primary-dk) 100%);display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:16px;box-shadow:0 6px 20px rgba(198,40,40,.3);}
+.login-wrap{width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;margin:auto 0;}
+.login-icon-wrap{width:108px;height:108px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
 .login-logo{line-height:1;}
 .login-title{font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text);}
 .login-sub{font-size:13px;color:var(--text3);margin-bottom:28px;}
@@ -224,19 +224,18 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 <!-- ══ LOGIN SCREEN ══════════════════════════════════════════════ -->
 <div id="login-screen">
   <div class="login-wrap">
-    <div class="login-icon-wrap"><div class="login-logo">🏥</div></div>
+    <div class="login-icon-wrap"><img src="badge.png" alt="Taiwan Civil Defense" style="width:108px;height:108px;border-radius:18px;"></div>
     <div class="login-title">醫療組管理系統</div>
     <div class="login-sub">Medical Team PWA · 離線優先</div>
     <div class="login-card">
       <div class="login-notice" id="login-notice" style="display:none;"></div>
       <div class="login-field">
-        <input class="login-input" id="login-username" type="text" placeholder="帳號（任務代號）" autocomplete="off" autocorrect="off" spellcheck="false">
+        <input class="login-input" id="login-username" type="text" placeholder="帳號" autocomplete="off" autocorrect="off" spellcheck="false">
       </div>
       <div class="login-field">
         <input class="login-input" id="login-pin" type="password" inputmode="numeric" placeholder="PIN（4–6 位數字）" maxlength="6" autocomplete="off"
           oninput="this.value=this.value.replace(/\D/g,'')"
           onkeydown="if(event.key==='Enter')handleLogin()">
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;padding-left:2px;">僅限數字</div>
       </div>
       <button class="login-btn" onclick="handleLogin()">登入</button>
       <div class="login-warn" id="login-warn"></div>
@@ -256,11 +255,10 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <!-- PIN verify -->
   <div id="adm-pin-screen" style="padding:20px 18px;">
     <div class="form-group"><label class="form-label">管理員 PIN</label>
-      <input id="adm-pin-input" type="password" inputmode="numeric" class="form-input" placeholder="輸入管理員 PIN" maxlength="6"
+      <input id="adm-pin-input" type="password" inputmode="numeric" class="form-input" placeholder="管理員 PIN（4-6 位數字）" maxlength="6"
         oninput="this.value=this.value.replace(/\D/g,'')"
         onkeydown="if(event.key==='Enter')adminVerify()">
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;">僅限數字，4–6 位</div>
-    </div>
+          </div>
     <button class="btn btn-primary btn-full" onclick="adminVerify()">確認</button>
     <div id="adm-pin-err" style="color:var(--red);font-size:13px;margin-top:8px;min-height:16px;"></div>
   </div>
@@ -284,15 +282,14 @@ input,select,textarea{font-family:inherit;font-size:16px;}
             <option value="通訊官">通訊官</option><option value="機動人員">機動人員</option>
           </select>
         </div>
-        <div class="form-group"><label class="form-label">PIN（4–6 位）</label><input class="form-input" id="adm-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="設定登入 PIN" oninput="this.value=this.value.replace(/\D/g,'')"><div style="font-size:11px;color:var(--text3);margin-top:4px;">僅限數字，4–6 位</div></div>
+        <div class="form-group"><label class="form-label">PIN（4–6 位）</label><input class="form-input" id="adm-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN（4-6 位數字）" oninput="this.value=this.value.replace(/\D/g,'')"><div style="font-size:11px;color:var(--text3);margin-top:4px;">僅限數字，4–6 位</div></div>
         <button class="btn btn-primary btn-full" onclick="admAddAccount()">建立帳號</button>
         <div id="adm-add-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
       </div>
       <div id="adm-panel-cfg" style="display:none;">
         <div class="form-group"><label class="form-label">修改管理員 PIN</label>
-          <input class="form-input" id="adm-cfg-pin" type="password" inputmode="numeric" maxlength="6" placeholder="新管理員 PIN（4–6 位）" oninput="this.value=this.value.replace(/\D/g,'')">
-          <div style="font-size:11px;color:var(--text3);margin-top:4px;">僅限數字，4–6 位</div>
-        </div>
+          <input class="form-input" id="adm-cfg-pin" type="password" inputmode="numeric" maxlength="6" placeholder="新管理員 PIN（4-6 位數字）" oninput="this.value=this.value.replace(/\D/g,'')">
+                  </div>
         <button class="btn btn-primary btn-full" onclick="admChangeAdminPin()">更新管理員 PIN</button>
         <div id="adm-cfg-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
       </div>
@@ -304,7 +301,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 <div id="app" class="hidden">
   <div id="app-header">
     <div class="hdr-left">
-      <div class="hdr-title">🏥 醫療組</div>
+      <div class="hdr-title"><svg width="20" height="20" viewBox="0 0 88 88" style="vertical-align:middle;margin-right:4px;"><path d="M34,4 h20 a3,3 0 0 1 3,3 v23 h23 a3,3 0 0 1 3,3 v20 a3,3 0 0 1 -3,3 h-23 v23 a3,3 0 0 1 -3,3 h-20 a3,3 0 0 1 -3,-3 v-23 h-23 a3,3 0 0 1 -3,-3 v-20 a3,3 0 0 1 3,-3 h23 v-23 a3,3 0 0 1 3,-3 z" fill="none" stroke="var(--primary)" stroke-width="6"/></svg>醫療組</div>
       <div style="font-size:11px;color:var(--text3);" id="hdr-ws"></div>
     </div>
     <div class="hdr-right">
@@ -2887,7 +2884,7 @@ async function admLoadAccounts() {
       <div class="adm-card-meta">${a.role} · <span style="color:${a.status==='active'?'var(--green)':'var(--red)'}">${a.status==='active'?'啟用':'停用'}</span></div>
       <div id="adm-edit-${a.id}" style="display:none;margin-top:8px;">
         <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input type="password" inputmode="numeric" id="adm-newpin-${a.id}" class="form-input" placeholder="新 PIN（4-6碼，留空不改）" style="flex:1;padding:7px 10px;font-size:14px;">
+          <input type="password" inputmode="numeric" id="adm-newpin-${a.id}" class="form-input" placeholder="新 PIN（4-6 位數字，留空不改）" style="flex:1;padding:7px 10px;font-size:14px;">
           <select id="adm-newrole-${a.id}" class="form-input form-select" style="flex:1;padding:7px 10px;font-size:14px;">
             ${['組長','副組長','檢傷官','治療官','後送官','後勤官','通訊官','機動人員'].map(r=>`<option value="${r}"${a.role===r?' selected':''}>${r}</option>`).join('')}
           </select>
