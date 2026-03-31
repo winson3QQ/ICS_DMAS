@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v0.1.0';</script>
+<script>const PWA_VERSION='v2.1';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -30,7 +30,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#C07800">
-  <title>收容組 v2.1</title>
+  <title>收容組</title>
+<script>document.title = '收容組 ' + PWA_VERSION;</script>
   <link rel="manifest" href="manifest.json" id="manifest-link">
   <style>
     :root {
