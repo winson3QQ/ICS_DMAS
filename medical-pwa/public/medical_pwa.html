@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.3.3';</script>
+<script>const PWA_VERSION='v0.3.48';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,7 +15,7 @@
   --bg:#F5F5F5; --surface:#FFFFFF; --surface2:#FAFAFA;
   --text:#1A1A1A; --text2:#666; --text3:#999; --border:#E0E0E0;
   --red:#C62828; --red-bg:#FFEBEE;
-  --yellow:#E65100; --yellow-bg:#FFF3E0;
+  --yellow:#D4A000; --yellow-bg:#FFF8E1;
   --green:#2E7D32; --green-bg:#E8F5E9;
   --black-zone:#212121; --black-bg:#EEEEEE;
   --blue:#1565C0; --blue-bg:#E3F2FD;
@@ -128,6 +128,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .tab-item.active{color:var(--primary);}
 .tab-item .tab-icon{font-size:20px;}
 .tab-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
+.tab-badge-alert{position:absolute;top:4px;right:calc(50% + 4px);background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
 /* ── Capacity bar ── */
 .cap-bar{display:flex;gap:8px;padding:12px 14px 0;background:var(--surface);margin-bottom:2px;}
 .cap-stat{flex:1;text-align:center;padding:8px 4px;border-radius:var(--r-sm);}
@@ -148,12 +149,12 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .dash-row-label{font-size:14px;color:var(--text2);}
 .dash-row-val{font-size:16px;font-weight:700;}
 /* ── Patient card ── */
-.patient-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);margin:6px 10px;padding:12px;border-left:4px solid transparent;}
+.patient-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow-sm);margin:6px 10px;padding:12px;border-left:6px solid transparent;}
 .patient-card.red{border-color:var(--red);}
 .patient-card.yellow{border-color:var(--yellow);}
 .patient-card.green{border-color:var(--green);}
 .patient-card.black{border-color:var(--black-zone);}
-.patient-card.overdue{box-shadow:0 0 0 2px var(--red);}
+.patient-card.overdue{}
 .pc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .pc-id{font-size:16px;font-weight:700;}
 .pc-timer{font-size:13px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-bg);color:var(--blue);}
@@ -189,11 +190,11 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .triage-color-btn.green{background:var(--green-bg);color:var(--green);}
 .triage-color-btn.black{background:var(--black-bg);color:var(--black-zone);}
 .triage-color-btn.selected{border-color:currentColor;box-shadow:0 0 0 2px currentColor;}
-.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .start-item{padding:10px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:#fff;display:flex;flex-direction:column;gap:3px;}
-.start-item label{font-size:11px;font-weight:700;color:var(--text3);}
-.start-hint{font-size:10px;color:var(--text3);font-weight:400;opacity:.75;}
-.start-item select{border:none;padding:0;font-size:14px;font-weight:600;background:transparent;}
+.start-item label{font-size:13px;font-weight:700;color:var(--text2);}
+.start-hint{font-size:11px;color:var(--text3);font-weight:400;}
+.start-item select{border:none;padding:0;font-size:15px;font-weight:600;background:transparent;}
 /* ── Modal / overlay ── */
 #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-end;justify-content:center;}
 .modal{background:var(--surface);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;}
@@ -232,13 +233,15 @@ input,select,textarea{font-family:inherit;font-size:16px;}
       </div>
       <div class="login-field">
         <input class="login-input" id="login-pin" type="password" inputmode="numeric" placeholder="PIN（4–6 位數字）" maxlength="6" autocomplete="off"
+          oninput="this.value=this.value.replace(/\D/g,'')"
           onkeydown="if(event.key==='Enter')handleLogin()">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;padding-left:2px;">僅限數字</div>
       </div>
       <button class="login-btn" onclick="handleLogin()">登入</button>
       <div class="login-warn" id="login-warn"></div>
     </div>
     <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
-    <div class="login-version">醫療組 PWA v0.3.3 · 規格 v0.4</div>
+    <div class="login-version" id="login-version-str">醫療組 PWA · 規格 v0.4</div>
   </div>
 </div>
 
@@ -253,7 +256,9 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div id="adm-pin-screen" style="padding:20px 18px;">
     <div class="form-group"><label class="form-label">管理員 PIN</label>
       <input id="adm-pin-input" type="password" inputmode="numeric" class="form-input" placeholder="輸入管理員 PIN" maxlength="6"
+        oninput="this.value=this.value.replace(/\D/g,'')"
         onkeydown="if(event.key==='Enter')adminVerify()">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">僅限數字，4–6 位</div>
     </div>
     <button class="btn btn-primary btn-full" onclick="adminVerify()">確認</button>
     <div id="adm-pin-err" style="color:var(--red);font-size:13px;margin-top:8px;min-height:16px;"></div>
@@ -278,13 +283,14 @@ input,select,textarea{font-family:inherit;font-size:16px;}
             <option value="通訊官">通訊官</option><option value="機動人員">機動人員</option>
           </select>
         </div>
-        <div class="form-group"><label class="form-label">PIN（4–6 位）</label><input class="form-input" id="adm-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="設定登入 PIN"></div>
+        <div class="form-group"><label class="form-label">PIN（4–6 位）</label><input class="form-input" id="adm-new-pin" type="password" inputmode="numeric" maxlength="6" placeholder="設定登入 PIN" oninput="this.value=this.value.replace(/\D/g,'')"><div style="font-size:11px;color:var(--text3);margin-top:4px;">僅限數字，4–6 位</div></div>
         <button class="btn btn-primary btn-full" onclick="admAddAccount()">建立帳號</button>
         <div id="adm-add-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
       </div>
       <div id="adm-panel-cfg" style="display:none;">
         <div class="form-group"><label class="form-label">修改管理員 PIN</label>
-          <input class="form-input" id="adm-cfg-pin" type="password" inputmode="numeric" maxlength="6" placeholder="新管理員 PIN（4–6 位）">
+          <input class="form-input" id="adm-cfg-pin" type="password" inputmode="numeric" maxlength="6" placeholder="新管理員 PIN（4–6 位）" oninput="this.value=this.value.replace(/\D/g,'')">
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">僅限數字，4–6 位</div>
         </div>
         <button class="btn btn-primary btn-full" onclick="admChangeAdminPin()">更新管理員 PIN</button>
         <div id="adm-cfg-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
@@ -316,16 +322,21 @@ input,select,textarea{font-family:inherit;font-size:16px;}
       <span class="tab-icon">📊</span>儀表板
     </button>
     <button class="tab-item" data-tab="intake" onclick="switchTab('intake')" style="position:relative;">
-      <span class="tab-icon">➕</span>接收
+      <span class="tab-icon">➕</span>接收/檢傷
       <span class="tab-badge hidden" id="tab-badge-intake"></span>
     </button>
     <button class="tab-item" data-tab="zones" onclick="switchTab('zones')" style="position:relative;">
-      <span class="tab-icon">🏥</span>分區
+      <span class="tab-icon">🏥</span>治療區
+      <span class="tab-badge-alert hidden" id="tab-badge-zones-alert">!</span>
       <span class="tab-badge hidden" id="tab-badge-zones"></span>
     </button>
     <button class="tab-item" data-tab="transfer" onclick="switchTab('transfer')" style="position:relative;">
       <span class="tab-icon">🚑</span>後送
       <span class="tab-badge hidden" id="tab-badge-transfer"></span>
+    </button>
+    <button class="tab-item" data-tab="events" onclick="switchTab('events')" style="position:relative;">
+      <span class="tab-icon">⚠️</span>事件
+      <span class="tab-badge hidden" id="tab-badge-events"></span>
     </button>
     <button class="tab-item" data-tab="more" onclick="switchTab('more')">
       <span class="tab-icon">⋯</span>更多
@@ -357,7 +368,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 <div id="qr-scan-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">
   <div style="width:100%;max-width:360px;background:#222;border-radius:14px;overflow:hidden;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #444;">
-      <span style="color:#fff;font-weight:700;font-size:15px;">📷 掃描傷患 QR Code</span>
+      <span id="qr-scan-title" style="color:#fff;font-weight:700;font-size:15px;">📷 掃描傷患 QR Code</span>
       <button onclick="stopQrScan()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;font-family:inherit;">✕ 關閉</button>
     </div>
     <div style="position:relative;background:#000;">
@@ -471,11 +482,15 @@ let _state = {
   intakeSex: '',   // 'M' | 'F' | 'U'
   intakeAge: '',   // 'C' | 'J' | 'A' | 'E'
   intakeDraftId: '',
+  intakeShelterNumber: '',  // 收容編號（source B）
+  intakeAppearance: '',     // 外觀特徵描述（選填）
+  qrScanMode: 'mist',       // 'mist' | 'shelter'
   morePage: null,       // null | 'resources' | 'incidents' | 'shift'
   zoneTimer: null,      // interval for zone card countdown refresh
   zoneColorFilter: null,
   intakeMistMode: null,   // null | 'manual'
   intakeMistData: { m:'', i:'', s:'', t:'' },
+  pendingSecurityIncidentId: null, // 安檢未完成事件 ID，建檔後連結傷患
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -503,7 +518,7 @@ const DEFAULT_ADMIN_PIN = '0000';
 async function seedAccounts() {
   const count = await db.accounts.count();
   if (count > 0) return false;
-  const now = new Date().toISOString();
+  const now = localISO();
   for (const a of DEFAULT_ACCOUNTS_RAW) {
     const pin_hash = await Crypto.hashPin(a.pin);
     await db.accounts.add({ username:a.username, display_name:a.display_name, role:a.role, pin_hash, status:'active', created_at:now });
@@ -517,7 +532,18 @@ async function seedAccounts() {
    LOGIN
 ════════════════════════════════════════════════════════════════ */
 async function initLogin() {
+  const vEl = document.getElementById('login-version-str');
+  if (vEl) vEl.textContent = `醫療組 PWA ${PWA_VERSION} · 規格 v0.4`;
   await seedAccounts();
+  const saved = localStorage.getItem('med_session');
+  if (saved) {
+    try {
+      const { accountId } = JSON.parse(saved);
+      const acct = await db.accounts.get(accountId);
+      if (acct && acct.status !== 'suspended') { showApp(acct); return; }
+    } catch(e) {}
+    localStorage.removeItem('med_session');
+  }
 }
 
 async function handleLogin() {
@@ -555,18 +581,23 @@ async function handleLogin() {
   }
 
   _state.loginAttempts = 0;
+  document.getElementById('login-pin').value = '';
+  localStorage.setItem('med_session', JSON.stringify({ accountId: acct.id }));
+  showApp(acct);
+}
+
+function showApp(acct) {
   _state.currentAccountId = acct.id;
   _state.role = acct.role;
   _state.operatorName = acct.display_name || acct.username;
-  document.getElementById('login-pin').value = '';
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
   document.getElementById('hdr-role').innerHTML = `<span>${acct.role}・${_state.operatorName}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">登入 ${loginTime}</span>`;
   startIdleTimer();
-  // Role-based initial tab
+  // Role-based initial tab, fallback to last visited tab
   const roleTabMap = { '檢傷官':'intake', '治療官':'zones', '後送官':'transfer', '後勤官':'more', '機動人員':'zones' };
-  const initTab = roleTabMap[acct.role] || 'dashboard';
+  const initTab = localStorage.getItem('med_last_tab') || roleTabMap[acct.role] || 'dashboard';
   _state.currentTab = initTab;
   document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===initTab));
   loadPatients().then(renderCurrentTab);
@@ -607,6 +638,9 @@ function resetIdle() {
 }
 
 function doLock() {
+  const lastUser = _state.operatorName; // 保留以便預填
+  localStorage.removeItem('med_session');
+  localStorage.removeItem('med_last_tab');
   document.getElementById('idle-warning').classList.add('hidden');
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
@@ -616,6 +650,10 @@ function doLock() {
   _state.currentAccountId = null;
   _state.role = '';
   _state.operatorName = '';
+  // 預填帳號欄，游標移至 PIN
+  const usernameEl = document.getElementById('login-username');
+  if (usernameEl && lastUser) usernameEl.value = lastUser;
+  document.getElementById('login-pin')?.focus();
 }
 
 function clearIdleTimers() {
@@ -670,7 +708,10 @@ async function loadPatients() {
 }
 
 function countByColor(color) {
-  return _state.patients.filter(p=>p.triage_color===color && p.current_zone !== '已離區').length;
+  // 按「現在所在區」計算（而非初始檢傷顏色），與治療區 tab 同步
+  const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
+  const zoneName = zoneMap[color];
+  return _state.patients.filter(p => p.current_zone === zoneName && p.disposition !== '後送' && p.disposition !== '離開').length;
 }
 
 function countByZone(zone) {
@@ -693,12 +734,20 @@ function generateSnapshotUUID() {
   });
 }
 
+// 產生本機時間的 ISO-like 字串（不含時區後綴），避免 UTC 偏移 8 小時問題
+function localISO(d) {
+  d = d || new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 /* ════════════════════════════════════════════════════════════════
    TAB ROUTING
 ════════════════════════════════════════════════════════════════ */
 function switchTab(tab) {
   _state.currentTab = tab;
   _state.morePage = null;
+  localStorage.setItem('med_last_tab', tab);
   if (_state.zoneTimer) { clearInterval(_state.zoneTimer); _state.zoneTimer = null; }
   document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
   renderCurrentTab();
@@ -707,7 +756,7 @@ function switchTab(tab) {
 async function renderCurrentTab() {
   await loadPatients();
   await refreshAlertBanner();
-  updateTabBadges();
+  await updateTabBadges();
   const content = document.getElementById('app-content');
   if (_state.zoneTimer) { clearInterval(_state.zoneTimer); _state.zoneTimer = null; }
   switch(_state.currentTab) {
@@ -718,24 +767,36 @@ async function renderCurrentTab() {
       _state.zoneTimer = setInterval(()=>{ if(_state.currentTab==='zones') refreshZoneCountdowns(); }, 30000);
       break;
     case 'transfer':  await renderTransfer(content); break;
+    case 'events':    await renderIncidents(content); break;
     case 'more':      await renderMore(content); break;
   }
 }
 
-function updateTabBadges() {
+async function updateTabBadges() {
   const now = new Date();
-  // 分區：再評估逾時數
-  const overdue = _state.patients.filter(p => p.reassess_due_at && new Date(p.reassess_due_at) < now).length;
+  // 分區：右側 badge = 已檢傷待評估（紅色）；左側 ! = 再評估逾時（紅色）
+  const onSiteActive = p => p.disposition !== '後送' && p.disposition !== '離開' && p.current_zone !== '已離區';
+  const overdue = _state.patients.filter(p => onSiteActive(p) && p.reassess_due_at && new Date(p.reassess_due_at) < now).length;
+  const needAssess = _state.patients.filter(p => onSiteActive(p) && (p.care_status || 'triaged') === 'triaged').length;
   const bZones = document.getElementById('tab-badge-zones');
-  if (bZones) { bZones.textContent = overdue; bZones.classList.toggle('hidden', overdue === 0); }
-  // 接收：待治療評估（care_status = 'triaged'）
-  const needAssess = _state.patients.filter(p => (p.care_status || 'triaged') === 'triaged').length;
+  if (bZones) {
+    bZones.style.background = 'var(--red)';
+    bZones.textContent = needAssess;
+    bZones.classList.toggle('hidden', needAssess === 0);
+  }
+  const bZonesAlert = document.getElementById('tab-badge-zones-alert');
+  if (bZonesAlert) { bZonesAlert.classList.toggle('hidden', overdue === 0); }
+  // 接收：無 badge（建檔是主動操作，不需提示）
   const bIntake = document.getElementById('tab-badge-intake');
-  if (bIntake) { bIntake.textContent = needAssess; bIntake.classList.toggle('hidden', needAssess === 0); }
+  if (bIntake) { bIntake.classList.add('hidden'); }
   // 後送：待後送佇列
   const pendingTx = _state.patients.filter(p => p.disposition === '後送').length;
   const bTransfer = document.getElementById('tab-badge-transfer');
   if (bTransfer) { bTransfer.textContent = pendingTx; bTransfer.classList.toggle('hidden', pendingTx === 0); }
+  // 事件：開放事件數
+  const openInc = await db.incidents.where('status').equals('open').count();
+  const bEvents = document.getElementById('tab-badge-events');
+  if (bEvents) { bEvents.textContent = openInc; bEvents.classList.toggle('hidden', openInc === 0); }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -770,7 +831,8 @@ function getRedSlotsFree() {
 ════════════════════════════════════════════════════════════════ */
 function renderDashboard(el) {
   const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
-  const total = r+y+g+b;
+  // 醫療站傷患總數：全站在場，排除已離開（含待後送佇列）
+  const onSite = _state.patients.filter(p => p.disposition !== '離開' && p.current_zone !== '已離區').length;
   const pending = getPendingTransfer();
   const light = r>2 || pending>=2 ? '紅：量能吃緊' : r>0 || pending>0 ? '黃：有傷患待處理' : '綠：量能正常';
   const lightColor = r>2||pending>=2 ? 'var(--red)' : r>0||pending>0 ? 'var(--orange)' : 'var(--green)';
@@ -790,16 +852,24 @@ function renderDashboard(el) {
     </div>
     <div class="section-hdr">即時狀態</div>
     <div class="dash-row">
-      <span class="dash-row-label">傷患總數</span>
-      <span class="dash-row-val">${total}</span>
+      <span class="dash-row-label">醫療站傷患總數</span>
+      <span class="dash-row-val">${onSite}</span>
     </div>
     <div class="dash-row">
-      <span class="dash-row-label">待後送</span>
+      <span class="dash-row-label">已檢傷，待評估</span>
+      <span class="dash-row-val" style="color:${_state.patients.filter(p=>(p.care_status||'triaged')==='triaged'&&p.current_zone!=='已離區'&&p.disposition!=='離開'&&p.disposition!=='後送').length>0?'var(--orange)':'inherit'}">${_state.patients.filter(p=>(p.care_status||'triaged')==='triaged'&&p.current_zone!=='已離區'&&p.disposition!=='離開'&&p.disposition!=='後送').length}</span>
+    </div>
+    <div class="dash-row">
+      <span class="dash-row-label">已評估，治療中</span>
+      <span class="dash-row-val">${_state.patients.filter(p=>p.care_status==='assessed'&&p.disposition!=='後送'&&p.disposition!=='離開'&&p.current_zone!=='已離區').length}</span>
+    </div>
+    <div class="dash-row">
+      <span class="dash-row-label">等待後送</span>
       <span class="dash-row-val" style="color:${pending>0?'var(--red)':'inherit'}">${pending}</span>
     </div>
     <div class="dash-row">
       <span class="dash-row-label">已後送 / 離區</span>
-      <span class="dash-row-val">${_state.patients.filter(p=>p.disposition==='discharged'||p.current_zone==='已離區').length}</span>
+      <span class="dash-row-val">${_state.patients.filter(p=>p.disposition==='離開'||p.current_zone==='已離區').length}</span>
     </div>
     <div class="section-hdr">快速操作</div>
     <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;">
@@ -851,8 +921,11 @@ function setIntakeSource(s) {
   _state.intakeSex = '';
   _state.intakeAge = '';
   _state.intakeDraftId = '';
+  _state.intakeAppearance = '';
   _state.intakeTriageColor = null;
   _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
+  _state.intakeShelterReg = s === 'B' ? 'registered' : 'not_registered';
+  _state.intakeShelterNumber = '';
   renderCurrentTab();
 }
 
@@ -941,6 +1014,25 @@ function renderIntakeForm() {
   return `
     ${mistSection}
     <div class="section-hdr">安全檢查</div>
+    ${_state.intakeSource === 'B' ? `
+    <div style="padding:0 14px 14px;">
+      <div class="form-label">安檢狀態<span class="req">*</span></div>
+      <select class="form-select" id="intake-security" onchange="onSecurityChange()">
+        <option value="incomplete" ${_state.intakeSecurity==='incomplete'?'selected':''}>⛔ 未完成</option>
+        <option value="yes" ${_state.intakeSecurity==='yes'?'selected':''}>✅ 已完成</option>
+        <option value="pending" ${_state.intakeSecurity==='pending'?'selected':''}>⚡ 同步處理中（危急）</option>
+      </select>
+    </div>
+    <div class="section-hdr">收容編號</div>
+    <div style="padding:0 14px 14px;">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-primary flex-1" onclick="openQrScanModal('shelter')">📷 掃描收容 QR</button>
+      </div>
+      <input class="form-input" id="shelter-num-input" type="text" placeholder="收容編號（手動輸入）"
+        value="${_state.intakeShelterNumber}"
+        oninput="_state.intakeShelterNumber=this.value">
+    </div>
+    ` : `
     <div style="display:flex;gap:10px;padding:0 14px 14px;">
       <div style="flex:1;">
         <div class="form-label">安檢狀態<span class="req">*</span></div>
@@ -953,9 +1045,9 @@ function renderIntakeForm() {
       <div style="flex:1;">
         <div class="form-label">收容組登記</div>
         <select class="form-select" id="intake-shelter">
-          <option value="not_registered">未登記</option>
-          <option value="notify">已通知補登</option>
-          <option value="registered">已登記</option>
+          <option value="not_registered" ${(_state.intakeShelterReg||'not_registered')==='not_registered'?'selected':''}>未登記</option>
+          <option value="notify" ${_state.intakeShelterReg==='notify'?'selected':''}>已通知補登</option>
+          <option value="registered" ${_state.intakeShelterReg==='registered'?'selected':''}>已登記</option>
         </select>
       </div>
     </div>
@@ -981,11 +1073,18 @@ function renderIntakeForm() {
         </select>
       </div>
     </div>
+    <div style="padding:0 14px 10px;">
+      <div class="form-label">外觀特徵描述 <span style="font-size:11px;color:var(--text3);font-weight:400;">選填 — 衣著顏色、明顯特徵，供事後身份比對</span></div>
+      <input class="form-input" id="intake-appearance" placeholder="例：藍色上衣、右手紋身、黑框眼鏡…"
+        value="${_state.intakeAppearance}"
+        oninput="_state.intakeAppearance=this.value">
+    </div>
+    `}
     <div id="patient-id-preview" style="padding:0 0 10px;${_state.intakeDraftId ? '' : 'display:none'}">
       <div class="info-box info" style="font-size:14px;">傷患識別碼（預覽）：<strong id="patient-id-val">${_state.intakeDraftId}</strong></div>
     </div>
     <div class="section-hdr">START 檢傷</div>
-    <div class="form-group">
+    <div style="padding:0 14px;box-sizing:border-box;width:100%;">
       <div class="start-grid">
         <div class="start-item">
           <label>可自行行走</label>
@@ -995,17 +1094,17 @@ function renderIntakeForm() {
         <div class="start-item">
           <label>呼吸狀態</label>
           <span class="start-hint">正常 = RR 12–29 次/分</span>
-          <select id="start-breathing" onchange="autoTriageColor()"><option value="">—</option><option value="normal" ${_state.intakeStart.breathing==='normal'?'selected':''}>正常（RR 12–29）</option><option value="abnormal" ${_state.intakeStart.breathing==='abnormal'?'selected':''}>異常（RR≥30，或開呼吸道後有呼吸）→ 紅</option><option value="absent" ${_state.intakeStart.breathing==='absent'?'selected':''}>無（開呼吸道後仍無呼吸）→ 黑</option></select>
+          <select id="start-breathing" onchange="autoTriageColor()"><option value="">—</option><option value="normal" ${_state.intakeStart.breathing==='normal'?'selected':''}>正常（RR 12–29）</option><option value="abnormal" ${_state.intakeStart.breathing==='abnormal'?'selected':''}>異常（RR≥30 或需開呼吸道）</option><option value="absent" ${_state.intakeStart.breathing==='absent'?'selected':''}>無（開呼吸道後仍無呼吸）</option></select>
         </div>
         <div class="start-item">
           <label>循環（橈動脈）</label>
           <span class="start-hint">橈動脈(+), CRT &lt; 2s</span>
-          <select id="start-circ" onchange="autoTriageColor()"><option value="">—</option><option value="present" ${_state.intakeStart.circ==='present'?'selected':''}>正常（橈動脈(+), CRT&lt;2s）</option><option value="absent" ${_state.intakeStart.circ==='absent'?'selected':''}>異常（CRT≥2s 或橈動脈(-)）→ 紅</option></select>
+          <select id="start-circ" onchange="autoTriageColor()"><option value="">—</option><option value="present" ${_state.intakeStart.circ==='present'?'selected':''}>正常（橈動脈(+), CRT&lt;2s）</option><option value="absent" ${_state.intakeStart.circ==='absent'?'selected':''}>異常（CRT≥2s 或橈動脈(-)）</option></select>
         </div>
         <div class="start-item">
           <label>意識（指令）</label>
           <span class="start-hint">正常 = 可配合指令</span>
-          <select id="start-mental" onchange="autoTriageColor()"><option value="">—</option><option value="follows" ${_state.intakeStart.mental==='follows'?'selected':''}>可配合 → 黃</option><option value="not_follows" ${_state.intakeStart.mental==='not_follows'?'selected':''}>無法配合 → 紅</option></select>
+          <select id="start-mental" onchange="autoTriageColor()"><option value="">—</option><option value="follows" ${_state.intakeStart.mental==='follows'?'selected':''}>可配合</option><option value="not_follows" ${_state.intakeStart.mental==='not_follows'?'selected':''}>無法配合</option></select>
         </div>
       </div>
     </div>
@@ -1298,12 +1397,30 @@ function renderSampleOpqrst() {
   `;
 }
 
+function startTriageReason() {
+  const { walk, breathing, circ, mental } = _state.intakeStart;
+  if (walk === 'yes') return '能自行行走 → 輕傷';
+  if (walk === 'no') {
+    if (breathing === 'absent')    return '無呼吸（開呼吸道後仍無）→ 無存活可能';
+    if (breathing === 'abnormal')  return '呼吸異常（RR≥30 或需開呼吸道）→ 立即救治';
+    if (breathing === 'normal') {
+      if (circ === 'absent')       return '循環異常（CRT≥2s 或橈動脈(-)）→ 立即救治';
+      if (circ === 'present') {
+        if (mental === 'not_follows') return '意識異常（無法配合指令）→ 立即救治';
+        if (mental === 'follows')     return '意識正常（可配合指令）→ 延遲救治';
+      }
+    }
+  }
+  return null;
+}
+
 function renderTriageColorPicker() {
   const colors = ['紅','黃','綠','黑'];
   const vals  = ['red','yellow','green','black'];
   const lbl   = {'red':'🔴 紅區','yellow':'🟡 黃區','green':'🟢 綠區','black':'⚫ 黑區'};
   const sel   = _state.intakeTriageColor;
   const locked = !canPickTriageColor();
+  const reason = sel ? startTriageReason() : null;
   const lockReason = _state.intakeSecurity === 'incomplete'
     ? '⛔ 請先完成安檢（將安檢狀態改為已完成或同步處理中）'
     : (!_state.intakeSex || !_state.intakeAge)
@@ -1317,6 +1434,7 @@ function renderTriageColorPicker() {
         ${colors.map((c,i)=>`<button class="triage-color-btn ${vals[i]}${sel===vals[i]?' selected':''}" onclick="setTriageColor('${vals[i]}')">${c}區</button>`).join('')}
       </div>
       <div id="triage-hint" style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center;${sel?'display:none':''}">START 完整填寫後自動建議分色，或手動點選</div>
+      ${reason ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;padding:6px 10px;background:var(--surface2);border-radius:var(--r-sm);text-align:center;">📋 ${reason}</div>` : ''}
     </div>
     <div id="triage-submit" style="padding:0 0 12px;${sel&&!locked?'':'display:none'}">
       <button class="btn btn-primary btn-full" onclick="submitIntake()">✅ 完成檢傷 → 建檔</button>
@@ -1338,7 +1456,7 @@ function setInjury(type) {
 
 function setTriageColor(c) {
   if (!canPickTriageColor()) {
-    showToast(_state.intakeSecurity === 'incomplete' ? '⛔ 請先完成安檢' : '請先完成 START 評估');
+    showToast(_state.intakeSecurity === 'incomplete' ? '⛔ 請先完成安檢' : (!_state.intakeSex || !_state.intakeAge) ? '請先填寫性別及年齡段' : '請先完成 START 評估');
     return;
   }
   console.log('[triage] setTriageColor called:', c);
@@ -1360,18 +1478,23 @@ function autoTriageColor() {
   const circ     = document.getElementById('start-circ')?.value;
   const mental   = document.getElementById('start-mental')?.value;
   _state.intakeStart = { walk: walk||'', breathing: breathing||'', circ: circ||'', mental: mental||'' };
-  // Re-render triage section to update lock state
+  // Compute suggested color per START algorithm directly (no canPickTriageColor gate)
+  let suggested = null;
+  if (walk === 'yes') { suggested = 'green'; }
+  else if (walk === 'no') {
+    if (breathing === 'absent')        { suggested = 'black'; }
+    else if (breathing === 'abnormal') { suggested = 'red'; }
+    else if (breathing === 'normal') {
+      if (circ === 'absent')           { suggested = 'red'; }
+      else if (circ === 'present') {
+        if (mental === 'not_follows')  { suggested = 'red'; }
+        else if (mental === 'follows') { suggested = 'yellow'; }
+      }
+    }
+  }
+  _state.intakeTriageColor = suggested;
   const sec = document.getElementById('triage-section');
   if (sec) sec.innerHTML = renderTriageColorPicker();
-  if (!walk) return;
-  if (walk === 'yes') { setTriageColor('green'); return; }
-  if (!breathing) return;
-  if (breathing === 'absent')   { setTriageColor('black'); return; }
-  if (breathing === 'abnormal') { setTriageColor('red');   return; }
-  if (!circ) return;
-  if (circ === 'absent') { setTriageColor('red'); return; }
-  if (!mental) return;
-  setTriageColor(mental === 'follows' ? 'yellow' : 'red');
 }
 
 
@@ -1385,7 +1508,10 @@ function setMistMode(mode) {
 
 let _qrStream = null, _qrRaf = null;
 
-async function openQrScanModal() {
+async function openQrScanModal(mode) {
+  _state.qrScanMode = mode || 'mist';
+  const titleEl = document.getElementById('qr-scan-title');
+  if (titleEl) titleEl.textContent = _state.qrScanMode === 'shelter' ? '📷 掃描收容組 QR Code' : '📷 掃描傷患 QR Code';
   const overlay = document.getElementById('qr-scan-overlay');
   overlay.classList.remove('hidden');
   const video = document.getElementById('qr-video');
@@ -1420,6 +1546,15 @@ function stopQrScan() {
 
 function handleQrResult(raw) {
   stopQrScan();
+  if (_state.qrScanMode === 'shelter') {
+    // 收容組 QR：payload 可能是 JSON {shelter_number:'...'} 或純字串
+    let num = raw.trim();
+    try { const d = JSON.parse(raw); num = d.shelter_number || d.id || raw.trim(); } catch(e) {}
+    _state.intakeShelterNumber = num;
+    showToast('✅ 收容編號已填入：' + num);
+    document.getElementById('intake-form-body').innerHTML = renderIntakeForm();
+    return;
+  }
   try {
     const data = JSON.parse(raw);
     _state.intakeMistData = {
@@ -1466,7 +1601,8 @@ function mistAppend(txtId, selId) {
 
 function canPickTriageColor() {
   if (_state.intakeSecurity === 'incomplete') return false;
-  if (!_state.intakeSex || !_state.intakeAge) return false;
+  // Source B uses shelter records for demographics — sex/age not required on-site
+  if (_state.intakeSource !== 'B' && (!_state.intakeSex || !_state.intakeAge)) return false;
   // Check DOM first (live), fall back to state
   const walkEl = document.getElementById('start-walk');
   const walk = walkEl ? walkEl.value : _state.intakeStart.walk;
@@ -1478,6 +1614,22 @@ function onSecurityChange() {
   if (val) {
     _state.intakeSecurity = val;
     if (val === 'incomplete') _state.intakeTriageColor = null;
+    if (val === 'pending') {
+      // 建立安全威脅事件，並記錄 ID 待建檔後連結傷患
+      db.incidents.add({
+        type: 'security_threat',
+        severity: 'high',
+        status: 'open',
+        reported_at: localISO(),
+        notes: `入院安檢同步處理中（危急）— 操作者：${_state.operatorName}`,
+        reported_by: _state.operatorName,
+      }).then(incId => {
+        _state.pendingSecurityIncidentId = incId;
+        refreshAlertBanner();
+      });
+    } else {
+      _state.pendingSecurityIncidentId = null;
+    }
   }
   const sec = document.getElementById('triage-section');
   if (sec) sec.innerHTML = renderTriageColorPicker();
@@ -1514,8 +1666,20 @@ async function generateDraftId(sexCode, ageCode) {
 
 async function submitIntake() {
   if (!_state.intakeTriageColor) { showToast('請選擇檢傷分色'); return; }
+  const colorDotMap = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
   const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
-  const now = new Date().toISOString();
+  const colorLabel = colorDotMap[_state.intakeTriageColor] || _state.intakeTriageColor;
+  const zoneName = zoneMap[_state.intakeTriageColor];
+  openModal('確認建檔',
+    `<p style="padding:16px 4px;font-size:15px;line-height:1.7;">確認將此傷患建檔並分至 <strong>${zoneName}</strong>（${colorLabel}）？<br>建檔後如需修改燈號，請透過治療評估重評。</p>`,
+    `<button class="btn btn-primary flex-1" onclick="closeModal();doSubmitIntake()">確認建檔</button>
+     <button class="btn btn-ghost flex-1" onclick="closeModal()">返回修改</button>`
+  );
+}
+
+async function doSubmitIntake() {
+  const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
+  const now = localISO();
 
   const triageData = {
     triage_at: now,
@@ -1542,16 +1706,24 @@ async function submitIntake() {
     source_age: ageCode,
     chief_issue: getMist('mist-i-sel','mist-i') || '',
     vitals_summary: getMist('mist-s-sel','mist-s') || '',
-    security_cleared: _state.intakeSecurity !== 'incomplete',
-    registered_with_shelter: gv('intake-shelter') || 'not_registered',
+    security_cleared: _state.intakeSecurity,
+    registered_with_shelter: _state.intakeSource === 'B' ? 'registered' : (gv('intake-shelter') || 'not_registered'),
+    shelter_number: _state.intakeSource === 'B' ? _state.intakeShelterNumber : '',
+    appearance_notes: _state.intakeAppearance || '',
     disposition: '留觀',
-    reassess_due_at: new Date(Date.now() + (_state.intakeTriageColor==='red'?5:15)*60000).toISOString(),
+    reassess_due_at: localISO(new Date(Date.now() + (_state.intakeTriageColor==='red'?5:15)*60000)),
     operator_name: _state.operatorName,
+    created_at: now,
     updated_at: now,
   };
 
   const patientId = await db.patients.add(patientData);
   await db.triages.add({ ...triageData, patient_id: patientId });
+  // 若本次入院有安全威脅事件，連結傷患 ID
+  if (_state.pendingSecurityIncidentId) {
+    await db.incidents.update(_state.pendingSecurityIncidentId, { patient_id: patientId });
+    _state.pendingSecurityIncidentId = null;
+  }
 
   _state.intakeTriageColor = null;
   _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
@@ -1561,6 +1733,7 @@ async function submitIntake() {
   _state.intakeSex = '';
   _state.intakeAge = '';
   _state.intakeDraftId = '';
+  _state.intakeAppearance = '';
   showToast(`✅ ${patientData.display_id} 已建檔，分至${patientData.current_zone}`);
   switchTab('dashboard');
 }
@@ -1577,20 +1750,37 @@ function renderZones(el) {
   ];
   const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
 
+  // 分區看板只顯示已評估（非 triaged）的傷患；待評估的在上方佇列處理
+  const isAssessed = p => (p.care_status||'triaged') !== 'triaged' && p.disposition !== '後送' && p.disposition !== '離開';
+  const activeInZone = (label) => _state.patients.filter(p => p.current_zone === label && isAssessed(p)).length;
   const tabs = zones.map(z=>{
-    const n = countByZone(z.label);
+    const n = activeInZone(z.label);
     return `<button class="zone-tab ${_state.currentZone===z.id?'active '+z.cls:''}" onclick="setZone('${z.id}')">${z.label} ${n>0?`(${n})`:''}</button>`;
   }).join('');
 
   const cur = zoneMap[_state.currentZone];
-  const patients = _state.patients.filter(p=>p.current_zone===cur);
+  const patients = _state.patients.filter(p => p.current_zone === cur && isAssessed(p));
   const cards = patients.length === 0
     ? `<div style="padding:32px;text-align:center;color:var(--text3);">本區目前無傷患</div>`
     : patients.map(p=>renderPatientCard(p)).join('');
 
-  updateTabBadges();
+  // 待評估佇列：care_status==='triaged' 尚未評估的傷患
+  const colorPriority = { red:0, yellow:1, green:2, black:3 };
+  const pendingAssess = _state.patients
+    .filter(p => (p.care_status||'triaged') === 'triaged' && p.disposition !== '後送' && p.disposition !== '離開' && p.current_zone !== '已離區')
+    .sort((a,b) => (colorPriority[a.triage_color]??9) - (colorPriority[b.triage_color]??9));
+  const pendingCards = pendingAssess.length === 0
+    ? `<div style="padding:16px;text-align:center;color:var(--text3);font-size:14px;">目前無待評估傷患 ✓</div>`
+    : pendingAssess.map(p=>renderPatientCard(p)).join('');
+
+  updateTabBadges(); // fire-and-forget, async
 
   el.innerHTML = `
+    <div class="section-hdr" style="cursor:pointer;" onclick="(function(el){el.dataset.open=el.dataset.open==='0'?'1':'0';var c=document.getElementById('pending-assess-cards');c.style.display=el.dataset.open==='0'?'none':'block';})(this)" data-open="1">
+      待評估佇列 (${pendingAssess.length}) <span style="float:right;font-size:12px;color:var(--text3);">▲ 收合</span>
+    </div>
+    <div id="pending-assess-cards">${pendingCards}</div>
+    <div class="section-hdr" style="margin-top:8px;">分區看板</div>
     <div class="zone-tabs">${tabs}</div>
     <div id="zone-cards">${cards}</div>
   `;
@@ -1603,6 +1793,7 @@ function setZone(z) {
 
 function renderPatientCard(p) {
   const colorMap = { red:'red', yellow:'yellow', green:'green', black:'black' };
+  const colorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
   const cls = colorMap[p.triage_color] || '';
   const due = p.reassess_due_at ? new Date(p.reassess_due_at) : null;
   const now = new Date();
@@ -1611,8 +1802,10 @@ function renderPatientCard(p) {
   const timerStr = due ? (overdue ? '⚠️逾時' : `${minLeft}分`) : '';
   const timerCls = overdue ? 'overdue' : '';
   const careStatus = p.care_status || 'triaged';
-  const transferDone = careStatus === 'pending_transfer' || p.disposition === '後送' || p.disposition === '離開';
-  const assessDone = careStatus === 'assessed' || transferDone;
+  const isTransferQueue = p.disposition === '後送';
+  const transferDone = careStatus === 'pending_transfer' || isTransferQueue || p.disposition === '離開';
+  // assessDone 只看有無實際評估，不因後送而打勾
+  const assessDone = careStatus === 'assessed' || careStatus === 'pending_transfer';
 
   // Inline progress strip
   const steps = [
@@ -1627,18 +1820,39 @@ function renderPatientCard(p) {
   // Medical history lines
   const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '';
   const histLines = [];
-  histLines.push(`<span style="color:var(--text3)">建檔</span> ${p.operator_name}・${fmt(p.updated_at)}`);
+  histLines.push(`<span style="color:var(--text3)">建檔</span> ${p.operator_name}・${fmt(p.created_at||p.updated_at)}`);
   if (assessDone && p.assessed_by) {
     histLines.push(`<span style="color:var(--text3)">評估</span> ${p.assessed_by}・${fmt(p.assessed_at)}`);
   } else if (!assessDone) {
     histLines.push(`<span style="color:#E65100;font-weight:600;">⬜ 治療評估待接手</span>`);
   }
+  if (p.transferred_at) {
+    histLines.push(`<span style="color:var(--text3)">後送</span> ${p.transferred_by||'—'}・${fmt(p.transferred_at)}`);
+  }
   const history = `<div style="font-size:11px;line-height:1.8;margin-top:4px;padding-top:4px;border-top:1px solid var(--border);">${histLines.join('<br>')}</div>`;
 
-  // Continue button only for triaged (not yet assessed)
-  const continueBtn = !assessDone
-    ? `<button class="pc-btn primary" onclick="event.stopPropagation();openTreatmentAssessment(${p.id})">▶ 評估</button>`
-    : '';
+  // Action buttons：後送佇列 vs 治療區
+  let actionRow;
+  if (isTransferQueue) {
+    const waited = p.transferred_at ? Math.floor((Date.now()-new Date(p.transferred_at))/60000) : 0;
+    actionRow = `
+      <div style="font-size:11px;color:var(--text3);margin:4px 0 6px;">⏱ 等待後送 ${waited} 分鐘</div>
+      <div class="pc-actions mt-1">
+        <button class="pc-btn" onclick="event.stopPropagation();cancelTransfer(${p.id})">✕ 取消</button>
+        <button class="pc-btn primary" onclick="event.stopPropagation();openIsbar(${p.id})">📋 ISBAR 交接</button>
+      </div>`;
+  } else {
+    const continueBtn = !assessDone
+      ? `<button class="pc-btn primary" onclick="event.stopPropagation();openTreatmentAssessment(${p.id})">▶ 評估</button>`
+      : `<button class="pc-btn" onclick="event.stopPropagation();openTreatmentAssessment(${p.id})">↻ 重評</button>`;
+    actionRow = `
+      <div class="pc-actions mt-1">
+        <button class="pc-btn" onclick="event.stopPropagation();resetReassess(${p.id})">重設</button>
+        <button class="pc-btn" onclick="event.stopPropagation();openMoveZone(${p.id})">移區</button>
+        ${continueBtn}
+        <button class="pc-btn primary" onclick="event.stopPropagation();markTransfer(${p.id})">後送</button>
+      </div>`;
+  }
 
   return `
     <div class="patient-card ${cls} ${overdue?'overdue':''}">
@@ -1650,12 +1864,7 @@ function renderPatientCard(p) {
       <div class="pc-issue">${p.chief_issue || '（無主訴摘要）'}</div>
       <div style="font-size:12px;color:var(--text3);">${p.vitals_summary||''}</div>
       ${history}
-      <div class="pc-actions mt-1">
-        <button class="pc-btn" onclick="event.stopPropagation();resetReassess(${p.id})">重設</button>
-        <button class="pc-btn" onclick="event.stopPropagation();openMoveZone(${p.id})">移區</button>
-        ${continueBtn}
-        <button class="pc-btn primary" onclick="event.stopPropagation();markTransfer(${p.id})">後送</button>
-      </div>
+      ${actionRow}
     </div>
   `;
 }
@@ -1664,25 +1873,57 @@ async function resetReassess(id) {
   const p = await db.patients.get(id);
   if (!p) return;
   const mins = p.triage_color === 'red' ? 5 : 15;
-  await db.patients.update(id, { reassess_due_at: new Date(Date.now()+mins*60000).toISOString(), updated_at: new Date().toISOString() });
+  await db.patients.update(id, { reassess_due_at: localISO(new Date(Date.now()+mins*60000)), updated_at: localISO() });
   showToast('再評估計時重設');
   renderCurrentTab();
 }
 
 async function markTransfer(id) {
-  await db.patients.update(id, { disposition:'後送', updated_at:new Date().toISOString() });
+  const now = localISO();
+  await db.patients.update(id, { disposition:'後送', transferred_by: _state.operatorName, transferred_at: now, updated_at: now });
   showToast('已標記待後送');
   renderCurrentTab();
 }
 
-function openMoveZone(id) {
-  const zones = ['紅區','黃區','綠區','黑區','後送區','已離區'];
-  const opts = zones.map(z=>`<button class="btn btn-outline btn-full mb-1" onclick="moveZone(${id},'${z}');closeModal()">${z}</button>`).join('');
-  openModal('移轉區域', opts, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
+async function cancelTransfer(id) {
+  await db.patients.update(id, { disposition:'在場', transferred_by: null, transferred_at: null, updated_at: localISO() });
+  showToast('已取消待後送');
+  renderCurrentTab();
+}
+
+async function openMoveZone(id) {
+  const p = await db.patients.get(id);
+  const zoneColorMap = { '紅區':'red', '黃區':'yellow', '綠區':'green', '黑區':'black' };
+  const colorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
+  const zones = ['紅區','黃區','綠區','黑區'];
+  const opts = zones.map(z => {
+    const newColor = zoneColorMap[z];
+    const note = p && newColor !== p.triage_color
+      ? `<span style="font-size:11px;color:var(--orange);">→ ${colorDot[newColor]} 燈號同步更新</span>`
+      : `<span style="font-size:11px;color:var(--text3);">燈號不變</span>`;
+    return `<button class="btn btn-outline btn-full mb-1" style="display:flex;justify-content:space-between;align-items:center;"
+      onclick="moveZone(${id},'${z}');closeModal()">${z}${note}</button>`;
+  }).join('');
+  openModal('移轉治療區', opts, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
 }
 
 async function moveZone(id, zone) {
-  await db.patients.update(id, { current_zone:zone, updated_at:new Date().toISOString() });
+  const zoneColorMap = { '紅區':'red', '黃區':'yellow', '綠區':'green', '黑區':'black' };
+  const newColor = zoneColorMap[zone];
+  const now = localISO();
+  const p = await db.patients.get(id);
+  if (p && newColor && p.triage_color !== newColor) {
+    await db.triages.add({
+      patient_id: id,
+      triage_at: now,
+      triage_by: _state.operatorName,
+      retriage_from: p.triage_color,
+      retriage_to: newColor,
+    });
+    await db.patients.update(id, { current_zone: zone, triage_color: newColor, updated_at: now });
+  } else {
+    await db.patients.update(id, { current_zone: zone, updated_at: now });
+  }
   showToast(`已移至 ${zone}`);
   renderCurrentTab();
 }
@@ -1710,28 +1951,89 @@ async function openPatientDetail(id) {
       </div>`).join('')}
   </div>`;
   const injuryLabel = p.injury_type === 'trauma' ? '🩸 創傷' : p.injury_type === 'medical' ? '💊 非創' : '—（待填）';
-  const continueBtn = careStatus === 'triaged'
+  const isDischarged = p.current_zone === '已離區' || p.disposition === '離開';
+  const continueBtn = isDischarged ? '' : careStatus === 'triaged'
     ? `<button class="btn btn-warning flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 繼續評估</button>`
     : `<button class="btn btn-outline flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 更新評估</button>`;
+  const colorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
   openModal(
-    `${p.display_id} 傷患詳情`,
+    `${colorDot[p.triage_color]||''} ${p.display_id} 傷患詳情`,
     `<div class="flex flex-col gap-2">
       ${progressBar}
-      <div class="dash-row"><span class="dash-row-label">檢傷分色</span><span class="dash-row-val">${colorLabel[p.triage_color]||p.triage_color}</span></div>
-      <div class="dash-row"><span class="dash-row-label">目前區域</span><span class="dash-row-val">${p.current_zone}</span></div>
+      <div class="dash-row"><span class="dash-row-label">來源</span><span class="dash-row-val">${p.source_type==='A'?'🚒 前進 MIST':p.source_type==='B'?'🏠 收容轉送':p.source_type==='C'?'🚶 自行抵達':'—'}</span></div>
+      ${p.source_type==='B'&&p.shelter_number?`<div class="dash-row"><span class="dash-row-label">收容編號</span><span class="dash-row-val">${p.shelter_number}</span></div>`:''}
+      <div class="dash-row"><span class="dash-row-label">安檢狀態</span><span class="dash-row-val">${p.security_cleared==='yes'?'✅ 已完成':p.security_cleared==='pending'?'⚡ 同步處理中':'⛔ 未完成'}</span></div>
+      ${p.appearance_notes ? `<div class="dash-row"><span class="dash-row-label">外觀特徵</span><span class="dash-row-val text-sm" style="text-align:right;max-width:65%">${p.appearance_notes}</span></div>` : ''}
+      <div class="dash-row"><span class="dash-row-label">建檔者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
       <div class="dash-row"><span class="dash-row-label">傷型</span><span class="dash-row-val">${injuryLabel}</span></div>
       <div class="dash-row"><span class="dash-row-label">主訴</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.chief_issue||'—'}</span></div>
       <div class="dash-row"><span class="dash-row-label">生命徵象</span><span class="dash-row-val text-sm" style="text-align:right;max-width:60%">${p.vitals_summary||'—'}</span></div>
-      <div class="dash-row"><span class="dash-row-label">安檢狀態</span><span class="dash-row-val">${p.security_cleared ? '✅ 已完成' : '⛔ 未完成 / 同步中'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">目前區域</span><span class="dash-row-val">${p.current_zone}</span></div>
       <div class="dash-row"><span class="dash-row-label">處置</span><span class="dash-row-val">${p.disposition}</span></div>
-      <div class="dash-row"><span class="dash-row-label">建檔者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
-      ${latest ? `<div class="info-box info mt-1" style="font-size:12px;">檢傷：${latest.triage_at?.slice(0,16)||''} by ${latest.triage_by||''}</div>` : ''}
+      <div style="margin:4px -4px 0;" class="section-hdr">歷程</div>
+      <div style="font-size:12px;line-height:2;background:var(--surface2);padding:8px 12px;border-radius:8px;">
+        ${(() => {
+          const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '—';
+          const lines = [];
+          // 初始檢傷：triages 中沒有 trauma_or_medical 欄位的那筆
+          const initTriage = triages.find(t => !t.trauma_or_medical);
+          const triageTime = initTriage?.triage_at || p.created_at || p.updated_at;
+          const triageBy = initTriage?.triage_by || p.operator_name;
+          lines.push(`<div><span style="color:var(--text3)">檢傷</span>　${triageBy} · ${fmt(triageTime)}</div>`);
+          // 治療評估（按時間排序）
+          const assessRecs = triages.filter(t => !!t.trauma_or_medical).sort((a,b) => (a.triage_at||'') > (b.triage_at||'') ? 1 : -1);
+          assessRecs.forEach((t, i) => {
+            const label = i === 0 ? '初評' : `複評 ${i}`;
+            const typeLabel = t.trauma_or_medical === 'trauma' ? '🩸 創傷' : '💊 非創';
+            lines.push(`<div><span style="color:var(--text3)">${label}</span>　${typeLabel}　${t.triage_by||'—'} · ${fmt(t.triage_at)}</div>`);
+            if (t.chief_issue) lines.push(`<div style="margin-left:2em;color:var(--text2);">主訴：${t.chief_issue}</div>`);
+            if (t.vitals_summary) lines.push(`<div style="margin-left:2em;color:var(--text2);">徵象：${t.vitals_summary}</div>`);
+            // 完整評估細節
+            const detail = [];
+            if (t.trauma_or_medical === 'trauma') {
+              if (t.x_hemorrhage_controlled) detail.push(`X 止血：${t.x_hemorrhage_controlled}`);
+              if (t.a_airway_patent)          detail.push(`A 呼吸道：${t.a_airway_patent}`);
+              if (t.b_breathing_status)       detail.push(`B 呼吸：${t.b_breathing_status}`);
+              if (t.c_pulse_quality)          detail.push(`C 循環：${t.c_pulse_quality}`);
+              if (t.d_gcs)                    detail.push(`D 意識/GCS：${t.d_gcs}`);
+              if (t.e_exposed)                detail.push(`E 暴露：${t.e_exposed}`);
+            } else {
+              if (t.abc_airway)     detail.push(`A 呼吸道：${t.abc_airway}`);
+              if (t.abc_breathing)  detail.push(`B 呼吸：${t.abc_breathing}`);
+              if (t.abc_circulation)detail.push(`C 循環：${t.abc_circulation}`);
+              if (t.blood_glucose)  detail.push(`血糖：${t.blood_glucose}`);
+              if (t.sample_s)       detail.push(`S 主訴：${t.sample_s}`);
+              if (t.sample_a)       detail.push(`A 過敏：${t.sample_a}`);
+              if (t.sample_m)       detail.push(`M 用藥：${t.sample_m}`);
+              if (t.sample_p)       detail.push(`P 病史：${t.sample_p}`);
+              if (t.sample_l)       detail.push(`L 最後飲食：${t.sample_l}`);
+              if (t.sample_e)       detail.push(`E 誘因：${t.sample_e}`);
+              if (t.opqrst_onset)   detail.push(`O 發作：${t.opqrst_onset}`);
+              if (t.opqrst_quality) detail.push(`Q 性質：${t.opqrst_quality}`);
+              if (t.opqrst_severity)detail.push(`嚴重度：${t.opqrst_severity}`);
+            }
+            if (detail.length > 0) {
+              lines.push(`<div style="margin-left:2em;margin-top:2px;">${detail.map(d=>`<div style="color:var(--text3);font-size:11px;">${d}</div>`).join('')}</div>`);
+            }
+          });
+          // 轉燈號、後送、交接：統一排入時間軸
+          const recolorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
+          const events = [];
+          triages.filter(t => !!t.retriage_to).forEach(t => {
+            events.push({ at: t.triage_at||'', html: `<div><span style="color:var(--text3)">轉色</span>　${recolorDot[t.retriage_from]||''}→${recolorDot[t.retriage_to]||t.retriage_to}　${t.triage_by||'—'} · ${fmt(t.triage_at)}</div>` });
+          });
+          if (p.transferred_at) events.push({ at: p.transferred_at, html: `<div><span style="color:var(--text3)">後送</span>　${p.transferred_by||'—'} · ${fmt(p.transferred_at)}</div>` });
+          if (p.handoff_at)     events.push({ at: p.handoff_at,     html: `<div><span style="color:var(--text3)">交接</span>　${p.handoff_by||'—'} · ${fmt(p.handoff_at)}</div>` });
+          events.sort((a,b) => a.at > b.at ? 1 : -1).forEach(e => lines.push(e.html));
+          return lines.join('');
+        })()}
+      </div>
     </div>`,
     `${continueBtn}
-     <button class="btn btn-outline flex-1" onclick="openMoveZone(${id});closeModal()">移區</button>
      <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
   );
 }
+
 
 /* ════════════════════════════════════════════════════════════════
    MORE PAGE
@@ -1801,56 +2103,58 @@ async function renderTransfer(el) {
     ${pendingHtml}
     ${doneList.length > 0 ? `
     <div class="section-hdr">已完成後送 (${doneList.length})</div>
-    ${doneList.slice().reverse().slice(0,5).map(t => `
-      <div class="card mb-1" style="opacity:.7">
+    ${doneList.slice().reverse().map(t => {
+      const pt = _state.patients.find(p => p.id === t.patient_id);
+      const colorCls = pt ? (pt.triage_color || '') : '';
+      return `
+      <div class="patient-card ${colorCls} mb-1" style="opacity:.75;cursor:pointer;" onclick="openPatientDetail(${t.patient_id})">
         <div class="flex justify-between items-center">
           <span class="text-sm font-semibold">${t.patient_display_id||'—'}</span>
           <span class="tag tag-green">已交接</span>
         </div>
-        <div class="text-xs text-gray mt-1">目的地：${t.destination||'—'} · ${(t.departed_at||'').slice(0,16)}</div>
-      </div>
-    `).join('')}` : ''}
+        <div class="text-xs text-gray mt-1">目的地：${t.destination||'—'} · ${(t.departed_at||'').slice(0,16).replace('T',' ')}</div>
+      </div>`;
+    }).join('')}` : ''}
   `;
 }
 
 function renderTransferCard(p) {
-  const colorTag = { red:'tag-red', yellow:'tag-yellow', green:'tag-green', black:'tag-black' }[p.triage_color] || 'tag-gray';
-  const colorLabel = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
-  const waited = p.updated_at ? Math.floor((Date.now() - new Date(p.updated_at)) / 60000) : 0;
-  return `
-    <div class="card mb-2">
-      <div class="flex justify-between items-center mb-1">
-        <span class="font-bold">${p.display_id}</span>
-        <span class="tag ${colorTag}">${colorLabel[p.triage_color]||p.triage_color}</span>
-      </div>
-      <div class="text-sm mb-1">${p.chief_issue||'（無主訴）'}</div>
-      <div class="text-xs text-gray mb-2">生命徵象：${p.vitals_summary||'—'} · 等待 ${waited} 分鐘</div>
-      <div class="flex gap-1">
-        <button class="pc-btn primary" onclick="openIsbar(${p.id})">📋 ISBAR 交接</button>
-        <button class="pc-btn" onclick="openMoveZone(${p.id})">移區</button>
-      </div>
-    </div>
-  `;
+  return renderPatientCard(p); // 與治療區卡片統一格式
 }
 
 /* ─── 治療評估（治療官從分區看板開啟，繼續填傷型+XABCDE/SAMPLE） ─── */
-const _treatState = { patientId: null, injuryType: null };
+const _treatState = { patientId: null, injuryType: null, newColor: null };
 
 function openTreatmentAssessment(id) {
   _treatState.patientId = id;
   _treatState.injuryType = null;
+  _treatState.newColor = null;
   renderTreatmentModal();
 }
 
 function renderTreatmentModal() {
   const id = _treatState.patientId;
   const injType = _treatState.injuryType;
+  const recolorBtns = [
+    {v:null,  label:'維持原色'},
+    {v:'red', label:'🔴 紅'},
+    {v:'yellow',label:'🟡 黃'},
+    {v:'green',label:'🟢 綠'},
+    {v:'black',label:'⚫ 黑'},
+  ].map(c => `
+    <button class="btn ${_treatState.newColor===c.v?'btn-primary':'btn-outline'} ta-recolor-btn"
+      style="flex:1;padding:8px 2px;font-size:13px;"
+      data-val="${c.v===null?'__null__':c.v}"
+      onclick="taSetRecolor(this)">${c.label}</button>
+  `).join('');
   const body = `
     <div class="section-hdr">傷情分類</div>
     <div class="form-group">
       <div class="trauma-btns">
-        <button class="trauma-btn ${injType==='trauma'?'active trauma':''}" onclick="_treatState.injuryType='trauma';renderTreatmentModal()">🩸 創傷<br><small>XABCDE</small></button>
-        <button class="trauma-btn ${injType==='medical'?'active medical':''}" onclick="_treatState.injuryType='medical';renderTreatmentModal()">💊 非創<br><small>SAMPLE/OPQRST</small></button>
+        <button class="trauma-btn ${injType==='trauma'?'active trauma':''}" id="tt-btn-trauma"
+          onclick="selectTreatType('trauma')">🩸 創傷<br><small>XABCDE</small></button>
+        <button class="trauma-btn ${injType==='medical'?'active medical':''}" id="tt-btn-medical"
+          onclick="selectTreatType('medical')">💊 非創<br><small>SAMPLE/OPQRST</small></button>
       </div>
     </div>
     <div class="form-group">
@@ -1861,11 +2165,12 @@ function renderTreatmentModal() {
       <div class="form-label">生命徵象摘要</div>
       <input class="form-input" id="ta-vitals" placeholder="HR __ BP __/__ RR __ SpO2 __%">
     </div>
-    ${injType === 'trauma' ? renderXABCDE() : ''}
-    ${injType === 'medical' ? renderSampleOpqrst() : ''}
-    ${injType ? `<button class="btn btn-primary btn-full mt-2" onclick="saveTreatmentAssessment(${id})">💾 儲存評估</button>` : ''}
+    <div id="ta-trauma-section" style="display:${injType==='trauma'?'block':'none'}">${renderXABCDE()}</div>
+    <div id="ta-medical-section" style="display:${injType==='medical'?'block':'none'}">${renderSampleOpqrst()}</div>
+    <div class="section-hdr" style="margin-top:12px;">轉燈號（選填）</div>
+    <div style="display:flex;gap:8px;padding:0 0 12px;">${recolorBtns}</div>
+    <button class="btn btn-primary btn-full" onclick="saveTreatmentAssessment(${id})">💾 儲存評估</button>
   `;
-  // Re-use modal content if already visible, else open fresh
   const overlay = document.getElementById('modal-overlay');
   if (overlay && !overlay.classList.contains('hidden')) {
     document.getElementById('modal-body').innerHTML = body;
@@ -1874,14 +2179,40 @@ function renderTreatmentModal() {
   }
 }
 
+function selectTreatType(type) {
+  _treatState.injuryType = type;
+  const tBtn = document.getElementById('tt-btn-trauma');
+  const mBtn = document.getElementById('tt-btn-medical');
+  if (tBtn) { tBtn.classList.toggle('active', type==='trauma'); tBtn.classList.toggle('trauma', type==='trauma'); }
+  if (mBtn) { mBtn.classList.toggle('active', type==='medical'); mBtn.classList.toggle('medical', type==='medical'); }
+  const tSec = document.getElementById('ta-trauma-section');
+  const mSec = document.getElementById('ta-medical-section');
+  if (tSec) tSec.style.display = type==='trauma' ? 'block' : 'none';
+  if (mSec) mSec.style.display = type==='medical' ? 'block' : 'none';
+}
+
+function taSetRecolor(btn) {
+  const raw = btn.dataset.val;
+  _treatState.newColor = raw === '__null__' ? null : raw;
+  document.querySelectorAll('.ta-recolor-btn').forEach(b => {
+    const isPrimary = b.dataset.val === (raw);
+    b.className = `btn ${isPrimary ? 'btn-primary' : 'btn-outline'} ta-recolor-btn`;
+    b.style.cssText = 'flex:1;padding:8px 2px;font-size:13px;';
+  });
+}
+
 async function saveTreatmentAssessment(id) {
   const injType = _treatState.injuryType;
   if (!injType) { showToast('請選擇傷型'); return; }
-  const now = new Date().toISOString();
+  if (!gv('ta-chief')?.trim()) { showToast('請填寫主訴摘要'); return; }
+  if (!gv('ta-vitals')?.trim()) { showToast('請填寫生命徵象'); return; }
+  const now = localISO();
   const assessData = {
     trauma_or_medical: injType,
     triage_at: now,
     triage_by: _state.operatorName,
+    chief_issue: gv('ta-chief') || '',
+    vitals_summary: gv('ta-vitals') || '',
     // XABCDE
     x_hemorrhage_controlled: getMist('x-hemorrhage','x-hemorrhage-notes'),
     a_airway_patent: getMist('a-airway','a-airway-notes'),
@@ -1898,6 +2229,16 @@ async function saveTreatmentAssessment(id) {
     opqrst_radiation: gv('opqrst-r'), opqrst_severity: gv('opqrst-s'), opqrst_time: gv('opqrst-t'),
   };
   await db.triages.add({ ...assessData, patient_id: id });
+  const patientForTimer = await db.patients.get(id);
+  const newColor = _treatState.newColor;
+  const oldColor = patientForTimer?.triage_color;
+  const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
+  const effectiveColor = newColor || oldColor;
+  const reassessMins = effectiveColor === 'red' ? 5 : 15;
+  // 若有選新燈號，先記錄轉色
+  if (newColor && newColor !== oldColor) {
+    await db.triages.add({ patient_id: id, triage_at: now, triage_by: _state.operatorName, retriage_from: oldColor, retriage_to: newColor });
+  }
   await db.patients.update(id, {
     injury_type: injType,
     care_status: 'assessed',
@@ -1905,10 +2246,13 @@ async function saveTreatmentAssessment(id) {
     assessed_at: now,
     chief_issue: gv('ta-chief') || '',
     vitals_summary: gv('ta-vitals') || '',
+    ...(newColor && newColor !== oldColor ? { triage_color: newColor, current_zone: zoneMap[newColor] } : {}),
+    reassess_due_at: localISO(new Date(Date.now() + reassessMins * 60000)),
     updated_at: now,
   });
   closeModal();
-  showToast('✅ 治療評估已儲存');
+  const toastMsg = newColor && newColor !== oldColor ? `✅ 治療評估已儲存（燈號轉為${zoneMap[newColor]}）` : '✅ 治療評估已儲存';
+  showToast(toastMsg);
   renderCurrentTab();
 }
 
@@ -1947,23 +2291,52 @@ async function openIsbar(patientId) {
   );
 }
 
+let _pendingHandoff = null;
+
 async function completeHandoff(patientId) {
   const p = await db.patients.get(patientId);
   if (!p) return;
   const b = document.getElementById('isbar-b')?.value || '';
   const r = document.getElementById('isbar-r')?.value || '';
+  if (!r.trim()) { showToast('請填寫 R — 後送目的地與建議'); return; }
   const checklist = ['止血','呼吸道','給氧','靜脈通路','保暖','固定']
     .filter(item => document.getElementById('chk-'+item)?.checked).join('、');
-  const now = new Date().toISOString();
+  _pendingHandoff = { patientId, b, r, checklist };
+  _confirmInModal(
+    '確認後送交接',
+    `<strong>${p.display_id}</strong> 交接至「<strong>${r}</strong>」後無法修改，確認繼續？`,
+    'doCompleteHandoff()',
+    `openIsbar(${patientId})`
+  );
+}
+
+async function doCompleteHandoff() {
+  const { patientId, b, r, checklist } = _pendingHandoff;
+  _pendingHandoff = null;
+  const p = await db.patients.get(patientId);
+  if (!p) return;
+  const now = localISO();
   await db.transfers.add({
     patient_id: patientId, patient_display_id: p.display_id,
     status: 'completed', destination: r,
     isbar_text: `B: ${b}\nR: ${r}\n已完成: ${checklist||'（未勾選）'}`,
     departed_at: now, handoff_done_at: now, created_at: now,
   });
-  await db.patients.update(patientId, { disposition:'離開', current_zone:'已離區', updated_at: now });
+  await db.patients.update(patientId, { disposition:'離開', current_zone:'已離區', handoff_by: _state.operatorName, handoff_at: now, updated_at: now });
   closeModal();
   showToast(`${p.display_id} 後送交接完成`);
+  const linkedThreats = await db.incidents
+    .filter(inc => inc.status === 'open' && inc.type === 'security_threat' && inc.patient_id === patientId)
+    .toArray();
+  if (linkedThreats.length > 0) {
+    for (const inc of linkedThreats) {
+      await db.incidents.update(inc.id, {
+        patient_transferred_at: now,
+        patient_transferred_reminded_to: _state.operatorName,
+      });
+    }
+    setTimeout(() => showToast(`⚠️ ${p.display_id} 有未結案安全威脅，已提醒 ${_state.operatorName} 手動處理`), 2800);
+  }
   renderCurrentTab();
 }
 
@@ -2056,7 +2429,7 @@ async function useResource(id, qty) {
       type:'resource_shortage', severity:'medium', status:'open',
       notes:`${r.name} 低量（剩 ${newQty}）`,
       reported_by:_state.operatorName, assigned_to:'',
-      linked_patients:'', reported_at:new Date().toISOString()
+      linked_patients:'', reported_at:localISO()
     });
     showToast(`⚠️ ${r.name} 低量，事件已建立`);
   } else {
@@ -2099,7 +2472,7 @@ async function renderIncidents(el) {
 
   el.innerHTML = `
     <div style="padding:14px;display:flex;justify-content:space-between;align-items:center;">
-      <button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button>
+      ${_state.currentTab === 'events' ? '<div></div>' : '<button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button>'}
       <button class="btn btn-danger btn-sm" onclick="openCreateIncident()">＋ 通報事件</button>
     </div>
     <div class="section-hdr">開放事件 (${open.length})</div>
@@ -2117,19 +2490,140 @@ function renderIncidentCard(inc, isOpen) {
   const sevTag = inc.severity === 'high' ? 'tag-red' : inc.severity === 'medium' ? 'tag-yellow' : 'tag-green';
   const sevLabel = inc.severity === 'high' ? '高' : inc.severity === 'medium' ? '中' : '低';
   return `
-    <div class="card mb-2" style="${isOpen ? 'border-left:3px solid '+sevColor : 'opacity:.7'}">
+    <div class="card mb-2" style="${isOpen ? 'border-left:3px solid '+sevColor : 'opacity:.7'};cursor:pointer;" onclick="openIncidentDetail(${inc.id})">
       <div class="flex justify-between items-center mb-1">
         <span class="font-semibold">${INCIDENT_TYPES[inc.type]||inc.type}</span>
         <span class="tag ${sevTag}">${sevLabel}</span>
       </div>
-      <div class="text-sm mb-1">${inc.notes||'—'}</div>
-      <div class="text-xs text-gray">${inc.reported_by||''} · ${(inc.reported_at||'').slice(0,16)}</div>
-      ${isOpen ? `<button class="btn btn-outline btn-sm mt-1" onclick="closeIncident(${inc.id})">結案</button>` : `<span class="tag tag-gray" style="margin-top:4px;display:inline-block;">已結案</span>`}
+      <div class="text-sm mb-1" style="white-space:pre-wrap;">${inc.notes||'—'}</div>
+      ${inc.patient_transferred_at ? `<div class="text-xs" style="color:var(--orange);font-weight:600;margin-bottom:2px;">⚠️ 傷患已後送，待 ${inc.patient_transferred_reminded_to||'—'} 手動結案</div>` : ''}
+      <div class="text-xs text-gray">${inc.reported_by||'（系統自動）'} · ${(inc.reported_at||'').slice(0,16).replace('T',' ')}</div>
     </div>
   `;
 }
 
+const INCIDENT_GUIDANCE = {
+  security_threat: '① 通報組長與安全官\n② 隔離受影響區域，禁止無關人員進入\n③ 確認現場安全後方可繼續作業',
+  violent_patient: '① 通報安全官，保持安全距離\n② 請求協助制伏或隔離\n③ 評估傷患與工作人員傷情',
+  infectious_risk: '① 立即穿戴 PPE（口罩 N95、手套、護目鏡）\n② 隔離傷患，限制接觸人員\n③ 通報醫療組長，記錄接觸史',
+  resource_shortage: '① 確認短缺物資與剩餘量\n② 向後勤組請求緊急補給\n③ 調整處置優先順序，保留關鍵物資',
+  capacity_overload: '① 加速評估待後送傷患\n② 通報前進指揮所，請求增援\n③ 啟動量能調配 SOP',
+  equipment_failure: '① 立即停止使用故障設備\n② 找替代方案或備用設備\n③ 通報後勤，記錄故障設備',
+  evacuation: '① 依撤退 SOP 執行\n② 優先後送紅/黃傷患\n③ 清點全體人員與傷患人數',
+};
+
+async function openIncidentDetail(id) {
+  const inc = await db.incidents.get(id);
+  if (!inc) return;
+  const sevTag = inc.severity === 'high' ? 'tag-red' : inc.severity === 'medium' ? 'tag-yellow' : 'tag-green';
+  const sevLabel = inc.severity === 'high' ? '高（立即威脅）' : inc.severity === 'medium' ? '中（需追蹤）' : '低（知悉）';
+  const statusLabel = inc.status === 'open' ? '🔴 開放中' : '✅ 已結案';
+  const guidance = INCIDENT_GUIDANCE[inc.type] || '';
+  // 關聯傷患（唯讀）：顯示觸發事件的傷患，置於頂部
+  let patientBanner = '';
+  if (inc.patient_id) {
+    const lp = _state.patients.find(p => p.id === inc.patient_id) || await db.patients.get(inc.patient_id);
+    const colorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
+    const dot = lp ? (colorDot[lp.triage_color]||'👤') : '👤';
+    const label = lp ? `${dot} ${lp.display_id}` : `👤 #${inc.patient_id}`;
+    patientBanner = `
+      <div style="background:var(--red-bg);border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div>
+          <div style="font-size:11px;color:var(--primary);font-weight:600;margin-bottom:2px;">觸發此事件的傷患</div>
+          <div style="font-size:15px;font-weight:700;">${label}</div>
+          ${lp?.chief_issue ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${lp.chief_issue}</div>` : ''}
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="closeModal();openPatientDetail(${inc.patient_id})">查看履歷</button>
+      </div>`;
+  } else {
+    patientBanner = `<div style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text3);">無關聯傷患記錄</div>`;
+  }
+  const transferAlert = inc.patient_transferred_at ? `
+    <div style="background:var(--orange-bg,#fff3e0);border:1px solid var(--orange);border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:var(--orange);">
+      ⚠️ 傷患已後送（${inc.patient_transferred_at.slice(0,16).replace('T',' ')}）<br>
+      <span style="font-weight:400;font-size:12px;">提醒 ${inc.patient_transferred_reminded_to||'—'} 手動結案，此事件仍開放中</span>
+    </div>` : '';
+  openModal(
+    INCIDENT_TYPES[inc.type]||inc.type,
+    `<div class="flex flex-col gap-1">
+      ${transferAlert}
+      ${patientBanner}
+      <div class="dash-row"><span class="dash-row-label">狀態</span><span class="dash-row-val">${statusLabel}</span></div>
+      <div class="dash-row"><span class="dash-row-label">嚴重程度</span><span class="dash-row-val"><span class="tag ${sevTag}">${sevLabel}</span></span></div>
+      <div class="dash-row"><span class="dash-row-label">通報者</span><span class="dash-row-val">${inc.reported_by||'—'}</span></div>
+      <div class="dash-row"><span class="dash-row-label">通報時間</span><span class="dash-row-val text-sm">${(inc.reported_at||'').slice(0,16).replace('T',' ')}</span></div>
+      ${inc.closed_at ? `<div class="dash-row"><span class="dash-row-label">結案時間</span><span class="dash-row-val text-sm">${inc.closed_at.slice(0,16).replace('T',' ')}</span></div>` : ''}
+      ${inc.notes ? `<div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:13px;white-space:pre-wrap;">${inc.notes}</div>` : ''}
+      ${guidance ? `<div class="section-hdr" style="margin:8px -4px 4px;">建議處置步驟</div>
+        <div class="info-box info" style="font-size:12px;white-space:pre-wrap;">${guidance}</div>` : ''}
+      ${inc.status === 'open' ? `
+      <div class="section-hdr" style="margin:8px -4px 4px;">指派負責人</div>
+      <input class="form-input" id="inc-assign" placeholder="姓名或角色" value="${inc.assigned_to||''}">
+      <div class="section-hdr" style="margin:8px -4px 4px;">處置記錄</div>
+      <textarea class="form-input form-textarea" id="inc-action" placeholder="已採取的措施、後續追蹤…" style="min-height:70px;">${inc.action_notes||''}</textarea>
+      <button class="btn btn-outline btn-full" onclick="saveIncidentAction(${id})">💾 更新記錄</button>
+      ` : `
+      ${inc.assigned_to ? `<div class="dash-row"><span class="dash-row-label">處理人員</span><span class="dash-row-val">${inc.assigned_to}</span></div>` : ''}
+      ${inc.closed_by ? `<div class="dash-row"><span class="dash-row-label">結案人員</span><span class="dash-row-val">${inc.closed_by}</span></div>` : ''}
+      ${inc.action_notes ? `<div class="section-hdr" style="margin:8px -4px 4px;">處置記錄</div>
+        <div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:13px;white-space:pre-wrap;">${inc.action_notes}</div>` : ''}
+      `}
+    </div>`,
+    inc.status === 'open'
+      ? `<button class="btn btn-danger flex-1" onclick="closeIncidentWithConfirm(${id})">結案</button>
+         <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+      : `<button class="btn btn-ghost btn-full" onclick="closeModal()">關閉</button>`
+  );
+}
+
+async function saveIncidentAction(id) {
+  const assigned = document.getElementById('inc-assign')?.value || '';
+  const action = document.getElementById('inc-action')?.value || '';
+  await db.incidents.update(id, { assigned_to: assigned, action_notes: action });
+  showToast('處置記錄已更新');
+}
+
+let _pendingIncidentClose = null;
+
+async function closeIncidentWithConfirm(id) {
+  const action = document.getElementById('inc-action')?.value || '';
+  if (!action.trim()) { showToast('請先填寫處置記錄再結案'); return; }
+  const assigned = document.getElementById('inc-assign')?.value || '';
+  _pendingIncidentClose = { id, action, assigned };
+  _confirmInModal(
+    '確認結案',
+    '結案後事件記錄將設為唯讀，無法修改，確認繼續？',
+    'doCloseIncident()',
+    `openIncidentDetail(${id})`
+  );
+}
+
+async function doCloseIncident() {
+  const { id, action, assigned } = _pendingIncidentClose;
+  _pendingIncidentClose = null;
+  await db.incidents.update(id, {
+    status: 'closed', closed_at: localISO(),
+    action_notes: action,
+    assigned_to: assigned,
+    closed_by: _state.operatorName,
+  });
+  const inc = await db.incidents.get(id);
+  if (inc?.type === 'security_threat' && inc.patient_id) {
+    await db.patients.update(inc.patient_id, { security_cleared: 'yes', updated_at: localISO() });
+    await loadPatients();
+  }
+  closeModal();
+  showToast('事件已結案');
+  renderCurrentTab();
+}
+
 function openCreateIncident() {
+  const patientOpts = [
+    `<option value="">（無關聯傷患）</option>`,
+    ..._state.patients
+      .filter(p => p.current_zone !== '已離區')
+      .map(p => `<option value="${p.id}">${p.display_id} ${p.chief_issue ? '— ' + p.chief_issue.slice(0,20) : ''}</option>`)
+  ].join('');
   openModal('通報事件',
     `<div class="flex flex-col gap-2">
       <div class="form-group">
@@ -2147,6 +2641,10 @@ function openCreateIncident() {
         </select>
       </div>
       <div class="form-group">
+        <div class="form-label">關聯傷患（選填）</div>
+        <select class="form-select" id="inc-patient">${patientOpts}</select>
+      </div>
+      <div class="form-group">
         <div class="form-label">事件說明</div>
         <textarea class="form-input form-textarea" id="inc-notes" placeholder="簡述事件狀況…"></textarea>
       </div>
@@ -2160,22 +2658,17 @@ async function createIncident() {
   const type = document.getElementById('inc-type')?.value;
   const severity = document.getElementById('inc-sev')?.value;
   const notes = document.getElementById('inc-notes')?.value;
+  const patientId = parseInt(document.getElementById('inc-patient')?.value) || null;
   if (!notes?.trim()) { showToast('請填寫事件說明'); return; }
-  await db.incidents.add({
+  const id = await db.incidents.add({
     type, severity, status:'open', notes,
     reported_by:_state.operatorName, assigned_to:'',
-    linked_patients:'', reported_at:new Date().toISOString()
+    patient_id: patientId, linked_patients:'', reported_at:localISO()
   });
-  closeModal();
-  showToast('事件已通報');
-  renderCurrentTab();
+  await renderCurrentTab();
+  openIncidentDetail(id);
 }
 
-async function closeIncident(id) {
-  await db.incidents.update(id, { status:'closed', closed_at:new Date().toISOString() });
-  showToast('事件已結案');
-  renderCurrentTab();
-}
 
 /* ════════════════════════════════════════════════════════════════
    SHIFT / SNAPSHOT PAGE
@@ -2238,7 +2731,7 @@ async function createShift() {
   const notes = document.getElementById('shift-notes')?.value || '';
   const snap = { red:countByColor('red'), yellow:countByColor('yellow'), green:countByColor('green'), black:countByColor('black'), pending:getPendingTransfer() };
   await db.shifts.add({
-    started_at: new Date().toISOString(),
+    started_at: localISO(),
     role: _state.role, operator_name: _state.operatorName,
     handover_notes: notes, snapshot: JSON.stringify(snap)
   });
@@ -2257,7 +2750,7 @@ async function doQrSnapshot() {
   const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
   const pending = getPendingTransfer();
   const uuid = generateSnapshotUUID();
-  const now = new Date().toISOString();
+  const now = localISO();
   const payload = {
     v:1, type:'snapshot_medical', snapshot_id:uuid, t:now,
     src:'medical', casualties:{ red:r, yellow:y, green:g, black:b },
@@ -2286,6 +2779,8 @@ async function doQrSnapshot() {
 }
 
 function doLogout() {
+  localStorage.removeItem('med_session');
+  localStorage.removeItem('med_last_tab');
   clearIdleTimers();
   _state.role = '';
   _state.operatorName = '';
@@ -2308,6 +2803,13 @@ function openModal(title, body, footer) {
 }
 function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
 function handleOverlayClick(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+function _confirmInModal(title, msg, confirmFnStr, cancelFnStr) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = `<p style="padding:16px 4px;font-size:15px;line-height:1.7;">${msg}</p>`;
+  document.getElementById('modal-footer').innerHTML = `
+    <button class="btn btn-danger flex-1" onclick="${confirmFnStr}">確認</button>
+    <button class="btn btn-ghost flex-1" onclick="${cancelFnStr||'closeModal()'}">取消</button>`;
+}
 
 let _toastTimer;
 function showToast(msg) {
@@ -2437,7 +2939,7 @@ async function admAddAccount() {
   const exists = await db.accounts.where('username').equals(u).first();
   if (exists) { msg.textContent = '帳號已存在'; return; }
   const pin_hash = await Crypto.hashPin(pin);
-  await db.accounts.add({ username:u, display_name:dn||u, role, pin_hash, status:'active', created_at:new Date().toISOString() });
+  await db.accounts.add({ username:u, display_name:dn||u, role, pin_hash, status:'active', created_at:localISO() });
   msg.style.color = 'var(--green)'; msg.textContent = `帳號「${u}」已建立`;
   document.getElementById('adm-new-user').value=''; document.getElementById('adm-new-display').value=''; document.getElementById('adm-new-pin').value='';
 }
