@@ -2291,6 +2291,9 @@ var qrcode = function() {
       define([], factory);
   } else if (typeof exports === 'object') {
       module.exports = factory();
+  } else {
+      // 瀏覽器直接引入，掛到 window
+      window.qrcode = factory();
   }
 }(function () {
     return qrcode;

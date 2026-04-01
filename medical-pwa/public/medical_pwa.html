@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.3.53';</script>
+<script>const PWA_VERSION='v0.3.54';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -836,6 +836,7 @@ function renderDashboard(el) {
   const lightColor = r>2||pending>=2 ? 'var(--red)' : r>0||pending>0 ? 'var(--orange)' : 'var(--green)';
 
   el.innerHTML = `
+    <div class="section-hdr">治療區一覽</div>
     <div class="cap-bar">
       <div class="cap-stat red" onclick="filterZoneByColor('red')" style="cursor:pointer"><div class="cap-n">${r}</div><div class="cap-l">紅區</div></div>
       <div class="cap-stat yellow" onclick="filterZoneByColor('yellow')" style="cursor:pointer"><div class="cap-n">${y}</div><div class="cap-l">黃區</div></div>
@@ -1886,7 +1887,8 @@ async function markTransfer(id) {
 async function cancelTransfer(id) {
   await db.patients.update(id, { disposition:'在場', transferred_by: null, transferred_at: null, updated_at: localISO() });
   showToast('已取消待後送');
-  renderCurrentTab();
+  // 加延遲讓 IndexedDB commit 確實完成後再重繪（修正 iOS Safari 數字不更新問題）
+  setTimeout(() => renderCurrentTab(), 150);
 }
 
 async function openMoveZone(id) {
@@ -2200,8 +2202,7 @@ function taSetRecolor(btn) {
 }
 
 async function saveTreatmentAssessment(id) {
-  const injType = _treatState.injuryType;
-  if (!injType) { showToast('請選擇傷型'); return; }
+  const injType = _treatState.injuryType || null;
   if (!gv('ta-chief')?.trim()) { showToast('請填寫主訴摘要'); return; }
   if (!gv('ta-vitals')?.trim()) { showToast('請填寫生命徵象'); return; }
   const now = localISO();
@@ -2757,13 +2758,13 @@ async function doQrSnapshot() {
   const pending = getPendingTransfer();
   const uuid = generateSnapshotUUID();
   const now = localISO();
-  const payload = {
-    v:1, type:'snapshot_medical', snapshot_id:uuid, t:now,
-    src:'medical', casualties:{ red:r, yellow:y, green:g, black:b },
-    pending_evac:pending
-  };
+  // 精簡 payload（縮短 key 名，減少 QR 密度，提升掃描成功率）
+  const payload = { v:1, src:'med', t:now.slice(0,16), r, y, g, b, pe:pending };
   const payloadStr = JSON.stringify(payload);
-  await db.snapshots.add({ snapshot_uuid:uuid, snapshot_time:now, type:'qr', payload:payloadStr });
+  // 完整資料仍存 DB
+  await db.snapshots.add({ snapshot_uuid:uuid, snapshot_time:now, type:'qr',
+    payload: JSON.stringify({ v:1, snapshot_id:uuid, t:now, src:'medical',
+      casualties:{ red:r, yellow:y, green:g, black:b }, pending_evac:pending }) });
 
   openModal('QR 快照',
     `<div style="text-align:center">
@@ -2775,11 +2776,14 @@ async function doQrSnapshot() {
   );
   setTimeout(()=>{
     try {
-      new QRCode(document.getElementById('qr-render'), {
-        text: payloadStr, width:200, height:200, correctLevel: QRCode.CorrectLevel.M
-      });
+      const qr = qrcode(5, 'M');
+      qr.addData(payloadStr);
+      qr.make();
+      const el = document.getElementById('qr-render');
+      if (el) el.innerHTML = qr.createImgTag(4, 8);
     } catch(e) {
-      document.getElementById('qr-render').textContent = payloadStr.slice(0,80)+'…';
+      const el = document.getElementById('qr-render');
+      if (el) el.textContent = 'QR 產生失敗：' + (e.message || e);
     }
   }, 100);
 }
