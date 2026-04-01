@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.1';</script>
+<script>const PWA_VERSION='v2.1.11';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -35,11 +35,11 @@
   <link rel="manifest" href="manifest.json" id="manifest-link">
   <style>
     :root {
-      --primary: #C07800; --primary-dk: #8B5600; --primary-lt: #F5A623;
-      --bg: #F5F5F5; --surface: #FFFFFF; --surface2: #FAFAFA;
+      --primary: #DAA520; --primary-dk: #B8860B; --primary-lt: #F0C040;
+      --bg: #F5F2EC; --surface: #FFFFFF; --surface2: #FAF8F4;
       --text: #1A1A1A; --text2: #666; --text3: #999; --border: #E0E0E0;
-      --green: #2E7D32; --green-bg: #E8F5E9; --yellow: #E65100; --yellow-bg: #FFF3E0;
-      --red: #C62828; --red-bg: #FFEBEE; --orange: #E65100;
+      --green: #2E7D32; --green-bg: #E8F5E9; --yellow: #DAA520; --yellow-bg: #FFF8E1;
+      --red: #C62828; --red-bg: #FFEBEE; --orange: #DAA520;
       --blue: #1565C0; --blue-bg: #E3F2FD; --gray: #757575; --gray-bg: #F5F5F5;
       --shadow: 0 2px 8px rgba(0,0,0,.12); --shadow-sm: 0 1px 4px rgba(0,0,0,.08);
       --r: 10px; --r-sm: 6px; --tab-h: 62px; --hdr-h: 52px;
@@ -95,23 +95,38 @@
     .form-hint { font-size: 12px; color: var(--text3); }
     .form-section { margin-bottom: 20px; }
     .form-section-title { font-size: 13px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-    #role-screen { position: fixed; inset: 0; background: linear-gradient(135deg, #7B4800 0%, #C07800 50%, #E8A020 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; padding: 24px; }
-    #role-screen .logo { font-size: 72px; margin-bottom: 12px; }
-    #role-screen h1 { color: #fff; font-size: 26px; font-weight: 700; margin-bottom: 4px; text-align: center; }
-    #role-screen .subtitle { color: rgba(255,255,255,.8); font-size: 14px; margin-bottom: 36px; text-align: center; }
-    #role-screen .role-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; width: 100%; max-width: 420px; }
-    #role-screen .role-btn { background: rgba(255,255,255,.15); border: 2px solid rgba(255,255,255,.3); color: #fff; border-radius: var(--r); padding: 16px 12px; text-align: center; cursor: pointer; transition: all .2s; backdrop-filter: blur(8px); }
-    #role-screen .role-btn:active { background: rgba(255,255,255,.3); }
-    #role-screen .role-btn .icon { font-size: 28px; display: block; margin-bottom: 6px; }
-    #role-screen .role-btn .name { font-size: 16px; font-weight: 700; display: block; }
-    #role-screen .role-btn .desc { font-size: 12px; opacity: .8; display: block; margin-top: 2px; }
+    #role-screen { position: fixed; inset: 0; background: linear-gradient(180deg, #F5EFE0 0%, var(--bg) 100%); color: var(--text); display: flex; flex-direction: column; align-items: center; z-index: 999; padding: 24px; overflow-y: auto; }
+    .login-wrap { width: 100%; max-width: 320px; display: flex; flex-direction: column; align-items: center; margin: auto 0; }
+    .login-icon-wrap { width: 108px; height: 108px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+    .login-icon-wrap img { width: 108px; height: 108px; border-radius: 18px; }
+    .login-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+    .login-sub { font-size: 13px; color: var(--primary); margin-bottom: 20px; }
+    .login-card { width: 100%; background: var(--surface); border-radius: var(--r); box-shadow: none; padding: 20px; margin-bottom: 12px; border: 1px solid var(--border); }
+    .login-notice { font-size: 12px; padding: 6px 14px; border-radius: var(--r-sm); margin-bottom: 14px; text-align: center; width: 100%; }
+    .login-field { width: 100%; margin-bottom: 12px; }
+    .login-input { width: 100%; padding: 13px 16px; border-radius: var(--r-sm); border: 2px solid var(--border); background: var(--surface); color: var(--text); font-size: 16px; transition: border-color .15s; }
+    .login-input::placeholder { color: var(--text3); }
+    .login-input:focus { outline: none; border-color: var(--primary); }
+    .login-btn { width: 100%; padding: 14px; border-radius: var(--r-sm); background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; border: none; cursor: pointer; transition: opacity .15s; }
+    .login-btn:active { opacity: .8; }
+    .login-warn { min-height: 18px; font-size: 13px; color: var(--red); margin-top: 8px; text-align: center; width: 100%; }
+    .login-pi-status { font-size: 12px; padding: 5px 12px; border-radius: 20px; background: var(--gray-bg); color: var(--text2); }
+    .login-status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .login-status-hint { font-size: 11px; color: var(--text3); }
+    .login-admin-btn { background: transparent; border: none; color: var(--text3); font-size: 13px; cursor: pointer; font-family: inherit; padding: 6px 12px; }
+    .login-version { color: var(--text3); font-size: 11px; margin-top: 6px; }
+    #role-screen .role-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; width: 100%; margin-top: 8px; }
+    #role-screen .role-btn { background: var(--surface); border: 2px solid #E8DCC8; color: var(--text); border-radius: var(--r); padding: 14px 10px; text-align: center; cursor: pointer; transition: all .2s; box-shadow: var(--shadow-sm); }
+    #role-screen .role-btn:active { background: #FBF6ED; }
+    #role-screen .role-btn .icon { font-size: 24px; display: block; margin-bottom: 4px; }
+    #role-screen .role-btn .name { font-size: 15px; font-weight: 700; display: block; }
+    #role-screen .role-btn .desc { font-size: 11px; color: var(--text3); display: block; margin-top: 2px; }
     #role-screen .role-btn.leader { grid-column: 1 / -1; }
-    #role-screen .version { color: rgba(255,255,255,.65); font-size: 12px; position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; }
     #app { display: flex; flex-direction: column; height: 100vh; }
     #capacity-banner { flex-shrink: 0; }
     #header { display: flex; align-items: center; padding: 0 16px; height: var(--hdr-h); background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 8px; }
     #header h2 { flex: 1; font-size: 17px; font-weight: 700; }
-    #header .role-chip { font-size: 12px; background: var(--yellow-bg); color: var(--orange); padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    #header .role-chip { font-size: 12px; background: var(--yellow-bg); color: var(--primary); padding: 3px 10px; border-radius: 12px; font-weight: 600; }
     #alert-banner { background: var(--red); color: #fff; padding: 8px 16px; font-size: 13px; font-weight: 600; display: none; flex-shrink: 0; }
     #content { flex: 1; overflow-y: auto; padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom)); }
     #tab-bar { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,.08); }
@@ -319,47 +334,52 @@
 <body>
 <!-- Role Selection Screen -->
 <div id="role-screen">
-  <div class="logo">🏠</div>
-  <h1 id="shelter-name-title">收容組</h1>
-  <div class="subtitle" id="shelter-loc-subtitle">收容管理系統 v2.1</div>
-  <!-- Pi 連線狀態列（登入頁） -->
-  <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
-    <div id="login-pi-status" style="padding:5px 12px;border-radius:20px;font-size:12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);">
-      🟡 Pi 連線中…
+  <div class="login-wrap">
+    <div class="login-icon-wrap"><img src="badge.png" alt="Taiwan Civil Defense"></div>
+    <div class="login-title" id="shelter-name-title">收容組管理系統</div>
+    <div class="login-sub" id="shelter-loc-subtitle">Shelter Team PWA</div>
+    <!-- Pi 連線狀態 -->
+    <div class="login-status-row">
+      <div id="login-pi-status" class="login-pi-status">🟡 Pi 連線中…</div>
+      <span class="login-status-hint">若無法連線，請刷新頁面</span>
     </div>
-    <span style="font-size:11px;color:rgba(255,255,255,.5);">若無法連線，請刷新頁面</span>
-  </div>
-  <div id="operator-section" style="width:100%;max-width:420px;margin-bottom:20px;display:flex;flex-direction:column;gap:8px;">
-    <input id="operator-username-input" type="text" placeholder="任務帳號 / 姓名" autocomplete="off" autocorrect="off" spellcheck="false"
-      style="width:100%;padding:12px 16px;border-radius:10px;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:16px;outline:none;backdrop-filter:blur(8px);">
-    <input id="operator-pin-input" type="password" placeholder="PIN（4-6 位數字）" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
-      style="width:100%;padding:12px 16px;border-radius:10px;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:16px;outline:none;backdrop-filter:blur(8px);letter-spacing:6px;">
-    <details style="color:rgba(255,255,255,.7);font-size:12px;">
-      <summary style="cursor:pointer;padding:4px 0;">⚙️ Pi 伺服器設定</summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-        <input id="pi-url-input" type="url" placeholder="ws://192.168.1.100:8765" autocomplete="off"
-          style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font-size:13px;outline:none;">
-        <button onclick="savePiUrl()" style="padding:6px 12px;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;">儲存 Pi URL</button>
-        <div id="pi-url-status" style="font-size:11px;color:rgba(255,255,255,.6);"></div>
+    <!-- 登入卡片 -->
+    <div class="login-card">
+      <div class="login-field">
+        <input id="operator-username-input" class="login-input" type="text" placeholder="帳號" autocomplete="off" autocorrect="off" spellcheck="false">
       </div>
-    </details>
-    <div id="operator-warn" style="color:#FFD08A;font-size:12px;margin-top:0;display:none;"></div>
+      <div class="login-field">
+        <input id="operator-pin-input" class="login-input" type="password" placeholder="PIN（4–6 位數字）" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+          oninput="this.value=this.value.replace(/\D/g,'')"
+          onkeydown="if(event.key==='Enter')handleLogin(null)">
+      </div>
+      <details style="color:var(--text3);font-size:12px;margin-bottom:12px;">
+        <summary style="cursor:pointer;padding:4px 0;">⚙️ Pi 伺服器設定</summary>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+          <input id="pi-url-input" class="login-input" type="url" placeholder="ws://192.168.1.100:8765" autocomplete="off" style="font-size:13px;padding:8px 12px;">
+          <button onclick="savePiUrl()" style="padding:6px 12px;background:var(--gray-bg);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;cursor:pointer;">儲存 Pi URL</button>
+          <div id="pi-url-status" style="font-size:11px;color:var(--text3);"></div>
+        </div>
+      </details>
+      <!-- 登入按鈕（Pi 已連線時） -->
+      <div id="login-btn-section">
+        <button id="login-main-btn" class="login-btn" onclick="handleLogin(null)">
+          <span id="login-btn-text">登入</span>
+        </button>
+        <div id="login-btn-desc" style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">帳號決定角色</div>
+      </div>
+      <div id="operator-warn" class="login-warn"></div>
+    </div>
+    <!-- 降級角色選擇 -->
+    <div id="degraded-role-grid" class="role-grid" style="display:none;">
+      <button class="role-btn leader" onclick="handleLogin('組長')"><span class="icon">📊</span><span class="name">組長</span><span class="desc">所有資料・名冊・設定</span></button>
+      <button class="role-btn" onclick="handleLogin('人管')"><span class="icon">👤</span><span class="name">人管</span><span class="desc">入站・床位分配</span></button>
+      <button class="role-btn" onclick="handleLogin('物管')"><span class="icon">📦</span><span class="name">物管</span><span class="desc">物資盤點・追蹤</span></button>
+      <button class="role-btn" onclick="handleLogin('環管')"><span class="icon">🏗️</span><span class="name">環管</span><span class="desc">帶位・床位地圖</span></button>
+    </div>
+    <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
+    <div class="login-version" id="pwa-version-display">收容組 PWA</div>
   </div>
-  <!-- 登入按鈕（Pi 已連線時）或角色選擇（Pi 離線時） -->
-  <div id="login-btn-section" style="width:100%;max-width:420px;">
-    <button id="login-main-btn" class="role-btn leader" style="width:100%;justify-content:center;margin-bottom:0;" onclick="handleLogin(null)">
-      <span class="icon">🔐</span><span class="name" id="login-btn-text">登入</span><span class="desc" id="login-btn-desc">帳號決定角色</span>
-    </button>
-  </div>
-  <!-- 降級角色選擇（Pi 離線、輸入帳號+PIN 後顯示） -->
-  <div id="degraded-role-grid" class="role-grid" style="display:none;width:100%;max-width:420px;margin-top:8px;">
-    <button class="role-btn leader" onclick="handleLogin('組長')"><span class="icon">📊</span><span class="name">組長</span><span class="desc">所有資料・名冊・設定</span></button>
-    <button class="role-btn" onclick="handleLogin('人管')"><span class="icon">👤</span><span class="name">人管</span><span class="desc">入站・床位分配</span></button>
-    <button class="role-btn" onclick="handleLogin('物管')"><span class="icon">📦</span><span class="name">物管</span><span class="desc">物資盤點・追蹤</span></button>
-    <button class="role-btn" onclick="handleLogin('環管')"><span class="icon">🏗️</span><span class="name">環管</span><span class="desc">帶位・床位地圖</span></button>
-  </div>
-  <span class="version" id="pwa-version-display">收容組 PWA</span>
-  <button onclick="openAdminPanel()" style="margin-top:16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);border-radius:20px;padding:6px 18px;font-size:13px;cursor:pointer;font-family:inherit;">⚙️ 帳號管理</button>
 </div>
 
 <!-- Main App -->
@@ -917,9 +937,8 @@ const App = {
     const opInput=document.getElementById('operator-name-input');
     if(opInput&&savedOperator)opInput.value=savedOperator;
     const shelterName=this.config.shelter.name;
-    document.getElementById('shelter-name-title').textContent=shelterName||'收容組';
-    document.getElementById('shelter-loc-subtitle').textContent=(this.config.shelter.location?this.config.shelter.location+' · ':'')+'收容管理系統 v2.1';
-    if(!shelterName){const sub=document.getElementById('shelter-loc-subtitle');if(sub)sub.textContent='⚠️ 請先在「設定」頁填入收容所資訊';}
+    document.getElementById('shelter-name-title').textContent=(shelterName?shelterName+' · ':'')+'收容組管理系統';
+    document.getElementById('shelter-loc-subtitle').textContent=shelterName?(this.config.shelter.location||'Shelter Team PWA'):'⚠️ 請先在「設定」頁填入收容所資訊';
     const savedRole=localStorage.getItem('shelter_role');
     if(savedRole)setTimeout(()=>document.getElementById('operator-pin-input')?.focus(),300);
     this.autoSnapshotTimer=setInterval(()=>this.takeSnapshot(),15*60*1000);
@@ -1134,7 +1153,7 @@ function copyCapacityReport(){
 async function renderDashboard() {
   await refreshCapacityBanner();
   const [persons,beds,resources,incidents]=await Promise.all([
-    db.persons.toArray(),db.beds.toArray(),db.resources.toArray(),db.incidents.toArray()
+    db.persons.toArrayDecrypted(),db.beds.toArray(),db.resources.toArray(),db.incidents.toArray()
   ]);
   const statusMap={'等候中':0,'登記中':0,'待分配':0,'已安置':0,'已離站':0,'已隔離':0};
   for(const p of persons)if(p.status in statusMap)statusMap[p.status]++;
@@ -1247,7 +1266,8 @@ const IntakeValidator=(()=>{
 function getPersonStepIndex(p){return IntakeValidator.stepIndex(p);}
 
 async function renderIntake() {
-  const persons=await db.persons.where('status').noneOf(['已離站']).toArray();
+  const personsRaw=await db.persons.where('status').noneOf(['已離站']).toArray();
+  const persons=await Promise.all(personsRaw.map(r=>PersonCrypto.decryptPerson(r)));
   const active=persons.filter(p=>!['已離站','已安置'].includes(p.status)).sort((a,b)=>new Date(a.intake_at)-new Date(b.intake_at));
   if(active.length===0){el('intake-queue').innerHTML=`<div class="empty-state"><div class="es-icon">👋</div><div class="es-title">目前無待處理入站者</div><div class="es-sub">點擊右上角「個人」或「家庭」開始</div></div>`;return;}
   const groups=[],seen=new Set();
@@ -1291,7 +1311,7 @@ async function toggleSanGate(personId) {
   if(!p.san_gate_done){showToast('清消關卡確認 ✅');if(p.status==='等候中')await FreezeGateway.writePerson(personId,AuditManager.stamp({status:'登記中',registering_started_at:nowISO()}),db.persons);}
   renderIntake();
 }
-async function toggleSanGateDirect(personId){await toggleSanGate(personId);const p=await db.persons.get(personId);showIntakeStep(p,getPersonStepIndex(p));}
+async function toggleSanGateDirect(personId){await toggleSanGate(personId);const p=await db.persons.getDecrypted(personId);showIntakeStep(p,getPersonStepIndex(p));}
 
 function openNewPersonModal(){
   openModal('新增入站者',`<div class="info-box info">入站者到達等候區後，先確認清消（安Gate），再開始登記流程。</div><div class="form-group"><label class="form-label">人員類型 <span class="req">*</span></label><select class="form-input form-select" id="new-type"><option value="災民">災民</option><option value="志工">志工</option><option value="工作人員">工作人員</option></select></div><div class="form-group"><label class="form-label">姓名（可填「匿名」）<span class="req">*</span></label><input class="form-input" id="new-name" placeholder="姓名或匿名" type="text"></div><div class="form-group"><label class="form-label">備註（可選）</label><input class="form-input" id="new-notes" placeholder="如：持有輪椅" type="text"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="createNewPerson()">建立入站者</button>`);
@@ -1358,7 +1378,7 @@ async function confirmAllFamilySanGate(personId){
   showToast(`✅ 全家 ${family.length} 人清消完成`); await renderIntake(); await refreshCapacityBanner();
 }
 
-async function openPersonIntakeFlow(personId){const p=await db.persons.get(personId);if(!p)return;showIntakeStep(p,getPersonStepIndex(p));}
+async function openPersonIntakeFlow(personId){const p=await db.persons.getDecrypted(personId);if(!p)return;showIntakeStep(p,getPersonStepIndex(p));}
 async function openPersonModal(personId){const p=await db.persons.getDecrypted(personId);if(!p)return;showPersonDetail(p);}
 
 async function showPersonDetail(p) {
@@ -1415,13 +1435,13 @@ async function quickUpdateHealth(personId,value){
     if(ex){await appendNote(ex,`健康標記解除為「正常」（前次：${prev}），請確認後手動結案`);showToast('✅ 健康標記已解除，已追加紀錄');}
     else showToast('✅ 健康標記已更新為正常');
   }
-  await renderDashboard(); await renderCurrentTab(); const updated=await db.persons.get(personId); showPersonDetail(updated);
+  await renderDashboard(); await renderCurrentTab(); const updated=await db.persons.getDecrypted(personId); showPersonDetail(updated);
 }
 
 async function confirmPaperDestroyed(personId){
   const ok=await confirm2('確認補登完成','確認已完成數位補登，並已銷毀紙本表單？');if(!ok)return;
   await FreezeGateway.writePerson(personId,AuditManager.stamp({paper_form_destroyed:true}),db.persons);syncAfterWrite('persons',personId);
-  showToast('✅ 紙本銷毀確認完成');const updated=await db.persons.get(personId);showPersonDetail(updated);await renderDashboard();await renderCurrentTab();
+  showToast('✅ 紙本銷毀確認完成');const updated=await db.persons.getDecrypted(personId);showPersonDetail(updated);await renderDashboard();await renderCurrentTab();
 }
 function formatCmistSummary(cmist){if(!cmist)return '';const p=[];if((cmist.communication||[]).length)p.push('溝通:'+cmist.communication.join(','));if((cmist.maintaining_health||[]).length)p.push('健康:'+cmist.maintaining_health.join(','));if((cmist.independence||[]).length)p.push('行動:'+cmist.independence.join(','));if((cmist.services_support||[]).length)p.push('服務:'+cmist.services_support.join(','));if((cmist.transportation||[]).length)p.push('交通:'+cmist.transportation.join(','));return p.join(' | ');}
 </script>
@@ -1514,8 +1534,8 @@ let _genderCache=null;
 function setGender(val){_genderCache=val;['男','女'].forEach(g=>{const btn=document.getElementById(`gender-${g==='男'?'male':'female'}`);if(btn)btn.className=`btn flex-1 ${g===val?'btn-primary':'btn-outline'}`;});}
 
 async function renderBedAssignment(personId) {
-  const p=await db.persons.get(personId),beds=await db.beds.toArray(),zones=App.config.zones;
-  let familyMembers=[];if(p.family_unit_id)familyMembers=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();
+  const p=await db.persons.getDecrypted(personId),beds=await db.beds.toArray(),zones=App.config.zones;
+  let familyMembers=[];if(p.family_unit_id){const raw=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();familyMembers=await Promise.all(raw.map(r=>PersonCrypto.decryptPerson(r)));}
   const isFamily=familyMembers.length>1;
   const suggestedZoneId=isFamily?'family':p.gender==='男'?'male':p.gender==='女'?'female':null;
   let html=`<div style="font-size:14px;color:var(--text2);margin-bottom:8px;">為 <strong>${escHtml(p.display_id||p.name||'入站者')}</strong>${p.gender?`（${escHtml(p.gender)}）`:''} 選擇床位：</div>`;
@@ -1541,7 +1561,7 @@ async function assignBed(personId,bedDisplayId){
   await FreezeGateway.writePerson(personId,AuditManager.stamp({bed_id:bedDisplayId}),db.persons);
   await db.beds.update(bed._id,AuditManager.stamp({status:'assigned',assigned_to:p.display_id||String(personId)}));
   syncAfterWrite('persons',personId);syncAfterWrite('beds',bed._id);showToast(`床位 ${bedDisplayId} 已分配`);
-  const updatedP=await db.persons.get(personId);showIntakeStep(updatedP,getPersonStepIndex(updatedP));renderBeds();
+  const updatedP=await db.persons.getDecrypted(personId);showIntakeStep(updatedP,getPersonStepIndex(updatedP));renderBeds();
 }
 
 async function completeIntakeStep(personId,stepKey){
@@ -1559,7 +1579,8 @@ async function completeIntakeStep(personId,stepKey){
     case 'guide': {updates.status='已安置';if(p.bed_id){const bed=await db.beds.where('display_id').equals(p.bed_id).first();if(bed){await db.beds.update(bed._id,AuditManager.stamp({status:'occupied',assigned_to:p.display_id||String(personId)}));syncAfterWrite('beds',bed._id);}}break;}
   }
   await FreezeGateway.writePerson(personId,AuditManager.stamp(updates),db.persons);
-  const updatedP=await db.persons.get(personId);syncAfterWrite('persons',updatedP);
+  const updatedRaw=await db.persons.get(personId);syncAfterWrite('persons',updatedRaw);
+  const updatedP=await db.persons.getDecrypted(personId);
   if(App._pendingCmistDispatch===personId){App._pendingCmistDispatch=null;await cmistAutoDispatch(personId).catch(e=>console.warn('[CMIST]',e));}
   if(updatedP.status==='已安置'){closeModal();showToast('✅ 入站流程完成！');}
   else showIntakeStep(updatedP,getPersonStepIndex(updatedP));
@@ -1593,7 +1614,7 @@ async function openExitModal(personId){
   openModal('離站確認',`<div class="info-box warn">確認後此人員狀態改為「已離站」，床位將釋放。</div><div class="form-group"><label class="form-label">離站原因 <span class="req">*</span></label><select class="form-input form-select" id="exit-reason"><option>遣散</option><option>送醫</option><option>自行離開</option><option>轉站</option></select></div><div class="form-group"><label class="form-label">備註</label><input class="form-input" id="exit-notes" placeholder="（可選）"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-danger flex-1" onclick="confirmExit(${personId})">確認離站</button>`);
 }
 async function confirmExit(personId){
-  const reason=el('exit-reason')?.value,notes=el('exit-notes')?.value||'',p=await db.persons.get(personId);if(!p)return;
+  const reason=el('exit-reason')?.value,notes=el('exit-notes')?.value||'',p=await db.persons.getDecrypted(personId);if(!p)return;
   await AuditLogManager.write('person_exited',{person_id:personId,display_id:p.display_id,exit_reason:reason,device_id:SyncManager.deviceId(),session_id:sessionStorage.getItem('shelter_session_id')||''});
   await FreezeGateway.writePerson(personId,AuditManager.stamp({status:'已離站',exit_at:nowISO(),exit_reason:reason,notes:notes?(p.notes?p.notes+'; '+notes:notes):p.notes}),db.persons);
   if(p.bed_id){const bed=await db.beds.where('display_id').equals(p.bed_id).first();if(bed){await db.beds.update(bed._id,AuditManager.stamp({status:'empty',assigned_to:null}));syncAfterWrite('beds',bed._id);}}
@@ -1617,7 +1638,7 @@ async function openBedModal(bedDisplayId){
   const zoneName=App.config.zones.find(z=>z.id===bed.zone)?.name||bed.zone;
   const statusLabels={empty:'空置',assigned:'已分配',occupied:'已佔用',suspended:'暫停'};
   let personCard='';
-  if(bed.assigned_to){const p=await db.persons.where('display_id').equals(bed.assigned_to).first();if(p)personCard=`<div class="card-sm mt-2" onclick="openPersonModal(${p._id});closeModal();" style="cursor:pointer;"><div class="font-semibold">${escHtml(p.display_id)} — ${escHtml(p.name)}</div><div class="text-sm text-gray">${p.age_group||'—'} · ${p.health_flag||'正常'}</div></div>`;}
+  if(bed.assigned_to){const pRaw=await db.persons.where('display_id').equals(bed.assigned_to).first();if(pRaw){const p=await PersonCrypto.decryptPerson(pRaw);personCard=`<div class="card-sm mt-2" onclick="openPersonModal(${p._id});closeModal();" style="cursor:pointer;"><div class="font-semibold">${escHtml(p.display_id)} — ${escHtml(p.name)}</div><div class="text-sm text-gray">${p.age_group||'—'} · ${p.health_flag||'正常'}</div></div>`;}}
   openModal(`床位 ${bedDisplayId}`,`<div class="person-detail-row"><span class="pdr-label">區域</span><span class="pdr-value">${escHtml(zoneName)}</span></div><div class="person-detail-row"><span class="pdr-label">狀態</span><span class="pdr-value">${statusLabels[bed.status]||bed.status}</span></div><div class="person-detail-row"><span class="pdr-label">分配給</span><span class="pdr-value">${escHtml(bed.assigned_to||'—')}</span></div>${personCard}<div class="person-detail-row"><span class="pdr-label">備註</span><span class="pdr-value">${escHtml(bed.notes||'—')}</span></div>`,`<button class="btn btn-ghost btn-sm" onclick="toggleBedSuspend('${bedDisplayId}')">${bed.status==='suspended'?'🔓 恢復':'🔒 暫停'}</button><button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`);
 }
 async function toggleBedSuspend(bedDisplayId){
@@ -1808,7 +1829,7 @@ async function printShiftSummary(){
   const cfg=App.config;const statusCounts={};for(const p of persons)statusCounts[p.status]=(statusCounts[p.status]||0)+1;
   el('print-area').innerHTML=`<div class="print-header"><h1>${escHtml(cfg.shelter?.name||'收容所')} 交班摘要單</h1><p>列印時間：${fmtDT(nowISO())} · 交班人：${escHtml(App.role)}</p></div><div class="print-section"><div class="print-title">人員狀態</div>${['等候中','登記中','待分配','已安置','已離站','已隔離'].map(s=>`<div class="print-field"><span class="print-field-label">${s}</span><span class="print-field-value">${statusCounts[s]||0} 人</span></div>`).join('')}</div>`;window.print();
 }
-async function printBedRoster(){const [beds,persons]=await Promise.all([db.beds.toArray(),db.persons.toArray()]);const pm={};for(const p of persons)if(p.display_id)pm[p.display_id]=p;el('print-area').innerHTML=`<div class="print-header"><h1>${escHtml(App.config.shelter.name)} — 床位分配總表</h1><p>列印時間：${fmtDT(nowISO())}</p></div><table><thead><tr><th>床位</th><th>寢區</th><th>狀態</th><th>住民編號</th><th>年齡</th></tr></thead><tbody>${beds.map(b=>`<tr><td>${escHtml(b.display_id)}</td><td>${escHtml(App.config.zones.find(z=>z.id===b.zone)?.name||b.zone)}</td><td>${b.status}</td><td>${escHtml(b.assigned_to||'—')}</td><td>${pm[b.assigned_to]?.age_group||''}</td></tr>`).join('')}</tbody></table>`;window.print();}
+async function printBedRoster(){const [beds,persons]=await Promise.all([db.beds.toArray(),db.persons.toArrayDecrypted()]);const pm={};for(const p of persons)if(p.display_id)pm[p.display_id]=p;el('print-area').innerHTML=`<div class="print-header"><h1>${escHtml(App.config.shelter.name)} — 床位分配總表</h1><p>列印時間：${fmtDT(nowISO())}</p></div><table><thead><tr><th>床位</th><th>寢區</th><th>狀態</th><th>住民編號</th><th>年齡</th></tr></thead><tbody>${beds.map(b=>`<tr><td>${escHtml(b.display_id)}</td><td>${escHtml(App.config.zones.find(z=>z.id===b.zone)?.name||b.zone)}</td><td>${b.status}</td><td>${escHtml(b.assigned_to||'—')}</td><td>${pm[b.assigned_to]?.age_group||''}</td></tr>`).join('')}</tbody></table>`;window.print();}
 function printBlankIntake(){el('print-area').innerHTML=`<div class="print-header"><h1>${escHtml(App.config.shelter.name)} — 空白入站登記表（降級備用）</h1><p>列印時間：${fmtDT(nowISO())} · 停電時手寫，電力恢復後補登至系統並銷毀本表</p></div><table><thead><tr><th>姓名</th><th>類型</th><th>年齡</th><th>年齡區段</th><th>戶內人數</th><th>健康</th></tr></thead><tbody>${Array(10).fill('<tr><td style="min-height:32px"> </td><td>災民□ 志工□</td><td> </td><td>0-4□ 5-19□ 20-34□ 35-49□ 50-64□ 65+□</td><td> </td><td>正常□ 需關注□ 隔離□</td></tr>').join('')}</tbody></table>`;window.print();}
 function printFourDocSet(){const sn=escHtml(App.config.shelter.name),sl=escHtml(App.config.shelter.location||''),today=new Date().toLocaleDateString('zh-TW');el('print-area').innerHTML=`<div class="print-section"><div class="print-header"><h1>收容同意書</h1><p>${sn}</p></div><p style="font-size:11pt;line-height:1.8;margin-bottom:16px;">本人自願接受 <strong>${sn}</strong> 提供之緊急收容安置服務，同意遵守收容公約。</p><div class="print-field"><span class="print-field-label">收容者姓名：</span><span class="print-field-value"> </span></div><div class="print-signature"><div class="sig-block"><div style="height:40px"></div><div class="sig-line">收容者簽名</div></div><div class="sig-block"><div style="height:40px"></div><div class="sig-line">日期</div></div></div></div>`;window.print();}
 async function printRecoveryChecklist(){const [persons,resources,incidents]=await Promise.all([db.persons.toArray(),db.resources.toArray(),db.incidents.toArray()]);const borrowed=resources.filter(r=>r.is_borrowed),openInc=incidents.filter(i=>i.status!=='已結案');el('print-area').innerHTML=`<div class="print-header"><h1>${escHtml(App.config.shelter.name)} 場復清點表</h1><p>列印時間：${fmtDT(nowISO())}</p></div><div class="print-section"><div class="print-title">待歸還借用物資</div>${borrowed.length?`<table><thead><tr><th>物資</th><th>擁有者</th><th>數量</th><th>已歸還</th></tr></thead><tbody>${borrowed.map(r=>`<tr><td>${escHtml(r.name)}</td><td>${escHtml(r.owner_name||'—')}</td><td>${r.qty_current} ${escHtml(r.unit)}</td><td>□</td></tr>`).join('')}</tbody></table>`:'無借用物資'}</div><div class="print-section"><div class="print-title">未結案事件</div>${openInc.length?openInc.map(i=>`<div class="print-field"><span class="print-field-label">${escHtml(INCIDENT_LABELS[i.type]||i.type)}</span><span class="print-field-value">${escHtml(i.status)}</span></div>`).join(''):'無未結案事件'}</div>`;window.print();}
@@ -2453,16 +2474,16 @@ const WsManager = (function(){
     const el=document.getElementById('login-pi-status');if(!el)return;
     const btn=document.getElementById('login-btn-text'),desc=document.getElementById('login-btn-desc');
     if(state==='ok'){
-      el.textContent='🟢 Pi 已連線';el.style.background='rgba(80,200,100,.2)';el.style.color='#90e0a0';
+      el.textContent='🟢 Pi 已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='帳號決定角色';
     }else if(state==='pending'){
-      el.textContent='🟡 Pi 連線中…';el.style.background='rgba(255,200,0,.15)';el.style.color='rgba(255,255,255,.8)';
+      el.textContent='🟡 Pi 連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
     }else if(state==='offline'){
-      el.textContent='⚫ 裝置離線';el.style.background='rgba(255,255,255,.08)';el.style.color='rgba(255,255,255,.45)';
+      el.textContent='⚫ 裝置離線';el.style.background='var(--gray-bg)';el.style.color='var(--text3)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
     }else{
-      el.textContent='🔴 Pi 離線'+(detail?' — '+detail:'');el.style.background='rgba(200,60,60,.2)';el.style.color='#f08080';
+      el.textContent='🔴 Pi 離線'+(detail?' — '+detail:'');el.style.background='var(--red-bg)';el.style.color='var(--red)';
       if(btn)btn.textContent='離線登入';if(desc)desc.textContent='請選擇角色，資料不跨裝置同步';
     }
   }
