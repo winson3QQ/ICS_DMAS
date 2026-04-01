@@ -1,7 +1,26 @@
 ---
-name: medical PWA 待處理問題清單（2026-03-30 更新）
-description: medical_pwa.html 的已知問題、優先順序、修改方向，演習前必修 P1/P7/P8
+name: medical PWA 待處理問題清單（2026-04-01 更新至 v0.3.53）
+description: medical_pwa.html 已知問題、優先順序、修改方向，演習前必修 P1/P7/P8
 type: project
+---
+
+## ✅ 已完成（v0.3.34–v0.3.53）
+
+- **P2 ID 重複**：nextDisplayId 改從 DB max 取序號，格式 M007-MA（含性別年齡代碼）
+- **治療評估 modal 重繪**：選傷型改為 show/hide，不重新 render，文字不消失，儲存鈕永遠可見（v0.3.41）
+- **移區 triage_color 同步**：moveZone 同步更新燈號並寫 retriage 記錄（v0.3.42/v0.3.46）
+- **安全威脅後送提醒**：交接完成時若有未結案安全威脅，寫入提醒記錄，事件卡顯示橘色警示（v0.3.43）
+- **傷患詳情欄位重排**：來源→安檢狀態→外觀特徵→建檔者→傷型→主訴→生命徵象→目前區域→處置（v0.3.44/v0.3.45）
+- **取消後送**：待後送卡加「✕ 取消」按鈕（cancelTransfer），v0.3.46
+- **不可逆操作確認對話**：建檔/後送交接/事件結案三處加確認 modal（v0.3.47）
+- **通報事件直開詳情**：createIncident 後直接開 openIncidentDetail（v0.3.48）
+- **title 動態帶入版號**：`<title>` 改由 JS 從 PWA_VERSION 設定（v0.3.49）
+- **START grid 改直排**：2×2 改單欄，避免手機裁切（v0.3.50）
+- **ISBAR 補填外觀特徵**：外觀特徵為空時顯示警示框+補填欄，交接時存回 DB（v0.3.50）
+- **登入頁改臂章圖**：logo 改為 Taiwan Civil Defense 臂章（v0.3.52）
+- **內頁 banner 改紅十字 SVG**：取代臂章，flex 對齊（v0.3.52/v0.3.53）
+- **PIN 提示統一**：全部統一為「4-6 位數字」，移除「僅限數字」冗餘文字（v0.3.52/v0.3.53）
+
 ---
 
 ## 演習前必修（🔴）
@@ -9,89 +28,61 @@ type: project
 ### P1 — 缺少「非前進組送入」C 來源表單
 - 按鈕標籤「🚶 自行抵達」語意不完整，應改為「🙋 非前進組送入」
 - 選 C 後沒有表單區塊：需加入送入方式、性別（觀察）、年齡段（觀察）、來源描述、主要傷況（觀察）
-- `submitIntake()` 需讀取 `c-arrival-mode`、`c-sex`、`c-age`、`c-source-desc`、`c-issue`
-- **狀態：❌ 待做**
-
-### P2 — `nextDisplayId()` 產生重複 ID ✅ 已修（v0.3.0）
-- 問題：`_state.patients.length + 1` 只算活躍傷患，已後送者不計入，導致序號重複
-- 修正：`generateDraftId()` async，從 DB `orderBy('id').last()` 取最大值
-- ID 格式改為 `M007-FA`（含性別年齡代碼）
-- DB 升至 version 4，patients 表加 `source_sex`、`source_age`
-- 備注：`arrival_mode` 欄位是否需加入 DB 尚未確認（P1 完成後順帶確認）
+- submitIntake() 需讀取對應欄位，detail 中已有 source_sex/source_age 欄位
 
 ### P7 — 建檔後需產生醫療組腕帶 QR
 - 前進組 QR 掃描後任務結束，醫療組需產生新 QR 綁腕帶
-- `submitIntake()` 建檔成功後改為開啟 `openWristbandModal()`
-- QR payload：`{ id, color, issued_at }`（僅識別資訊，不含醫療資料）
-- `qrcode.js` 已在第 365 行載入，直接可用
-- **狀態：❌ 待做**
+- 建檔成功後（含確認 modal 關閉後）開啟 openWristbandModal()
+- QR payload：{ id, color, issued_at }（僅識別資訊）
+- qrcode.js 已在 `<script>` 載入，直接可用
+- 注意：建檔現在有確認 modal，QR 在 doSubmitIntake() 成功後觸發
 
 ### P8 — 全域掃碼查詢傷患
-- Header 右側加入 📷 掃碼按鈕（登出按鈕之前）
-- `_state.scanMode` 新增欄位（null | 'lookup'）
-- `handleQrResult()` 依 scanMode 分流：lookup 模式走 `handlePatientScanResult()`，原有模式走 MIST 帶入
-- `handlePatientScanResult()` 從 DB 查 display_id，找到後呼叫 `openPatientDetail(patient.id)`
-- **狀態：❌ 待做**
+- Header 右側加 📷 掃碼按鈕（登出前）
+- _state.scanMode: null | 'lookup'
+- handleQrResult() 依 scanMode 分流
 
 ---
 
 ## 演習前需決定（🟡）
 
-### P3 — `getRedSlotsFree()` 永遠回傳 999
+### P3 — getRedSlotsFree() 永遠回傳 999
 - 紅區滿載警報永遠不觸發
-- 方案 A：固定常數 `RED_ZONE_CAPACITY = 5`（最快）
+- 方案 A：固定常數 RED_ZONE_CAPACITY = 5（最快）
 - 方案 B：從 config 表讀取，管理員可設定
-- **狀態：❌ 尚未決定方案**
+- **尚未決定方案**
 
 ### P4 — MIST 現場生命徵象 vs START 到院生命徵象混用
-- patient card 顯示的是現場 MIST-S 數值，不是到院時 START 數值
-- 修正：DB 加 `arrival_vitals` 欄位（可納入 P1 的 migration），patient card 分兩行顯示
-- **狀態：❌ 待做（時間允許）**
+- patient card 顯示的是現場 MIST-S 數值，需分兩行顯示現場/到院
+- **尚未實作**
 
-### Badge 定義（未收錄於 issues.md）
-- 接收 tab badge → 建議移除（檢傷官自己建單不需提醒）
+### Badge 定義
+- 接收 tab badge → 建議移除
 - 分區 tab badge → 建議改為「待評估 + 逾時合計」
-- 分區看板「全部待評估」篩選 tab → 待確認是否需要
-- **狀態：❌ 尚未決定**
-
-### 治療評估 modal 重繪 ✅ 已修（v0.3.2）
-- 原問題：`renderTreatmentModal` 用 `document.getElementById('modal-body')` 判斷（always true）
-- 修正：改為檢查 `modal-overlay.classList.contains('hidden')`
+- **尚未決定**
 
 ---
 
 ## 演習後再做（🟢）
 
-### P5 — WebSocket IP hardcode
-- 第 616 行 `const piIp = '192.168.100.30'` 需換場地就改程式碼
-- 改為從 config 表讀取，管理員介面可設定
-
-### P6 — `handleWsMsg()` 是空函式
-- 多裝置同步目前完全無效
-- 最小實作：收到 `patient_updated` 時 `loadPatients()` 再重繪
-
-### P7b — QR snapshot、交班、物資管理
-- 功能未動，維持原樣
-
-### P9 — 語音快速建檔（Pi 5 離線辨識）
-- 架構：手機錄音 → WebSocket 傳 Pi 5 → faster-whisper base 辨識 → 回傳文字 → 規則解析填欄位
-- **P1–P8 完成後再做**
+- P5：WebSocket IP 設定化（hardcode）
+- P6：handleWsMsg() 實作（目前空函式）
+- P9：語音快速建檔（Pi 5 faster-whisper）
 
 ---
 
 ## 修改優先順序速查
 
-| 優先 | 項目 | 狀態 | 時間點 |
-|------|------|------|--------|
-| 🔴 | P1 C 來源表單 | ❌ 待做 | 演習前 |
-| 🔴 | P7 腕帶 QR 產生 | ❌ 待做 | 演習前 |
-| 🔴 | P8 全域掃碼查詢 | ❌ 待做 | 演習前 |
-| ✅ | P2 ID 重複 bug | 已修 v0.3.0 | — |
-| 🟡 | P3 紅區容量 | 待決定方案 | 演習前確認 |
-| 🟡 | P4 到院生命徵象 | ❌ 待做 | 演習前（時間允許） |
-| 🟡 | Badge 定義 | 待決定 | 演習前確認 |
-| ✅ | 治療評估 modal 重繪 | 已修 v0.3.2 | — |
-| 🟢 | P5/P6/P9 | 待做 | 演習後 |
+| 優先 | 項目 | 狀態 |
+|------|------|------|
+| 🔴 | P1 C 來源表單 | **待做** |
+| 🔴 | P7 腕帶 QR | **待做** |
+| 🔴 | P8 全域掃碼 | **待做** |
+| ✅ | P2 ID 重複 | 已修 |
+| 🟡 | P3 紅區容量 | 待決定方案 |
+| 🟡 | P4 生命徵象分開 | 待做 |
+| 🟡 | Badge 定義 | 待決定 |
+| 🟢 | P5/P6/P9 | 演習後 |
 
-**Why:** 演習前開發的主要依據。
+**Why:** v0.3.53 完成大規模 UX 優化，演習前剩 P1/P7/P8 三項核心功能待補。
 **How to apply:** 開始 medical PWA session 時先讀此記憶，確認哪些已修完、哪些仍待做。
