@@ -16,6 +16,13 @@
       "cwd": "medical-pwa/public"
     },
     {
+      "name": "收容組 PWA (靜態預覽)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8002"],
+      "port": 8002,
+      "cwd": "shelter-pwa/public"
+    },
+    {
       "name": "收容組 Pi Server",
       "runtimeExecutable": "node",
       "runtimeArgs": ["src/shelter_ws_server.js"],
