@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.3.54';</script>
+<script>const PWA_VERSION='v0.3.55';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1665,6 +1665,7 @@ async function generateDraftId(sexCode, ageCode) {
 
 async function submitIntake() {
   if (!_state.intakeTriageColor) { showToast('請選擇檢傷分色'); return; }
+  if (_state.intakeSource === 'B' && !_state.intakeShelterNumber.trim()) { showToast('收容轉送傷患必須填寫收容編號'); return; }
   const colorDotMap = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
   const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
   const colorLabel = colorDotMap[_state.intakeTriageColor] || _state.intakeTriageColor;
@@ -1775,8 +1776,8 @@ function renderZones(el) {
   updateTabBadges(); // fire-and-forget, async
 
   el.innerHTML = `
-    <div class="section-hdr" style="cursor:pointer;" onclick="(function(el){el.dataset.open=el.dataset.open==='0'?'1':'0';var c=document.getElementById('pending-assess-cards');c.style.display=el.dataset.open==='0'?'none':'block';})(this)" data-open="1">
-      待評估佇列 (${pendingAssess.length}) <span style="float:right;font-size:12px;color:var(--text3);">▲ 收合</span>
+    <div class="section-hdr">
+      待評估佇列 (${pendingAssess.length})
     </div>
     <div id="pending-assess-cards">${pendingCards}</div>
     <div class="section-hdr" style="margin-top:8px;">分區看板</div>
@@ -1887,8 +1888,7 @@ async function markTransfer(id) {
 async function cancelTransfer(id) {
   await db.patients.update(id, { disposition:'在場', transferred_by: null, transferred_at: null, updated_at: localISO() });
   showToast('已取消待後送');
-  // 加延遲讓 IndexedDB commit 確實完成後再重繪（修正 iOS Safari 數字不更新問題）
-  setTimeout(() => renderCurrentTab(), 150);
+  renderCurrentTab();
 }
 
 async function openMoveZone(id) {
@@ -2053,10 +2053,6 @@ async function renderMore(el) {
     <div class="dash-row" onclick="_state.morePage='resources';renderCurrentTab()" style="cursor:pointer;">
       <span class="dash-row-label">📦 物資管理</span>
       <span class="flex items-center gap-1">${lowRes>0?`<span class="tag tag-yellow">${lowRes} 低量</span>`:''}  <span class="text-gray text-sm">→</span></span>
-    </div>
-    <div class="dash-row" onclick="_state.morePage='incidents';renderCurrentTab()" style="cursor:pointer;">
-      <span class="dash-row-label">⚠️ 事件記錄</span>
-      <span class="flex items-center gap-1">${openInc>0?`<span class="tag tag-red">${openInc} 件</span>`:''}  <span class="text-gray text-sm">→</span></span>
     </div>
     <div class="dash-row" onclick="_state.morePage='shift';renderCurrentTab()" style="cursor:pointer;">
       <span class="dash-row-label">🔄 交班 / 快照</span>
@@ -2306,6 +2302,9 @@ async function completeHandoff(patientId) {
   const checklist = ['止血','呼吸道','給氧','靜脈通路','保暖','固定']
     .filter(item => document.getElementById('chk-'+item)?.checked).join('、');
   const appearanceFill = document.getElementById('isbar-appearance')?.value || '';
+  // 外觀特徵必填：原本沒有且補填欄也空白，擋住
+  const p0 = await db.patients.get(patientId);
+  if (!p0?.appearance_notes && !appearanceFill.trim()) { showToast('請填寫外觀特徵（供事後身份比對）'); return; }
   _pendingHandoff = { patientId, b, r, checklist, appearanceFill };
   _confirmInModal(
     '確認後送交接',
