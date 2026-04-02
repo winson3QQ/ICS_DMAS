@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.21';</script>
+<script>const PWA_VERSION='v2.2.22';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -361,6 +361,13 @@
           <div id="pi-url-status" style="font-size:11px;color:var(--text3);"></div>
         </div>
       </details>
+      <!-- 展示模式（GitHub Pages） -->
+      <div id="demo-btn-section" style="display:none;margin-bottom:12px;">
+        <button class="login-btn" style="background:#2E7D32;" onclick="enterDemoMode('組長')">🟢 展示模式（組長）</button>
+        <div style="height:6px;"></div>
+        <button class="login-btn" style="background:var(--primary);" onclick="enterDemoMode('一般')">🟡 展示模式（一般）</button>
+        <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">GitHub Pages 展示用，資料僅存於本機瀏覽器</div>
+      </div>
       <!-- 登入按鈕（Pi 已連線時） -->
       <div id="login-btn-section">
         <button id="login-main-btn" class="login-btn" onclick="handleLogin(null)">
@@ -2697,6 +2704,21 @@ const PersonCrypto = (function(){
 /* ── 覆寫 db.persons 的讀寫，透明加解密 ── */
 db.persons.getDecrypted=async function(id){const raw=await db.persons.get(id);if(!raw)return null;return PersonCrypto.decryptPerson(raw);};
 db.persons.toArrayDecrypted=async function(){const rows=await db.persons.toArray();return Promise.all(rows.map(r=>PersonCrypto.decryptPerson(r)));};
+
+/* ══ 展示模式（GitHub Pages 試用）═══════════════════════════════ */
+const _isDemo=location.hostname.includes('github.io')||location.hostname.includes('localhost')||location.search.includes('demo=1');
+if(_isDemo){const demoEl=document.getElementById('demo-btn-section');if(demoEl)demoEl.style.display='block';}
+
+async function enterDemoMode(role){
+  const name=role==='組長'?'demo_leader':'demo_user';
+  AuditManager.setOperator(name);
+  const sid=crypto.randomUUID?crypto.randomUUID():'demo-'+Date.now();
+  sessionStorage.setItem('shelter_session_id',sid);
+  sessionStorage.setItem('shelter_login_time',new Date().toISOString());
+  // 展示模式不啟用加密（PersonCrypto 保持未啟用）
+  await AuditLogManager.write('login_demo',{name,role,mode:'demo'});
+  App.startApp(role);
+}
 
 /* ══ handleLogin ═════════════════════════════════════════════════ */
 async function handleLogin(roleHint) {
