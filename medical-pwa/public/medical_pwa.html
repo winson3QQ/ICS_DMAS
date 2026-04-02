@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.4.0-beta';</script>
+<script>const PWA_VERSION='v0.4.1-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -451,8 +451,38 @@ const Crypto = {
       { name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256' }, raw, 256
     );
     return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  },
+
+  // AES-256-GCM 加密匯出（PBKDF2 衍生金鑰）
+  async encryptExport(plaintext, passphrase) {
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']
+    );
+    const key = await crypto.subtle.deriveKey(
+      { name:'PBKDF2', salt, iterations:200000, hash:'SHA-256' },
+      keyMaterial, { name:'AES-GCM', length:256 }, false, ['encrypt']
+    );
+    const cipherBuf = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(plaintext));
+    const toHex = arr => Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+    const toB64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    return JSON.stringify({ v:1, alg:'AES-256-GCM', salt:toHex(salt), iv:toHex(iv), data:toB64(cipherBuf) });
   }
 };
+
+/* ════════════════════════════════════════════════════════════════
+   床位容量設定（localStorage）
+════════════════════════════════════════════════════════════════ */
+const DEFAULT_SLOTS = { red:4, yellow:8, green:16 };
+function getSlotConfig() {
+  try { return JSON.parse(localStorage.getItem('med_slot_cfg') || 'null') || { ...DEFAULT_SLOTS }; }
+  catch(_) { return { ...DEFAULT_SLOTS }; }
+}
+function setSlotConfig(red, yellow, green) {
+  localStorage.setItem('med_slot_cfg', JSON.stringify({ red, yellow, green }));
+}
 
 /* ════════════════════════════════════════════════════════════════
    STATE
@@ -820,8 +850,8 @@ async function refreshAlertBanner() {
 }
 
 function getRedSlotsFree() {
-  // TODO: 從 slots 表讀取；先用簡單估算
-  return 999;
+  const cfg = getSlotConfig();
+  return Math.max(0, cfg.red - countByColor('red'));
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -834,13 +864,17 @@ function renderDashboard(el) {
   const pending = getPendingTransfer();
   const light = r>2 || pending>=2 ? '紅：量能吃緊' : r>0 || pending>0 ? '黃：有傷患待處理' : '綠：量能正常';
   const lightColor = r>2||pending>=2 ? 'var(--red)' : r>0||pending>0 ? 'var(--orange)' : 'var(--green)';
+  const cfg = getSlotConfig();
+  const lastCapReport = parseInt(localStorage.getItem('med_last_cap_report') || '0', 10);
+  const capOverdue = lastCapReport > 0 && (Date.now() - lastCapReport) > 30 * 60 * 1000;
+  const capNeverReported = lastCapReport === 0;
 
   el.innerHTML = `
     <div class="section-hdr">治療區一覽</div>
     <div class="cap-bar">
-      <div class="cap-stat red" onclick="filterZoneByColor('red')" style="cursor:pointer"><div class="cap-n">${r}</div><div class="cap-l">紅區</div></div>
-      <div class="cap-stat yellow" onclick="filterZoneByColor('yellow')" style="cursor:pointer"><div class="cap-n">${y}</div><div class="cap-l">黃區</div></div>
-      <div class="cap-stat green" onclick="filterZoneByColor('green')" style="cursor:pointer"><div class="cap-n">${g}</div><div class="cap-l">綠區</div></div>
+      <div class="cap-stat red" onclick="filterZoneByColor('red')" style="cursor:pointer"><div class="cap-n">${r}<span style="font-size:10px;font-weight:400;opacity:.65">/${cfg.red}</span></div><div class="cap-l">紅區</div></div>
+      <div class="cap-stat yellow" onclick="filterZoneByColor('yellow')" style="cursor:pointer"><div class="cap-n">${y}<span style="font-size:10px;font-weight:400;opacity:.65">/${cfg.yellow}</span></div><div class="cap-l">黃區</div></div>
+      <div class="cap-stat green" onclick="filterZoneByColor('green')" style="cursor:pointer"><div class="cap-n">${g}<span style="font-size:10px;font-weight:400;opacity:.65">/${cfg.green}</span></div><div class="cap-l">綠區</div></div>
       <div class="cap-stat black" onclick="filterZoneByColor('black')" style="cursor:pointer"><div class="cap-n">${b}</div><div class="cap-l">黑區</div></div>
     </div>
     <div class="cap-light-row">
@@ -873,12 +907,15 @@ function renderDashboard(el) {
     <div class="section-hdr">快速操作</div>
     <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-primary btn-full" onclick="switchTab('intake')">➕ 接收新傷患</button>
-      <button class="btn btn-ghost btn-full text-sm" onclick="doCapacityReport()">📻 產生量能回報文字</button>
+      ${capOverdue ? `<div class="info-box warn text-sm" style="margin:0;">📻 量能回報逾 30 分鐘，請立即通報</div>` : ''}
+      <button class="btn btn-ghost btn-full text-sm" onclick="doCapacityReport()">📻 產生量能回報文字${capNeverReported ? '' : capOverdue ? ' ⚠️' : ' ✓'}</button>
     </div>
   `;
 }
 
 function doCapacityReport() {
+  // 記錄最後回報時間，供 30 分鐘提醒使用
+  localStorage.setItem('med_last_cap_report', Date.now().toString());
   const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
   const pending = getPendingTransfer();
   const now = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -2047,12 +2084,15 @@ async function renderMore(el) {
   const lowRes = await db.resources.filter(r => r.qty_current <= r.qty_low_threshold).count();
   const lastShift = (await db.shifts.orderBy('started_at').last());
   const shiftAgo = lastShift ? Math.floor((Date.now()-new Date(lastShift.started_at))/3600000) : null;
+  const lastResCheck = parseInt(localStorage.getItem('med_last_res_check') || '0', 10);
+  const resCheckOverdue = lastResCheck > 0 && (Date.now() - lastResCheck) > 30 * 60 * 1000;
+  const resCheckNever = lastResCheck === 0;
 
   el.innerHTML = `
     <div class="section-hdr">功能</div>
     <div class="dash-row" onclick="_state.morePage='resources';renderCurrentTab()" style="cursor:pointer;">
       <span class="dash-row-label">📦 物資管理</span>
-      <span class="flex items-center gap-1">${lowRes>0?`<span class="tag tag-yellow">${lowRes} 低量</span>`:''}  <span class="text-gray text-sm">→</span></span>
+      <span class="flex items-center gap-1">${lowRes>0?`<span class="tag tag-yellow">${lowRes} 低量</span>`:''}${resCheckOverdue?`<span class="tag tag-yellow">逾期盤點</span>`:''}  <span class="text-gray text-sm">→</span></span>
     </div>
     <div class="dash-row" onclick="_state.morePage='shift';renderCurrentTab()" style="cursor:pointer;">
       <span class="dash-row-label">🔄 交班 / 快照</span>
@@ -2061,6 +2101,12 @@ async function renderMore(el) {
     <div class="section-hdr">系統</div>
     <div class="dash-row" style="cursor:pointer;" onclick="doQrSnapshot()">
       <span class="dash-row-label">📷 產生 QR 快照</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="dash-row" style="cursor:pointer;" onclick="doExportEncrypted()">
+      <span class="dash-row-label">📤 加密匯出資料</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="dash-row" style="cursor:pointer;" onclick="openSlotConfig()">
+      <span class="dash-row-label">🏥 設定各區床位容量</span><span class="text-gray text-sm">→</span>
     </div>
     <div class="dash-row" style="cursor:pointer;" onclick="doLogout()">
       <span class="dash-row-label">🔒 登出（切換角色）</span><span class="text-gray text-sm">→</span>
@@ -2407,11 +2453,22 @@ async function renderResources(el) {
     }).join('')}
   `).join('');
 
+  const lastResCheck = parseInt(localStorage.getItem('med_last_res_check') || '0', 10);
+  const resCheckOverdue = lastResCheck > 0 && (Date.now() - lastResCheck) > 30 * 60 * 1000;
+  const resCheckNever = lastResCheck === 0;
+  const lastCheckText = lastResCheck > 0
+    ? `上次盤點：${new Date(lastResCheck).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false})}`
+    : '尚未完成盤點';
+
   el.innerHTML = `
     <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
+    ${(resCheckOverdue||resCheckNever) ? `<div class="info-box warn" style="margin:0 14px 10px;">⏰ ${resCheckNever?'尚未完成盤點確認':'距上次盤點逾 30 分鐘'}，請盤點後標記完成。</div>` : ''}
     ${lowItems.length > 0 ? `<div class="info-box warn" style="margin:0 14px 10px;">⚠️ ${lowItems.length} 項低量：${lowItems.map(r=>r.name).join('、')}</div>` : ''}
     ${listHtml}
-    <div style="padding:14px;"><button class="btn btn-outline btn-full btn-sm" onclick="resetInventory()">重置盤點</button></div>
+    <div style="padding:14px;display:flex;flex-direction:column;gap:8px;">
+      <button class="btn btn-primary btn-full btn-sm" onclick="markResourceCheck()">✓ 標記盤點完成（${lastCheckText}）</button>
+      <button class="btn btn-outline btn-full btn-sm" onclick="resetInventory()">重置盤點</button>
+    </div>
   `;
 }
 
@@ -2963,6 +3020,114 @@ async function admChangeAdminPin() {
   msg.style.color = 'var(--green)'; msg.textContent = '管理員 PIN 已更新';
   document.getElementById('adm-cfg-pin').value = '';
   _adminAuthed = false;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   加密匯出
+════════════════════════════════════════════════════════════════ */
+let _exportPayload = null;
+
+async function doExportEncrypted() {
+  // 收集所有資料表
+  const patients  = await db.patients.toArray();
+  const triages   = await db.triages.toArray();
+  const transfers = await db.transfers.toArray();
+  const incidents = await db.incidents.toArray();
+  const resources = await db.resources.toArray();
+  _exportPayload = JSON.stringify({
+    exportAt: localISO(), version: PWA_VERSION,
+    patients, triages, transfers, incidents, resources
+  });
+
+  openModal('加密匯出資料', `
+    <div class="info-box info text-sm mb-2">
+      全部資料以 <b>AES-256-GCM</b> 加密後下載為 <code>.enc</code> 檔。<br>
+      請設定匯出密碼（與登入 PIN 無關，請妥善保管）。
+    </div>
+    <div class="form-group">
+      <div class="form-label">匯出密碼</div>
+      <input type="password" id="exp-pw" class="form-input" placeholder="至少 6 字元" autocomplete="new-password">
+    </div>
+    <div class="form-group mt-2">
+      <div class="form-label">確認密碼</div>
+      <input type="password" id="exp-pw2" class="form-input" placeholder="再次輸入" autocomplete="new-password">
+    </div>
+    <div id="exp-err" class="text-sm text-red mt-1" style="min-height:18px;"></div>
+  `, `
+    <button class="btn btn-primary flex-1" onclick="confirmExport()">加密下載</button>
+    <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+  `);
+}
+
+async function confirmExport() {
+  const pw   = document.getElementById('exp-pw')?.value  || '';
+  const pw2  = document.getElementById('exp-pw2')?.value || '';
+  const errEl = document.getElementById('exp-err');
+  errEl.textContent = '';
+  if (pw.length < 6)   { errEl.textContent = '密碼至少 6 字元'; return; }
+  if (pw !== pw2)      { errEl.textContent = '兩次密碼不一致'; return; }
+  if (!_exportPayload) { errEl.textContent = '資料遺失，請重新操作'; return; }
+  try {
+    const encrypted = await Crypto.encryptExport(_exportPayload, pw);
+    const blob = new Blob([encrypted], { type:'application/octet-stream' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `medical-export-${localISO().slice(0,10)}.enc`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    _exportPayload = null;
+    closeModal();
+    showToast('加密匯出完成');
+  } catch(e) {
+    errEl.textContent = '加密失敗：' + (e.message || e);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   床位容量設定 UI
+════════════════════════════════════════════════════════════════ */
+function openSlotConfig() {
+  const cfg = getSlotConfig();
+  openModal('設定各區床位容量', `
+    <div class="info-box info text-sm mb-2">
+      設定各治療區最大床位數。超過容量時儀表板會顯示警示。
+    </div>
+    <div class="form-group">
+      <div class="form-label">🔴 紅區床位數</div>
+      <input type="number" id="slot-red" class="form-input" value="${cfg.red}" min="1" max="99" inputmode="numeric">
+    </div>
+    <div class="form-group mt-2">
+      <div class="form-label">🟡 黃區床位數</div>
+      <input type="number" id="slot-yellow" class="form-input" value="${cfg.yellow}" min="1" max="99" inputmode="numeric">
+    </div>
+    <div class="form-group mt-2">
+      <div class="form-label">🟢 綠區床位數</div>
+      <input type="number" id="slot-green" class="form-input" value="${cfg.green}" min="1" max="99" inputmode="numeric">
+    </div>
+  `, `
+    <button class="btn btn-primary flex-1" onclick="saveSlotConfig()">儲存</button>
+    <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+  `);
+}
+
+function saveSlotConfig() {
+  const red    = Math.max(1, parseInt(document.getElementById('slot-red')?.value,    10) || DEFAULT_SLOTS.red);
+  const yellow = Math.max(1, parseInt(document.getElementById('slot-yellow')?.value, 10) || DEFAULT_SLOTS.yellow);
+  const green  = Math.max(1, parseInt(document.getElementById('slot-green')?.value,  10) || DEFAULT_SLOTS.green);
+  setSlotConfig(red, yellow, green);
+  closeModal();
+  showToast('床位設定已儲存');
+  renderCurrentTab();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   物資盤點標記
+════════════════════════════════════════════════════════════════ */
+function markResourceCheck() {
+  localStorage.setItem('med_last_res_check', Date.now().toString());
+  showToast('物資盤點已標記完成');
+  renderCurrentTab();
 }
 
 /* ════════════════════════════════════════════════════════════════

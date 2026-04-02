@@ -10,17 +10,17 @@
     },
     {
       "name": "醫療組 PWA (靜態預覽)",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8001"],
+      "runtimeExecutable": "/usr/local/bin/python3",
+      "runtimeArgs": ["-c", "import http.server,socketserver,os,sys; os.chdir(sys.argv[1]); socketserver.TCPServer.allow_reuse_address=True; httpd=socketserver.TCPServer(('',8001),http.server.SimpleHTTPRequestHandler); httpd.serve_forever()", "medical-pwa/public"],
       "port": 8001,
-      "cwd": "medical-pwa/public"
+      "cwd": "."
     },
     {
       "name": "收容組 PWA (靜態預覽)",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8002"],
+      "runtimeExecutable": "/usr/local/bin/python3",
+      "runtimeArgs": ["-c", "import http.server,socketserver,os,sys; os.chdir(sys.argv[1]); socketserver.TCPServer.allow_reuse_address=True; httpd=socketserver.TCPServer(('',8002),http.server.SimpleHTTPRequestHandler); httpd.serve_forever()", "shelter-pwa/public"],
       "port": 8002,
-      "cwd": "shelter-pwa/public"
+      "cwd": "."
     },
     {
       "name": "收容組 Pi Server",
