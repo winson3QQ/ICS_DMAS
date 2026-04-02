@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.18';</script>
+<script>const PWA_VERSION='v2.2.20';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -1679,8 +1679,9 @@ function renderCmistForm(ec){
 function collectCmist(){const keys=['communication','maintaining_health','independence','services_support','transportation'],result={};for(const k of keys)result[k]=[...document.querySelectorAll(`input[name="cmist_${k}"]:checked`)].map(c=>c.value);return result;}
 
 async function openExitModal(personId){
-  const p=await db.persons.get(personId);
-  openModal('離站確認',`<div class="info-box warn">確認後此人員狀態改為「已離站」，床位將釋放。</div><div class="form-group"><label class="form-label">離站原因 <span class="req">*</span></label><select class="form-input form-select" id="exit-reason"><option>遣散</option><option>送醫</option><option>自行離開</option><option>轉站</option></select></div><div class="form-group"><label class="form-label">備註</label><input class="form-input" id="exit-notes" placeholder="（可選）"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-danger flex-1" onclick="confirmExit(${personId})">確認離站</button>`);
+  const p=await db.persons.getDecrypted(personId);
+  const familyBtn=p.family_unit_id?`<button class="btn btn-danger flex-1" onclick="confirmFamilyExit(${personId})">全家離站</button>`:'';
+  openModal('離站確認',`<div class="info-box warn">確認後此人員狀態改為「已離站」，床位將釋放。</div>${p.family_unit_id?`<div class="info-box info">👨‍👩‍👧 家庭成員 — 可選擇個人或全家離站</div>`:''}<div class="form-group"><label class="form-label">離站原因 <span class="req">*</span></label><select class="form-input form-select" id="exit-reason"><option>遣散</option><option>送醫</option><option>自行離開</option><option>轉站</option></select></div><div class="form-group"><label class="form-label">備註</label><input class="form-input" id="exit-notes" placeholder="（可選）"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-danger flex-1" onclick="confirmExit(${personId})">個人離站</button>${familyBtn}`);
 }
 async function confirmExit(personId){
   const reason=el('exit-reason')?.value,notes=el('exit-notes')?.value||'',p=await db.persons.getDecrypted(personId);if(!p)return;
@@ -1696,6 +1697,28 @@ async function confirmExit(personId){
     syncAfterWrite('incidents',inc._id);
   }
   syncAfterWrite('persons',personId);closeModal();showToast(`離站記錄完成${openIncs.length?`，${openIncs.length} 個事件已自動結案`:''}`);
+  await renderIntake();await renderDashboard();await refreshCapacityBanner();if(App.currentTab==='roster')await renderRoster();
+}
+async function confirmFamilyExit(personId){
+  const p=await db.persons.getDecrypted(personId);if(!p?.family_unit_id)return confirmExit(personId);
+  const family=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();
+  const active=family.filter(m=>m.status!=='已離站');
+  if(active.length===0){showToast('全家已離站');closeModal();return;}
+  const reason=el('exit-reason')?.value||'遣散',notes=el('exit-notes')?.value||'';
+  const ok=await confirm2('全家離站確認',`將對 ${active.length} 位尚未離站的家庭成員執行離站（${reason}）。確認繼續？`);
+  if(!ok)return;
+  let closedIncs=0;
+  for(const m of active){
+    const dp=await PersonCrypto.decryptPerson(m);
+    await FreezeGateway.writePerson(m._id,AuditManager.stamp({status:'已離站',exit_at:nowISO(),exit_reason:reason,notes:notes?(dp.notes?dp.notes+'; '+notes:notes):dp.notes}),db.persons);
+    if(m.bed_id){const bed=await db.beds.where('display_id').equals(m.bed_id).first();if(bed){await db.beds.update(bed._id,AuditManager.stamp({status:'empty',assigned_to:null}));syncAfterWrite('beds',bed._id);}}
+    const displayId=dp.display_id||String(m._id);
+    const openIncs=await db.incidents.filter(inc=>['已通報','待處理','處理中'].includes(inc.status)&&(inc.linked_persons||[]).includes(displayId)).toArray();
+    for(const inc of openIncs){await db.incidents.update(inc._id,AuditManager.stamp({status:'已結案',closed_at:nowISO(),notes:[...(inc.notes||[]),{time:nowISO(),text:`${displayId} 全家離站（${reason}），系統自動結案`}]}));syncAfterWrite('incidents',inc._id);closedIncs++;}
+    syncAfterWrite('persons',m._id);
+    await AuditLogManager.write('person_exited',{person_id:m._id,display_id:displayId,exit_reason:reason,mode:'family_exit'});
+  }
+  closeModal();showToast(`✅ 全家 ${active.length} 人已離站${closedIncs?`，${closedIncs} 個事件已自動結案`:''}`);
   await renderIntake();await renderDashboard();await refreshCapacityBanner();if(App.currentTab==='roster')await renderRoster();
 }
 </script>
@@ -1821,18 +1844,37 @@ async function renderRoster(){
   function personHasWarning(p){return IntakeValidator.isStuck(p)||IntakeValidator.isPendingTooLong(p)||p.health_flag==='需關注'||p.health_flag==='已隔離'||(p.paper_form_destroyed===false&&p.status==='已安置'&&minutesAgo(p.intake_at)>30);}
   persons.sort((a,b)=>{const aw=personHasWarning(a)?1:0,bw=personHasWarning(b)?1:0;if(bw!==aw)return bw-aw;return new Date(b.intake_at)-new Date(a.intake_at);});
   if(persons.length===0){el('roster-list').innerHTML=`<div class="empty-state"><div class="es-icon">📋</div><div class="es-title">無符合人員</div></div>`;return;}
-  el('roster-list').innerHTML=persons.map(p=>{
+  // 家庭分組：先收集 family groups，個人獨立顯示
+  function rosterCard(p,dimmed){
     const warnings=[];
     if(IntakeValidator.isStuck(p))warnings.push(`⏰ 卡關 ${minutesAgo(p.registering_started_at||p.intake_at)} 分鐘`);
-    if(IntakeValidator.isPendingTooLong(p))warnings.push(`⏳ 等待分配 ${minutesAgo(p.intake_at)} 分鐘`);
     if(p.health_flag==='需關注')warnings.push('⚠️ 需關注');if(p.health_flag==='已隔離')warnings.push('🚨 已隔離');
-    if(p.paper_form_destroyed===false&&p.status==='已安置'&&minutesAgo(p.intake_at)>30)warnings.push('📋 待補登');
     const warnHTML=warnings.length?`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">${warnings.map(w=>`<span style="font-size:11px;background:var(--red-bg);color:var(--red);border-radius:4px;padding:1px 6px;font-weight:600;">${w}</span>`).join('')}</div>`:'';
     const avatarColor=p.health_flag==='已隔離'?'var(--red)':p.health_flag==='需關注'?'var(--orange)':'var(--primary)';
-    const familyTag=p.family_unit_id?`<span style="font-size:11px;background:var(--yellow-bg);color:var(--orange);border-radius:8px;padding:1px 6px;margin-left:4px;">${p.is_family_head?'👨‍👩‍👧 家長':'👨‍👩‍👧 家庭'}</span>`:'';
     const srtTag=p.srt_color?`<span style="font-size:10px;background:${SRT_COLORS[p.srt_color]?.bg||'#eee'};color:${SRT_COLORS[p.srt_color]?.css||'#666'};border-radius:8px;padding:1px 5px;margin-left:4px;font-weight:700;">SRT${p.srt_score??'?'}</span>`:'';
-    return `<div class="person-card" onclick="openPersonModal(${p._id})"><div class="person-avatar" style="background:${avatarColor}">${(p.display_id||'?').charAt(0)}</div><div class="person-info"><div class="flex items-center gap-1"><span class="person-id">${escHtml(p.display_id||'未建檔')}</span><span class="status-badge status-${statusClass(p.status)}">${p.status}</span>${familyTag}${srtTag}</div><div class="person-meta">${escHtml(p.type||'—')} · ${escHtml([p.gender,p.age_group].filter(Boolean).join(' · ')||'—')} · 床位：${escHtml(p.bed_id||'—')}<br>${fmtDT(p.intake_at)}</div>${warnHTML}</div><span style="color:var(--text3)">›</span></div>`;
-  }).join('');
+    const opacity=dimmed?'opacity:.5;':'';
+    return `<div class="person-card" style="${opacity}" onclick="openPersonModal(${p._id})"><div class="person-avatar" style="background:${avatarColor}">${(p.display_id||'?').charAt(0)}</div><div class="person-info"><div class="flex items-center gap-1"><span class="person-id">${escHtml(p.display_id||'未建檔')}</span><span class="status-badge status-${statusClass(p.status)}">${p.status}</span>${p.is_family_head?'<span style="font-size:11px;background:var(--primary);color:#fff;border-radius:8px;padding:1px 6px;">家長</span>':''}${srtTag}</div><div class="person-meta">${escHtml(p.type||'—')} · ${escHtml([p.gender,p.age_group].filter(Boolean).join(' · ')||'—')} · 床位：${escHtml(p.bed_id||'—')}</div>${warnHTML}</div><span style="color:var(--text3)">›</span></div>`;
+  }
+  const familyGroups={},individuals=[];
+  for(const p of persons){
+    if(p.family_unit_id){if(!familyGroups[p.family_unit_id])familyGroups[p.family_unit_id]=[];familyGroups[p.family_unit_id].push(p);}
+    else individuals.push(p);
+  }
+  let html='';
+  // 家庭分組
+  for(const[fid,members] of Object.entries(familyGroups)){
+    const head=members.find(m=>m.is_family_head)||members[0];
+    const allExited=members.every(m=>m.status==='已離站');
+    html+=`<div style="background:var(--yellow-bg);border:2px solid #F5D58C;border-radius:var(--r);padding:8px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:700;color:var(--primary);">👨‍👩‍👧 家庭（${members.length} 人）</span>
+      </div>
+      ${members.sort((a,b)=>b.is_family_head-a.is_family_head).map(m=>rosterCard(m,m.status==='已離站')).join('')}
+    </div>`;
+  }
+  // 個人
+  for(const p of individuals)html+=rosterCard(p,p.status==='已離站');
+  el('roster-list').innerHTML=html;
 }
 function setRosterFilter(filter){App.rosterFilter=filter;renderRoster();}
 function setRosterSubFilter(kind,value){if(kind==='type')App.rosterTypeFilter=App.rosterTypeFilter===value?'all':value;else if(kind==='health')App.rosterHealthFilter=App.rosterHealthFilter===value?'all':value;renderRoster();}
