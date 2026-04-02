@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.4';</script>
+<script>const PWA_VERSION='v2.2.9';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -1231,26 +1231,22 @@ function petSummary(pets){if(!pets)return '';const p=[];if(pets.counts?.dog)p.pu
 const INTAKE_STEPS=[
   {key:'waiting',label:'等候',desc:'等候區，尚未開始登記流程'},
   {key:'san_gate',label:'安Gate',desc:'確認清消關卡 → 自動產生識別碼'},
-  {key:'needs_check',label:'即時需求',desc:'詢問6-8小時內緊急需求'},
-  {key:'id_verify',label:'特殊需求',desc:'CMIST 特殊需求評估'},
-  {key:'tagging',label:'標籤對應',desc:'管制物品寄存、寵物資訊'},
+  {key:'consent_covenant',label:'同意簽署',desc:'個資同意 + 收容公約（拒簽則離站）'},
   {key:'badge',label:'識別證',desc:'發放識別證'},
-  {key:'consent',label:'同意確認',desc:'個資雙軌同意（B軌/A軌）'},
+  {key:'needs_cmist',label:'需求評估',desc:'即時需求 + CMIST 特殊需求'},
+  {key:'tagging',label:'標籤對應',desc:'管制物品寄存、寵物資訊'},
   {key:'bed_assign',label:'床位分配',desc:'選擇床位'},
-  {key:'covenant',label:'公約簽署',desc:'簽署收容公約 → 待帶位'},
   {key:'guide',label:'帶位',desc:'帶至床位 → 已安置'},
 ];
 const IntakeValidator=(()=>{
   const STEP_CHECKS=[
     {key:'waiting',done:p=>!!p.san_gate_done},
     {key:'san_gate',done:p=>p.status!=='等候中'},
-    {key:'needs_check',done:p=>!!p.immediate_needs_noted},
-    {key:'id_verify',done:p=>p.cmist_assessed!==undefined?!!p.cmist_assessed:!!(p.name&&p.age_group&&p.gender)},
-    {key:'tagging',done:p=>p.id_card_collected!==null&&p.id_card_collected!==undefined},
+    {key:'consent_covenant',done:p=>(p.consent_ops!==null&&p.consent_ops!==undefined)&&!!p.covenant_signed},
     {key:'badge',done:p=>!!p.id_badge_issued},
-    {key:'consent',done:p=>p.consent_ops!==null&&p.consent_ops!==undefined},
+    {key:'needs_cmist',done:p=>!!p.immediate_needs_noted&&(p.cmist_assessed!==undefined?!!p.cmist_assessed:!!(p.name&&p.age_group&&p.gender))},
+    {key:'tagging',done:p=>p.id_card_collected!==null&&p.id_card_collected!==undefined},
     {key:'bed_assign',done:p=>!!p.bed_id},
-    {key:'covenant',done:p=>!!p.covenant_signed},
     {key:'guide',done:p=>p.status==='已安置'},
   ];
   return{
@@ -1502,16 +1498,15 @@ function showIntakeStep(p, stepIdx) {
       stepBodyHTML=`<div class="info-box info">確認清消關卡（點擊「安」方塊）後，流程自動進入「登記中」。</div>${p.family_unit_id?`<div class="info-box warn">👨‍👩‍👧 家庭成員共同清消</div>`:''}
       <div style="display:flex;justify-content:center;margin-top:20px;"><div class="san-gate ${p.san_gate_done?'done':'pending'}" style="width:80px;height:80px;font-size:36px;" onclick="toggleSanGateDirect(${p._id})">安</div></div>
       <div style="text-align:center;margin-top:12px;color:var(--text2);font-size:14px;">${p.san_gate_done?'✅ 清消關卡已確認':'⬤ 點擊確認清消關卡'}</div>`; break;
-    case 'needs_check': {
+    case 'needs_cmist': {
       const hasNeeds=!!(p.immediate_needs_noted&&p.immediate_needs_note);
       stepBodyHTML=`<div class="info-box warn">主動詢問：「您或家人在接下來 6-8 小時內有什麼緊急需求？」</div>
       <div class="form-group"><label class="form-label">即時需求 <span class="req">*</span></label><div style="display:flex;gap:10px;"><button id="needs-no" class="btn flex-1 ${!hasNeeds?'btn-primary':'btn-outline'}" onclick="setNeedsToggle(false)">✅ 無</button><button id="needs-yes" class="btn flex-1 ${hasNeeds?'btn-danger':'btn-outline'}" onclick="setNeedsToggle(true)">⚠️ 有</button></div></div>
       <div id="needs-detail-group" style="display:${hasNeeds?'block':'none'}"><div class="form-group"><label class="form-label">需求描述 <span class="req">*</span></label><input class="form-input" id="step-needs" value="${escHtml(p.immediate_needs_note||'')}" placeholder="如：需胰島素、嬰兒配方奶"></div></div>
-      <div class="form-group" style="margin-top:8px;"><label class="form-label">健康狀態標記</label><select class="form-input form-select" id="step-health"><option ${(p.health_flag||'正常')==='正常'?'selected':''}>正常</option><option ${p.health_flag==='需關注'?'selected':''}>需關注</option><option ${p.health_flag==='已隔離'?'selected':''}>已隔離</option></select></div>`; break;
+      <div class="form-group" style="margin-top:8px;"><label class="form-label">健康狀態標記</label><select class="form-input form-select" id="step-health"><option ${(p.health_flag||'正常')==='正常'?'selected':''}>正常</option><option ${p.health_flag==='需關注'?'selected':''}>需關注</option><option ${p.health_flag==='已隔離'?'selected':''}>已隔離</option></select></div>
+      <div class="divider"></div>
+      <div class="form-section-title">CMIST 特殊需求評估</div>${renderCmistForm(p.cmist)}`; break;
     }
-    case 'id_verify':
-      stepBodyHTML=`<div class="info-box" style="background:var(--surface2);border:1px solid var(--border);font-size:13px;">📋 ${escHtml(p.name||'?')}・${p.gender||'?'}・${p.age_group||'?'}</div>
-      <div class="form-section-title mt-2">CMIST 特殊需求評估</div>${renderCmistForm(p.cmist)}`; break;
     case 'tagging': {
       const s=p.id_card_collected===true?'collected':p.id_card_collected===false?'none':null;
       stepBodyHTML=`<div class="form-group"><label class="form-label">管制物品寄存 <span class="req">*</span></label><div style="display:flex;gap:10px;"><button id="idcard-none" class="btn flex-1 ${s==='none'?'btn-primary':'btn-outline'}" onclick="setIdcardToggle('none')">無管制物品</button><button id="idcard-collected" class="btn flex-1 ${s==='collected'?'btn-success':'btn-outline'}" onclick="setIdcardToggle('collected')">✅ 已收繳</button></div><div id="idcard-warn" style="display:none;margin-top:6px;font-size:12px;color:var(--red);">⚠️ 請確認是否有管制物品</div></div>
@@ -1525,22 +1520,23 @@ function showIntakeStep(p, stepIdx) {
       else if(s==='none')setTimeout(()=>setIdcardToggle('none'),50); break;
     }
     case 'badge': stepBodyHTML=`<div class="info-box info">確認識別證已發放給入站者佩戴。</div><div class="form-group"><label class="form-check"><input type="checkbox" id="step-badge" ${p.id_badge_issued?'checked':''}><span class="form-check-label">識別證已發放 ✅</span></label></div>`; break;
-    case 'consent': {
+    case 'consent_covenant': {
       const opsDefault=p.consent_ops!==null&&p.consent_ops!==undefined?p.consent_ops:true;
       const welfareDefault=p.consent_welfare!==null&&p.consent_welfare!==undefined?p.consent_welfare:true;
       _consentCache={ops:opsDefault,welfare:welfareDefault};
-      stepBodyHTML=`<div class="info-box warn">依個資法第7條，須分別詢問兩項同意，不可合併。</div>${p.family_unit_id?`<div class="info-box info">👨‍👩‍👧 家庭入站 — 確認後可一鍵套用至所有家庭成員</div>`:''}
+      stepBodyHTML=`<div class="info-box warn">依個資法第7條，須分別詢問兩項同意，不可合併。<br>⚠️ 若拒簽 B 軌同意或公約，將直接離站。</div>${p.family_unit_id?`<div class="info-box info">👨‍👩‍👧 家庭入站 — 確認後可一鍵套用至所有家庭成員</div>`:''}
       <div class="form-section"><div class="form-section-title">【B軌】日常運作同意</div><div style="display:flex;gap:10px;"><button id="consent-ops-yes" class="btn flex-1 ${opsDefault===true?'btn-primary':'btn-outline'}" onclick="setConsent('ops',true)">✅ 同意</button><button id="consent-ops-no" class="btn flex-1 ${opsDefault===false?'btn-danger':'btn-outline'}" onclick="setConsent('ops',false)">❌ 拒絕</button></div></div>
       <div class="form-section"><div class="form-section-title">【A軌】撫恤憑證同意（可選）</div><div style="display:flex;gap:10px;"><button id="consent-wf-yes" class="btn flex-1 ${welfareDefault===true?'btn-primary':'btn-outline'}" onclick="setConsent('welfare',true)">✅ 同意</button><button id="consent-wf-no" class="btn flex-1 ${welfareDefault===false?'btn-danger':'btn-outline'}" onclick="setConsent('welfare',false)">❌ 拒絕</button></div></div>
-      <div id="consent-status" style="font-size:13px;color:var(--text2);text-align:center;margin-top:8px;">B軌：${opsDefault===true?'✅':'❌'} ／ A軌：${welfareDefault===true?'✅':'❌'}</div>`; break;
+      <div id="consent-status" style="font-size:14px;font-weight:600;text-align:center;margin:12px 0;min-height:24px;"><span style="color:var(--green)">✅ 完整同意，可進行所有服務</span></div>
+      <div class="divider"></div>
+      <div class="form-group"><label class="form-check"><input type="checkbox" id="step-covenant" ${p.covenant_signed?'checked':''}><span class="form-check-label">收容公約已簽署（紙本）✅</span></label></div>`; break;
     }
     case 'bed_assign': stepBodyHTML=`<div id="bed-assign-for-person">載入床位…</div>`; setTimeout(()=>renderBedAssignment(p._id),100); break;
-    case 'covenant': stepBodyHTML=`<div class="info-box info">請入站者簽署收容公約（紙本），完成後確認下方。</div><div class="form-group"><label class="form-check"><input type="checkbox" id="step-covenant" ${p.covenant_signed?'checked':''}><span class="form-check-label">收容公約已簽署（紙本）✅</span></label></div><div class="divider"></div><div style="font-size:13px;color:var(--text2);">簽署後狀態將改為「待分配」，等候環管帶位。</div>`; break;
     case 'guide': stepBodyHTML=`<div class="info-box info" style="background:var(--green-bg);border-color:var(--green);color:var(--green);">環管確認已帶領 <strong>${escHtml(p.display_id||'')}</strong> 至床位 <strong>${escHtml(p.bed_id||'未分配')}</strong>。</div><div style="text-align:center;padding:20px 0;font-size:14px;color:var(--text2);">確認後狀態改為「已安置」，流程完成。</div>`; break;
   }
   const isFamily=!!p.family_unit_id;
   console.log(`[家庭入站][showIntakeStep] 按鈕邏輯 stepKey=${step.key} isFamily=${isFamily}`);
-  const footerBtn=step.key==='guide'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">✅ 確認已安置</button>`:step.key==='bed_assign'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`:step.key==='consent'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button>${isFamily?`<button class="btn btn-outline flex-1" onclick="completeIntakeStepFamily(${p._id},'consent')">套用全家 →</button>`:''}<button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'consent')">本人 →</button>`:step.key==='covenant'?(isFamily&&!!p.is_family_head)?`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStepFamily(${p._id},'covenant')">✅ 代表簽署，套用全家</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'covenant')">確認已簽署 →</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">確認 →</button>`;
+  const footerBtn=step.key==='guide'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">✅ 確認已安置</button>`:step.key==='bed_assign'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`:step.key==='consent_covenant'?`<button class="btn btn-danger" style="flex:0.6;font-size:13px;" onclick="refuseAndExit(${p._id})">拒簽離站</button>${isFamily?`<button class="btn btn-outline flex-1" onclick="completeIntakeStepFamily(${p._id},'consent_covenant')">套用全家 →</button>`:''}<button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'consent_covenant')">確認 →</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">確認 →</button>`;
   const idBadge='';
   openModal(`入站流程 · ${escHtml(p.display_id||'新入站者')}`,`${idBadge}<div class="step-title" style="font-size:17px;font-weight:700;margin-bottom:6px;">${step.label}</div><div class="step-desc" style="font-size:13px;color:var(--text2);margin-bottom:16px;">${step.desc}</div><div class="step-content">${stepBodyHTML}</div>`,footerBtn);
   const stepsEl=el('modal-steps');if(stepsEl){stepsEl.innerHTML=progressHTML;stepsEl.style.display='block';}
@@ -1566,7 +1562,15 @@ function setConsent(track,val){
   _consentCache[track]=val;
   if(track==='ops'){const y=document.getElementById('consent-ops-yes'),n=document.getElementById('consent-ops-no');if(y)y.className=`btn flex-1 ${val===true?'btn-primary':'btn-outline'}`;if(n)n.className=`btn flex-1 ${val===false?'btn-danger':'btn-outline'}`;}
   else{const y=document.getElementById('consent-wf-yes'),n=document.getElementById('consent-wf-no');if(y)y.className=`btn flex-1 ${val===true?'btn-primary':'btn-outline'}`;if(n)n.className=`btn flex-1 ${val===false?'btn-danger':'btn-outline'}`;}
-  const st=document.getElementById('consent-status');if(st)st.textContent=`B軌：${_consentCache.ops===true?'✅':_consentCache.ops===false?'❌':'未確認'} ／ A軌：${_consentCache.welfare===true?'✅':_consentCache.welfare===false?'❌':'未確認'}`;
+  const st=document.getElementById('consent-status');
+  if(st){
+    const b=_consentCache.ops,a=_consentCache.welfare;
+    let msg='',color='var(--text2)';
+    if(b===true&&a===true){msg='✅ 完整同意，可進行所有服務';color='var(--green)';}
+    else if(b===true&&a===false){msg='⚠️ 日常運作同意，但放棄撫恤憑證權益';color='var(--primary)';}
+    else if(b===false){msg='❌ 拒絕日常運作 — 無法收容，需離站';color='var(--red)';}
+    st.innerHTML=`<span style="color:${color}">${msg}</span>`;
+  }
 }
 let _genderCache=null;
 function setGender(val){_genderCache=val;['男','女'].forEach(g=>{const btn=document.getElementById(`gender-${g==='男'?'male':'female'}`);if(btn)btn.className=`btn flex-1 ${g===val?'btn-primary':'btn-outline'}`;});}
@@ -1611,12 +1615,16 @@ async function completeIntakeStep(personId,stepKey){
   let updates={};
   switch(stepKey){
     case 'san_gate': case 'waiting': {const fp=await db.persons.get(personId);console.log('[DEBUG][san_gate] fp.san_gate_done=',fp?.san_gate_done,'fp.status=',fp?.status,'fp.display_id=',fp?.display_id);if(!fp?.san_gate_done){showToast('請先點擊「安」方塊確認清消關卡');return;}if(fp.status==='等候中'){updates.status='登記中';updates.registering_started_at=nowISO();}if(!fp.display_id){const dp=await db.persons.getDecrypted(personId);console.log('[DEBUG][san_gate] dp.gender=',dp?.gender,'dp.age_group=',dp?.age_group);const did=await generateShelterDisplayId(dp.gender,dp.age_group);console.log('[DEBUG][san_gate] generated display_id=',did);updates.display_id=did;showToast(`識別碼：${did}`);}else{console.log('[DEBUG][san_gate] display_id already exists:',fp.display_id);}break;}
-    case 'needs_check': {const hasNeeds=document.getElementById('needs-yes')?.classList.contains('btn-danger');const note=hasNeeds?(el('step-needs')?.value.trim()||''):'';const health=el('step-health')?.value||'正常';if(hasNeeds&&!note){showToast('請填寫需求描述');return;}updates.immediate_needs_noted=true;updates.immediate_needs_note=note;updates.health_flag=health;if(hasNeeds&&note){const ni=await db.incidents.add(AuditManager.stamp({type:'immediate_needs',severity:'普通',status:'已通報',linked_persons:[p.display_id||String(personId)],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`即時需求：${note}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',ni);showToast('⚠️ 即時需求事件已建立');}break;}
-    case 'id_verify': {updates.cmist=collectCmist();updates.cmist_assessed=true;App._pendingCmistDispatch=personId;break;}
+    case 'needs_cmist': {const hasNeeds=document.getElementById('needs-yes')?.classList.contains('btn-danger');const note=hasNeeds?(el('step-needs')?.value.trim()||''):'';const health=el('step-health')?.value||'正常';if(hasNeeds&&!note){showToast('請填寫需求描述');return;}updates.immediate_needs_noted=true;updates.immediate_needs_note=note;updates.health_flag=health;updates.cmist=collectCmist();updates.cmist_assessed=true;App._pendingCmistDispatch=personId;if(hasNeeds&&note){const ni=await db.incidents.add(AuditManager.stamp({type:'immediate_needs',severity:'普通',status:'已通報',linked_persons:[p.display_id||String(personId)],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`即時需求：${note}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',ni);showToast('⚠️ 即時需求事件已建立');}break;}
     case 'tagging': {const nn=document.getElementById('idcard-none'),cc=document.getElementById('idcard-collected');const none=nn?.classList.contains('btn-primary'),coll=cc?.classList.contains('btn-success');if(!none&&!coll){const w=document.getElementById('idcard-warn');if(w)w.style.display='block';showToast('請確認管制物品寄存狀態');return;}updates.id_card_collected=coll?true:false;if(coll){const ci=[...document.querySelectorAll('input[name="idcard_item"]:checked')].map(c=>c.value);if(ci.length===0){showToast('請勾選收繳的物品項目');return;}updates.id_card_items=ci;updates.id_card_note=el('idcard-note')?.value.trim()||'';}else{updates.id_card_items=[];updates.id_card_note='';}const hp=el('step-haspets')?.checked||false;updates.pets={has_pets:hp,counts:{dog:parseInt(el('pet-dog')?.value)||0,cat:parseInt(el('pet-cat')?.value)||0,small:0,bird:0,reptile:0,other:0},placement:el('pet-placement')?.value||'',placement_note:el('pet-placement-note')?.value.trim()||''};break;}
     case 'badge': if(!el('step-badge')?.checked){showToast('請確認識別證已發放');return;}updates.id_badge_issued=true;break;
-    case 'consent': updates.consent_ops=_consentCache.ops;updates.consent_welfare=_consentCache.welfare||false;_consentCache={};break;
-    case 'covenant': if(!el('step-covenant')?.checked){showToast('請確認收容公約已簽署');return;}updates.covenant_signed=true;updates.status='待帶位';break;
+    case 'consent_covenant': {
+      if(_consentCache.ops===false){showToast('❌ B 軌（日常運作）拒絕，無法收容，請按「拒簽離站」');return;}
+      if(!el('step-covenant')?.checked){showToast('請確認收容公約已簽署（紙本）');return;}
+      updates.consent_ops=_consentCache.ops;updates.consent_welfare=_consentCache.welfare||false;_consentCache={};
+      updates.covenant_signed=true;
+      break;
+    }
     case 'guide': {updates.status='已安置';if(p.bed_id){const bed=await db.beds.where('display_id').equals(p.bed_id).first();if(bed){await db.beds.update(bed._id,AuditManager.stamp({status:'occupied',assigned_to:p.display_id||String(personId)}));syncAfterWrite('beds',bed._id);}}break;}
   }
   console.log(`[家庭入站][completeIntakeStep] 套用 updates=`,JSON.stringify(updates));
@@ -1634,26 +1642,29 @@ async function completeIntakeStepFamily(personId,stepKey){
   const p=await db.persons.get(personId);
   console.log(`[家庭入站][completeIntakeStepFamily] 進入 personId=${personId} stepKey=${stepKey} family=${p?.family_unit_id||'無'}`);
   if(!p||!p.family_unit_id){console.warn(`[家庭入站][completeIntakeStepFamily] 無 family_unit_id，轉 completeIntakeStep`);return completeIntakeStep(personId,stepKey);}
-  if(stepKey==='consent'){
-    const updates={consent_ops:_consentCache.ops,consent_welfare:_consentCache.welfare||false};_consentCache={};
-    const family=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();
-    console.log(`[家庭入站][completeIntakeStepFamily][consent] 套用 updates=`,JSON.stringify(updates),`至 ${family.length} 人`);
-    family.forEach(m=>console.log(`  成員 id=${m._id} name=${m.name} status=${m.status} bed=${m.bed_id||'無'} consent_ops=${m.consent_ops} stepIdx=${getPersonStepIndex(m)}`));
-    for(const m of family){await FreezeGateway.writePerson(m._id,AuditManager.stamp(updates),db.persons);syncAfterWrite('persons',m._id);}
-    closeModal();showToast(`✅ 同意已套用至全家 ${family.length} 人`);
-  } else if(stepKey==='covenant'){
+  if(stepKey==='consent_covenant'){
+    if(_consentCache.ops===false){showToast('❌ B 軌（日常運作）拒絕，無法收容，請按「拒簽離站」');return;}
     if(!el('step-covenant')?.checked){showToast('請確認收容公約已簽署（紙本）');return;}
+    const updates={consent_ops:_consentCache.ops,consent_welfare:_consentCache.welfare||false,covenant_signed:true};_consentCache={};
     const family=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();
-    console.log(`[家庭入站][completeIntakeStepFamily][covenant] 處理 ${family.length} 人`);
-    family.forEach(m=>console.log(`[家庭入站][covenant] 成員 id=${m._id} status="${m.status}" bed=${m.bed_id||'無'} covenant=${m.covenant_signed}`));
-    for(const m of family){
-      if(m.status==='已安置'){console.log(`[家庭入站][covenant] id=${m._id} 已安置，跳過`);continue;}
-      const ns=m.bed_id?'待帶位':m.status;
-      console.log(`[家庭入站][covenant] id=${m._id} 舊status="${m.status}" → 新status="${ns}"`);
-      await FreezeGateway.writePerson(m._id,AuditManager.stamp({covenant_signed:true,status:ns}),db.persons);syncAfterWrite('persons',m._id);
-    }
-    closeModal();showToast(`✅ 公約已套用至全家 ${family.length} 人`);
+    for(const m of family){await FreezeGateway.writePerson(m._id,AuditManager.stamp(updates),db.persons);syncAfterWrite('persons',m._id);}
+    closeModal();showToast(`✅ 同意+公約已套用至全家 ${family.length} 人`);
   }
+  await renderIntake();await renderDashboard();await refreshCapacityBanner();
+}
+
+// 拒簽離站：記錄拒簽原因，狀態改為已離站
+async function refuseAndExit(personId){
+  const ok=await confirm2('確認拒簽離站',`此人拒絕簽署同意書或公約，將以識別碼記錄後離站。確認繼續？`);
+  if(!ok)return;
+  const p=await db.persons.getDecrypted(personId);
+  await FreezeGateway.writePerson(personId,AuditManager.stamp({
+    status:'已離站',exit_at:nowISO(),exit_reason:'拒簽同意/公約',
+    consent_ops:false,consent_welfare:false,covenant_signed:false
+  }),db.persons);
+  syncAfterWrite('persons',personId);
+  await AuditLogManager.write('person_refused_exit',{person_id:personId,display_id:p?.display_id||'?',reason:'拒簽同意書或公約'});
+  closeModal();showToast(`${p?.display_id||'入站者'} 已記錄拒簽並離站`);
   await renderIntake();await renderDashboard();await refreshCapacityBanner();
 }
 
