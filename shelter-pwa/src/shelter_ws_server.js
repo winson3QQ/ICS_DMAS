@@ -40,7 +40,7 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-const SERVER_VERSION = 'v0.2.0';
+const SERVER_VERSION = 'v0.3.0';
 log.info(`Shelter WS Server ${SERVER_VERSION} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
@@ -231,6 +231,9 @@ db.exec(`
     last_login  TEXT,
     device_id   TEXT
   );
+
+  -- 遷移：舊的 4 角色（人管/物管/環管）統一歸為「一般」
+  UPDATE accounts SET role='一般' WHERE role IN ('人管','物管','環管');
 
   CREATE TABLE IF NOT EXISTS audit_log (
     id            TEXT PRIMARY KEY,
@@ -491,7 +494,8 @@ wss.on('connection', (ws, req) => {
 
       /* ── session_restore（刷新頁面後透明還原身份，不重新驗 PIN） ── */
       case 'session_restore': {
-        const { username, role, device_id } = msg;
+        const { username, role: rawRole, device_id } = msg;
+        const role = ['組長','一般'].includes(rawRole) ? rawRole : '一般';
         if (username && role) {
           const existing = clients.get(ws);
           clients.set(ws, { deviceId: device_id || ip, username, role, connectedAt: existing?.connectedAt || nowISO() });
@@ -764,7 +768,7 @@ app.get('/admin/accounts', adminAuth, (req, res) => {
 app.post('/admin/accounts', adminAuth, async (req, res) => {
   const { username, role, pin, created_by } = req.body;
   if (!username || !role || !pin) return res.status(400).json({ ok: false, reason: '缺少必填欄位' });
-  if (!['組長','人管','物管','環管'].includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
+  if (!['組長','一般'].includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
   if (!/^\d{4,6}$/.test(pin)) return res.status(400).json({ ok: false, reason: 'PIN 格式不符' });
   const existing = db.prepare('SELECT id FROM accounts WHERE username=?').get(username);
   if (existing) return res.status(400).json({ ok: false, reason: '帳號名稱已存在' });
@@ -811,7 +815,7 @@ app.delete('/admin/accounts/:username', adminAuth, (req, res) => {
 app.put('/admin/accounts/:username/role', adminAuth, (req, res) => {
   const { username } = req.params;
   const { role, updated_by } = req.body || {};
-  if (!['組長','人管','物管','環管'].includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
+  if (!['組長','一般'].includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
   const account = db.prepare('SELECT id FROM accounts WHERE username=?').get(username);
   if (!account) return res.status(404).json({ ok: false, reason: '帳號不存在' });
   db.prepare('UPDATE accounts SET role=? WHERE username=?').run(role, username);

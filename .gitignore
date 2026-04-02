@@ -29,3 +29,6 @@ Thumbs.db
 
 # Wireshark captures
 wireshark/
+
+# TLS 憑證（含私鑰，不可提交）
+certs/

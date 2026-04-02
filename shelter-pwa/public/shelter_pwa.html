@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.1.17';</script>
+<script>const PWA_VERSION='v2.2.1';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -370,14 +370,6 @@
       </div>
       <div id="operator-warn" class="login-warn"></div>
     </div>
-    <!-- 降級角色選擇 -->
-    <div id="degraded-role-grid" class="role-grid" style="display:none;">
-      <button class="role-btn leader" onclick="handleLogin('組長')"><span class="icon">📊</span><span class="name">組長</span><span class="desc">所有資料・名冊・設定</span></button>
-      <button class="role-btn" onclick="handleLogin('人管')"><span class="icon">👤</span><span class="name">人管</span><span class="desc">入站・床位分配</span></button>
-      <button class="role-btn" onclick="handleLogin('物管')"><span class="icon">📦</span><span class="name">物管</span><span class="desc">物資盤點・追蹤</span></button>
-      <button class="role-btn" onclick="handleLogin('環管')"><span class="icon">🏗️</span><span class="name">環管</span><span class="desc">帶位・床位地圖</span></button>
-    </div>
-    <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
     <div class="login-version" id="pwa-version-display">收容組 PWA</div>
   </div>
 </div>
@@ -559,7 +551,7 @@
 
 <!-- ── 帳號管理 Modal ─────────────────────────────────────────── -->
 <div id="admin-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;" onclick="closeAdminPanel()"></div>
-<div id="admin-panel" style="display:none;position:fixed;inset:0;top:auto;bottom:0;left:0;right:0;background:var(--surface);border-radius:18px 18px 0 0;z-index:301;max-height:90vh;display:none;flex-direction:column;">
+<div id="admin-panel" style="display:none;position:fixed;inset:0;top:auto;bottom:0;left:0;right:0;background:var(--surface);border-radius:18px 18px 0 0;z-index:301;max-height:90vh;flex-direction:column;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0;">
     <span style="font-size:17px;font-weight:700;">👤 帳號管理</span>
     <button onclick="closeAdminPanel()" style="background:none;border:none;font-size:22px;color:var(--text2);cursor:pointer;padding:4px 8px;">✕</button>
@@ -596,8 +588,7 @@
         </div>
         <div class="form-group"><label class="form-label">角色</label>
           <select id="adm-new-role" class="form-input form-select">
-            <option value="組長">組長</option><option value="人管">人管</option>
-            <option value="物管">物管</option><option value="環管">環管</option>
+            <option value="一般">一般</option><option value="組長">組長</option>
           </select>
         </div>
         <div class="form-group"><label class="form-label">顯示名稱（選填）</label>
@@ -981,11 +972,13 @@ const App = {
   },
 
   startApp(role) {
+    // 正規化：舊角色統一歸為「一般」
+    if (!['組長','一般'].includes(role)) role = '一般';
     this.role=role; localStorage.setItem('shelter_role',role);
     document.getElementById('role-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     const operator=AuditManager.getOperator();
-    const chipText=operator?`${operator}（${role})`:role;
+    const chipText=operator?(role==='組長'?`${operator}（組長）`:operator):role;
     const chipTextEl=document.getElementById('role-chip-text');
     if(chipTextEl)chipTextEl.textContent=chipText;else document.getElementById('role-chip').textContent=chipText;
     // 顯示登入時間
@@ -1006,12 +999,10 @@ const App = {
       else badge.style.display='none';
     }
     document.getElementById('header-title').textContent=TAB_TITLES.dashboard;
-    const isLeader=['組長','副組長'].includes(role);
-    document.getElementById('tab-roster').classList.toggle('hidden',!isLeader);
-    document.getElementById('tab-settings').classList.toggle('hidden',role!=='組長');
-    if(role==='物管')this.switchTab('resources');
-    else if(role==='環管隊員')this.switchTab('beds');
-    else this.switchTab('dashboard');
+    const isLeader=role==='組長';
+    document.getElementById('tab-roster').classList.remove('hidden');
+    document.getElementById('tab-settings').classList.toggle('hidden',!isLeader);
+    this.switchTab('dashboard');
     // 啟動閒置計時器（無論從哪條路徑進入儀表板）
     if(PinLock.isSetup())PinLock.unlock();
   },
@@ -1104,7 +1095,6 @@ function switchTab(tab){
 }
 function renderCurrentTab(){switch(App.currentTab){case 'dashboard':renderDashboard();break;case 'intake':renderIntake();break;case 'beds':renderBeds();break;case 'resources':renderResources();break;case 'incidents':renderIncidents();break;case 'roster':renderRoster();break;}}
 function goRosterFilter(status){App.rosterFilter=status;App.rosterTypeFilter='all';App.rosterHealthFilter='all';switchTab('roster');}
-function selectRole(role){handleLogin(role);}
 function switchRole(){
   PinLock.clear();PersonCrypto.clearKey();AuditManager.clearSession();
   sessionStorage.removeItem('shelter_session_id');sessionStorage.removeItem('shelter_session_username');
@@ -1114,7 +1104,6 @@ function switchRole(){
   App.role=null;
   const uInp=document.getElementById('operator-username-input'),pInp=document.getElementById('operator-pin-input'),warn=document.getElementById('operator-warn');
   if(uInp)uInp.value='';if(pInp)pInp.value='';if(warn){warn.style.display='none';warn.textContent='';}
-  const rg=document.getElementById('degraded-role-grid');if(rg)rg.style.display='none';
   document.getElementById('role-screen').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
   setTimeout(()=>document.getElementById('operator-username-input')?.focus(),100);
@@ -1321,7 +1310,7 @@ function openNewPersonModal(){
 async function createNewPerson(){
   const name=el('new-name').value.trim(),type=el('new-type').value,notes=el('new-notes').value.trim();
   if(!name){showToast('請填寫姓名');return;}
-  const id=await db.persons.add(AuditManager.stamp({display_id:null,name,type,notes,status:'等候中',health_flag:'正常',san_gate_done:false,immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:null,household_size:1,gender:null,age_group:null,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:nowISO(),exit_at:null,exit_reason:null,created_by:App.role,srt_score:null,srt_color:null,registering_started_at:null,skills:[]}));
+  const id=await db.persons.add(AuditManager.stamp({display_id:null,name,type,notes,status:'等候中',health_flag:'正常',san_gate_done:false,immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:null,household_size:1,gender:null,age_group:null,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:nowISO(),exit_at:null,exit_reason:null,created_by:AuditManager.getOperator()||App.role,srt_score:null,srt_color:null,registering_started_at:null,skills:[]}));
   syncAfterWrite('persons',id); closeModal(); showToast('入站者已建立'); await renderIntake(); await refreshCapacityBanner();
 }
 
@@ -1366,7 +1355,7 @@ async function createFamily(){
   const household_size=members.length,now=nowISO();
   console.log(`[家庭入站][createFamily] familyUnitId=${familyUnitId} 共 ${household_size} 人`, members.map(m=>({name:m.name,isHead:m.isHead,gender:m.gender,age:m.age,type:m.type})));
   for(const m of members){
-    const id=await db.persons.add(AuditManager.stamp({display_id:null,name:m.name,type:m.type||'災民',gender:m.gender,status:'等候中',health_flag:'正常',immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:familyUnitId,is_family_head:m.isHead,household_size,age_group:m.age,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:now,exit_at:null,exit_reason:null,created_by:App.role,srt_score:null,srt_color:null,san_gate_done:false,registering_started_at:null,skills:[]}));
+    const id=await db.persons.add(AuditManager.stamp({display_id:null,name:m.name,type:m.type||'災民',gender:m.gender,status:'等候中',health_flag:'正常',immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:familyUnitId,is_family_head:m.isHead,household_size,age_group:m.age,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:now,exit_at:null,exit_reason:null,created_by:AuditManager.getOperator()||App.role,srt_score:null,srt_color:null,san_gate_done:false,registering_started_at:null,skills:[]}));
     console.log(`[家庭入站][createFamily] 建立 db_id=${id} name=${m.name} isHead=${m.isHead} gender=${m.gender} age=${m.age}`);
     syncAfterWrite('persons',id);
   }
@@ -1447,11 +1436,11 @@ async function quickUpdateHealth(personId,value){
   if(value==='需關注'){
     const ex=await findOpenIncident('resident_distress');
     if(ex){await appendNote(ex,`健康標記更新為「需關注」（前次：${prev}）`);showToast('⚠️ 健康標記已更新，已追加至既有事件');}
-    else{const id=await db.incidents.add(AuditManager.stamp({type:'resident_distress',severity:'普通',status:'已通報',linked_persons:[displayId],reported_by:`${App.role}/${AuditManager.getOperator()}`,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`健康標記更新為「需關注」（前次：${prev}）`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('⚠️ 健康標記已更新，已建立事件');}
+    else{const id=await db.incidents.add(AuditManager.stamp({type:'resident_distress',severity:'普通',status:'已通報',linked_persons:[displayId],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`健康標記更新為「需關注」（前次：${prev}）`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('⚠️ 健康標記已更新，已建立事件');}
   } else if(value==='已隔離'){
     const ex=await findOpenIncident('medical_infection');
     if(ex){await appendNote(ex,`健康標記更新為「已隔離」（前次：${prev}），床位：${p.bed_id||'未分配'}`);showToast('🚨 健康標記已更新，已追加至既有事件');}
-    else{const id=await db.incidents.add(AuditManager.stamp({type:'medical_infection',severity:'緊急',status:'已通報',linked_persons:[displayId],reported_by:`${App.role}/${AuditManager.getOperator()}`,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`${displayId} 健康標記更新為「已隔離」，床位：${p.bed_id||'未分配'}，請安排移至隔離區。`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('🚨 已隔離，緊急事件已建立');}
+    else{const id=await db.incidents.add(AuditManager.stamp({type:'medical_infection',severity:'緊急',status:'已通報',linked_persons:[displayId],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`${displayId} 健康標記更新為「已隔離」，床位：${p.bed_id||'未分配'}，請安排移至隔離區。`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('🚨 已隔離，緊急事件已建立');}
   } else if(value==='正常'){
     const relType=prev==='已隔離'?'medical_infection':'resident_distress';
     const ex=await findOpenIncident(relType);
@@ -1598,7 +1587,7 @@ async function completeIntakeStep(personId,stepKey){
   let updates={};
   switch(stepKey){
     case 'san_gate': case 'waiting': {const fp=await db.persons.get(personId);if(!fp?.san_gate_done){showToast('請先點擊「安」方塊確認清消關卡');return;}if(fp.status==='等候中'){updates.status='登記中';updates.registering_started_at=nowISO();}break;}
-    case 'needs_check': {const hasNeeds=document.getElementById('needs-yes')?.classList.contains('btn-danger');const note=hasNeeds?(el('step-needs')?.value.trim()||''):'';const health=el('step-health')?.value||'正常';if(hasNeeds&&!note){showToast('請填寫需求描述');return;}updates.immediate_needs_noted=true;updates.immediate_needs_note=note;updates.health_flag=health;if(hasNeeds&&note){const ni=await db.incidents.add(AuditManager.stamp({type:'immediate_needs',severity:'普通',status:'已通報',linked_persons:[p.display_id||String(personId)],reported_by:`${App.role}/${AuditManager.getOperator()}`,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`即時需求：${note}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',ni);showToast('⚠️ 即時需求事件已建立');}break;}
+    case 'needs_check': {const hasNeeds=document.getElementById('needs-yes')?.classList.contains('btn-danger');const note=hasNeeds?(el('step-needs')?.value.trim()||''):'';const health=el('step-health')?.value||'正常';if(hasNeeds&&!note){showToast('請填寫需求描述');return;}updates.immediate_needs_noted=true;updates.immediate_needs_note=note;updates.health_flag=health;if(hasNeeds&&note){const ni=await db.incidents.add(AuditManager.stamp({type:'immediate_needs',severity:'普通',status:'已通報',linked_persons:[p.display_id||String(personId)],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`即時需求：${note}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',ni);showToast('⚠️ 即時需求事件已建立');}break;}
     case 'id_verify': {const name=el('step-name')?.value.trim(),age=el('step-age')?.value,gender=_genderCache;if(!name){showToast('請填寫姓名');return;}if(!gender){showToast('請選擇性別');return;}if(!age){showToast('請選擇年齡區段');return;}updates.name=name;updates.gender=gender;updates.age_group=age;if(!p.family_unit_id)updates.household_size=1;updates.cmist=collectCmist();_genderCache=null;App._pendingCmistDispatch=personId;break;}
     case 'tagging': {const nn=document.getElementById('idcard-none'),cc=document.getElementById('idcard-collected');const none=nn?.classList.contains('btn-primary'),coll=cc?.classList.contains('btn-success');if(!none&&!coll){const w=document.getElementById('idcard-warn');if(w)w.style.display='block';showToast('請確認管制物品寄存狀態');return;}updates.id_card_collected=coll?true:false;if(coll){const ci=[...document.querySelectorAll('input[name="idcard_item"]:checked')].map(c=>c.value);if(ci.length===0){showToast('請勾選收繳的物品項目');return;}updates.id_card_items=ci;updates.id_card_note=el('idcard-note')?.value.trim()||'';}else{updates.id_card_items=[];updates.id_card_note='';}const hp=el('step-haspets')?.checked||false;updates.pets={has_pets:hp,counts:{dog:parseInt(el('pet-dog')?.value)||0,cat:parseInt(el('pet-cat')?.value)||0,small:0,bird:0,reptile:0,other:0},placement:el('pet-placement')?.value||'',placement_note:el('pet-placement-note')?.value.trim()||''};break;}
     case 'badge': if(!el('step-badge')?.checked){showToast('請確認識別證已發放');return;}updates.id_badge_issued=true;break;
@@ -1703,10 +1692,10 @@ async function loadDefaultResources(){const t=App.config.resources_template||[];
 function openAddResourceModal(){openModal('新增物資',`<div class="form-group"><label class="form-label">物資名稱 <span class="req">*</span></label><input class="form-input" id="res-name" placeholder="如：礦泉水（箱）"></div><div class="form-group"><label class="form-label">類別</label><select class="form-input form-select" id="res-cat"><option>消耗品</option><option>設備</option><option>借用品</option></select></div><div class="form-group"><label class="form-label">單位</label><input class="form-input" id="res-unit" placeholder="個、瓶、箱…" value="個"></div><div class="form-group"><label class="form-label">初始數量</label><input class="form-input" id="res-qty" type="number" value="0" min="0"></div><div class="form-group"><label class="form-label">低量警戒線</label><input class="form-input" id="res-thresh" type="number" value="5" min="0"></div><div class="form-group"><label class="form-check"><input type="checkbox" id="res-borrowed"><span class="form-check-label">借用品（需歸還）</span></label></div><div class="form-group"><label class="form-label">擁有者（借用品填寫）</label><input class="form-input" id="res-owner" placeholder="借用者/擁有者姓名"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="saveNewResource()">新增</button>`);}
 async function saveNewResource(){const name=el('res-name')?.value.trim();if(!name){showToast('請填寫物資名稱');return;}const qty=parseInt(el('res-qty')?.value)||0;await db.resources.add({name,category:el('res-cat')?.value||'消耗品',unit:el('res-unit')?.value||'個',qty_initial:qty,qty_current:qty,qty_low_threshold:parseInt(el('res-thresh')?.value)||5,transactions:[],is_borrowed:el('res-borrowed')?.checked||false,owner_name:el('res-owner')?.value.trim()||''});closeModal();showToast('物資已新增');renderResources();}
 async function openResourceUse(resId){const r=await db.resources.get(resId);openModal(`取用：${escHtml(r.name)}`,`<div style="text-align:center;padding:10px 0 20px;"><span style="font-size:32px;font-weight:900;color:var(--primary)">${r.qty_current}</span> <span style="font-size:16px">${escHtml(r.unit)}</span></div><div class="form-group"><label class="form-label">取用數量 <span class="req">*</span></label><div class="number-stepper"><button onclick="stepperChange('use-qty',-1)">－</button><input id="use-qty" type="number" value="1" min="1" max="${r.qty_current}"><button onclick="stepperChange('use-qty',1)">＋</button></div></div><div class="form-group"><label class="form-label">取用原因</label><input class="form-input" id="use-reason" placeholder="如：發放給P-001"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="useResource(${resId})">確認取用</button>`);}
-async function useResource(resId){const r=await db.resources.get(resId),qty=parseInt(el('use-qty')?.value)||0,reason=el('use-reason')?.value||'';if(qty<=0){showToast('數量必須大於0');return;}if(qty>r.qty_current){showToast('數量超過庫存');return;}const tx=[...(r.transactions||[]),{time:nowISO(),type:'use',qty,reason,by:App.role}];await db.resources.update(resId,AuditManager.stamp({qty_current:r.qty_current-qty,transactions:tx}));syncAfterWrite('resources',resId);closeModal();showToast(`取用 ${qty} ${r.unit} ✅`);renderResources();renderDashboard();}
+async function useResource(resId){const r=await db.resources.get(resId),qty=parseInt(el('use-qty')?.value)||0,reason=el('use-reason')?.value||'';if(qty<=0){showToast('數量必須大於0');return;}if(qty>r.qty_current){showToast('數量超過庫存');return;}const tx=[...(r.transactions||[]),{time:nowISO(),type:'use',qty,reason,by:AuditManager.getOperator()||App.role}];await db.resources.update(resId,AuditManager.stamp({qty_current:r.qty_current-qty,transactions:tx}));syncAfterWrite('resources',resId);closeModal();showToast(`取用 ${qty} ${r.unit} ✅`);renderResources();renderDashboard();}
 async function openResourceAdd(resId){const r=await db.resources.get(resId);openModal(`補充：${escHtml(r.name)}`,`<div class="form-group"><label class="form-label">補充數量</label><div class="number-stepper"><button onclick="stepperChange('add-qty',-1)">－</button><input id="add-qty" type="number" value="1" min="1"><button onclick="stepperChange('add-qty',1)">＋</button></div></div><div class="form-group"><label class="form-label">補充說明</label><input class="form-input" id="add-reason" placeholder="（可選）"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="addResource(${resId})">確認補充</button>`);}
-async function addResource(resId){const r=await db.resources.get(resId),qty=parseInt(el('add-qty')?.value)||0;if(qty<=0){showToast('數量必須大於0');return;}const tx=[...(r.transactions||[]),{time:nowISO(),type:'add',qty,reason:el('add-reason')?.value||'',by:App.role}];await db.resources.update(resId,AuditManager.stamp({qty_current:r.qty_current+qty,transactions:tx}));syncAfterWrite('resources',resId);closeModal();showToast(`補充 ${qty} ✅`);renderResources();}
-async function reportResourceShortage(resId){const r=await db.resources.get(resId);const id=await db.incidents.add(AuditManager.stamp({type:'resource_shortage',severity:'普通',status:'已通報',linked_persons:[],reported_by:`${App.role}/${AuditManager.getOperator()}`,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`物資缺漏：${r.name}，目前剩餘 ${r.qty_current} ${r.unit}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('缺料事件已通報');renderDashboard();refreshCapacityBanner();}
+async function addResource(resId){const r=await db.resources.get(resId),qty=parseInt(el('add-qty')?.value)||0;if(qty<=0){showToast('數量必須大於0');return;}const tx=[...(r.transactions||[]),{time:nowISO(),type:'add',qty,reason:el('add-reason')?.value||'',by:AuditManager.getOperator()||App.role}];await db.resources.update(resId,AuditManager.stamp({qty_current:r.qty_current+qty,transactions:tx}));syncAfterWrite('resources',resId);closeModal();showToast(`補充 ${qty} ✅`);renderResources();}
+async function reportResourceShortage(resId){const r=await db.resources.get(resId);const id=await db.incidents.add(AuditManager.stamp({type:'resource_shortage',severity:'普通',status:'已通報',linked_persons:[],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`物資缺漏：${r.name}，目前剩餘 ${r.qty_current} ${r.unit}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('缺料事件已通報');renderDashboard();refreshCapacityBanner();}
 </script>
 <script>
 /* ══ INCIDENTS ═════════════════════════════════════════════════ */
@@ -1729,7 +1718,7 @@ function incidentCardHTML(inc){
 function openNewIncidentModal(){openModal('新增事件',`<div class="form-group"><label class="form-label">事件類型 <span class="req">*</span></label><select class="form-input form-select" id="inc-type">${Object.entries(INCIDENT_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">嚴重程度</label><select class="form-input form-select" id="inc-severity"><option>普通</option><option>緊急</option></select></div><div class="form-group"><label class="form-label">涉及人員（display_id，逗號分隔）</label><input class="form-input" id="inc-persons" placeholder="如：P-001, P-002"></div><div class="form-group"><label class="form-label">指派給</label><input class="form-input" id="inc-assign" placeholder="負責人姓名或角色" value="${AuditManager.getOperator()||App.role||''}"></div><div class="form-group"><label class="form-label">初始描述</label><textarea class="form-input form-textarea" id="inc-notes" placeholder="事件描述…"></textarea></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-danger flex-1" onclick="createIncident()">建立事件</button>`);}
 async function createIncident(){
   const type=el('inc-type')?.value,severity=el('inc-severity')?.value||'普通',linked=(el('inc-persons')?.value||'').split(',').map(s=>s.trim()).filter(Boolean),noteTxt=el('inc-notes')?.value.trim()||'';
-  const id=await db.incidents.add(AuditManager.stamp({type,severity,status:'已通報',linked_persons:linked,reported_by:App.role,assigned_to:el('inc-assign')?.value||'',notes:noteTxt?[{time:nowISO(),text:noteTxt}]:[],opened_at:nowISO(),closed_at:null}));
+  const id=await db.incidents.add(AuditManager.stamp({type,severity,status:'已通報',linked_persons:linked,reported_by:AuditManager.getOperator()||App.role,assigned_to:el('inc-assign')?.value||'',notes:noteTxt?[{time:nowISO(),text:noteTxt}]:[],opened_at:nowISO(),closed_at:null}));
   syncAfterWrite('incidents',id);closeModal();showToast('事件已通報');renderIncidents();renderDashboard();refreshCapacityBanner();
 }
 async function openIncidentModal(incId){
@@ -1808,7 +1797,7 @@ function toggleRosterSearch(){const bar=el('roster-search-bar'),btn=el('roster-s
 async function openShiftModal(){
   const [persons,beds,resources,incidents]=await Promise.all([db.persons.toArray(),db.beds.toArray(),db.resources.toArray(),db.incidents.toArray()]);
   const s=buildSummary(persons,beds,resources,incidents);
-  openModal('交班',`<div class="info-box info">交班後系統將儲存當前狀態快照，紀錄不可刪除。</div><div class="font-semibold mb-1">目前狀態摘要</div><div class="snapshot-grid"><div class="snapshot-item"><div class="si-label">已安置</div><div class="si-value">${s.statusCounts['已安置']||0}</div></div><div class="snapshot-item"><div class="si-label">待分配</div><div class="si-value">${s.statusCounts['待分配']||0}</div></div><div class="snapshot-item"><div class="si-label">空置床位</div><div class="si-value">${s.bedCounts.empty||0}</div></div><div class="snapshot-item"><div class="si-label">開放事件</div><div class="si-value" style="color:${(s.openIncidents||0)>0?'var(--red)':'inherit'}">${s.openIncidents||0}</div></div></div><div class="form-group mt-2"><label class="form-label">交班角色</label><input class="form-input" id="shift-role" value="${App.role}"></div><div class="form-group"><label class="form-label">交班備註</label><textarea class="form-input form-textarea" id="shift-notes" placeholder="特別事項、未解決問題…"></textarea></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="saveShift()">確認交班</button>`);
+  openModal('交班',`<div class="info-box info">交班後系統將儲存當前狀態快照，紀錄不可刪除。</div><div class="font-semibold mb-1">目前狀態摘要</div><div class="snapshot-grid"><div class="snapshot-item"><div class="si-label">已安置</div><div class="si-value">${s.statusCounts['已安置']||0}</div></div><div class="snapshot-item"><div class="si-label">待分配</div><div class="si-value">${s.statusCounts['待分配']||0}</div></div><div class="snapshot-item"><div class="si-label">空置床位</div><div class="si-value">${s.bedCounts.empty||0}</div></div><div class="snapshot-item"><div class="si-label">開放事件</div><div class="si-value" style="color:${(s.openIncidents||0)>0?'var(--red)':'inherit'}">${s.openIncidents||0}</div></div></div><div class="form-group mt-2"><label class="form-label">交班人員</label><input class="form-input" id="shift-role" value="${AuditManager.getOperator()||App.role}"></div><div class="form-group"><label class="form-label">交班備註</label><textarea class="form-input form-textarea" id="shift-notes" placeholder="特別事項、未解決問題…"></textarea></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="saveShift()">確認交班</button>`);
 }
 async function saveShift(){
   const [persons,beds,resources,incidents]=await Promise.all([db.persons.toArray(),db.beds.toArray(),db.resources.toArray(),db.incidents.toArray()]);
@@ -1824,7 +1813,7 @@ async function viewShiftHistory(){
 async function openInquiryRecordModal(){
   openModal('主動詢問紀錄',`<div class="info-box warn">依災害防救法第64條，主動詢問政府應變中心並留存未回應記錄，可強化自主行動正當性。</div><div class="form-group"><label class="form-label">詢問時間</label><input class="form-input" id="inq-time" type="datetime-local" value="${new Date().toISOString().slice(0,16)}"></div><div class="form-group"><label class="form-label">機關名稱</label><input class="form-input" id="inq-org" placeholder="如：○○鄉公所災害應變中心"></div><div class="form-group"><label class="form-label">詢問內容</label><textarea class="form-input form-textarea" id="inq-content" placeholder="詢問事項摘要…"></textarea></div><div class="form-group"><label class="form-label">對方回應</label><select class="form-input form-select" id="inq-response"><option>無回應</option><option>已回應（詳見備註）</option><option>轉接其他單位</option></select></div><div class="form-group"><label class="form-label">後續決定</label><textarea class="form-input form-textarea" id="inq-decision" placeholder="組織決定之後續行動…"></textarea></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="saveInquiry()">儲存</button>`);
 }
-async function saveInquiry(){await db.inquiries.add({timestamp:el('inq-time')?.value||nowISO(),org:el('inq-org')?.value.trim()||'',content:el('inq-content')?.value.trim()||'',response:el('inq-response')?.value||'無回應',decision:el('inq-decision')?.value.trim()||'',by:App.role,created_at:nowISO()});closeModal();showToast('紀錄已儲存');}
+async function saveInquiry(){await db.inquiries.add({timestamp:el('inq-time')?.value||nowISO(),org:el('inq-org')?.value.trim()||'',content:el('inq-content')?.value.trim()||'',response:el('inq-response')?.value||'無回應',decision:el('inq-decision')?.value.trim()||'',by:AuditManager.getOperator()||App.role,created_at:nowISO()});closeModal();showToast('紀錄已儲存');}
 
 async function openConfigModal(){
   const cfg=App.config;
@@ -1962,7 +1951,7 @@ function openQrReportModal() {
         <input id="qr-staff" type="number" value="4" min="0" max="99">
         <button onclick="stepperChange('qr-staff',1)">＋</button>
       </div>
-      <div class="form-hint">包含組長、人管、物管、環管等所有當值人員</div>
+      <div class="form-hint">包含組長及一般人員等所有當值人員</div>
     </div>
   `, `
     <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
@@ -2185,12 +2174,13 @@ async function cmistAutoDispatch(personId){
   const p=await db.persons.getDecrypted(personId);if(!p||!p.cmist)return;
   const c=p.cmist,displayId=p.display_id||String(personId),created=[];
   async function mkInc(type,severity,note,role){const id=await db.incidents.add(AuditManager.stamp({type,severity,status:'待處理',linked_persons:[displayId],notes:note?[{text:note,ts:nowISO(),by:AuditManager.getOperator()}]:[],assigned_to:role,opened_at:nowISO(),source:'cmist_auto'}));syncAfterWrite('incidents',id);created.push(type);}
-  const comm=c.communication||[];if(comm.some(x=>x.includes('翻譯')||x.includes('語言')))await mkInc('language_assist','普通',`需語言協助：${comm.find(x=>x.includes('翻譯')||x.includes('語言'))||'未知'}`,'人管');
-  if((c.maintaining_health||[]).some(x=>x.includes('藥')||x.includes('用藥')))await mkInc('medication_mgmt','普通','每日用藥需求','人管');
-  if((c.independence||[]).some(x=>x.includes('輪椅')||x.includes('無障礙')))await mkInc('accessible_bed','普通','需輪椅可及床位','環管');
-  if((c.independence||[]).some(x=>x.includes('充電')||x.includes('電動')))await mkInc('charging_arrange','普通','需穩定電源充電','環管');
+  const self=AuditManager.getOperator()||App.role;
+  const comm=c.communication||[];if(comm.some(x=>x.includes('翻譯')||x.includes('語言')))await mkInc('language_assist','普通',`需語言協助：${comm.find(x=>x.includes('翻譯')||x.includes('語言'))||'未知'}`,self);
+  if((c.maintaining_health||[]).some(x=>x.includes('藥')||x.includes('用藥')))await mkInc('medication_mgmt','普通','每日用藥需求',self);
+  if((c.independence||[]).some(x=>x.includes('輪椅')||x.includes('無障礙')))await mkInc('accessible_bed','普通','需輪椅可及床位',self);
+  if((c.independence||[]).some(x=>x.includes('充電')||x.includes('電動')))await mkInc('charging_arrange','普通','需穩定電源充電',self);
   if((c.transportation||[]).some(x=>x.includes('醫療轉送')))await mkInc('medical_transfer','緊急','緊急：需安排救護轉送','組長');
-  else if((c.transportation||[]).some(x=>x.includes('接駁')||x.includes('交通')))await mkInc('non_medical_transport','普通','需交通接駁安排','物管');
+  else if((c.transportation||[]).some(x=>x.includes('接駁')||x.includes('交通')))await mkInc('non_medical_transport','普通','需交通接駁安排',self);
   if(created.length>0){showToast(`✅ 已自動建立 ${created.length} 個 CMIST 相關事件`);await renderCurrentTab();await refreshCapacityBanner();}
 }
 
@@ -2633,6 +2623,7 @@ async function handleLogin(roleHint) {
       if(!result.site_salt)console.warn('[PersonCrypto] Pi 未回傳 site_salt，退回舊版 per-device salt（金鑰可能跨裝置不一致）');
       await PersonCrypto.deriveKey(pin,salt);
       await PersonCrypto.exportToSession();
+      await PinLock.setup(pin);
       sessionStorage.setItem('shelter_session_username',result.username);
       AuditManager.setOperator(result.username);
       await AuditLogManager.write('login_success',{username:result.username,role:result.role,mode:'pi_auth'});
@@ -2644,15 +2635,11 @@ async function handleLogin(roleHint) {
     return;
   }
 
-  /* 降級路徑 */
+  /* 降級路徑：使用快取角色，無快取則擋住 */
+  const cachedRole=localStorage.getItem('shelter_role');
+  if(!cachedRole){warn.textContent='⚠️ 尚未透過 Pi 登入過，無法使用離線模式';warn.style.display='block';return;}
   const ui2=document.getElementById('operator-username-input'),name=ui2?ui2.value.trim():'';
   if(!name){warn.textContent='⚠️ 離線模式：請輸入姓名或帳號';warn.style.display='block';ui2?.focus();return;}
-  // 若尚未選擇角色，展開角色選擇區
-  if(!roleHint){
-    const rg=document.getElementById('degraded-role-grid');
-    if(rg)rg.style.display='grid';
-    warn.textContent='⚠️ 請選擇您的角色';warn.style.display='block';return;
-  }
   if(PinLock.isSetup()){const ok=await PinLock.verify(pin);if(!ok){warn.textContent='⚠️ PIN 不符，請重新輸入';warn.style.display='block';if(pinInput){pinInput.value='';pinInput.focus();}return;}}
   else await PinLock.setup(pin);
   if(pinInput)pinInput.value='';
@@ -2662,9 +2649,9 @@ async function handleLogin(roleHint) {
   await PersonCrypto.deriveKey(pin,salt);
   await PersonCrypto.exportToSession();
   AuditManager.setOperator(name+'【降級】');
-  await AuditLogManager.write('login_degraded',{name,role:roleHint});
+  await AuditLogManager.write('login_degraded',{name,role:cachedRole});
   sessionStorage.setItem('shelter_login_time',new Date().toISOString());
-  App.startApp(roleHint);
+  App.startApp(cachedRole);
 }
 
 /* ══ 重連後自動推送斷線期間資料 ══════════════════════════════════
@@ -2796,10 +2783,8 @@ window.switchRole=switchRole;
             <div style="display:flex;gap:6px;align-items:center;">
               <input type="number" inputmode="numeric" id="adm-newpin-${a.username}" class="form-input" placeholder="新 PIN（4-6碼）" style="flex:1;padding:7px 10px;font-size:14px;">
               <select id="adm-newrole-${a.username}" class="form-input form-select" style="flex:1;padding:7px 10px;font-size:14px;">
+                <option value="一般"${a.role!=='組長'?' selected':''}>一般</option>
                 <option value="組長"${a.role==='組長'?' selected':''}>組長</option>
-                <option value="人管"${a.role==='人管'?' selected':''}>人管</option>
-                <option value="物管"${a.role==='物管'?' selected':''}>物管</option>
-                <option value="環管"${a.role==='環管'?' selected':''}>環管</option>
               </select>
             </div>
             <div style="display:flex;gap:6px;margin-top:6px;">
