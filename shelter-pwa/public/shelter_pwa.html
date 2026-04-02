@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.1.14';</script>
+<script>const PWA_VERSION='v2.1.17';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -341,7 +341,7 @@
     <!-- Pi 連線狀態 -->
     <div class="login-status-row">
       <div id="login-pi-status" class="login-pi-status">🟡 伺服器連線中…</div>
-      <span class="login-status-hint">若無法連線，請刷新頁面</span>
+      <span class="login-status-hint" id="login-status-hint" style="display:none;">若無法連線，請刷新頁面</span>
     </div>
     <!-- 登入卡片 -->
     <div class="login-card">
@@ -938,7 +938,8 @@ const App = {
     if(opInput&&savedOperator)opInput.value=savedOperator;
     const shelterName=this.config.shelter.name;
     document.getElementById('shelter-name-title').textContent=(shelterName?shelterName+' · ':'')+'收容組管理系統';
-    document.getElementById('shelter-loc-subtitle').textContent=shelterName?(this.config.shelter.location||'Shelter Team PWA'):'⚠️ 請先在「設定」頁填入收容所資訊';
+    document.getElementById('shelter-loc-subtitle').textContent=shelterName?(this.config.shelter.location||''):'';
+    document.getElementById('shelter-loc-subtitle').style.display=shelterName&&this.config.shelter.location?'':'none';
     const savedRole=localStorage.getItem('shelter_role');
     if(savedRole)setTimeout(()=>document.getElementById('operator-pin-input')?.focus(),300);
     this.autoSnapshotTimer=setInterval(()=>this.takeSnapshot(),15*60*1000);
@@ -1061,7 +1062,7 @@ function nowISO(){if(typeof WsManager!=='undefined'&&WsManager.isConnected())ret
 function fmtDT(iso){if(!iso)return '—';const d=new Date(iso);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 function fmtTime(iso){if(!iso)return '—';const d=new Date(iso);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 function minutesAgo(iso){if(!iso)return 999;return Math.floor((Date.now()-new Date(iso).getTime())/60000);}
-function statusClass(s){const m={'等候中':'waiting','登記中':'registering','待分配':'pending','已安置':'placed','已離站':'exited','已隔離':'isolated'};return m[s]||'waiting';}
+function statusClass(s){const m={'等候中':'waiting','登記中':'registering','待分配':'pending','待帶位':'pending','已安置':'placed','已離站':'exited','已隔離':'isolated'};return m[s]||'waiting';}
 function statusLabel(s){return s||'—';}
 async function nextDisplayId(prefix,table){
   const items=await db[table].toArray();
@@ -1155,7 +1156,7 @@ async function renderDashboard() {
   const [persons,beds,resources,incidents]=await Promise.all([
     db.persons.toArrayDecrypted(),db.beds.toArray(),db.resources.toArray(),db.incidents.toArray()
   ]);
-  const statusMap={'等候中':0,'登記中':0,'待分配':0,'已安置':0,'已離站':0,'已隔離':0};
+  const statusMap={'等候中':0,'登記中':0,'待帶位':0,'已安置':0,'已離站':0,'已隔離':0};
   for(const p of persons)if(p.status in statusMap)statusMap[p.status]++;
   const statusGrid=el('status-grid');
   statusGrid.innerHTML=Object.entries(statusMap).map(([s,n])=>`<div class="stat-box" style="cursor:pointer;" onclick="goRosterFilter('${s}')"><div class="num">${n}</div><div class="lbl">${s}</div></div>`).join('');
@@ -1166,7 +1167,7 @@ async function renderDashboard() {
   const intakeLastHour=persons.filter(p=>p.intake_at&&new Date(p.intake_at).getTime()>=hour1Ago).length;
   const registering=persons.filter(p=>p.status==='登記中');
   const stuckPersons=registering.filter(p=>minutesAgo(p.registering_started_at||p.intake_at)>10);
-  const activePersons=persons.filter(p=>['等候中','登記中','待分配'].includes(p.status)&&p.intake_at);
+  const activePersons=persons.filter(p=>['等候中','登記中','待分配','待帶位'].includes(p.status)&&p.intake_at);
   const avgWait=activePersons.length?Math.round(activePersons.reduce((s,p)=>s+minutesAgo(p.intake_at),0)/activePersons.length):null;
   el('flow-stats-content').innerHTML=`
     <div class="flow-row"><span class="fl-label">今日入站總數</span><span class="fl-value">${intakeToday} 人</span></div>
@@ -1174,7 +1175,7 @@ async function renderDashboard() {
     <div class="flow-row"><span class="fl-label">過去 1 小時入站</span><span class="fl-value" style="color:${intakeLastHour>5?'var(--red)':'inherit'}">${intakeLastHour} 人</span></div>
     <div class="flow-row"><span class="fl-label">平均等候時間</span><span class="fl-value">${avgWait!==null?avgWait+'分鐘（尚未安置者）':'無在途人員'}</span></div>
     <div class="flow-row"><span class="fl-label">卡關人數（>10分鐘）</span><span class="fl-value" style="color:${stuckPersons.length>0?'var(--red)':'inherit'}">${stuckPersons.length} 人</span></div>`;
-  const placed=persons.filter(p=>p.status==='已安置'||p.status==='待分配');
+  const placed=persons.filter(p=>p.status==='已安置'||p.status==='待分配'||p.status==='待帶位');
   const cmist={comm:0,health:0,independ:0,service:0,transport:0,pets:0};
   for(const p of placed){
     if(p.cmist){
@@ -1219,7 +1220,7 @@ async function renderDashboard() {
 }
 async function showCmistPersons(field) {
   const persons=await db.persons.toArrayDecrypted();
-  let filtered=field==='pets'?persons.filter(p=>(p.status==='已安置'||p.status==='待分配')&&p.pets?.has_pets):persons.filter(p=>(p.status==='已安置'||p.status==='待分配')&&(p.cmist?.[field]||[]).length>0);
+  let filtered=field==='pets'?persons.filter(p=>(p.status==='已安置'||p.status==='待分配'||p.status==='待帶位')&&p.pets?.has_pets):persons.filter(p=>(p.status==='已安置'||p.status==='待分配'||p.status==='待帶位')&&(p.cmist?.[field]||[]).length>0);
   if(filtered.length===0){showToast('無符合人員');return;}
   openModal('特殊需求人員',filtered.map(p=>`<div class="person-card" onclick="openPersonModal(${p._id});closeModal();"><div class="person-avatar">${p.display_id?.charAt(0)||'?'}</div><div class="person-info"><div class="person-id">${escHtml(p.display_id||'未建檔')}</div><div class="person-meta">床位：${p.bed_id||'未分配'}</div></div></div>`).join(''));
 }
@@ -1237,7 +1238,7 @@ const INTAKE_STEPS=[
   {key:'roster',label:'造冊',desc:'自動生成編號'},
   {key:'consent',label:'同意確認',desc:'個資雙軌同意（B軌/A軌）'},
   {key:'bed_assign',label:'床位分配',desc:'選擇床位'},
-  {key:'covenant',label:'公約簽署',desc:'簽署收容公約 → 待分配'},
+  {key:'covenant',label:'公約簽署',desc:'簽署收容公約 → 待帶位'},
   {key:'guide',label:'帶位',desc:'環管帶至床位 → 已安置'},
 ];
 const IntakeValidator=(()=>{
@@ -1260,7 +1261,7 @@ const IntakeValidator=(()=>{
     isStepDone(p,key){const s=STEP_CHECKS.find(s=>s.key===key);return s?s.done(p):false;},
     isFullyProcessed(p){return p.status==='已安置';},
     isStuck(p){return p.status==='登記中'&&minutesAgo(p.registering_started_at||p.intake_at)>10;},
-    isPendingTooLong(p){return p.status==='待分配'&&minutesAgo(p.intake_at)>30;},
+    isPendingTooLong(p){return (p.status==='待分配'||p.status==='待帶位')&&minutesAgo(p.intake_at)>30;},
   };
 })();
 function getPersonStepIndex(p){return IntakeValidator.stepIndex(p);}
@@ -1351,6 +1352,7 @@ async function createFamily(){
   const counter=document.getElementById('fm-row-counter');
   const total=parseInt(counter?.textContent||1);
   const members=[];
+  console.log(`[家庭入站][createFamily] 開始建立，表單共 ${total} 列`);
   for(let i=0;i<total+5;i++){
     const nameEl=document.getElementById(`fm-name-${i}`);if(!nameEl)continue;
     const row=document.getElementById(`fmr-${i}`);if(!row||!row.parentNode)continue;
@@ -1362,8 +1364,10 @@ async function createFamily(){
   if(members.length===0){showToast('請至少填寫一位成員');return;}
   const familyUnitId='FAM-'+Date.now().toString(36).toUpperCase();
   const household_size=members.length,now=nowISO();
+  console.log(`[家庭入站][createFamily] familyUnitId=${familyUnitId} 共 ${household_size} 人`, members.map(m=>({name:m.name,isHead:m.isHead,gender:m.gender,age:m.age,type:m.type})));
   for(const m of members){
     const id=await db.persons.add(AuditManager.stamp({display_id:null,name:m.name,type:m.type||'災民',gender:m.gender,status:'等候中',health_flag:'正常',immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:familyUnitId,is_family_head:m.isHead,household_size,age_group:m.age,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:now,exit_at:null,exit_reason:null,created_by:App.role,srt_score:null,srt_color:null,san_gate_done:false,registering_started_at:null,skills:[]}));
+    console.log(`[家庭入站][createFamily] 建立 db_id=${id} name=${m.name} isHead=${m.isHead} gender=${m.gender} age=${m.age}`);
     syncAfterWrite('persons',id);
   }
   closeModal(); showToast(`✅ 家庭建立完成（${members.length} 人）`); _familyGenders={};
@@ -1468,6 +1472,7 @@ function formatCmistSummary(cmist){if(!cmist)return '';const p=[];if((cmist.comm
 /* ══ INTAKE STEP UI ════════════════════════════════════════════ */
 function showIntakeStep(p, stepIdx) {
   const step=INTAKE_STEPS[stepIdx];
+  console.log(`[家庭入站][showIntakeStep] id=${p._id} display=${p.display_id||'未編號'} stepIdx=${stepIdx} stepKey=${step?.key||'DONE'} family=${p.family_unit_id||'無'} isHead=${!!p.is_family_head} status=${p.status} bed=${p.bed_id||'未分配'} covenant=${p.covenant_signed}`);
   if(!step){closeModal();showToast('✅ 入站流程完成！');renderIntake();renderDashboard();refreshCapacityBanner();return;}
   const totalSteps=INTAKE_STEPS.length,ROW1=6;
   function dotHTML(i){const cls=i<stepIdx?'done':i===stepIdx?'current':'todo';return `<div class="step-dot ${cls}">${i<stepIdx?'✓':i+1}</div>`;}
@@ -1522,7 +1527,8 @@ function showIntakeStep(p, stepIdx) {
     case 'guide': stepBodyHTML=`<div class="info-box info" style="background:var(--green-bg);border-color:var(--green);color:var(--green);">環管確認已帶領 <strong>${escHtml(p.display_id||'')}</strong> 至床位 <strong>${escHtml(p.bed_id||'未分配')}</strong>。</div><div style="text-align:center;padding:20px 0;font-size:14px;color:var(--text2);">確認後狀態改為「已安置」，流程完成。</div>`; break;
   }
   const isFamily=!!p.family_unit_id;
-  const footerBtn=step.key==='guide'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">✅ 確認已安置</button>`:step.key==='bed_assign'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`:step.key==='consent'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button>${isFamily?`<button class="btn btn-outline flex-1" onclick="completeIntakeStepFamily(${p._id},'consent')">套用全家 →</button>`:''}<button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'consent')">本人 →</button>`:step.key==='covenant'?isFamily?`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStepFamily(${p._id},'covenant')">✅ 代表簽署，套用全家</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'covenant')">確認已簽署 →</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">確認 →</button>`;
+  console.log(`[家庭入站][showIntakeStep] 按鈕邏輯 stepKey=${step.key} isFamily=${isFamily}`);
+  const footerBtn=step.key==='guide'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">✅ 確認已安置</button>`:step.key==='bed_assign'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`:step.key==='consent'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button>${isFamily?`<button class="btn btn-outline flex-1" onclick="completeIntakeStepFamily(${p._id},'consent')">套用全家 →</button>`:''}<button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'consent')">本人 →</button>`:step.key==='covenant'?(isFamily&&!!p.is_family_head)?`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStepFamily(${p._id},'covenant')">✅ 代表簽署，套用全家</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'covenant')">確認已簽署 →</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">確認 →</button>`;
   openModal(`入站流程 · ${escHtml(p.display_id||'新入站者')}`,`<div class="step-title" style="font-size:17px;font-weight:700;margin-bottom:6px;">${step.label}</div><div class="step-desc" style="font-size:13px;color:var(--text2);margin-bottom:16px;">${step.desc}</div><div class="step-content">${stepBodyHTML}</div>`,footerBtn);
   const stepsEl=el('modal-steps');if(stepsEl){stepsEl.innerHTML=progressHTML;stepsEl.style.display='block';}
 }
@@ -1575,9 +1581,12 @@ async function renderBedAssignment(personId) {
 
 async function assignBed(personId,bedDisplayId){
   const p=await db.persons.get(personId),bed=await db.beds.where('display_id').equals(bedDisplayId).first();
+  console.log(`[家庭入站][assignBed] personId=${personId} bed=${bedDisplayId} family=${p?.family_unit_id||'無'} 舊床位=${p?.bed_id||'無'}`);
   if(!bed||!p)return;
   if(p.bed_id){const ob=await db.beds.where('display_id').equals(p.bed_id).first();if(ob){await db.beds.update(ob._id,AuditManager.stamp({status:'empty',assigned_to:null}));syncAfterWrite('beds',ob._id);}}
-  await FreezeGateway.writePerson(personId,AuditManager.stamp({bed_id:bedDisplayId}),db.persons);
+  const _bedUpdates={bed_id:bedDisplayId};
+  if(p.covenant_signed&&p.status!=='待帶位'&&p.status!=='已安置'){_bedUpdates.status='待帶位';console.log(`[家庭入站][assignBed] 公約已簽，補更新 status → 待帶位`);}
+  await FreezeGateway.writePerson(personId,AuditManager.stamp(_bedUpdates),db.persons);
   await db.beds.update(bed._id,AuditManager.stamp({status:'assigned',assigned_to:p.display_id||String(personId)}));
   syncAfterWrite('persons',personId);syncAfterWrite('beds',bed._id);showToast(`床位 ${bedDisplayId} 已分配`);
   const updatedP=await db.persons.getDecrypted(personId);showIntakeStep(updatedP,getPersonStepIndex(updatedP));renderBeds();
@@ -1585,6 +1594,7 @@ async function assignBed(personId,bedDisplayId){
 
 async function completeIntakeStep(personId,stepKey){
   const p=await db.persons.get(personId);if(!p)return;
+  console.log(`[家庭入站][completeIntakeStep] 進入 personId=${personId} stepKey=${stepKey} status=${p.status} bed=${p.bed_id||'無'} family=${p.family_unit_id||'無'} covenant=${p.covenant_signed}`);
   let updates={};
   switch(stepKey){
     case 'san_gate': case 'waiting': {const fp=await db.persons.get(personId);if(!fp?.san_gate_done){showToast('請先點擊「安」方塊確認清消關卡');return;}if(fp.status==='等候中'){updates.status='登記中';updates.registering_started_at=nowISO();}break;}
@@ -1594,12 +1604,14 @@ async function completeIntakeStep(personId,stepKey){
     case 'badge': if(!el('step-badge')?.checked){showToast('請確認識別證已發放');return;}updates.id_badge_issued=true;break;
     case 'roster': {const did=await nextDisplayId('P','persons');updates.display_id=did;showToast(`編號：${did}`);break;}
     case 'consent': updates.consent_ops=_consentCache.ops;updates.consent_welfare=_consentCache.welfare||false;_consentCache={};break;
-    case 'covenant': if(!el('step-covenant')?.checked){showToast('請確認收容公約已簽署');return;}updates.covenant_signed=true;updates.status='待分配';break;
+    case 'covenant': if(!el('step-covenant')?.checked){showToast('請確認收容公約已簽署');return;}updates.covenant_signed=true;updates.status='待帶位';break;
     case 'guide': {updates.status='已安置';if(p.bed_id){const bed=await db.beds.where('display_id').equals(p.bed_id).first();if(bed){await db.beds.update(bed._id,AuditManager.stamp({status:'occupied',assigned_to:p.display_id||String(personId)}));syncAfterWrite('beds',bed._id);}}break;}
   }
+  console.log(`[家庭入站][completeIntakeStep] 套用 updates=`,JSON.stringify(updates));
   await FreezeGateway.writePerson(personId,AuditManager.stamp(updates),db.persons);
   const updatedRaw=await db.persons.get(personId);syncAfterWrite('persons',updatedRaw);
   const updatedP=await db.persons.getDecrypted(personId);
+  console.log(`[家庭入站][completeIntakeStep] 完成後 status=${updatedP.status} bed=${updatedP.bed_id||'無'} nextStepIdx=${getPersonStepIndex(updatedP)} nextStepKey=${INTAKE_STEPS[getPersonStepIndex(updatedP)]?.key||'DONE'}`);
   if(App._pendingCmistDispatch===personId){App._pendingCmistDispatch=null;await cmistAutoDispatch(personId).catch(e=>console.warn('[CMIST]',e));}
   if(updatedP.status==='已安置'){closeModal();showToast('✅ 入站流程完成！');}
   else showIntakeStep(updatedP,getPersonStepIndex(updatedP));
@@ -1607,16 +1619,27 @@ async function completeIntakeStep(personId,stepKey){
 }
 
 async function completeIntakeStepFamily(personId,stepKey){
-  const p=await db.persons.get(personId);if(!p||!p.family_unit_id)return completeIntakeStep(personId,stepKey);
+  const p=await db.persons.get(personId);
+  console.log(`[家庭入站][completeIntakeStepFamily] 進入 personId=${personId} stepKey=${stepKey} family=${p?.family_unit_id||'無'}`);
+  if(!p||!p.family_unit_id){console.warn(`[家庭入站][completeIntakeStepFamily] 無 family_unit_id，轉 completeIntakeStep`);return completeIntakeStep(personId,stepKey);}
   if(stepKey==='consent'){
     const updates={consent_ops:_consentCache.ops,consent_welfare:_consentCache.welfare||false};_consentCache={};
     const family=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();
+    console.log(`[家庭入站][completeIntakeStepFamily][consent] 套用 updates=`,JSON.stringify(updates),`至 ${family.length} 人`);
+    family.forEach(m=>console.log(`  成員 id=${m._id} name=${m.name} status=${m.status} bed=${m.bed_id||'無'} consent_ops=${m.consent_ops} stepIdx=${getPersonStepIndex(m)}`));
     for(const m of family){await FreezeGateway.writePerson(m._id,AuditManager.stamp(updates),db.persons);syncAfterWrite('persons',m._id);}
     closeModal();showToast(`✅ 同意已套用至全家 ${family.length} 人`);
   } else if(stepKey==='covenant'){
     if(!el('step-covenant')?.checked){showToast('請確認收容公約已簽署（紙本）');return;}
     const family=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();
-    for(const m of family){const ns=m.bed_id?'待分配':m.status;await FreezeGateway.writePerson(m._id,AuditManager.stamp({covenant_signed:true,status:ns}),db.persons);syncAfterWrite('persons',m._id);}
+    console.log(`[家庭入站][completeIntakeStepFamily][covenant] 處理 ${family.length} 人`);
+    family.forEach(m=>console.log(`[家庭入站][covenant] 成員 id=${m._id} status="${m.status}" bed=${m.bed_id||'無'} covenant=${m.covenant_signed}`));
+    for(const m of family){
+      if(m.status==='已安置'){console.log(`[家庭入站][covenant] id=${m._id} 已安置，跳過`);continue;}
+      const ns=m.bed_id?'待帶位':m.status;
+      console.log(`[家庭入站][covenant] id=${m._id} 舊status="${m.status}" → 新status="${ns}"`);
+      await FreezeGateway.writePerson(m._id,AuditManager.stamp({covenant_signed:true,status:ns}),db.persons);syncAfterWrite('persons',m._id);
+    }
     closeModal();showToast(`✅ 公約已套用至全家 ${family.length} 人`);
   }
   await renderIntake();await renderDashboard();await refreshCapacityBanner();
@@ -1739,13 +1762,13 @@ async function addIncidentNote(incId){
 async function renderRoster(){
   const all=await db.persons.toArrayDecrypted();
   const counts={all:all.length};
-  for(const s of['等候中','登記中','待分配','已安置','已離站','已隔離'])counts[s]=all.filter(p=>p.status===s).length;
+  for(const s of['等候中','登記中','待分配','待帶位','已安置','已離站','已隔離'])counts[s]=all.filter(p=>p.status===s).length;
   const active=all.filter(p=>p.status!=='已離站');
   const stuckCount=all.filter(p=>IntakeValidator.isStuck(p)).length;
   const pendingCount=all.filter(p=>IntakeValidator.isPendingTooLong(p)).length;
   const attnCount=active.filter(p=>p.health_flag==='需關注').length;
   const isolateCount=active.filter(p=>p.health_flag==='已隔離').length;
-  const STATUSES=[{key:'all',label:'全部'},{key:'等候中',label:'等候中'},{key:'登記中',label:'登記中',warn:stuckCount},{key:'待分配',label:'待分配',warn:pendingCount},{key:'已安置',label:'已安置',warn:attnCount},{key:'已離站',label:'已離站'},{key:'已隔離',label:'已隔離'}];
+  const STATUSES=[{key:'all',label:'全部'},{key:'等候中',label:'等候中'},{key:'登記中',label:'登記中',warn:stuckCount},{key:'待帶位',label:'待帶位',warn:pendingCount},{key:'已安置',label:'已安置',warn:attnCount},{key:'已離站',label:'已離站'},{key:'已隔離',label:'已隔離'}];
   const filtersEl=el('roster-filters');
   if(filtersEl)filtersEl.innerHTML=STATUSES.map(s=>{const cnt=s.key==='all'?counts.all:(counts[s.key]||0);const hasWarn=(s.warn||0)>0;const isActive=App.rosterFilter===s.key;return `<button class="filter-chip${isActive?' active':''}" onclick="setRosterFilter('${s.key}',this)">${s.label} <span style="opacity:.7">${cnt}</span>${hasWarn?`<span style="display:inline-block;background:var(--red);color:#fff;border-radius:10px;padding:0 4px;font-size:11px;font-weight:700;margin-left:3px;">！</span>`:''}</button>`;}).join('');
   let persons=App.rosterFilter==='all'?all:all.filter(p=>p.status===App.rosterFilter);
@@ -1884,7 +1907,7 @@ async function buildQrPayload(staffOnDuty) {
   const bed_total = beds.filter(b => b.status !== 'suspended').length;
 
   /* srt：Purple 合入 red（§9.2 設計決策）；未評分合入 green（保守估計） */
-  const inPlace = persons.filter(p => p.status === '已安置' || p.status === '待分配');
+  const inPlace = persons.filter(p => p.status === '已安置' || p.status === '待分配' || p.status === '待帶位');
   const srt = {
     red:    inPlace.filter(p => p.srt_color === 'Red' || p.srt_color === 'Purple').length,
     yellow: inPlace.filter(p => p.srt_color === 'Yellow').length,
@@ -2494,16 +2517,20 @@ const WsManager = (function(){
     const btn=document.getElementById('login-btn-text'),desc=document.getElementById('login-btn-desc');
     if(state==='ok'){
       el.textContent='🟢 伺服器已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';
-      if(btn)btn.textContent='登入';if(desc)desc.textContent='帳號決定角色';
+      if(btn)btn.textContent='登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='none';
     }else if(state==='pending'){
       el.textContent='🟡 伺服器連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';
-      if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
+      if(btn)btn.textContent='登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='';
     }else if(state==='offline'){
       el.textContent='⚫ 裝置離線';el.style.background='var(--gray-bg)';el.style.color='var(--text3)';
-      if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
+      if(btn)btn.textContent='登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='';
     }else{
       el.textContent='🔴 伺服器離線'+(detail?' — '+detail:'');el.style.background='var(--red-bg)';el.style.color='var(--red)';
-      if(btn)btn.textContent='離線登入';if(desc)desc.textContent='請選擇角色，資料不跨裝置同步';
+      if(btn)btn.textContent='離線登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='';
     }
   }
   function _showDegradedBanner(){/* 已整合至 login-pi-status，保留空函式維持相容 */}
