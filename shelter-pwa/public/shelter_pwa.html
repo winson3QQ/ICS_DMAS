@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.16';</script>
+<script>const PWA_VERSION='v2.2.18';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -195,17 +195,17 @@
     .bed-cell { height: 76px; border-radius: var(--r-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; gap: 4px; border: 2px solid transparent; transition: all .15s; }
     .bed-cell:active { transform: scale(.95); }
     .bed-cell.empty { background: #F5F5F5; border-color: #DDD; } .bed-cell.assigned { background: #FFF3E0; border-color: #FF8F00; }
-    .bed-cell.occupied { background: var(--green-bg); border-color: #4CAF50; } .bed-cell.suspended { background: #ECEFF1; border-color: #90A4AE; }
+    .bed-cell.occupied { background: var(--green-bg); border-color: #4CAF50; } .bed-cell.suspended { background: repeating-linear-gradient(135deg,#FFE0E0,#FFE0E0 4px,#FFCDD2 4px,#FFCDD2 8px); border-color: #E57373; opacity: 0.7; }
     .bed-id { font-size: 13px; font-weight: 700; color: var(--text); }
     .bed-person { font-size: 11px; color: var(--text2); max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bed-status-dot { width: 8px; height: 8px; border-radius: 50%; }
     .bed-cell.empty .bed-status-dot { background: #CCC; } .bed-cell.assigned .bed-status-dot { background: #FF8F00; }
-    .bed-cell.occupied .bed-status-dot { background: var(--green); } .bed-cell.suspended .bed-status-dot { background: #90A4AE; }
+    .bed-cell.occupied .bed-status-dot { background: var(--green); } .bed-cell.suspended .bed-status-dot { background: #E57373; }
     .bed-legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface); border-radius: var(--r-sm); margin-bottom: 12px; position: sticky; top: 0; z-index: 10; box-shadow: var(--shadow-sm); }
     .bed-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
     .bed-legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
     .bed-legend-dot.empty { background: #F5F5F5; border-color: #DDD; } .bed-legend-dot.assigned { background: #FFF3E0; border-color: #FF8F00; }
-    .bed-legend-dot.occupied { background: var(--green-bg); border-color: #4CAF50; } .bed-legend-dot.suspended { background: #ECEFF1; border-color: #90A4AE; }
+    .bed-legend-dot.occupied { background: var(--green-bg); border-color: #4CAF50; } .bed-legend-dot.suspended { background: #FFCDD2; border-color: #E57373; }
     .resource-card { background: var(--surface); border-radius: var(--r-sm); padding: 12px 14px; box-shadow: var(--shadow-sm); margin-bottom: 8px; }
     .resource-header { display: flex; align-items: center; justify-content: space-between; }
     .resource-name { font-size: 15px; font-weight: 700; }
@@ -1303,7 +1303,7 @@ async function toggleSanGate(personId) {
     // 清消確認：狀態改為登記中 + 自動產生識別碼
     const upd={};
     if(p.status==='等候中'){upd.status='登記中';upd.registering_started_at=nowISO();}
-    if(!p.display_id){const dp=await db.persons.getDecrypted(personId);const did=await generateShelterDisplayId(dp.gender,dp.age_group);upd.display_id=did;console.log('[toggleSanGate] 產生識別碼:',did);}
+    if(!p.display_id){const dp=await db.persons.getDecrypted(personId);const did=await generateShelterDisplayId(dp.gender,dp.age_group);upd.display_id=did;}
     // 記錄清消操作員
     const dp2=await db.persons.getDecrypted(personId);
     upd.intake_log=[...(dp2.intake_log||[]),{step:'san_gate',by:AuditManager.getOperator()||App.role,at:nowISO()}];
@@ -1359,7 +1359,6 @@ async function createFamily(){
   const counter=document.getElementById('fm-row-counter');
   const total=parseInt(counter?.textContent||1);
   const members=[];
-  console.log(`[家庭入站][createFamily] 開始建立，表單共 ${total} 列`);
   for(let i=0;i<total+5;i++){
     const nameEl=document.getElementById(`fm-name-${i}`);if(!nameEl)continue;
     const row=document.getElementById(`fmr-${i}`);if(!row||!row.parentNode)continue;
@@ -1371,10 +1370,8 @@ async function createFamily(){
   if(members.length===0){showToast('請至少填寫一位成員');return;}
   const familyUnitId='FAM-'+Date.now().toString(36).toUpperCase();
   const household_size=members.length,now=nowISO();
-  console.log(`[家庭入站][createFamily] familyUnitId=${familyUnitId} 共 ${household_size} 人`, members.map(m=>({name:m.name,isHead:m.isHead,gender:m.gender,age:m.age,type:m.type})));
   for(const m of members){
     const id=await db.persons.add(AuditManager.stamp({display_id:null,name:m.name,type:m.type||'災民',gender:m.gender,status:'等候中',health_flag:'正常',immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},cmist_assessed:false,family_unit_id:familyUnitId,is_family_head:m.isHead,household_size,age_group:m.age,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:now,exit_at:null,exit_reason:null,created_by:AuditManager.getOperator()||App.role,srt_score:null,srt_color:null,san_gate_done:false,registering_started_at:null,skills:[]}));
-    console.log(`[家庭入站][createFamily] 建立 db_id=${id} name=${m.name} isHead=${m.isHead} gender=${m.gender} age=${m.age}`);
     syncAfterWrite('persons',id);
   }
   closeModal(); showToast(`✅ 家庭建立完成（${members.length} 人）`); _familyGenders={};
@@ -1385,9 +1382,12 @@ async function confirmAllFamilySanGate(personId){
   const p=await db.persons.get(personId);if(!p?.family_unit_id)return;
   const family=await db.persons.where('family_unit_id').equals(p.family_unit_id).toArray();
   const now=nowISO();
+  const operator=AuditManager.getOperator()||App.role;
   for(const m of family){if(!m.san_gate_done){
+    const dp=await PersonCrypto.decryptPerson(m);
     const upd={san_gate_done:true,status:'登記中',registering_started_at:now};
-    if(!m.display_id){const dp=await PersonCrypto.decryptPerson(m);upd.display_id=await generateShelterDisplayId(dp.gender,dp.age_group);}
+    if(!m.display_id)upd.display_id=await generateShelterDisplayId(dp.gender,dp.age_group);
+    upd.intake_log=[...(dp.intake_log||[]),{step:'san_gate',by:operator,at:now}];
     await FreezeGateway.writePerson(m._id,AuditManager.stamp(upd),db.persons);syncAfterWrite('persons',m._id);
   }}
   showToast(`✅ 全家 ${family.length} 人清消完成`); await renderIntake(); await refreshCapacityBanner();
@@ -1484,7 +1484,6 @@ function formatCmistSummary(cmist){if(!cmist)return '';const p=[];if((cmist.comm
 /* ══ INTAKE STEP UI ════════════════════════════════════════════ */
 function showIntakeStep(p, stepIdx) {
   const step=INTAKE_STEPS[stepIdx];
-  console.log(`[家庭入站][showIntakeStep] id=${p._id} display=${p.display_id||'未編號'} stepIdx=${stepIdx} stepKey=${step?.key||'DONE'} family=${p.family_unit_id||'無'} isHead=${!!p.is_family_head} status=${p.status} bed=${p.bed_id||'未分配'} covenant=${p.covenant_signed}`);
   if(!step){closeModal();showToast('✅ 入站流程完成！');renderIntake();renderDashboard();refreshCapacityBanner();return;}
   const totalSteps=INTAKE_STEPS.length,ROW1=6;
   function dotHTML(i){const cls=i<stepIdx?'done':i===stepIdx?'current':'todo';return `<div class="step-dot ${cls}">${i<stepIdx?'✓':i+1}</div>`;}
@@ -1535,7 +1534,6 @@ function showIntakeStep(p, stepIdx) {
     case 'bed_assign': stepBodyHTML=`<div id="bed-assign-for-person">載入床位…</div>`; setTimeout(()=>renderBedAssignment(p._id),100); break;
   }
   const isFamily=!!p.family_unit_id;
-  console.log(`[家庭入站][showIntakeStep] 按鈕邏輯 stepKey=${step.key} isFamily=${isFamily}`);
   const footerBtn=step.key==='bed_assign'?`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`:step.key==='consent_covenant'?`<button class="btn btn-danger" style="flex:0.6;font-size:13px;" onclick="refuseAndExit(${p._id})">拒簽離站</button>${isFamily?`<button class="btn btn-outline flex-1" onclick="completeIntakeStepFamily(${p._id},'consent_covenant')">套用全家 →</button>`:''}<button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'consent_covenant')">確認 →</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">暫存</button><button class="btn btn-primary flex-1" onclick="completeIntakeStep(${p._id},'${step.key}')">確認 →</button>`;
   const idBadge='';
   openModal(`入站流程 · ${escHtml(p.display_id||'新入站者')}`,`${idBadge}<div class="step-title" style="font-size:17px;font-weight:700;margin-bottom:6px;">${step.label}</div><div class="step-desc" style="font-size:13px;color:var(--text2);margin-bottom:16px;">${step.desc}</div><div class="step-content">${stepBodyHTML}</div>`,footerBtn);
@@ -1598,7 +1596,6 @@ async function renderBedAssignment(personId) {
 
 async function assignBed(personId,bedDisplayId){
   const p=await db.persons.get(personId),bed=await db.beds.where('display_id').equals(bedDisplayId).first();
-  console.log(`[家庭入站][assignBed] personId=${personId} bed=${bedDisplayId} family=${p?.family_unit_id||'無'} 舊床位=${p?.bed_id||'無'}`);
   if(!bed||!p)return;
   if(p.bed_id){const ob=await db.beds.where('display_id').equals(p.bed_id).first();if(ob){await db.beds.update(ob._id,AuditManager.stamp({status:'empty',assigned_to:null}));syncAfterWrite('beds',ob._id);}}
   const dp=await db.persons.getDecrypted(personId);
@@ -1612,10 +1609,9 @@ async function assignBed(personId,bedDisplayId){
 
 async function completeIntakeStep(personId,stepKey){
   const p=await db.persons.get(personId);if(!p)return;
-  console.log(`[家庭入站][completeIntakeStep] 進入 personId=${personId} stepKey=${stepKey} status=${p.status} bed=${p.bed_id||'無'} family=${p.family_unit_id||'無'} covenant=${p.covenant_signed}`);
   let updates={};
   switch(stepKey){
-    case 'san_gate': case 'waiting': {const fp=await db.persons.get(personId);console.log('[DEBUG][san_gate] fp.san_gate_done=',fp?.san_gate_done,'fp.status=',fp?.status,'fp.display_id=',fp?.display_id);if(!fp?.san_gate_done){showToast('請先點擊「安」方塊確認清消關卡');return;}if(fp.status==='等候中'){updates.status='登記中';updates.registering_started_at=nowISO();}if(!fp.display_id){const dp=await db.persons.getDecrypted(personId);console.log('[DEBUG][san_gate] dp.gender=',dp?.gender,'dp.age_group=',dp?.age_group);const did=await generateShelterDisplayId(dp.gender,dp.age_group);console.log('[DEBUG][san_gate] generated display_id=',did);updates.display_id=did;showToast(`識別碼：${did}`);}else{console.log('[DEBUG][san_gate] display_id already exists:',fp.display_id);}break;}
+    case 'san_gate': case 'waiting': {const fp=await db.persons.get(personId);if(!fp?.san_gate_done){showToast('請先點擊「安」方塊確認清消關卡');return;}if(fp.status==='等候中'){updates.status='登記中';updates.registering_started_at=nowISO();}if(!fp.display_id){const dp=await db.persons.getDecrypted(personId);const did=await generateShelterDisplayId(dp.gender,dp.age_group);updates.display_id=did;showToast(`識別碼：${did}`);}break;}
     case 'needs_cmist': {const hasNeeds=document.getElementById('needs-yes')?.classList.contains('btn-danger');const note=hasNeeds?(el('step-needs')?.value.trim()||''):'';const health=el('step-health')?.value||'正常';if(hasNeeds&&!note){showToast('請填寫需求描述');return;}updates.immediate_needs_noted=true;updates.immediate_needs_note=note;updates.health_flag=health;updates.cmist=collectCmist();updates.cmist_assessed=true;App._pendingCmistDispatch=personId;if(hasNeeds&&note){const ni=await db.incidents.add(AuditManager.stamp({type:'immediate_needs',severity:'普通',status:'已通報',linked_persons:[p.display_id||String(personId)],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`即時需求：${note}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',ni);showToast('⚠️ 即時需求事件已建立');}break;}
     case 'tagging_badge': {const nn=document.getElementById('idcard-none'),cc=document.getElementById('idcard-collected');const none=nn?.classList.contains('btn-primary'),coll=cc?.classList.contains('btn-success');if(!none&&!coll){const w=document.getElementById('idcard-warn');if(w)w.style.display='block';showToast('請確認管制物品寄存狀態');return;}if(!el('step-badge')?.checked){showToast('請確認識別證已發放');return;}updates.id_card_collected=coll?true:false;if(coll){const ci=[...document.querySelectorAll('input[name="idcard_item"]:checked')].map(c=>c.value);if(ci.length===0){showToast('請勾選收繳的物品項目');return;}updates.id_card_items=ci;updates.id_card_note=el('idcard-note')?.value.trim()||'';}else{updates.id_card_items=[];updates.id_card_note='';}const hp=el('step-haspets')?.checked||false;updates.pets={has_pets:hp,counts:{dog:parseInt(el('pet-dog')?.value)||0,cat:parseInt(el('pet-cat')?.value)||0,small:0,bird:0,reptile:0,other:0},placement:el('pet-placement')?.value||'',placement_note:el('pet-placement-note')?.value.trim()||''};updates.id_badge_issued=true;break;}
     case 'consent_covenant': {
@@ -1630,11 +1626,9 @@ async function completeIntakeStep(personId,stepKey){
   const dp=await db.persons.getDecrypted(personId);
   const log=[...(dp.intake_log||[]),{step:stepKey,by:AuditManager.getOperator()||App.role,at:nowISO()}];
   updates.intake_log=log;
-  console.log(`[家庭入站][completeIntakeStep] 套用 updates=`,JSON.stringify(updates));
   await FreezeGateway.writePerson(personId,AuditManager.stamp(updates),db.persons);
   const updatedRaw=await db.persons.get(personId);syncAfterWrite('persons',updatedRaw);
   const updatedP=await db.persons.getDecrypted(personId);
-  console.log(`[家庭入站][completeIntakeStep] 完成後 status=${updatedP.status} bed=${updatedP.bed_id||'無'} nextStepIdx=${getPersonStepIndex(updatedP)} nextStepKey=${INTAKE_STEPS[getPersonStepIndex(updatedP)]?.key||'DONE'}`);
   if(App._pendingCmistDispatch===personId){App._pendingCmistDispatch=null;await cmistAutoDispatch(personId).catch(e=>console.warn('[CMIST]',e));}
   if(updatedP.status==='已安置'){closeModal();showToast('✅ 入站流程完成！');}
   else showIntakeStep(updatedP,getPersonStepIndex(updatedP));
@@ -1643,7 +1637,6 @@ async function completeIntakeStep(personId,stepKey){
 
 async function completeIntakeStepFamily(personId,stepKey){
   const p=await db.persons.get(personId);
-  console.log(`[家庭入站][completeIntakeStepFamily] 進入 personId=${personId} stepKey=${stepKey} family=${p?.family_unit_id||'無'}`);
   if(!p||!p.family_unit_id){console.warn(`[家庭入站][completeIntakeStepFamily] 無 family_unit_id，轉 completeIntakeStep`);return completeIntakeStep(personId,stepKey);}
   if(stepKey==='consent_covenant'){
     if(_consentCache.ops===false){showToast('❌ B 軌（日常運作）拒絕，無法收容，請按「拒簽離站」');return;}
@@ -1696,10 +1689,7 @@ async function confirmExit(personId){
   if(p.bed_id){const bed=await db.beds.where('display_id').equals(p.bed_id).first();if(bed){await db.beds.update(bed._id,AuditManager.stamp({status:'empty',assigned_to:null}));syncAfterWrite('beds',bed._id);}}
   // 自動結案關聯的未結事件
   const displayId=p.display_id||String(personId);
-  const allOpen=await db.incidents.filter(inc=>['已通報','待處理','處理中'].includes(inc.status)).toArray();
-  console.log('[confirmExit] displayId=',displayId,'allOpen=',allOpen.map(i=>({id:i._id,status:i.status,linked:i.linked_persons})));
-  const openIncs=allOpen.filter(inc=>(inc.linked_persons||[]).includes(displayId));
-  console.log('[confirmExit] matched=',openIncs.length);
+  const openIncs=await db.incidents.filter(inc=>['已通報','待處理','處理中'].includes(inc.status)&&(inc.linked_persons||[]).includes(displayId)).toArray();
   for(const inc of openIncs){
     const closeNote={time:nowISO(),text:`${displayId} 已離站（${reason||'未註明原因'}），系統自動結案`};
     await db.incidents.update(inc._id,AuditManager.stamp({status:'已結案',closed_at:nowISO(),notes:[...(inc.notes||[]),closeNote]}));
