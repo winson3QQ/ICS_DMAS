@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.20';</script>
+<script>const PWA_VERSION='v2.2.21';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -521,13 +521,12 @@
         <div class="settings-item danger" onclick="clearAllTestData()" style="border-top:2px solid var(--red);margin-top:8px;"><span class="si-icon">🧹</span><div class="si-text"><div class="si-title">清除所有測試資料</div><div class="si-sub">清空所有表（人員、事件、物資、床位、快照、班次、稽核），重建預設床位</div></div><span class="si-arrow">›</span></div>
       </div>
       <div class="settings-section">
-        <div class="settings-item" onclick="openHardwareWarningModal()"><span class="si-icon">🔒</span><div class="si-text"><div class="si-title">硬體安全注意事項</div><div class="si-sub">非中國品牌清單・GL.iNet 安全疑慮</div></div><span class="si-arrow">›</span></div>
       </div>
       <div class="settings-section">
         <div class="settings-item" onclick="openAdminPanel()"><span class="si-icon">👤</span><div class="si-text"><div class="si-title">帳號管理</div><div class="si-sub">新增、修改、刪除帳號・稽核日誌</div></div><span class="si-arrow">›</span></div>
       </div>
       <div id="settings-version-display" style="text-align:center;padding:16px;color:var(--text3);font-size:12px;margin-bottom:20px;">
-        收容組 PWA v2.1.12 · 2026-03 · 多裝置協作 + 斷網 QR 通報版
+        收容組 PWA
       </div>
     </div>
   </div>
@@ -2974,7 +2973,7 @@ window.switchRole=switchRole;
 
 /* ══ BOOT ════════════════════════════════════════════════════════ */
 setupPWAManifest();
-(function(){const el=document.getElementById('pwa-version-display');_dbgLog('[boot] pwa-version el='+!!el+' ver='+PWA_VERSION);if(el){el.textContent='收容組 PWA · '+PWA_VERSION;_dbgLog('[boot] version set ok');}const sv=document.getElementById('settings-version-display');if(sv)sv.textContent=`收容組 PWA ${PWA_VERSION} · 2026-03 · 多裝置協作 + 斷網 QR 通報版`;})();
+(function(){const el=document.getElementById('pwa-version-display');_dbgLog('[boot] pwa-version el='+!!el+' ver='+PWA_VERSION);if(el){el.textContent='收容組 PWA · '+PWA_VERSION;_dbgLog('[boot] version set ok');}const sv=document.getElementById('settings-version-display');if(sv)sv.textContent=`收容組 PWA ${PWA_VERSION}`;})();
 App.init().catch(console.error);
 </script>
 
