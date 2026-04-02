@@ -40,7 +40,7 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-const SERVER_VERSION = 'v0.1.0';
+const SERVER_VERSION = 'v0.2.0';
 log.info(`Shelter WS Server ${SERVER_VERSION} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
@@ -280,6 +280,16 @@ db.exec(`
     db.prepare("INSERT INTO config(key,value) VALUES('last_sync_to_command','1970-01-01T00:00:00.000Z')").run();
     log.debug('[Config] Initialized last_sync_to_command = epoch (full sync on first connect)');
   }
+  // site_salt：本站加密金鑰衍生用鹽值，Pi 啟動時一次性產生，永久保存
+  // 規格 §5.4：所有裝置以 PBKDF2(site_pin, site_salt) 衍生相同金鑰，確保跨裝置加密互通
+  const saltRow = db.prepare("SELECT value FROM config WHERE key='site_salt'").get();
+  if (!saltRow) {
+    const newSalt = crypto.randomBytes(16).toString('hex');
+    db.prepare("INSERT INTO config(key,value) VALUES('site_salt',?)").run(newSalt);
+    log.info(`[Config] Generated new site_salt (first startup)`);
+  } else {
+    log.debug('[Config] site_salt loaded from DB');
+  }
   // 從 DB 讀取持久化的 command_url（若環境變數未設定）
   if (!COMMAND_URL) {
     const urlRow = db.prepare("SELECT value FROM config WHERE key='command_url'").get();
@@ -325,6 +335,20 @@ function getLastSyncToCommand() {
 
 function updateLastSyncToCommand(isoTs) {
   db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('last_sync_to_command',?)").run(isoTs);
+}
+
+/* ─── site_salt 讀取 ──────────────────────────────────────────────
+   回傳本站加密鹽值（auth_result 附帶給裝置做金鑰衍生）。
+   正常情況下 initConfig() 已確保存在，此處加 fallback 防止意外。
+─────────────────────────────────────────────────────────────── */
+function getSiteSalt() {
+  const row = db.prepare("SELECT value FROM config WHERE key='site_salt'").get();
+  if (row) return row.value;
+  // fallback：不應執行到此，但保險起見重新產生
+  log.warn('[Config] site_salt missing from DB, regenerating (check initConfig)');
+  const newSalt = crypto.randomBytes(16).toString('hex');
+  db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('site_salt',?)").run(newSalt);
+  return newSalt;
 }
 
 /* ─── Delta 日誌 ─────────────────────────────────────────────── */
@@ -441,6 +465,7 @@ wss.on('connection', (ws, req) => {
           ok: true, username, role: account.role,
           pi_time: nowISO(),
           last_sync_to_command: getLastSyncToCommand(),  // v2.1: 回傳讓前端知道上次同步時間
+          site_salt: getSiteSalt(),                      // v2.2: 本站加密鹽值，裝置用於衍生 AES-GCM 金鑰
         }));
         log.info(`[WS] Auth OK: ${username} (${account.role}) from ${ip}`);
         break;

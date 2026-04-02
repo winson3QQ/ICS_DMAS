@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.1.11';</script>
+<script>const PWA_VERSION='v2.1.14';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -340,7 +340,7 @@
     <div class="login-sub" id="shelter-loc-subtitle">Shelter Team PWA</div>
     <!-- Pi 連線狀態 -->
     <div class="login-status-row">
-      <div id="login-pi-status" class="login-pi-status">🟡 Pi 連線中…</div>
+      <div id="login-pi-status" class="login-pi-status">🟡 伺服器連線中…</div>
       <span class="login-status-hint">若無法連線，請刷新頁面</span>
     </div>
     <!-- 登入卡片 -->
@@ -354,10 +354,10 @@
           onkeydown="if(event.key==='Enter')handleLogin(null)">
       </div>
       <details style="color:var(--text3);font-size:12px;margin-bottom:12px;">
-        <summary style="cursor:pointer;padding:4px 0;">⚙️ Pi 伺服器設定</summary>
+        <summary style="cursor:pointer;padding:4px 0;">⚙️ 伺服器設定</summary>
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
           <input id="pi-url-input" class="login-input" type="url" placeholder="ws://192.168.1.100:8765" autocomplete="off" style="font-size:13px;padding:8px 12px;">
-          <button onclick="savePiUrl()" style="padding:6px 12px;background:var(--gray-bg);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;cursor:pointer;">儲存 Pi URL</button>
+          <button onclick="savePiUrl()" style="padding:6px 12px;background:var(--gray-bg);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;cursor:pointer;">儲存伺服器 URL</button>
           <div id="pi-url-status" style="font-size:11px;color:var(--text3);"></div>
         </div>
       </details>
@@ -534,8 +534,8 @@
       <div class="settings-section">
         <div class="settings-item" onclick="openAdminPanel()"><span class="si-icon">👤</span><div class="si-text"><div class="si-title">帳號管理</div><div class="si-sub">新增、修改、刪除帳號・稽核日誌</div></div><span class="si-arrow">›</span></div>
       </div>
-      <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;margin-bottom:20px;">
-        收容組 PWA v2.1 · 2026-03 · 多裝置協作 + 斷網 QR 通報版
+      <div id="settings-version-display" style="text-align:center;padding:16px;color:var(--text3);font-size:12px;margin-bottom:20px;">
+        收容組 PWA v2.1.12 · 2026-03 · 多裝置協作 + 斷網 QR 通報版
       </div>
     </div>
   </div>
@@ -1320,7 +1320,7 @@ function openNewPersonModal(){
 async function createNewPerson(){
   const name=el('new-name').value.trim(),type=el('new-type').value,notes=el('new-notes').value.trim();
   if(!name){showToast('請填寫姓名');return;}
-  const id=await db.persons.add(AuditManager.stamp({display_id:null,name,type,notes,status:'等候中',health_flag:'正常',san_gate_done:false,immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:null,household_size:1,gender:null,age_group:null,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:nowISO(),exit_at:null,exit_reason:null,created_by:App.role,srt_score:null,srt_color:null,registering_started_at:null}));
+  const id=await db.persons.add(AuditManager.stamp({display_id:null,name,type,notes,status:'等候中',health_flag:'正常',san_gate_done:false,immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:null,household_size:1,gender:null,age_group:null,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:nowISO(),exit_at:null,exit_reason:null,created_by:App.role,srt_score:null,srt_color:null,registering_started_at:null,skills:[]}));
   syncAfterWrite('persons',id); closeModal(); showToast('入站者已建立'); await renderIntake(); await refreshCapacityBanner();
 }
 
@@ -1363,7 +1363,7 @@ async function createFamily(){
   const familyUnitId='FAM-'+Date.now().toString(36).toUpperCase();
   const household_size=members.length,now=nowISO();
   for(const m of members){
-    const id=await db.persons.add(AuditManager.stamp({display_id:null,name:m.name,type:m.type||'災民',gender:m.gender,status:'等候中',health_flag:'正常',immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:familyUnitId,is_family_head:m.isHead,household_size,age_group:m.age,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:now,exit_at:null,exit_reason:null,created_by:App.role,srt_score:null,srt_color:null,san_gate_done:false,registering_started_at:null}));
+    const id=await db.persons.add(AuditManager.stamp({display_id:null,name:m.name,type:m.type||'災民',gender:m.gender,status:'等候中',health_flag:'正常',immediate_needs_noted:false,immediate_needs_note:'',cmist:{communication:[],maintaining_health:[],independence:[],services_support:[],transportation:[]},family_unit_id:familyUnitId,is_family_head:m.isHead,household_size,age_group:m.age,pets:{has_pets:false,counts:{dog:0,cat:0,small:0,bird:0,reptile:0,other:0},placement:'',placement_note:''},bed_id:null,id_card_collected:null,id_badge_issued:false,covenant_signed:false,consent_ops:null,consent_welfare:null,paper_form_destroyed:null,intake_at:now,exit_at:null,exit_reason:null,created_by:App.role,srt_score:null,srt_color:null,san_gate_done:false,registering_started_at:null,skills:[]}));
     syncAfterWrite('persons',id);
   }
   closeModal(); showToast(`✅ 家庭建立完成（${members.length} 人）`); _familyGenders={};
@@ -1405,11 +1405,30 @@ async function showPersonDetail(p) {
     <div class="person-detail-row"><span class="pdr-label">A軌同意</span><span class="pdr-value">${p.consent_welfare===true?'✅ 同意':p.consent_welfare===false?'❌ 拒絕':'—'}</span></div>
     <div class="person-detail-row"><span class="pdr-label">紙本補登</span><span class="pdr-value">${p.paper_form_destroyed===null?'<span style="color:var(--text3);font-size:13px;">數位入站（不適用）</span>':p.paper_form_destroyed===true?'✅ 已完成補登銷毀':`<button class="btn btn-outline btn-sm" onclick="confirmPaperDestroyed(${p._id})">📋 確認補登完成並銷毀紙本</button>`}</span></div>
     <div class="person-detail-row"><span class="pdr-label">備註</span><span class="pdr-value">${escHtml(p.notes||'—')}</span></div>
+    <div class="person-detail-row"><span class="pdr-label">專業技能</span><span class="pdr-value">${(p.skills&&p.skills.length)?escHtml(p.skills.join('、')):'<span style="color:var(--text3);font-size:13px;">（未登記）</span>'}${p.status!=='已離站'?`<button class="btn btn-outline btn-sm" style="margin-left:8px;font-size:11px;" onclick="openSkillsEditor(${p._id});closeModal()">✏️ 編輯</button>`:''}</span></div>
     ${familyHTML}
     ${p.status==='已離站'?`<div class="person-detail-row"><span class="pdr-label">離站原因</span><span class="pdr-value">${escHtml(p.exit_reason||'—')}</span></div><div class="person-detail-row"><span class="pdr-label">離站時間</span><span class="pdr-value">${fmtDT(p.exit_at)}</span></div>`:''}`;
   const isExited=p.status==='已離站', isSettled=p.status==='已安置'||p.health_flag==='已隔離';
   const footerBtns=isExited?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`:isSettled?`<button class="btn btn-outline btn-sm" onclick="printPersonConfirmation(${p._id})">🖨️ 確認單</button><button class="btn btn-danger btn-sm" onclick="openExitModal(${p._id})">離站</button>`:`<button class="btn btn-outline btn-sm" onclick="printPersonConfirmation(${p._id})">🖨️ 確認單</button><button class="btn btn-outline flex-1" onclick="openPersonIntakeFlow(${p._id});closeModal()">繼續流程</button><button class="btn btn-danger btn-sm" onclick="openExitModal(${p._id})">離站</button>`;
   openModal(`${p.display_id||'未編號'} 詳情`,html,footerBtns);
+}
+
+const SKILL_OPTIONS=['醫療','工程','社工','翻譯','後勤','安全'];
+async function openSkillsEditor(personId){
+  const p=await db.persons.getDecrypted(personId);if(!p)return;
+  const current=Array.isArray(p.skills)?p.skills:[];
+  const checks=SKILL_OPTIONS.map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);font-size:15px;cursor:pointer;"><input type="checkbox" id="sk-${s}" ${current.includes(s)?'checked':''} style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;"><span>${s}</span></label>`).join('');
+  openModal(`${escHtml(p.display_id||p.name)} · 專業技能登記`,
+    `<div style="color:var(--text2);font-size:13px;margin-bottom:12px;">工作人員代災民勾選願意在收容期間協助的技能類別：</div>${checks}`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="saveSkills(${personId})">儲存</button>`);
+}
+async function saveSkills(personId){
+  const selected=SKILL_OPTIONS.filter(s=>{const el=document.getElementById(`sk-${s}`);return el&&el.checked;});
+  await FreezeGateway.writePerson(personId,AuditManager.stamp({skills:selected}),db.persons);
+  syncAfterWrite('persons',personId);
+  closeModal();
+  showToast(selected.length?`✅ 技能已登記：${selected.join('、')}`:'技能已清除');
+  const p=await db.persons.getDecrypted(personId);if(p)showPersonDetail(p);
 }
 
 async function quickUpdateHealth(personId,value){
@@ -2087,7 +2106,7 @@ function openNetworkRecoveryModal() {
       Pi 會執行三 Pass 對齊，並在完成後更新 last_sync_to_command。
     </div>
     <div style="margin-bottom:14px;font-size:13px;">
-      <div>Pi 連線狀態：<strong id="net-pi-status">${typeof WsManager!=='undefined'&&WsManager.isConnected()?'✅ 已連線':'⚠️ 未連線（降級模式）'}</strong></div>
+      <div>伺服器連線狀態：<strong id="net-pi-status">${typeof WsManager!=='undefined'&&WsManager.isConnected()?'✅ 已連線':'⚠️ 未連線（降級模式）'}</strong></div>
       <div style="margin-top:6px;">上次同步時間：<strong>${fmtDT(lastSync)}</strong></div>
     </div>
     <div id="net-recovery-result" style="font-size:13px;display:none;"></div>
@@ -2103,7 +2122,7 @@ async function triggerNetworkRecoveryPush() {
   if (!WsManager.isConnected()) {
     resultEl.style.display = 'block';
     resultEl.style.color = 'var(--red)';
-    resultEl.textContent = '❌ Pi 尚未連線，請確認 Wi-Fi 和 Pi 伺服器是否正常。';
+    resultEl.textContent = '❌ 伺服器尚未連線，請確認網路和伺服器是否正常。';
     return;
   }
   if (btn) { btn.disabled = true; btn.textContent = '推送中…'; }
@@ -2209,7 +2228,7 @@ const SyncManager = (() => {
   const CHANNEL='shelter-sync-v1', TABLES=['persons','beds','resources','incidents'], DEVICE_KEY='shelter_device_id';
   let _bc=null, _deviceId=null, _log=[];
   function deviceId(){if(!_deviceId){_deviceId=localStorage.getItem(DEVICE_KEY);if(!_deviceId){_deviceId='dev-'+Math.random().toString(36).slice(2,9);localStorage.setItem(DEVICE_KEY,_deviceId);}}return _deviceId;}
-  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','Pi 連線中…'],off:['⚫','Pi 離線']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
+  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','伺服器已連線'],pending:['🟡','伺服器連線中…'],off:['⚫','伺服器離線']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
   function broadcast(table,record){if(!_bc||!record)return;const delta={src:deviceId(),table,action:'upsert',record:JSON.parse(JSON.stringify(record)),ts:record.updated_at||record.timestamp||new Date().toISOString(),sent_at:new Date().toISOString()};_bc.postMessage(delta);_logDelta(delta);updateDot('ok');}
   async function applyDelta(delta){
     if(delta.src===deviceId())return;const{table,record}=delta;if(!TABLES.includes(table)||!record)return;_logDelta(delta);
@@ -2290,7 +2309,7 @@ const WsManager = (function(){
       }
       _wsLog.info('connect() called from: '+source);
       if(onAuth!==undefined)_authHandler=onAuth;
-      const url=this.getPiUrl();if(!url){this._enterDegraded('未設定 Pi URL');return;}
+      const url=this.getPiUrl();if(!url){this._enterDegraded('未設定伺服器 URL');return;}
       // iOS Safari 已知問題：主動 close() 後立即建新 WS 會得到 code=1006。
       // 改為只廢棄 callback（不 close），讓 iOS 自己 GC 舊物件。
       if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws=null;}
@@ -2344,7 +2363,7 @@ const WsManager = (function(){
       };
     },
     authenticate(username,pin){
-      if(!_connected||!_ws)return Promise.reject(new Error('Pi 未連線'));
+      if(!_connected||!_ws)return Promise.reject(new Error('伺服器未連線'));
       return new Promise((resolve,reject)=>{
         const timeout=setTimeout(()=>reject(new Error('Pi 驗證逾時')),8000);
         this._authHandler=(msg)=>{if(msg.type==='auth_result'){clearTimeout(timeout);this._authHandler=null;if(msg.ok)resolve(msg);else reject(new Error(msg.reason||'驗證失敗'));}};
@@ -2355,7 +2374,7 @@ const WsManager = (function(){
     sendAuditEvent(action,detail){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'audit_event',action,operator_name:AuditManager.getOperator()||'未知',device_id:SyncManager.deviceId(),session_id:sessionStorage.getItem('shelter_session_id')||'',detail}));},
     /* v2.1: 網路恢復推送 — 從 IndexedDB 讀取 since=last_sync_ts 的記錄推送至 Pi */
     async pushRecoveryData(){
-      if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)throw new Error('Pi 未連線');
+      if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)throw new Error('伺服器未連線');
       const since=localStorage.getItem('shelter_last_sync_ts')||'1970-01-01T00:00:00.000Z';
       const TABLES=['persons','beds','resources','incidents','shifts'];
       const tables={};let totalCount=0;
@@ -2467,23 +2486,23 @@ const WsManager = (function(){
     const caller=(new Error().stack||'').split('\n').slice(1,3).map(s=>s.trim()).join(' | ');
     _wsLog.debug(`[dot] ${prev} → ${state} | ${caller}`);
     if(!dot)return;
-    const MAP={ok:['🟢','Pi 已連線'],pending:['🟡','Pi 連線中…'],off:['⚫','Pi 離線']};
+    const MAP={ok:['🟢','伺服器已連線'],pending:['🟡','伺服器連線中…'],off:['⚫','伺服器離線']};
     const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;
   }
   function _updateLoginStatus(state, detail){
     const el=document.getElementById('login-pi-status');if(!el)return;
     const btn=document.getElementById('login-btn-text'),desc=document.getElementById('login-btn-desc');
     if(state==='ok'){
-      el.textContent='🟢 Pi 已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';
+      el.textContent='🟢 伺服器已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='帳號決定角色';
     }else if(state==='pending'){
-      el.textContent='🟡 Pi 連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';
+      el.textContent='🟡 伺服器連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
     }else if(state==='offline'){
       el.textContent='⚫ 裝置離線';el.style.background='var(--gray-bg)';el.style.color='var(--text3)';
       if(btn)btn.textContent='登入';if(desc)desc.textContent='連線後驗證帳號';
     }else{
-      el.textContent='🔴 Pi 離線'+(detail?' — '+detail:'');el.style.background='var(--red-bg)';el.style.color='var(--red)';
+      el.textContent='🔴 伺服器離線'+(detail?' — '+detail:'');el.style.background='var(--red-bg)';el.style.color='var(--red)';
       if(btn)btn.textContent='離線登入';if(desc)desc.textContent='請選擇角色，資料不跨裝置同步';
     }
   }
@@ -2580,8 +2599,11 @@ async function handleLogin(roleHint) {
       const result=await WsManager.authenticate(username,pin);
       warn.style.display='none';if(pinInput)pinInput.value='';
       const sid=crypto.randomUUID?crypto.randomUUID():uuid();sessionStorage.setItem('shelter_session_id',sid);
-      const saltKey='shelter_enc_salt_'+username;let salt=localStorage.getItem(saltKey);
-      if(!salt){salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');localStorage.setItem(saltKey,salt);}
+      // v2.2: 使用 Pi 提供的 site_salt 衍生加密金鑰，確保跨裝置金鑰一致
+      // site_salt 快取至 localStorage，供 QR 應急模式（Pi 離線）時繼續使用相同金鑰
+      if(result.site_salt)localStorage.setItem('shelter_site_salt',result.site_salt);
+      const salt=result.site_salt||localStorage.getItem('shelter_site_salt')||localStorage.getItem('shelter_enc_salt_'+username);
+      if(!result.site_salt)console.warn('[PersonCrypto] Pi 未回傳 site_salt，退回舊版 per-device salt（金鑰可能跨裝置不一致）');
       await PersonCrypto.deriveKey(pin,salt);
       await PersonCrypto.exportToSession();
       sessionStorage.setItem('shelter_session_username',result.username);
@@ -2680,7 +2702,7 @@ App.init=async function(){
           WsManager.connect(null,'App.init');
         }
       } else {
-        WsManager._enterDegraded('未設定 Pi URL');
+        WsManager._enterDegraded('未設定伺服器 URL');
       }
       App.startApp(_savedRole);
       return;
@@ -2688,7 +2710,7 @@ App.init=async function(){
   }
   // 正常流程（需登入）
   if(savedPiUrl){WsManager.connect(null,'App.init');}
-  else WsManager._enterDegraded('未設定 Pi URL');
+  else WsManager._enterDegraded('未設定伺服器 URL');
 };
 window.switchRole=switchRole;
 
@@ -2842,7 +2864,7 @@ window.switchRole=switchRole;
 
 /* ══ BOOT ════════════════════════════════════════════════════════ */
 setupPWAManifest();
-(function(){const el=document.getElementById('pwa-version-display');_dbgLog('[boot] pwa-version el='+!!el+' ver='+PWA_VERSION);if(el){el.textContent='收容組 PWA · '+PWA_VERSION;_dbgLog('[boot] version set ok');}})();
+(function(){const el=document.getElementById('pwa-version-display');_dbgLog('[boot] pwa-version el='+!!el+' ver='+PWA_VERSION);if(el){el.textContent='收容組 PWA · '+PWA_VERSION;_dbgLog('[boot] version set ok');}const sv=document.getElementById('settings-version-display');if(sv)sv.textContent=`收容組 PWA ${PWA_VERSION} · 2026-03 · 多裝置協作 + 斷網 QR 通報版`;})();
 App.init().catch(console.error);
 </script>
 
