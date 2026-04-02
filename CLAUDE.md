@@ -39,13 +39,41 @@
 - **commit 後不自動 push**，停在本地等使用者確認後才 push
 - 例外：使用者明確說「push」或「推上去」才執行
 
-## 版號更新規則
+## 版號規則
 
-每次改動 medical PWA 或 shelter PWA 後，必須同步更新：
-1. HTML 檔案內的 `PWA_VERSION` 常數
-2. `sw.js` 的 `CACHE_NAME`（格式：`medical-pwa-vX.X.XX`）
+### 兩軌版本命名
 
-兩者缺一不可，否則瀏覽器快取無法正確更新。不需詢問，直接遞增。
+本專案使用兩套獨立的版本號，**不可混用**：
+
+**軌道一：程式版本（SemVer）** — 格式 `vMAJOR.MINOR.PATCH`，以 git tag 標記。
+
+| 位號 | 觸發條件 |
+|------|---------|
+| PATCH +1 | bug fix 完成，行為有改變 |
+| MINOR +1 | 一個功能完整可用 |
+| MAJOR +1 | 介面或資料格式有破壞性變更（Pi ↔ 指揮部 API、DB schema） |
+
+**軌道二：規格書版本（vX.Y）** — 各文件獨立編號，不跟隨程式 SemVer。
+
+| 位號 | 觸發條件 |
+|------|---------|
+| Y +1 | 規格內容新增、修正、或對應程式里程碑更新 |
+| X +1 | 規格架構重大改版 |
+
+規格書 changelog 須標注對應的程式里程碑（若有 tag）或「規格先行」。
+
+### 每次改動的 bump checklist（缺一不可）
+
+1. `PWA_VERSION`（HTML 檔案內的常數）
+2. `CACHE_NAME`（`sw.js`，格式：`shelter-pwa-vX.X.XX` / `medical-pwa-vX.X.XX`）
+3. `SERVER_VERSION`（`shelter_ws_server.js`）— 若 server 有改動
+4. **規格書同步** — 若有介面、資料格式、或功能行為變更，需更新對應規格文件
+
+不需詢問，直接遞增。
+
+### 主動提出效率建議
+
+任何可增進開發或 debug 效率的工具、做法、架構改善，都可以主動提出，不需要等被問。
 
 ## Memory 同步（跨機器）
 
