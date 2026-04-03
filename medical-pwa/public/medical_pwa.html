@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.4.2-alpha';</script>
+<script>const PWA_VERSION='v0.4.3-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -237,6 +237,14 @@ input,select,textarea{font-family:inherit;font-size:16px;}
           oninput="this.value=this.value.replace(/\D/g,'')"
           onkeydown="if(event.key==='Enter')handleLogin()">
       </div>
+      <details style="color:var(--text3);font-size:12px;margin-bottom:12px;">
+        <summary style="cursor:pointer;padding:4px 0;">⚙️ 伺服器設定</summary>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+          <input id="med-pi-url-input" class="login-input" type="url" placeholder="wss://192.168.100.30:8775" autocomplete="off" style="font-size:13px;padding:8px 12px;">
+          <button onclick="saveMedPiUrl()" style="padding:6px 12px;background:var(--gray-bg);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;cursor:pointer;">儲存伺服器 URL</button>
+          <div id="med-pi-url-status" style="font-size:11px;color:var(--text3);"></div>
+        </div>
+      </details>
       <!-- 展示模式（GitHub Pages） -->
       <div id="demo-btn-section" style="display:none;margin-bottom:12px;">
         <button class="login-btn" style="background:#2E7D32;" onclick="enterDemoMode('組長')">🟢 展示模式（組長）</button>
@@ -572,13 +580,18 @@ async function initLogin() {
   // 展示模式偵測
   const _isDemo = location.hostname.includes('github.io') || location.hostname.includes('localhost') || location.search.includes('demo=1');
   if (_isDemo) { const demoEl = document.getElementById('demo-btn-section'); if (demoEl) demoEl.style.display = 'block'; }
-  await seedAccounts();
+  // 載入 Pi URL 設定
+  const savedPiUrl = WsManager.getPiUrl();
+  const piUrlInput = document.getElementById('med-pi-url-input');
+  if (piUrlInput && savedPiUrl) piUrlInput.value = savedPiUrl;
+  // 連接 Pi WebSocket
+  WsManager.connect();
+  // 嘗試從快取自動登入
   const saved = localStorage.getItem('med_session');
   if (saved) {
     try {
-      const { accountId } = JSON.parse(saved);
-      const acct = await db.accounts.get(accountId);
-      if (acct && acct.status !== 'suspended') { showApp(acct); return; }
+      const sess = JSON.parse(saved);
+      if (sess.username && sess.role) { showApp({ username: sess.username, role: sess.role, display_name: sess.username }); return; }
     } catch(e) {}
     localStorage.removeItem('med_session');
   }
@@ -603,7 +616,6 @@ async function enterDemoMode(role) {
 async function handleLogin() {
   const warn = document.getElementById('login-warn');
   warn.textContent = '';
-  if (_state.loginCooldown) { warn.textContent = '⚠️ 冷卻中，請稍候'; return; }
 
   const username = document.getElementById('login-username').value.trim();
   const pin = document.getElementById('login-pin').value;
@@ -611,37 +623,36 @@ async function handleLogin() {
   if (!username) { warn.textContent = '⚠️ 請輸入帳號'; return; }
   if (!pin || pin.length < 4 || !/^\d+$/.test(pin)) { warn.textContent = '⚠️ PIN 需為 4–6 位數字'; return; }
 
-  const acct = await db.accounts.where('username').equals(username).first();
-  if (!acct) { warn.textContent = '❌ 帳號不存在'; return; }
-  if (acct.status === 'suspended') { warn.textContent = '❌ 帳號已停用，請聯絡管理員'; return; }
-
-  const hash = await Crypto.hashPin(pin);
-  if (hash !== acct.pin_hash) {
-    _state.loginAttempts++;
-    document.getElementById('login-pin').value = '';
-    if (_state.loginAttempts >= 3) {
-      _state.loginCooldown = true;
-      let cd = 30;
-      warn.textContent = `❌ 錯誤次數過多，冷卻 ${cd}s`;
-      const t = setInterval(()=>{
-        cd--;
-        warn.textContent = cd > 0 ? `冷卻中：${cd}s` : '';
-        if (cd <= 0) { clearInterval(t); _state.loginCooldown=false; _state.loginAttempts=0; }
-      }, 1000);
-    } else {
-      warn.textContent = `❌ PIN 錯誤（${_state.loginAttempts}/3）`;
+  /* 主要路徑：Pi 可用 */
+  if (!WsManager.isDegraded()) {
+    try {
+      warn.textContent = '⏳ 驗證中…';
+      const result = await WsManager.authenticate(username, pin);
+      warn.textContent = '';
+      document.getElementById('login-pin').value = '';
+      if (result.site_salt) localStorage.setItem('med_site_salt', result.site_salt);
+      localStorage.setItem('med_session', JSON.stringify({ username: result.username, role: result.role }));
+      showApp({ username: result.username, role: result.role, display_name: result.username });
+    } catch(e) {
+      warn.textContent = '❌ ' + (e.message || '驗證失敗');
+      document.getElementById('login-pin').value = '';
     }
     return;
   }
 
-  _state.loginAttempts = 0;
+  /* 降級路徑：使用快取 */
+  const cached = localStorage.getItem('med_session');
+  if (!cached) { warn.textContent = '⚠️ 尚未透過 Pi 登入過，無法使用離線模式'; return; }
+  warn.textContent = '';
   document.getElementById('login-pin').value = '';
-  localStorage.setItem('med_session', JSON.stringify({ accountId: acct.id }));
-  showApp(acct);
+  try {
+    const sess = JSON.parse(cached);
+    showApp({ username: sess.username || username, role: sess.role || '一般', display_name: sess.username || username });
+  } catch(_) { warn.textContent = '⚠️ 離線登入失敗'; }
 }
 
 function showApp(acct) {
-  _state.currentAccountId = acct.id;
+  _state.currentAccountId = acct.id || 'server';
   _state.role = acct.role;
   _state.operatorName = acct.display_name || acct.username;
   document.getElementById('login-screen').classList.add('hidden');
@@ -649,13 +660,10 @@ function showApp(acct) {
   const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
   document.getElementById('hdr-role').innerHTML = `<span>${acct.role}・${_state.operatorName}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">登入 ${loginTime}</span>`;
   startIdleTimer();
-  // Role-based initial tab, fallback to last visited tab
-  const roleTabMap = { '檢傷官':'intake', '治療官':'zones', '後送官':'transfer', '後勤官':'more', '機動人員':'zones' };
-  const initTab = localStorage.getItem('med_last_tab') || roleTabMap[acct.role] || 'dashboard';
+  const initTab = localStorage.getItem('med_last_tab') || 'dashboard';
   _state.currentTab = initTab;
   document.querySelectorAll('.tab-item').forEach(el=>el.classList.toggle('active', el.dataset.tab===initTab));
   loadPatients().then(renderCurrentTab);
-  connectWS();
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -733,17 +741,54 @@ function updateIdleHdr(secsLeft) {
 /* ════════════════════════════════════════════════════════════════
    WEBSOCKET
 ════════════════════════════════════════════════════════════════ */
-function connectWS() {
-  const piIp = '192.168.100.30';
-  const url = `ws://${piIp}:8775`;
-  try {
-    _state.ws = new WebSocket(url);
-    _state.ws.onopen = ()=>{ _state.wsConnected=true; setWsStatus('●','#69F0AE'); };
-    _state.ws.onclose = ()=>{ _state.wsConnected=false; setWsStatus('○','rgba(255,255,255,.5)'); setTimeout(connectWS, 5000); };
-    _state.ws.onerror = ()=>{ _state.wsConnected=false; setWsStatus('○','rgba(255,255,255,.5)'); };
-    _state.ws.onmessage = e=>{ try{ handleWsMsg(JSON.parse(e.data)); }catch(_){} };
-  } catch(_) {}
-}
+/* ── WsManager（參照 shelter 架構）── */
+const WsManager = (function(){
+  let _ws=null,_piUrl=null,_connected=false,_degraded=false,_reconnectTimer=null;
+  const RECONNECT_BASE=2000,RECONNECT_MAX=30000;
+  let _backoff=RECONNECT_BASE;
+
+  function getPiUrl(){return _piUrl||localStorage.getItem('med_pi_url')||null;}
+  function setPiUrl(url){_piUrl=url;localStorage.setItem('med_pi_url',url);}
+
+  function connect(){
+    const url=getPiUrl();
+    if(!url){_degraded=true;setWsStatus('離線','rgba(255,255,255,.5)');return;}
+    try{
+      _ws=new WebSocket(url);
+      _ws.onopen=()=>{_connected=true;_degraded=false;_backoff=RECONNECT_BASE;setWsStatus('●','#69F0AE');};
+      _ws.onclose=()=>{_connected=false;setWsStatus('○','rgba(255,255,255,.5)');_reconnectTimer=setTimeout(connect,_backoff);_backoff=Math.min(_backoff*1.5,RECONNECT_MAX);};
+      _ws.onerror=()=>{_connected=false;};
+      _ws.onmessage=e=>{try{handleWsMsg(JSON.parse(e.data));}catch(_){}};
+    }catch(_){_degraded=true;}
+  }
+
+  function authenticate(username,pin){
+    return new Promise((resolve,reject)=>{
+      if(!_ws||_ws.readyState!==WebSocket.OPEN)return reject(new Error('伺服器未連線'));
+      const handler=e=>{
+        try{const msg=JSON.parse(e.data);
+          if(msg.type==='auth_result'){
+            _ws.removeEventListener('message',handler);
+            if(msg.ok)resolve(msg);else reject(new Error(msg.reason||'驗證失敗'));
+          }
+        }catch(_){}
+      };
+      _ws.addEventListener('message',handler);
+      _ws.send(JSON.stringify({type:'auth',username,pin_hash:pin,device_id:'med-'+Math.random().toString(36).slice(2,8)}));
+      setTimeout(()=>{_ws.removeEventListener('message',handler);reject(new Error('驗證逾時'));},8000);
+    });
+  }
+
+  function sendDelta(table,record){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'delta',table,action:'upsert',record,ts:record.updated_at||new Date().toISOString()}));}
+
+  return{
+    connect,authenticate,sendDelta,getPiUrl,setPiUrl,
+    isConnected(){return _connected;},
+    isDegraded(){return _degraded||!_connected;},
+  };
+})();
+
+function saveMedPiUrl(){const val=document.getElementById('med-pi-url-input')?.value.trim(),sEl=document.getElementById('med-pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：wss://192.168.100.30:8775';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，連線中…';WsManager.connect();}
 
 function setWsStatus(sym, color) {
   const el = document.getElementById('hdr-ws');
@@ -751,7 +796,9 @@ function setWsStatus(sym, color) {
 }
 
 function handleWsMsg(msg) {
-  // 未來處理 Pi 推送的同步訊息
+  if(msg.type==='catchup_data'&&Array.isArray(msg.deltas)){
+    // 未來處理 Pi 推送的同步訊息
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════
