@@ -2989,9 +2989,7 @@ function copyText(txt) {
 let _adminAuthed = false;
 
 function openAdminPanel() {
-  document.getElementById('admin-overlay').style.display = 'block';
-  document.getElementById('admin-panel').style.display = 'flex';
-  if (_adminAuthed) { admShowMain(); } else { document.getElementById('adm-pin-screen').style.display='block'; document.getElementById('adm-main').style.display='none'; }
+  window.open('admin.html', '_blank');
 }
 
 function closeAdminPanel() {
