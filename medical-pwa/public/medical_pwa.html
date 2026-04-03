@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.4.3-alpha';</script>
+<script>const PWA_VERSION='v0.4.4-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -227,6 +227,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
     <div class="login-icon-wrap"><img src="badge.png" alt="Taiwan Civil Defense" style="width:108px;height:108px;border-radius:18px;"></div>
     <div class="login-title">醫療組管理系統</div>
     <div class="login-sub">Medical Team PWA · 離線優先 · <span style="color:var(--red);font-weight:700;">ALPHA</span></div>
+    <div id="login-pi-status" style="font-size:12px;padding:5px 12px;border-radius:20px;background:var(--gray-bg);color:var(--text2);margin-bottom:10px;text-align:center;">🟡 伺服器連線中…</div>
     <div class="login-card">
       <div class="login-notice" id="login-notice" style="display:none;"></div>
       <div class="login-field">
@@ -750,16 +751,25 @@ const WsManager = (function(){
   function getPiUrl(){return _piUrl||localStorage.getItem('med_pi_url')||null;}
   function setPiUrl(url){_piUrl=url;localStorage.setItem('med_pi_url',url);}
 
+  function updateLoginStatus(state){
+    const el=document.getElementById('login-pi-status');if(!el)return;
+    if(state==='ok'){el.textContent='🟢 伺服器已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';}
+    else if(state==='pending'){el.textContent='🟡 伺服器連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';}
+    else if(state==='no_url'){el.textContent='🔴 未設定伺服器 URL';el.style.background='var(--red-bg)';el.style.color='var(--red)';}
+    else{el.textContent='🔴 伺服器離線';el.style.background='var(--red-bg)';el.style.color='var(--red)';}
+  }
+
   function connect(){
     const url=getPiUrl();
-    if(!url){_degraded=true;setWsStatus('離線','rgba(255,255,255,.5)');return;}
+    if(!url){_degraded=true;setWsStatus('離線','rgba(255,255,255,.5)');updateLoginStatus('no_url');return;}
+    updateLoginStatus('pending');
     try{
       _ws=new WebSocket(url);
-      _ws.onopen=()=>{_connected=true;_degraded=false;_backoff=RECONNECT_BASE;setWsStatus('●','#69F0AE');};
-      _ws.onclose=()=>{_connected=false;setWsStatus('○','rgba(255,255,255,.5)');_reconnectTimer=setTimeout(connect,_backoff);_backoff=Math.min(_backoff*1.5,RECONNECT_MAX);};
-      _ws.onerror=()=>{_connected=false;};
+      _ws.onopen=()=>{_connected=true;_degraded=false;_backoff=RECONNECT_BASE;setWsStatus('●','#69F0AE');updateLoginStatus('ok');};
+      _ws.onclose=()=>{_connected=false;setWsStatus('○','rgba(255,255,255,.5)');updateLoginStatus('offline');_reconnectTimer=setTimeout(connect,_backoff);_backoff=Math.min(_backoff*1.5,RECONNECT_MAX);};
+      _ws.onerror=()=>{_connected=false;updateLoginStatus('offline');};
       _ws.onmessage=e=>{try{handleWsMsg(JSON.parse(e.data));}catch(_){}};
-    }catch(_){_degraded=true;}
+    }catch(_){_degraded=true;updateLoginStatus('offline');}
   }
 
   function authenticate(username,pin){
