@@ -262,7 +262,6 @@ input,select,textarea{font-family:inherit;font-size:16px;}
       <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">帳號決定角色</div>
       <div class="login-warn" id="login-warn"></div>
     </div>
-    <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
     <div class="login-version" id="login-version-str">醫療組 PWA</div>
   </div>
 </div>
@@ -2199,6 +2198,9 @@ async function renderMore(el) {
     </div>
     <div class="dash-row" style="cursor:pointer;" onclick="openSlotConfig()">
       <span class="dash-row-label">🏥 設定各區床位容量</span><span class="text-gray text-sm">→</span>
+    </div>
+    <div class="dash-row" style="cursor:pointer;" onclick="openAdminPanel()">
+      <span class="dash-row-label">👤 帳號管理</span><span class="text-gray text-sm">→</span>
     </div>
     <div class="dash-row" style="cursor:pointer;" onclick="doLogout()">
       <span class="dash-row-label">🔒 登出（切換角色）</span><span class="text-gray text-sm">→</span>
