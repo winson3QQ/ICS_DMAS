@@ -3060,7 +3060,7 @@ window.switchRole=switchRole;
 
 /* ══ BOOT ════════════════════════════════════════════════════════ */
 setupPWAManifest();
-(function(){const el=document.getElementById('pwa-version-display');_dbgLog('[boot] pwa-version el='+!!el+' ver='+PWA_VERSION);if(el){el.textContent='收容組 PWA · '+PWA_VERSION;_dbgLog('[boot] version set ok');}const sv=document.getElementById('settings-version-display');if(sv)sv.textContent=`收容組 PWA ${PWA_VERSION}-alpha`;})();
+(function(){const el=document.getElementById('pwa-version-display');_dbgLog('[boot] pwa-version el='+!!el+' ver='+PWA_VERSION);if(el){el.textContent='收容組 PWA · '+PWA_VERSION+'-alpha';_dbgLog('[boot] version set ok');}const sv=document.getElementById('settings-version-display');if(sv)sv.textContent=`收容組 PWA ${PWA_VERSION}-alpha`;})();
 App.init().catch(console.error);
 </script>
 
