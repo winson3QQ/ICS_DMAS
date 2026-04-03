@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.4.4-alpha';</script>
+<script>const PWA_VERSION='v0.4.5-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -88,8 +88,11 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .login-icon-wrap{width:108px;height:108px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
 .login-logo{line-height:1;}
 .login-title{font-size:22px;font-weight:700;margin-bottom:4px;color:var(--text);}
-.login-sub{font-size:13px;color:var(--text3);margin-bottom:28px;}
-.login-card{width:100%;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;margin-bottom:12px;}
+.login-sub{font-size:13px;color:var(--primary);margin-bottom:20px;}
+.login-pi-status{font-size:12px;padding:5px 12px;border-radius:20px;background:var(--gray-bg);color:var(--text2);}
+.login-status-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.login-status-hint{font-size:11px;color:var(--text3);}
+.login-card{width:100%;background:var(--surface);border-radius:var(--r);box-shadow:none;padding:20px;margin-bottom:12px;border:1px solid var(--border);}
 .login-notice{font-size:12px;background:var(--red-bg);color:var(--red);padding:6px 14px;border-radius:var(--r-sm);margin-bottom:14px;text-align:center;width:100%;}
 .login-field{width:100%;margin-bottom:12px;}
 .login-input{width:100%;padding:13px 16px;border-radius:var(--r-sm);border:2px solid var(--border);background:var(--surface);color:var(--text);font-size:16px;transition:border-color .15s;}
@@ -227,7 +230,10 @@ input,select,textarea{font-family:inherit;font-size:16px;}
     <div class="login-icon-wrap"><img src="badge.png" alt="Taiwan Civil Defense" style="width:108px;height:108px;border-radius:18px;"></div>
     <div class="login-title">醫療組管理系統</div>
     <div class="login-sub">Medical Team PWA · 離線優先 · <span style="color:var(--red);font-weight:700;">ALPHA</span></div>
-    <div id="login-pi-status" style="font-size:12px;padding:5px 12px;border-radius:20px;background:var(--gray-bg);color:var(--text2);margin-bottom:10px;text-align:center;">🟡 伺服器連線中…</div>
+    <div class="login-status-row">
+      <div id="login-pi-status" class="login-pi-status">🟡 伺服器連線中…</div>
+      <span class="login-status-hint" id="login-status-hint" style="display:none;">若無法連線，請刷新頁面</span>
+    </div>
     <div class="login-card">
       <div class="login-notice" id="login-notice" style="display:none;"></div>
       <div class="login-field">
@@ -254,6 +260,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
         <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">GitHub Pages 展示用，資料僅存於本機瀏覽器</div>
       </div>
       <button class="login-btn" onclick="handleLogin()">登入</button>
+      <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">帳號決定角色</div>
       <div class="login-warn" id="login-warn"></div>
     </div>
     <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
@@ -753,10 +760,11 @@ const WsManager = (function(){
 
   function updateLoginStatus(state){
     const el=document.getElementById('login-pi-status');if(!el)return;
-    if(state==='ok'){el.textContent='🟢 伺服器已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';}
-    else if(state==='pending'){el.textContent='🟡 伺服器連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';}
-    else if(state==='no_url'){el.textContent='🔴 未設定伺服器 URL';el.style.background='var(--red-bg)';el.style.color='var(--red)';}
-    else{el.textContent='🔴 伺服器離線';el.style.background='var(--red-bg)';el.style.color='var(--red)';}
+    const hint=document.getElementById('login-status-hint');
+    if(state==='ok'){el.textContent='🟢 伺服器已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';if(hint)hint.style.display='none';}
+    else if(state==='pending'){el.textContent='🟡 伺服器連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';if(hint)hint.style.display='';}
+    else if(state==='no_url'){el.textContent='🔴 未設定伺服器 URL';el.style.background='var(--red-bg)';el.style.color='var(--red)';if(hint)hint.style.display='';}
+    else{el.textContent='🔴 伺服器離線';el.style.background='var(--red-bg)';el.style.color='var(--red)';if(hint)hint.style.display='';}
   }
 
   function connect(){
