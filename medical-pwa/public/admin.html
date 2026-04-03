@@ -70,11 +70,11 @@
         </div>
         <div class="form-group">
           <label>設定管理員 PIN（4-6 位數字）</label>
-          <input id="setup-pin" type="number" inputmode="numeric" maxlength="6" placeholder="例：1234" style="padding:13px 16px;font-size:16px;">
+          <input id="setup-pin" type="password" inputmode="numeric" maxlength="6" placeholder="例：1234" style="padding:13px 16px;font-size:16px;">
         </div>
         <div class="form-group">
           <label>確認 PIN</label>
-          <input id="setup-pin2" type="number" inputmode="numeric" maxlength="6" placeholder="再輸入一次" style="padding:13px 16px;font-size:16px;">
+          <input id="setup-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="再輸入一次" style="padding:13px 16px;font-size:16px;">
         </div>
         <button class="btn btn-primary" onclick="doSetup()">設定 PIN</button>
         <div id="setup-error" class="error"></div>
@@ -82,13 +82,13 @@
       <div id="login-section" style="display:none;">
         <div class="form-group">
           <label>管理員 PIN</label>
-          <input id="login-pin" type="number" inputmode="numeric" maxlength="6" placeholder="輸入 PIN" style="padding:13px 16px;font-size:16px;" onkeydown="if(event.key==='Enter')doLogin()">
+          <input id="login-pin" type="password" inputmode="numeric" maxlength="6" placeholder="輸入 PIN" style="padding:13px 16px;font-size:16px;" onkeydown="if(event.key==='Enter')doLogin()">
         </div>
         <button class="btn btn-primary" onclick="doLogin()">進入管理</button>
         <div id="login-error" class="error"></div>
       </div>
     </div>
-    <div style="color:var(--text2);font-size:11px;margin-top:6px;">醫療組管理 · admin v0.1.0-alpha</div>
+    <div style="color:var(--text2);font-size:11px;margin-top:6px;">醫療組管理 · admin v0.1.1-alpha</div>
   </div>
 </div>
 
@@ -138,7 +138,7 @@
         </div>
         <div class="form-group">
           <label>PIN（4-6 位數字）</label>
-          <input id="new-pin" type="number" inputmode="numeric" placeholder="例：1234">
+          <input id="new-pin" type="password" inputmode="numeric" placeholder="例：1234">
         </div>
         <div class="form-group">
           <label>角色</label>
@@ -171,7 +171,7 @@
         </div>
         <div class="form-group">
           <label>新 PIN</label>
-          <input id="reset-pin" type="number" inputmode="numeric" placeholder="4-6 位數字">
+          <input id="reset-pin" type="password" inputmode="numeric" placeholder="4-6 位數字">
         </div>
         <button class="btn btn-primary" onclick="resetPin()">重設 PIN</button>
         <div id="reset-result" class="success"></div>
@@ -254,11 +254,13 @@ function showMain() {
   document.getElementById('page-login').classList.remove('active');
   document.getElementById('page-main').classList.add('active');
   loadStatus();
-  loadAccounts();
+  const lastTab = sessionStorage.getItem('admin_tab') || 'accounts';
+  showTab(lastTab);
 }
 
 /* ─── 頁籤 ─────────────────────────────────────── */
 function showTab(name) {
+  sessionStorage.setItem('admin_tab', name);
   ['accounts','add','server'].forEach(t => {
     document.getElementById(`tab-${t}-content`).style.display = t === name ? '' : 'none';
     document.getElementById(`tab-${t}`).classList.toggle('active', t === name);

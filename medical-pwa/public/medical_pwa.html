@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.4.5-alpha';</script>
+<script>const PWA_VERSION='v0.4.6-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -790,7 +790,7 @@ const WsManager = (function(){
         }catch(_){}
       };
       _ws.addEventListener('message',handler);
-      _ws.send(JSON.stringify({type:'auth',username,pin_hash:pin,device_id:'med-'+Math.random().toString(36).slice(2,8)}));
+      _ws.send(JSON.stringify({type:'auth',username,pin:pin,device_id:'med-'+Math.random().toString(36).slice(2,8)}));
       setTimeout(()=>{_ws.removeEventListener('message',handler);reject(new Error('驗證逾時'));},8000);
     });
   }
@@ -2989,6 +2989,19 @@ function copyText(txt) {
 let _adminAuthed = false;
 
 function openAdminPanel() {
+  // admin.html 必須從 Pi server 開（有 API），不能從靜態預覽開
+  const piUrl = WsManager.getPiUrl();
+  if (piUrl) {
+    // 從 WSS URL 推算 HTTPS admin URL（wss://host:8775 → https://host:8776）
+    try {
+      const u = new URL(piUrl);
+      const adminPort = parseInt(u.port || '8775') + 1;
+      const adminUrl = `https://${u.hostname}:${adminPort}/admin.html`;
+      window.open(adminUrl, '_blank');
+      return;
+    } catch(_) {}
+  }
+  // fallback：同 origin
   window.open('admin.html', '_blank');
 }
 
