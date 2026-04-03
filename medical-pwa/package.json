@@ -1,0 +1,16 @@
+{
+  "name": "medical-pwa-server",
+  "version": "0.1.0",
+  "description": "ICS 醫療組 PWA WebSocket 伺服器",
+  "main": "src/medical_ws_server.js",
+  "scripts": {
+    "start": "node src/medical_ws_server.js",
+    "dev": "node --watch src/medical_ws_server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.3",
+    "ws": "^8.16.0"
+  }
+}

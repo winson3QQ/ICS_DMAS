@@ -21,6 +21,13 @@
       "runtimeArgs": ["src/shelter_ws_server.js"],
       "port": 8766,
       "cwd": "shelter-pwa"
+    },
+    {
+      "name": "醫療組 Pi Server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/medical_ws_server.js"],
+      "port": 8776,
+      "cwd": "medical-pwa"
     }
   ]
 }
