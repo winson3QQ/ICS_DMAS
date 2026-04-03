@@ -60,24 +60,21 @@
 
 <!-- ── 登入頁 ───────────────────────────────────── -->
 <div id="page-login" class="page active">
-  <div style="max-width:420px;margin:60px auto 0;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <div style="margin-bottom:12px;"><img src="badge.png" alt="Taiwan Civil Defense" style="width:80px;height:80px;border-radius:50%;"></div>
-      <h1>收容組管理</h1>
-      <div class="subtitle">輸入管理員 PIN 進入</div>
-    </div>
-    <div class="card">
+  <div style="max-width:320px;margin:40px auto 0;display:flex;flex-direction:column;align-items:center;">
+    <div style="margin-bottom:16px;"><img src="badge.png" alt="Taiwan Civil Defense" style="width:108px;height:108px;border-radius:18px;"></div>
+    <h1 style="font-size:22px;margin-bottom:20px;">收容組管理</h1>
+    <div class="card" style="box-shadow:none;border:1px solid var(--border);">
       <div id="setup-section">
-        <div style="background:#FFF8EE;border:1px solid #F5A623;border-radius:var(--r-sm);padding:12px;margin-bottom:16px;font-size:14px;color:#8B5600;">
+        <div style="background:var(--red-bg);border:1px solid var(--red);border-radius:var(--r-sm);padding:12px;margin-bottom:16px;font-size:14px;color:var(--red);">
           ⚠️ 尚未設定管理員 PIN，請先完成設定
         </div>
         <div class="form-group">
           <label>設定管理員 PIN（4-6 位數字）</label>
-          <input id="setup-pin" type="number" inputmode="numeric" maxlength="6" placeholder="例：1234">
+          <input id="setup-pin" type="number" inputmode="numeric" maxlength="6" placeholder="例：1234" style="padding:13px 16px;font-size:16px;">
         </div>
         <div class="form-group">
           <label>確認 PIN</label>
-          <input id="setup-pin2" type="number" inputmode="numeric" maxlength="6" placeholder="再輸入一次">
+          <input id="setup-pin2" type="number" inputmode="numeric" maxlength="6" placeholder="再輸入一次" style="padding:13px 16px;font-size:16px;">
         </div>
         <button class="btn btn-primary" onclick="doSetup()">設定 PIN</button>
         <div id="setup-error" class="error"></div>
@@ -85,12 +82,13 @@
       <div id="login-section" style="display:none;">
         <div class="form-group">
           <label>管理員 PIN</label>
-          <input id="login-pin" type="number" inputmode="numeric" maxlength="6" placeholder="輸入 PIN" onkeydown="if(event.key==='Enter')doLogin()">
+          <input id="login-pin" type="number" inputmode="numeric" maxlength="6" placeholder="輸入 PIN" style="padding:13px 16px;font-size:16px;" onkeydown="if(event.key==='Enter')doLogin()">
         </div>
         <button class="btn btn-primary" onclick="doLogin()">進入管理</button>
         <div id="login-error" class="error"></div>
       </div>
     </div>
+    <div style="color:var(--text2);font-size:11px;margin-top:6px;">收容組管理 · admin v0.1.0-alpha</div>
   </div>
 </div>
 
@@ -198,6 +196,12 @@ async function init() {
     } else {
       document.getElementById('setup-section').style.display = 'none';
       document.getElementById('login-section').style.display = '';
+      const savedPin = sessionStorage.getItem('admin_pin');
+      if (savedPin) {
+        const check = await fetch('/admin/accounts', { headers: {'X-Admin-PIN': savedPin} });
+        if (check.ok) { _adminPin = savedPin; showMain(); return; }
+        sessionStorage.removeItem('admin_pin');
+      }
     }
   } catch(e) {
     document.getElementById('login-error').textContent = '無法連線至伺服器';
@@ -214,6 +218,7 @@ async function doSetup() {
   const d = await r.json();
   if (d.ok) {
     _adminPin = pin;
+    sessionStorage.setItem('admin_pin', pin);
     showMain();
   } else {
     err.textContent = d.reason || '設定失敗';
@@ -224,10 +229,10 @@ async function doLogin() {
   const pin = document.getElementById('login-pin').value.trim();
   const err = document.getElementById('login-error');
   if (!pin) { err.textContent = '請輸入 PIN'; return; }
-  // 測試 PIN 是否正確
   const r = await fetch('/admin/accounts', { headers: {'X-Admin-PIN': pin} });
   if (r.ok) {
     _adminPin = pin;
+    sessionStorage.setItem('admin_pin', pin);
     showMain();
   } else {
     err.textContent = 'PIN 不正確';
@@ -236,6 +241,7 @@ async function doLogin() {
 
 function doLogout() {
   _adminPin = '';
+  sessionStorage.removeItem('admin_pin');
   document.getElementById('page-main').classList.remove('active');
   document.getElementById('page-login').classList.add('active');
   document.getElementById('login-pin').value = '';
@@ -399,6 +405,5 @@ async function resetPin() {
 
 init();
 </script>
-<div style="text-align:center;padding:16px;font-size:11px;color:var(--text2);">收容組管理 · admin v0.1.0-alpha</div>
 </body>
 </html>
