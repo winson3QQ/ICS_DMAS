@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.4.1-alpha';</script>
+<script>const PWA_VERSION='v0.4.2-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -226,7 +226,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div class="login-wrap">
     <div class="login-icon-wrap"><img src="badge.png" alt="Taiwan Civil Defense" style="width:108px;height:108px;border-radius:18px;"></div>
     <div class="login-title">醫療組管理系統</div>
-    <div class="login-sub">Medical Team PWA · 離線優先</div>
+    <div class="login-sub">Medical Team PWA · 離線優先 · <span style="color:var(--red);font-weight:700;">ALPHA</span></div>
     <div class="login-card">
       <div class="login-notice" id="login-notice" style="display:none;"></div>
       <div class="login-field">
@@ -237,11 +237,18 @@ input,select,textarea{font-family:inherit;font-size:16px;}
           oninput="this.value=this.value.replace(/\D/g,'')"
           onkeydown="if(event.key==='Enter')handleLogin()">
       </div>
+      <!-- 展示模式（GitHub Pages） -->
+      <div id="demo-btn-section" style="display:none;margin-bottom:12px;">
+        <button class="login-btn" style="background:#2E7D32;" onclick="enterDemoMode('組長')">🟢 展示模式（組長）</button>
+        <div style="height:6px;"></div>
+        <button class="login-btn" style="background:var(--primary);" onclick="enterDemoMode('檢傷官')">🔴 展示模式（檢傷官）</button>
+        <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">GitHub Pages 展示用，資料僅存於本機瀏覽器</div>
+      </div>
       <button class="login-btn" onclick="handleLogin()">登入</button>
       <div class="login-warn" id="login-warn"></div>
     </div>
     <button class="login-admin-btn" onclick="openAdminPanel()">⚙️ 帳號管理</button>
-    <div class="login-version" id="login-version-str">醫療組 PWA · 規格 v0.4</div>
+    <div class="login-version" id="login-version-str">醫療組 PWA</div>
   </div>
 </div>
 
@@ -562,6 +569,9 @@ async function seedAccounts() {
 async function initLogin() {
   const vEl = document.getElementById('login-version-str');
   if (vEl) vEl.textContent = `醫療組 PWA ${PWA_VERSION} · 規格 v0.4`;
+  // 展示模式偵測
+  const _isDemo = location.hostname.includes('github.io') || location.hostname.includes('localhost') || location.search.includes('demo=1');
+  if (_isDemo) { const demoEl = document.getElementById('demo-btn-section'); if (demoEl) demoEl.style.display = 'block'; }
   await seedAccounts();
   const saved = localStorage.getItem('med_session');
   if (saved) {
@@ -572,6 +582,22 @@ async function initLogin() {
     } catch(e) {}
     localStorage.removeItem('med_session');
   }
+}
+
+async function enterDemoMode(role) {
+  const name = role === '組長' ? 'demo_leader' : 'demo_triage';
+  _state.currentAccountId = 'demo';
+  _state.role = role;
+  _state.operatorName = name;
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
+  document.getElementById('hdr-role').innerHTML = `<span>${role}・${name}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">展示 ${loginTime}</span>`;
+  startIdleTimer();
+  _state.currentTab = role === '組長' ? 'dashboard' : 'intake';
+  document.querySelectorAll('.tab-item').forEach(el => el.classList.toggle('active', el.dataset.tab === _state.currentTab));
+  await loadPatients();
+  renderCurrentTab();
 }
 
 async function handleLogin() {
@@ -768,6 +794,8 @@ function localISO(d) {
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+// 統一時間格式（與 shelter 一致：M/D HH:MM）
+function fmtDT(iso){if(!iso)return '—';const d=new Date(iso);if(isNaN(d))return '—';return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
 
 /* ════════════════════════════════════════════════════════════════
    TAB ROUTING
