@@ -1,6 +1,6 @@
 #!/bin/bash
 # ICS_DMAS 本機模擬啟動腳本（Mac / Phase 1）
-# 啟動：指揮部後端 :8000 + 收容組 Pi 伺服器 :8765/:8766
+# 啟動：指揮部 :8000 + 收容組 :8765/:8766 + 醫療組 :8775/:8776
 # 用法：chmod +x start_mac.sh && ./start_mac.sh
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
@@ -12,10 +12,11 @@ TS_IP=$(tailscale ip 2>/dev/null | head -1 || echo "")
 
 echo "======================================"
 echo " ICS_DMAS 本機模擬啟動（Phase 1）"
-echo " 指揮部 → http://127.0.0.1:8000"
+echo " 指揮部    → http://127.0.0.1:8000"
 echo " 收容組 Pi → ws://127.0.0.1:8765"
+echo " 醫療組 Pi → ws://127.0.0.1:8775"
 if [ -n "$LAN_IP" ]; then
-  echo " LAN IP → $LAN_IP（同 WiFi 平板用此 IP）"
+  echo " LAN IP    → $LAN_IP（同 WiFi 平板用此 IP）"
 fi
 if [ -n "$TS_IP" ]; then
   echo " Tailscale → $TS_IP（走大網情境）"
@@ -34,6 +35,8 @@ kill_port() {
 kill_port 8000
 kill_port 8765
 kill_port 8766
+kill_port 8775
+kill_port 8776
 
 sleep 0.5
 
@@ -48,7 +51,6 @@ if [ ! -d ".venv" ]; then
   .venv/bin/pip install -q -r requirements.txt
 fi
 
-# COMMAND_URL 留空（指揮部就是本機，收容組 Pi 推送至此）
 COMMAND_URL="" \
   .venv/bin/uvicorn main:app --app-dir src \
   --host 0.0.0.0 \
@@ -58,22 +60,30 @@ COMMAND_URL="" \
 COMMAND_PID=$!
 echo "[OK] 指揮部後端 PID $COMMAND_PID"
 
-# ── 收容組 Pi 伺服器（Node.js）────────────
-echo ""
-echo "[啟動] 收容組 Pi 伺服器 :8765/:8766 ..."
-cd "$REPO/shelter-pwa"
-
+# ── Node.js 依賴安裝（根目錄）────────────
+cd "$REPO"
 if [ ! -d "node_modules" ]; then
   echo "[安裝] npm install ..."
   npm install --quiet
 fi
 
-# COMMAND_URL 指向本機指揮部
+# ── 收容組 Pi 伺服器 ────────────────────
+echo ""
+echo "[啟動] 收容組 Pi 伺服器 :8765/:8766 ..."
 COMMAND_URL="http://127.0.0.1:8000" \
-  node src/shelter_ws_server.js \
+  node ics_ws_server.js --unit shelter \
   > /tmp/ics_shelter.log 2>&1 &
 SHELTER_PID=$!
 echo "[OK] 收容組 Pi PID $SHELTER_PID"
+
+# ── 醫療組 Pi 伺服器 ────────────────────
+echo ""
+echo "[啟動] 醫療組 Pi 伺服器 :8775/:8776 ..."
+COMMAND_URL="http://127.0.0.1:8000" \
+  node ics_ws_server.js --unit medical \
+  > /tmp/ics_medical.log 2>&1 &
+MEDICAL_PID=$!
+echo "[OK] 醫療組 Pi PID $MEDICAL_PID"
 
 # ── 等待服務就緒 ───────────────────────────
 echo ""
@@ -97,33 +107,38 @@ echo " API 文件：    http://127.0.0.1:8000/docs"
 echo ""
 echo " ── 情境 1A：同一 WiFi ──"
 if [ -n "$LAN_IP" ]; then
-  echo "   PWA 網址：  http://$LAN_IP:8766/shelter_pwa.html"
-  echo "   Pi URL：    ws://$LAN_IP:8765"
+  echo "   收容 PWA：  http://$LAN_IP:8766/shelter_pwa.html"
+  echo "   收容 Pi ：  ws://$LAN_IP:8765"
+  echo "   醫療 PWA：  http://$LAN_IP:8776/medical_pwa.html"
+  echo "   醫療 Pi ：  ws://$LAN_IP:8775"
 else
   echo "   （LAN IP 未偵測，請手動執行 ifconfig 確認）"
 fi
 echo ""
 if [ -n "$TS_IP" ]; then
   echo " ── 情境 1B：走大網（Tailscale）──"
-  echo "   PWA 網址：  http://$TS_IP:8766/shelter_pwa.html"
-  echo "   Pi URL：    ws://$TS_IP:8765"
+  echo "   收容 PWA：  http://$TS_IP:8766/shelter_pwa.html"
+  echo "   收容 Pi ：  ws://$TS_IP:8765"
+  echo "   醫療 PWA：  http://$TS_IP:8776/medical_pwa.html"
+  echo "   醫療 Pi ：  ws://$TS_IP:8775"
 else
   echo " ── 情境 1B：走大網 ──"
   echo "   Tailscale 未安裝。安裝後重啟腳本可自動偵測 IP。"
-  echo "   或使用路由器 port-forward 8765/8766/8000 並使用公網 IP。"
+  echo "   或使用路由器 port-forward 8765/8766/8775/8776/8000 並使用公網 IP。"
 fi
 echo ""
 echo " 日誌："
 echo "   指揮部：tail -f /tmp/ics_command.log"
 echo "   收容組：tail -f /tmp/ics_shelter.log"
+echo "   醫療組：tail -f /tmp/ics_medical.log"
 echo ""
-echo " 停止：kill $COMMAND_PID $SHELTER_PID"
+echo " 停止：kill $COMMAND_PID $SHELTER_PID $MEDICAL_PID"
 echo "======================================"
 
 # 開啟瀏覽器（指揮官版儀表板）
 open "http://127.0.0.1:8000/static/commander_dashboard.html" 2>/dev/null || true
 
 # 保持前景，Ctrl+C 一起結束
-trap "echo ''; echo '[停止] 結束所有服務...'; kill $COMMAND_PID $SHELTER_PID 2>/dev/null; exit 0" INT
+trap "echo ''; echo '[停止] 結束所有服務...'; kill $COMMAND_PID $SHELTER_PID $MEDICAL_PID 2>/dev/null; exit 0" INT
 echo "[按 Ctrl+C 停止所有服務]"
 wait

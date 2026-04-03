@@ -1,20 +1,54 @@
 #!/usr/bin/env node
 /* ════════════════════════════════════════════════════════════════════
-   醫療組 PWA — medical_ws_server.js
-   Pi WebSocket 伺服器（L2 跨裝置即時同步 + 任務帳號驗證）
-   架構完全參照收容組 shelter_ws_server.js
+   ICS DMAS — ics_ws_server.js v1.0.0
+   統一 Pi WebSocket 伺服器（shelter / medical）
 
-   預設 Port：
-     8775 — WebSocket（資料同步 + 驗證）
-     8776 — HTTP（帳號管理 API）
+   用法：
+     node ics_ws_server.js --unit shelter
+     node ics_ws_server.js --unit medical
 
    依賴：
-     npm install ws better-sqlite3 express cors crypto
+     npm install ws better-sqlite3 express cors
 
    systemd 啟動範例：
-     ExecStart=/usr/bin/node /home/pi/medical_ws_server.js
+     ExecStart=/usr/bin/node /home/pi/ics_ws_server.js --unit shelter
    ════════════════════════════════════════════════════════════════════ */
 'use strict';
+
+/* ─── --unit 參數解析 + 組別配置 ─────────────────────────────────── */
+const UNIT_CONFIGS = {
+  shelter: {
+    wsPort: 8765, adminPort: 8766,
+    dbPath: './shelter-pwa/shelter_accounts.db',
+    publicDir: './shelter-pwa/public',
+    unitId: 'shelter', deviceId: 'shelter_pi',
+    logPrefix: 'Shelter',
+    pwaHtml: 'shelter_pwa.html',
+    roles: ['組長', '一般'],
+    defaultRole: '一般',
+    roleMigration: "UPDATE accounts SET role='一般' WHERE role IN ('人管','物管','環管')",
+    syncTables: ['persons', 'beds', 'resources', 'incidents', 'shifts'],
+  },
+  medical: {
+    wsPort: 8775, adminPort: 8776,
+    dbPath: './medical-pwa/medical_accounts.db',
+    publicDir: './medical-pwa/public',
+    unitId: 'medical', deviceId: 'medical_pi',
+    logPrefix: 'Medical',
+    pwaHtml: 'medical_pwa.html',
+    roles: ['組長', '檢傷官', '治療官', '後送官', '後勤官'],
+    defaultRole: '檢傷官',
+    roleMigration: null,
+    syncTables: ['patients', 'triages', 'incidents', 'shifts'],
+  },
+};
+
+const unitArg = process.argv.find((a, i) => i > 0 && process.argv[i - 1] === '--unit');
+if (!unitArg || !UNIT_CONFIGS[unitArg]) {
+  console.error(`用法: node ics_ws_server.js --unit <${Object.keys(UNIT_CONFIGS).join('|')}>`);
+  process.exit(1);
+}
+const cfg = UNIT_CONFIGS[unitArg];
 
 const WebSocket  = require('ws');
 const http       = require('http');
@@ -36,13 +70,13 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-const SERVER_VERSION = 'v0.1.0';
-log.info(`Medical WS Server ${SERVER_VERSION} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
+const SERVER_VERSION = 'v1.0.0';
+log.info(`${cfg.logPrefix} WS Server ${SERVER_VERSION} | unit=${unitArg} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
-const WS_PORT      = process.env.WS_PORT       || 8775;
-const ADMIN_PORT   = process.env.ADMIN_PORT    || 8776;
-const DB_PATH      = process.env.DB_PATH       || path.join(__dirname, 'medical_accounts.db');
+const WS_PORT      = process.env.WS_PORT       || cfg.wsPort;
+const ADMIN_PORT   = process.env.ADMIN_PORT    || cfg.adminPort;
+const DB_PATH      = process.env.DB_PATH       || path.resolve(cfg.dbPath);
 const COMMAND_URL  = process.env.COMMAND_URL   || '';   // 例：https://127.0.0.1:8000
 let   _commandUrl  = COMMAND_URL;
 const DELTA_LOG_MAX = 1000;
@@ -187,8 +221,8 @@ async function pushThreePassToCommand(lastSyncTs) {
 
   try {
     const res = await postJSON(`${target}/api/sync/push`, {
-      source_unit: 'medical', sync_start_ts: since,
-      device_id: 'medical_pi', snapshots, events, manual_records: [],
+      source_unit: cfg.unitId, sync_start_ts: since,
+      device_id: cfg.deviceId, snapshots, events, manual_records: [],
     }, 15_000);
     if (res.status >= 200 && res.status < 300) {
       const result = JSON.parse(res.body);
@@ -228,8 +262,7 @@ db.exec(`
     device_id   TEXT
   );
 
-  -- 遷移：舊的 4 角色（人管/物管/環管）統一歸為「一般」
-  UPDATE accounts SET role='一般' WHERE role IN ('人管','物管','環管');
+  -- 角色遷移（僅 shelter 需要）
 
   CREATE TABLE IF NOT EXISTS audit_log (
     id            TEXT PRIMARY KEY,
@@ -257,16 +290,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_login_failures_username ON login_failures(username);
 
-  -- v2.1: SNAPSHOT 表（供三 Pass 對齊用，儲存從各收容組推送的快照摘要）
+  -- v2.1: SNAPSHOT 表（供三 Pass 對齊用）
   CREATE TABLE IF NOT EXISTS snapshots (
     snapshot_uuid  TEXT PRIMARY KEY,
-    unit_id        TEXT NOT NULL DEFAULT 'medical',
+    unit_id        TEXT NOT NULL DEFAULT '${cfg.unitId}',
     source         TEXT NOT NULL DEFAULT 'pi_push',
     payload_json   TEXT NOT NULL,
     recv_at        TEXT NOT NULL,
     merged         INTEGER NOT NULL DEFAULT 0
   );
 `);
+
+// 角色遷移（依組別條件執行）
+if (cfg.roleMigration) db.exec(cfg.roleMigration);
 
 /* ─── v2.1：確保 config.last_sync_to_command 存在 ──────────────
    指揮部規格 §14.2：各組 Pi 記錄最後成功推送至指揮部的時間戳，
@@ -388,7 +424,7 @@ function getRecentDeltas(sinceISO) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   WebSocket 伺服器（Port 8765，支援 WSS/WS）
+   WebSocket 伺服器（支援 WSS/WS）
 ════════════════════════════════════════════════════════════════ */
 const wsRawServer = tlsOpts
   ? https.createServer(tlsOpts)
@@ -491,7 +527,7 @@ wss.on('connection', (ws, req) => {
       /* ── session_restore（刷新頁面後透明還原身份，不重新驗 PIN） ── */
       case 'session_restore': {
         const { username, role: rawRole, device_id } = msg;
-        const role = ['組長','一般'].includes(rawRole) ? rawRole : '一般';
+        const role = cfg.roles.includes(rawRole) ? rawRole : cfg.defaultRole;
         if (username && role) {
           const existing = clients.get(ws);
           clients.set(ws, { deviceId: device_id || ip, username, role, connectedAt: existing?.connectedAt || nowISO() });
@@ -509,8 +545,8 @@ wss.on('connection', (ws, req) => {
         break;
       }
 
-      /* ── v2.1: sync_push（網路恢復後，收容組推送完整記錄至 Pi）
-         §10.4：收容組 Pi 收到推送後：
+      /* ── v2.1: sync_push（網路恢復後，各組推送完整記錄至 Pi）
+         §10.4：Pi 收到推送後：
          1. 將記錄寫入 delta_log（供其他裝置 catchup）
          2. 廣播至所有已連線裝置
          3. 更新 last_sync_to_command
@@ -522,13 +558,13 @@ wss.on('connection', (ws, req) => {
         let snapshotsMerged = 0;
 
         // 將各 table 的記錄寫入 delta_log 並廣播
-        const SYNC_TABLES = ['persons','beds','resources','incidents','shifts'];
+        const SYNC_TABLES = cfg.syncTables;
         for (const table of SYNC_TABLES) {
           const records = tables?.[table] || [];
           for (const record of records) {
             if (!record || !record._id) continue;
             const delta = {
-              src: pushDeviceId || 'shelter_push',
+              src: pushDeviceId || `${cfg.unitId}_push`,
               table,
               action: 'upsert',
               record,
@@ -563,7 +599,7 @@ wss.on('connection', (ws, req) => {
               // 新快照：直接寫入
               db.prepare(`INSERT OR IGNORE INTO snapshots(snapshot_uuid,unit_id,source,payload_json,recv_at,merged)
                           VALUES(?,?,?,?,?,0)`)
-                .run(snap.snapshot_uuid, snap.unit_id || 'medical', 'pi_push',
+                .run(snap.snapshot_uuid, snap.unit_id || cfg.unitId, 'pi_push',
                     JSON.stringify(snap), nowISO());
               passOneResults.push({ uuid: snap.snapshot_uuid, action: 'inserted' });
             }
@@ -697,22 +733,21 @@ function isLoginLocked(username) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   HTTP Admin API（Port 8766）
+   HTTP Admin API
 ════════════════════════════════════════════════════════════════ */
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// 提供 public/ 下的靜態檔案（medical_pwa.html、sw.js、manifest.json、lib/）
-// 讓平板可直接用 http://<ip>:8776/medical_pwa.html 開啟 PWA
-const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+// 提供 public/ 下的靜態檔案（PWA HTML、sw.js、manifest.json、lib/）
+const PUBLIC_DIR = process.env.PUBLIC_DIR || path.resolve(cfg.publicDir);
 if (fs.existsSync(PUBLIC_DIR)) {
   app.use(express.static(PUBLIC_DIR));
   log.info(`[Static] 提供 PWA 靜態檔案：${PUBLIC_DIR}`);
 }
 
 app.get('/', (req, res) => {
-  const pwaPath = path.join(PUBLIC_DIR, 'medical_pwa.html');
+  const pwaPath = path.join(PUBLIC_DIR, cfg.pwaHtml);
   if (fs.existsSync(pwaPath)) {
     res.sendFile(pwaPath);
     return;
@@ -764,7 +799,7 @@ app.get('/admin/accounts', adminAuth, (req, res) => {
 app.post('/admin/accounts', adminAuth, async (req, res) => {
   const { username, role, pin, created_by } = req.body;
   if (!username || !role || !pin) return res.status(400).json({ ok: false, reason: '缺少必填欄位' });
-  if (!['組長','一般'].includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
+  if (!cfg.roles.includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
   if (!/^\d{4,6}$/.test(pin)) return res.status(400).json({ ok: false, reason: 'PIN 格式不符' });
   const existing = db.prepare('SELECT id FROM accounts WHERE username=?').get(username);
   if (existing) return res.status(400).json({ ok: false, reason: '帳號名稱已存在' });
@@ -811,7 +846,7 @@ app.delete('/admin/accounts/:username', adminAuth, (req, res) => {
 app.put('/admin/accounts/:username/role', adminAuth, (req, res) => {
   const { username } = req.params;
   const { role, updated_by } = req.body || {};
-  if (!['組長','一般'].includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
+  if (!cfg.roles.includes(role)) return res.status(400).json({ ok: false, reason: '角色不在允許清單' });
   const account = db.prepare('SELECT id FROM accounts WHERE username=?').get(username);
   if (!account) return res.status(404).json({ ok: false, reason: '帳號不存在' });
   db.prepare('UPDATE accounts SET role=? WHERE username=?').run(role, username);

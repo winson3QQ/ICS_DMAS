@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.4.6-alpha';</script>
+<script>const PWA_VERSION='v0.5.0-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -258,8 +258,8 @@ input,select,textarea{font-family:inherit;font-size:16px;}
         <button class="login-btn" style="background:var(--primary);" onclick="enterDemoMode('檢傷官')">🔴 展示模式（一般）</button>
         <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">GitHub Pages 展示用，資料僅存於本機瀏覽器</div>
       </div>
-      <button class="login-btn" onclick="handleLogin()">登入</button>
-      <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">帳號決定角色</div>
+      <button class="login-btn" id="login-main-btn" onclick="handleLogin()"><span id="login-btn-text">登入</span></button>
+      <div id="login-btn-desc" style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">帳號決定角色</div>
       <div class="login-warn" id="login-warn"></div>
     </div>
     <div class="login-version" id="login-version-str">醫療組 PWA</div>
@@ -323,7 +323,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div id="app-header">
     <div class="hdr-left">
       <div class="hdr-title"><svg width="20" height="20" viewBox="0 0 88 88" style="flex-shrink:0;"><path d="M34,4 h20 a3,3 0 0 1 3,3 v23 h23 a3,3 0 0 1 3,3 v20 a3,3 0 0 1 -3,3 h-23 v23 a3,3 0 0 1 -3,3 h-20 a3,3 0 0 1 -3,-3 v-23 h-23 a3,3 0 0 1 -3,-3 v-20 a3,3 0 0 1 3,-3 h23 v-23 a3,3 0 0 1 3,-3 z" fill="none" stroke="var(--primary)" stroke-width="6"/></svg>醫療組</div>
-      <div style="font-size:11px;color:var(--text3);" id="hdr-ws"></div>
+      <span id="sync-dot" title="同步狀態" style="font-size:11px;cursor:pointer;">⚫</span>
     </div>
     <div class="hdr-right">
       <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:var(--red-bg);color:var(--primary);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
@@ -590,8 +590,9 @@ async function initLogin() {
   const savedPiUrl = WsManager.getPiUrl();
   const piUrlInput = document.getElementById('med-pi-url-input');
   if (piUrlInput && savedPiUrl) piUrlInput.value = savedPiUrl;
-  // 連接 Pi WebSocket
-  WsManager.connect();
+  // 初始化同步 + 連接 Pi WebSocket
+  SyncManager.init();
+  WsManager.connect(null,'init');
   // 嘗試從快取自動登入
   const saved = localStorage.getItem('med_session');
   if (saved) {
@@ -744,78 +745,276 @@ function updateIdleHdr(secsLeft) {
   document.addEventListener(ev, ()=>{ if(!_state.idleWarning && _state.role) startIdleTimer(); }, { passive:true });
 });
 
-/* ════════════════════════════════════════════════════════════════
-   WEBSOCKET
-════════════════════════════════════════════════════════════════ */
-/* ── WsManager（參照 shelter 架構）── */
-const WsManager = (function(){
-  let _ws=null,_piUrl=null,_connected=false,_degraded=false,_reconnectTimer=null;
-  const RECONNECT_BASE=2000,RECONNECT_MAX=30000;
-  let _backoff=RECONNECT_BASE;
-
-  function getPiUrl(){return _piUrl||localStorage.getItem('med_pi_url')||null;}
-  function setPiUrl(url){_piUrl=url;localStorage.setItem('med_pi_url',url);}
-
-  function updateLoginStatus(state){
-    const el=document.getElementById('login-pi-status');if(!el)return;
-    const hint=document.getElementById('login-status-hint');
-    if(state==='ok'){el.textContent='🟢 伺服器已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';if(hint)hint.style.display='none';}
-    else if(state==='pending'){el.textContent='🟡 伺服器連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';if(hint)hint.style.display='';}
-    else if(state==='no_url'){el.textContent='🔴 未設定伺服器 URL';el.style.background='var(--red-bg)';el.style.color='var(--red)';if(hint)hint.style.display='';}
-    else{el.textContent='🔴 伺服器離線';el.style.background='var(--red-bg)';el.style.color='var(--red)';if(hint)hint.style.display='';}
+/* ══ SyncManager ════════════════════════════════════════════════ */
+const SyncManager = (() => {
+  const CHANNEL='medical-sync-v1', TABLES=['patients','triages','incidents','shifts'], DEVICE_KEY='med_device_id';
+  let _bc=null, _deviceId=null, _log=[];
+  function deviceId(){if(!_deviceId){_deviceId=localStorage.getItem(DEVICE_KEY);if(!_deviceId){_deviceId='dev-'+Math.random().toString(36).slice(2,9);localStorage.setItem(DEVICE_KEY,_deviceId);}}return _deviceId;}
+  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','伺服器已連線'],pending:['🟡','伺服器連線中…'],off:['⚫','伺服器離線']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
+  function broadcast(table,record){if(!_bc||!record)return;const delta={src:deviceId(),table,action:'upsert',record:JSON.parse(JSON.stringify(record)),ts:record.updated_at||record.timestamp||new Date().toISOString(),sent_at:new Date().toISOString()};_bc.postMessage(delta);_logDelta(delta);updateDot('ok');}
+  async function applyDelta(delta){
+    if(delta.src===deviceId())return;const{table,record}=delta;if(!TABLES.includes(table)||!record)return;_logDelta(delta);
+    try{const tbl=db[table],existing=record._id?await tbl.get(record._id):null,incomingTs=delta.ts||'',existingTs=existing?.updated_at||existing?.timestamp||'';if(!existing||incomingTs>existingTs)await tbl.put(record);await renderCurrentTab();}catch(e){console.warn('[Sync] applyDelta:',e);}
+    updateDot('ok');
   }
-
-  function connect(){
-    const url=getPiUrl();
-    if(!url){_degraded=true;setWsStatus('離線','rgba(255,255,255,.5)');updateLoginStatus('no_url');return;}
-    updateLoginStatus('pending');
-    try{
-      _ws=new WebSocket(url);
-      _ws.onopen=()=>{_connected=true;_degraded=false;_backoff=RECONNECT_BASE;setWsStatus('●','#69F0AE');updateLoginStatus('ok');};
-      _ws.onclose=()=>{_connected=false;setWsStatus('○','rgba(255,255,255,.5)');updateLoginStatus('offline');_reconnectTimer=setTimeout(connect,_backoff);_backoff=Math.min(_backoff*1.5,RECONNECT_MAX);};
-      _ws.onerror=()=>{_connected=false;updateLoginStatus('offline');};
-      _ws.onmessage=e=>{try{handleWsMsg(JSON.parse(e.data));}catch(_){}};
-    }catch(_){_degraded=true;updateLoginStatus('offline');}
+  function _logDelta(delta){_log.unshift({...delta,logged_at:new Date().toISOString()});if(_log.length>500)_log.length=500;}
+  async function exportDelta(){
+    const since=+(localStorage.getItem('med_last_export')||0),sinceISO=new Date(since).toISOString();
+    const [patients,triages,incidents,shifts]=await Promise.all([
+      db.patients.filter(p=>(p.updated_at||'')>=sinceISO).toArray(),
+      db.triages.filter(t=>(t.triage_at||'')>=sinceISO).toArray(),
+      db.incidents.filter(i=>(i.opened_at||'')>=sinceISO).toArray(),
+      db.shifts.filter(s=>(s.started_at||'')>=sinceISO).toArray(),
+    ]);
+    const payload={format:'medical-peer-delta-v1',exported_at:new Date().toISOString(),since:sinceISO,device_id:deviceId(),tables:{patients,triages,incidents,shifts}};
+    localStorage.setItem('med_last_export',Date.now());return payload;
   }
-
-  function authenticate(username,pin){
-    return new Promise((resolve,reject)=>{
-      if(!_ws||_ws.readyState!==WebSocket.OPEN)return reject(new Error('伺服器未連線'));
-      const handler=e=>{
-        try{const msg=JSON.parse(e.data);
-          if(msg.type==='auth_result'){
-            _ws.removeEventListener('message',handler);
-            if(msg.ok)resolve(msg);else reject(new Error(msg.reason||'驗證失敗'));
-          }
-        }catch(_){}
-      };
-      _ws.addEventListener('message',handler);
-      _ws.send(JSON.stringify({type:'auth',username,pin:pin,device_id:'med-'+Math.random().toString(36).slice(2,8)}));
-      setTimeout(()=>{_ws.removeEventListener('message',handler);reject(new Error('驗證逾時'));},8000);
-    });
+  async function importDelta(payload){
+    if(payload?.format!=='medical-peer-delta-v1')throw new Error('格式不符');
+    let count=0;
+    for(const table of TABLES){const records=payload.tables?.[table]||[];for(const record of records){if(!record._id)continue;const existing=await db[table].get(record._id).catch(()=>null);const inTs=record.updated_at||record.timestamp||record.opened_at||'';const exTs=existing?.updated_at||existing?.timestamp||existing?.opened_at||'';if(!existing||inTs>exTs){await db[table].put(record);count++;}}}
+    return count;
   }
-
-  function sendDelta(table,record){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'delta',table,action:'upsert',record,ts:record.updated_at||new Date().toISOString()}));}
-
-  return{
-    connect,authenticate,sendDelta,getPiUrl,setPiUrl,
-    isConnected(){return _connected;},
-    isDegraded(){return _degraded||!_connected;},
-  };
+  function init(){
+    try{_bc=new BroadcastChannel(CHANNEL);_bc.onmessage=(ev)=>applyDelta(ev.data);_bc.onmessageerror=e=>console.warn('[Sync] BC err:',e);}
+    catch(e){console.warn('[Sync] BC not available:',e);}
+  }
+  return{init,broadcast,exportDelta,importDelta,deviceId,_applyExternalDelta:applyDelta};
 })();
 
-function saveMedPiUrl(){const val=document.getElementById('med-pi-url-input')?.value.trim(),sEl=document.getElementById('med-pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：wss://192.168.100.30:8775';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，連線中…';WsManager.connect();}
-
-function setWsStatus(sym, color) {
-  const el = document.getElementById('hdr-ws');
-  if (el) { el.textContent = `WS ${sym}`; el.style.color = color; }
+async function syncAfterWrite(table,idOrRecord){
+  try{let record=idOrRecord;if(typeof idOrRecord==='number'||typeof idOrRecord==='string')record=await db[table].get(idOrRecord);if(record)SyncManager.broadcast(table,record);}catch(e){}
 }
 
-function handleWsMsg(msg) {
-  if(msg.type==='catchup_data'&&Array.isArray(msg.deltas)){
-    // 未來處理 Pi 推送的同步訊息
+/* ══ WsManager ══════════════════════════════════════════════════ */
+// Client log：localStorage.setItem('ics_log_level','debug') 啟用詳細 log
+// 層級：error=0 warn=1 info=2 debug=3（預設 debug）
+const _wsLog = (()=>{
+  const LEVELS={error:0,warn:1,info:2,debug:3};
+  const level=()=>LEVELS[localStorage.getItem('ics_log_level')||'debug']??3;
+  const _out=(lv,pfx,args)=>{const msg=pfx+args.map(a=>typeof a==='object'?JSON.stringify(a):String(a)).join(' ');if(window._dbgLog)window._dbgLog(lv,msg);};
+  return{
+    error:(...a)=>{if(level()>=0){console.error('[WS]',...a);_out('E','[WS] ',a);}},
+    warn: (...a)=>{if(level()>=1){console.warn ('[WS]',...a);_out('W','[WS] ',a);}},
+    info: (...a)=>{if(level()>=2){console.log  ('[WS]',...a);_out('I','[WS] ',a);}},
+    debug:(...a)=>{if(level()>=3){console.log  ('[WS:D]',...a);_out('D','[WS:D] ',a);}},
+  };
+})();
+const WsManager = (function(){
+  'use strict';
+  let _ws=null, _piUrl=null, _piTimeOffset=0, _connected=false, _degraded=false;
+  let _authHandler=null, _reconnectTimer=null, _timeSyncTimer=null, _backoffMs=2000;
+  let _connectTimer=null;
+  let _connectedAt=0;
+  let _networkOffline=false;
+  let _pendingSessionRestore=null;
+  const RECONNECT_BASE=2000, RECONNECT_MAX=30000, TIME_SYNC_INTERVAL=5*60*1000, CONNECT_TIMEOUT=2000;
+  return{
+    isDegraded(){return _degraded;}, isConnected(){return _connected;},
+    markPending(){_updateDot('pending');_updateLoginStatus('pending');},
+    queueSessionRestore(username,role){_pendingSessionRestore={username,role};},
+    flushSessionRestore(){
+      if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN||!_pendingSessionRestore)return;
+      _ws.send(JSON.stringify({type:'session_restore',username:_pendingSessionRestore.username,role:_pendingSessionRestore.role,device_id:SyncManager.deviceId()}));
+      _wsLog.info('[WS] Session restore flushed (already connected)');
+      _pendingSessionRestore=null;
+    },
+    piNow(){return new Date(Date.now()+_piTimeOffset).toISOString();},
+    setPiUrl(url){_piUrl=url;localStorage.setItem('med_pi_url',url);},
+    getPiUrl(){if(!_piUrl)_piUrl=localStorage.getItem('med_pi_url')||'';return _piUrl;},
+    connect(onAuth, source='unknown'){
+      if(_ws&&(_ws.readyState===WebSocket.CONNECTING||_ws.readyState===WebSocket.OPEN)){
+        _wsLog.debug('connect() skipped — WS already active, readyState='+_ws.readyState);return;
+      }
+      _wsLog.info('connect() called from: '+source);
+      if(onAuth!==undefined)_authHandler=onAuth;
+      const url=this.getPiUrl();if(!url){this._enterDegraded('未設定伺服器 URL');return;}
+      if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws=null;}
+      _connected=false;
+      _wsLog.info('connecting to', url);
+      if(!_networkOffline){_updateDot('pending');_updateLoginStatus('pending');}
+      const w=new WebSocket(url+'?src='+encodeURIComponent(source));
+      _ws=w;
+      if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+      _connectTimer=setTimeout(()=>{
+        if(_ws!==w)return;
+        _connectTimer=null;
+        _wsLog.warn('connect timeout');
+        _ws=null;w.onopen=null;w.onclose=null;w.onerror=null;w.onmessage=null;
+        _updateDot('pending');_updateLoginStatus('pending');
+        _scheduleReconnect();
+      },CONNECT_TIMEOUT);
+      w.onopen=()=>{
+        if(_ws!==w)return;
+        clearTimeout(_connectTimer);_connectTimer=null;
+        _connected=true;_degraded=false;_connectedAt=Date.now();_networkOffline=false;
+        _backoffMs=RECONNECT_BASE;
+        _wsLog.info('connected ✓ (source='+source+')');
+        _ws.send(JSON.stringify({type:'debug_ping',source,device_id:SyncManager.deviceId()}));
+        if(_pendingSessionRestore){
+          _ws.send(JSON.stringify({type:'session_restore',username:_pendingSessionRestore.username,role:_pendingSessionRestore.role,device_id:SyncManager.deviceId()}));
+          _pendingSessionRestore=null;
+        }
+        _updateDot('ok');_updateLoginStatus('ok');
+        this._startTimeSync();this._requestCatchup();
+      };
+      w.onmessage=(ev)=>{if(_ws!==w)return;let msg;try{msg=JSON.parse(ev.data);}catch{return;}this._handleMsg(msg);};
+      w.onclose=(code,reason)=>{
+        if(_ws!==w)return;
+        clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
+        _wsLog.warn(`ws closed code=${code} reason=${reason||''}`);
+        const uiState=navigator.onLine===false?'offline':'pending';
+        if(_connected){_connected=false;_updateDot(navigator.onLine===false?'off':'pending');_updateLoginStatus(uiState);_scheduleReconnect();}
+        else if(!_degraded){_updateLoginStatus(uiState);_scheduleReconnect();}
+      };
+      w.onerror=(e)=>{
+        if(_ws!==w)return;
+        clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
+        _wsLog.warn('ws onerror',e&&e.message?e.message:'');
+        if(_connected){_connected=false;}
+        const uiState=navigator.onLine===false?'offline':'pending';
+        _updateDot(navigator.onLine===false?'off':'pending');_updateLoginStatus(uiState);
+        _scheduleReconnect();
+      };
+    },
+    authenticate(username,pin){
+      if(!_connected||!_ws)return Promise.reject(new Error('伺服器未連線'));
+      return new Promise((resolve,reject)=>{
+        const timeout=setTimeout(()=>reject(new Error('Pi 驗證逾時')),8000);
+        this._authHandler=(msg)=>{if(msg.type==='auth_result'){clearTimeout(timeout);this._authHandler=null;if(msg.ok)resolve(msg);else reject(new Error(msg.reason||'驗證失敗'));}};
+        _ws.send(JSON.stringify({type:'auth',username,pin,device_id:SyncManager.deviceId()}));
+      });
+    },
+    sendDelta(table,record){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'delta',src:SyncManager.deviceId(),table,action:'upsert',record,ts:record.updated_at||record.timestamp||new Date().toISOString()}));},
+    sendAuditEvent(action,detail){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'audit_event',action,operator_name:sessionStorage.getItem('med_session_username')||'未知',device_id:SyncManager.deviceId(),session_id:sessionStorage.getItem('med_session_id')||'',detail}));},
+    async pushRecoveryData(){
+      if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)throw new Error('伺服器未連線');
+      const since=localStorage.getItem('med_last_sync_ts')||'1970-01-01T00:00:00.000Z';
+      const TABLES=['patients','triages','incidents','shifts'];
+      const tables={};let totalCount=0;
+      for(const table of TABLES){
+        const records=await db[table].filter(r=>(r.updated_at||r.timestamp||r.opened_at||'')>=since).toArray();
+        tables[table]=records;totalCount+=records.length;
+      }
+      const snapshots=await db.snapshots.orderBy('timestamp').filter(s=>s.source==='qr_generated').toArray();
+      return new Promise((resolve,reject)=>{
+        const timeout=setTimeout(()=>reject(new Error('sync_push 無回應逾時')),15000);
+        const prevHandler=this._syncAckHandler;
+        this._syncAckHandler=(msg)=>{
+          if(msg.type==='sync_ack'){clearTimeout(timeout);this._syncAckHandler=null;localStorage.setItem('med_last_sync_ts',msg.last_sync_to_command||new Date().toISOString());resolve(totalCount);}
+        };
+        _ws.send(JSON.stringify({type:'sync_push',sync_start_ts:since,tables,snapshots,device_id:SyncManager.deviceId()}));
+      });
+    },
+    _syncAckHandler:null,
+    _handleMsg(msg){
+      if(this._authHandler)this._authHandler(msg);
+      if(this._syncAckHandler)this._syncAckHandler(msg);
+      switch(msg.type){
+        case 'delta':SyncManager._applyExternalDelta(msg);break;
+        case 'catchup_resp':if(Array.isArray(msg.deltas))msg.deltas.forEach(d=>SyncManager._applyExternalDelta(d));if(msg.pi_time)_syncTime(msg.pi_time);break;
+        case 'time_sync_resp':if(msg.pi_time)_syncTime(msg.pi_time);break;
+        case 'pong':if(msg.pi_time)_syncTime(msg.pi_time);break;
+        case 'welcome':if(msg.pi_time)_syncTime(msg.pi_time);if(msg.last_sync_to_command)localStorage.setItem('med_last_pi_sync',msg.last_sync_to_command);break;
+        case 'sync_ack':/* handled by _syncAckHandler */break;
+      }
+    },
+    _enterDegraded(reason){
+      console.warn('[WsManager] Degraded:',reason);_degraded=true;_connected=false;_updateDot('off');
+      _updateLoginStatus('off', reason);
+    },
+    _startTimeSync(){if(_timeSyncTimer)clearInterval(_timeSyncTimer);_timeSyncTimer=setInterval(()=>{if(_connected&&_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'time_sync_req',device_id:SyncManager.deviceId()}));},TIME_SYNC_INTERVAL);},
+    _requestCatchup(){const since=localStorage.getItem('med_last_sync_ts')||'1970-01-01T00:00:00.000Z';if(_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'catchup_req',since}));},
+  };
+  function _syncTime(piIso){const piMs=new Date(piIso).getTime(),localMs=Date.now();_piTimeOffset=piMs-localMs;}
+  function _scheduleReconnect(){
+    if(_reconnectTimer)return;
+    _wsLog.debug(`scheduleReconnect in ${_backoffMs}ms`);
+    _reconnectTimer=setTimeout(()=>{
+      _reconnectTimer=null;
+      _updateLoginStatus('pending');
+      WsManager.connect(null,'backoff');
+      _backoffMs=Math.min(_backoffMs*2, RECONNECT_MAX);
+    }, _backoffMs);
   }
-}
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState!=='visible')return;
+    const rs=_ws?_ws.readyState:null;
+    _wsLog.debug('visibilitychange → visible, readyState='+rs);
+    if(rs===WebSocket.OPEN){
+      if(Date.now()-_connectedAt<2000){_wsLog.debug('visibilitychange: WS just connected (<2s), skipping force-reconnect');return;}
+      const dead=_ws;_ws=null;dead.onopen=null;dead.onclose=null;dead.onerror=null;dead.onmessage=null;
+      if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+      _connected=false;_backoffMs=RECONNECT_BASE;
+      _updateDot('off');_updateLoginStatus('pending');
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},100);
+    } else if(rs===WebSocket.CONNECTING){
+      _wsLog.debug('visibilitychange: WS still CONNECTING, letting iOS finish TLS');
+    } else {
+      _wsLog.debug('visibilitychange: WS null/CLOSED → scheduling reconnect');
+      if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+      _backoffMs=RECONNECT_BASE;
+      _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'visibilitychange');},100);
+    }
+  });
+  window.addEventListener('online',()=>{
+    _wsLog.info('network online — attempting reconnect');
+    if(_connected||(_ws&&_ws.readyState<=1))return;
+    _networkOffline=false;
+    if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+    _backoffMs=RECONNECT_BASE;
+    _updateDot('pending');_updateLoginStatus('pending');
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'online');},300);
+  });
+  window.addEventListener('offline',()=>{
+    _wsLog.warn('network offline — marking connection dead');
+    if(_connectTimer){clearTimeout(_connectTimer);_connectTimer=null;}
+    if(_reconnectTimer){clearTimeout(_reconnectTimer);_reconnectTimer=null;}
+    if(_ws){_ws.onopen=null;_ws.onclose=null;_ws.onerror=null;_ws.onmessage=null;_ws=null;}
+    _connected=false;_networkOffline=true;_backoffMs=RECONNECT_BASE;
+    _updateDot('off');_updateLoginStatus('offline');
+    _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'offline-retry');},_backoffMs);
+  });
+  function _updateDot(state){
+    const dot=document.getElementById('sync-dot');
+    const prev=dot?dot.textContent:'(no-dot)';
+    const caller=(new Error().stack||'').split('\n').slice(1,3).map(s=>s.trim()).join(' | ');
+    _wsLog.debug(`[dot] ${prev} → ${state} | ${caller}`);
+    if(!dot)return;
+    const MAP={ok:['🟢','伺服器已連線'],pending:['🟡','伺服器連線中…'],off:['⚫','伺服器離線']};
+    const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;
+  }
+  function _updateLoginStatus(state, detail){
+    const el=document.getElementById('login-pi-status');if(!el)return;
+    const btn=document.getElementById('login-btn-text'),desc=document.getElementById('login-btn-desc');
+    if(state==='ok'){
+      el.textContent='🟢 伺服器已連線';el.style.background='var(--green-bg)';el.style.color='var(--green)';
+      if(btn)btn.textContent='登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='none';
+    }else if(state==='pending'){
+      el.textContent='🟡 伺服器連線中…';el.style.background='var(--yellow-bg)';el.style.color='var(--orange)';
+      if(btn)btn.textContent='登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='';
+    }else if(state==='offline'){
+      el.textContent='⚫ 裝置離線';el.style.background='var(--gray-bg)';el.style.color='var(--text3)';
+      if(btn)btn.textContent='登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='';
+    }else{
+      el.textContent='🔴 伺服器離線'+(detail?' — '+detail:'');el.style.background='var(--red-bg)';el.style.color='var(--red)';
+      if(btn)btn.textContent='離線登入';if(desc)desc.style.display='none';
+      const hint=document.getElementById('login-status-hint');if(hint)hint.style.display='';
+    }
+  }
+  function _showDegradedBanner(){/* 保留空函式維持相容 */}
+  function _hideDegradedBanner(){/* 保留空函式維持相容 */}
+})();
+
+function saveMedPiUrl(){const val=document.getElementById('med-pi-url-input')?.value.trim(),sEl=document.getElementById('med-pi-url-status');if(!val||!val.startsWith('ws')){if(sEl)sEl.textContent='⚠️ 格式不符，範例：wss://192.168.100.30:8775';return;}WsManager.setPiUrl(val);if(sEl)sEl.textContent='✅ 已儲存，連線中…';WsManager.connect(null,'savePiUrl');}
+
+/* ── L1+L2 橋接 ── */
+const _origBroadcast=SyncManager.broadcast.bind(SyncManager);
+SyncManager.broadcast=function(table,record){_origBroadcast(table,record);WsManager.sendDelta(table,record);};
 
 /* ════════════════════════════════════════════════════════════════
    DB HELPERS
