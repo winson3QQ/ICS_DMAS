@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.22';</script>
+<script>const PWA_VERSION='v2.2.39';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -74,7 +74,7 @@
     .btn:active { opacity: .75; } .btn-primary { background: var(--primary); color: #fff; }
     .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
     .btn-danger { background: var(--red); color: #fff; }
-    .btn-ghost { background: transparent; color: var(--text2); padding: 8px 12px; }
+    .btn-ghost { background: transparent; color: var(--text2); }
     .btn-sm { padding: 6px 12px; font-size: 13px; border-radius: var(--r-sm); }
     .btn-icon { padding: 8px; border-radius: 50%; background: transparent; }
     .btn-full { width: 100%; }
@@ -178,7 +178,7 @@
     .status-registering { background: var(--blue-bg); color: var(--blue); }
     .status-pending { background: var(--yellow-bg); color: var(--orange); }
     .status-placed { background: var(--green-bg); color: var(--green); }
-    .status-exited { background: #F5F5F5; color: #999; }
+    .status-exited { background: var(--gray-bg); color: var(--gray); }
     .status-isolated { background: var(--red-bg); color: var(--red); }
     .stuck-flag { font-size: 10px; background: var(--red); color: #fff; padding: 2px 6px; border-radius: 4px; margin-left: 4px; }
     .intake-progress { margin-top: 8px; }
@@ -194,19 +194,19 @@
     .bed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; background: var(--surface); padding: 12px; border-radius: 0 0 var(--r-sm) var(--r-sm); box-shadow: var(--shadow-sm); }
     .bed-cell { height: 76px; border-radius: var(--r-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; gap: 4px; border: 2px solid transparent; transition: all .15s; }
     .bed-cell:active { transform: scale(.95); }
-    .bed-cell.empty { background: #F5F5F5; border-color: #DDD; } .bed-cell.assigned { background: #FFF3E0; border-color: #FF8F00; }
-    .bed-cell.occupied { background: var(--green-bg); border-color: #4CAF50; } .bed-cell.suspended { background: repeating-linear-gradient(135deg,#FFE0E0,#FFE0E0 4px,#FFCDD2 4px,#FFCDD2 8px); border-color: #E57373; opacity: 0.7; }
+    .bed-cell.empty { background: var(--gray-bg); border-color: var(--border); }
+    .bed-cell.occupied { background: var(--green-bg); border-color: var(--green); } .bed-cell.suspended { background: repeating-linear-gradient(135deg,var(--red-bg),var(--red-bg) 4px,#FFCDD2 4px,#FFCDD2 8px); border-color: var(--red); opacity: 0.5; }
     .bed-id { font-size: 13px; font-weight: 700; color: var(--text); }
     .bed-person { font-size: 11px; color: var(--text2); max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bed-status-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .bed-cell.empty .bed-status-dot { background: #CCC; } .bed-cell.assigned .bed-status-dot { background: #FF8F00; }
-    .bed-cell.occupied .bed-status-dot { background: var(--green); } .bed-cell.suspended .bed-status-dot { background: #E57373; }
+    .bed-cell.empty .bed-status-dot { background: var(--gray); }
+    .bed-cell.occupied .bed-status-dot { background: var(--green); } .bed-cell.suspended .bed-status-dot { background: var(--red); }
     .bed-legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface); border-radius: var(--r-sm); margin-bottom: 12px; position: sticky; top: 0; z-index: 10; box-shadow: var(--shadow-sm); }
     .bed-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
     .bed-legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
-    .bed-legend-dot.empty { background: #F5F5F5; border-color: #DDD; } .bed-legend-dot.assigned { background: #FFF3E0; border-color: #FF8F00; }
-    .bed-legend-dot.occupied { background: var(--green-bg); border-color: #4CAF50; } .bed-legend-dot.suspended { background: #FFCDD2; border-color: #E57373; }
-    .resource-card { background: var(--surface); border-radius: var(--r-sm); padding: 12px 14px; box-shadow: var(--shadow-sm); margin-bottom: 8px; }
+    .bed-legend-dot.empty { background: var(--gray-bg); border-color: var(--border); }
+    .bed-legend-dot.occupied { background: var(--green-bg); border-color: var(--green); } .bed-legend-dot.suspended { background: var(--red-bg); border-color: var(--red); }
+    .resource-card { background: var(--surface); border-radius: var(--r); padding: 12px 14px; box-shadow: var(--shadow-sm); margin-bottom: 8px; }
     .resource-header { display: flex; align-items: center; justify-content: space-between; }
     .resource-name { font-size: 15px; font-weight: 700; }
     .resource-qty { font-size: 22px; font-weight: 800; color: var(--primary); }
@@ -216,10 +216,10 @@
     .resource-progress { margin-top: 8px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
     .resource-progress .rp-fill { height: 100%; border-radius: 2px; transition: width .3s; }
     .resource-progress .rp-fill.ok { background: var(--green); } .resource-progress .rp-fill.low { background: var(--red); }
-    .incident-card { background: var(--surface); border-radius: var(--r-sm); padding: 12px 14px; box-shadow: var(--shadow-sm); margin-bottom: 8px; border-left: 4px solid; cursor: pointer; }
+    .incident-card { background: var(--surface); border-radius: var(--r); padding: 12px 14px; box-shadow: var(--shadow-sm); margin-bottom: 8px; border-left: 4px solid; cursor: pointer; }
     .incident-card.normal { border-left-color: var(--blue); } .incident-card.urgent { border-left-color: var(--red); }
     .incident-title { font-size: 15px; font-weight: 700; }
-    .incident-meta { font-size: 12px; color: var(--text2); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .incident-meta { font-size: 12px; color: var(--text2); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; }
     .incident-status { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
     .incident-status.open { background: var(--red-bg); color: var(--red); }
     .incident-status.handling { background: var(--yellow-bg); color: var(--orange); }
@@ -312,10 +312,10 @@
     .empty-state .es-sub { font-size: 13px; color: var(--text3); margin-top: 6px; }
     .person-detail-row { display: flex; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
     .person-detail-row:last-child { border-bottom: none; }
-    .pdr-label { font-size: 13px; font-weight: 600; color: var(--text2); min-width: 100px; }
+    .pdr-label { font-size: 14px; font-weight: 600; color: var(--text2); min-width: 100px; }
     .pdr-value { font-size: 14px; flex: 1; }
     .pdr-value.mono { font-family: monospace; font-size: 15px; }
-    .shift-card { background: var(--surface); border-radius: var(--r-sm); padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow-sm); }
+    .shift-card { background: var(--surface); border-radius: var(--r); padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow-sm); }
     .shift-meta { font-size: 12px; color: var(--text2); margin-top: 4px; }
     .snapshot-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
     .snapshot-item { background: var(--bg); border-radius: var(--r-sm); padding: 8px; }
@@ -1401,6 +1401,7 @@ async function confirmAllFamilySanGate(personId){
 
 async function openPersonIntakeFlow(personId){const p=await db.persons.getDecrypted(personId);if(!p)return;showIntakeStep(p,getPersonStepIndex(p));}
 async function openPersonModal(personId){const p=await db.persons.getDecrypted(personId);if(!p)return;showPersonDetail(p);}
+async function openPersonModalByDisplayId(displayId){const p=await db.persons.where('display_id').equals(displayId).first();if(!p){showToast('找不到 '+displayId);return;}const dp=await PersonCrypto.decryptPerson(p);showPersonDetail(dp);}
 
 async function showPersonDetail(p) {
   const cmistSummary=formatCmistSummary(p.cmist);
@@ -1425,14 +1426,19 @@ async function showPersonDetail(p) {
     <div class="person-detail-row"><span class="pdr-label">B軌同意</span><span class="pdr-value">${p.consent_ops===true?'✅ 同意':p.consent_ops===false?'❌ 拒絕':'—'}</span></div>
     <div class="person-detail-row"><span class="pdr-label">A軌同意</span><span class="pdr-value">${p.consent_welfare===true?'✅ 同意':p.consent_welfare===false?'❌ 拒絕':'—'}</span></div>
     <div class="person-detail-row"><span class="pdr-label">紙本補登</span><span class="pdr-value">${p.paper_form_destroyed===null?'<span style="color:var(--text3);font-size:13px;">數位入站（不適用）</span>':p.paper_form_destroyed===true?'✅ 已完成補登銷毀':`<button class="btn btn-outline btn-sm" onclick="confirmPaperDestroyed(${p._id})">📋 確認補登完成並銷毀紙本</button>`}</span></div>
-    <div class="person-detail-row"><span class="pdr-label">備註</span><span class="pdr-value">${escHtml(p.notes||'—')}</span></div>
+    <div class="person-detail-row" style="align-items:flex-start;"><span class="pdr-label">備註</span><span class="pdr-value">${p.notes?p.notes.split('; ').map(n=>{const m=n.match(/^(\d+\/\d+\s\d+:\d+)\s(.+?)\s—\s(.+)$/);return m?`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text2);">${escHtml(m[1])}</span> <span style="color:var(--primary);font-weight:600;">${escHtml(m[2])}</span> — ${escHtml(m[3])}</div>`:`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border);">${escHtml(n)}</div>`;}).join(''):'—'}</span></div>
     <div class="person-detail-row"><span class="pdr-label">專業技能</span><span class="pdr-value">${(p.skills&&p.skills.length)?escHtml(p.skills.join('、')):'<span style="color:var(--text3);font-size:13px;">（未登記）</span>'}${p.status!=='已離站'?`<button class="btn btn-outline btn-sm" style="margin-left:8px;font-size:11px;" onclick="openSkillsEditor(${p._id});closeModal()">✏️ 編輯</button>`:''}</span></div>
-    ${familyHTML}
-    ${(p.intake_log&&p.intake_log.length)?`<div class="divider"></div><div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:6px;">入站流程紀錄</div>${p.intake_log.map(l=>`<div style="font-size:12px;color:var(--text2);padding:2px 0;">${INTAKE_STEPS.find(s=>s.key===l.step)?.label||l.step} — ${escHtml(l.by)} · ${fmtDT(l.at)}</div>`).join('')}`:''}
+    ${familyHTML}`;
+  // 查詢關聯事件
+  const displayId=p.display_id||String(p._id);
+  const relatedIncs=await db.incidents.filter(inc=>(inc.linked_persons||[]).includes(displayId)).toArray();
+  const incHTML=relatedIncs.length?`<div class="divider"></div><div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:6px;">關聯事件</div>${relatedIncs.map(inc=>{const sc={已通報:'var(--red)',處理中:'var(--orange)',已結案:'var(--green)'}[inc.status]||'var(--text2)';const dim=inc.status==='已結案'?'opacity:.5;':'';return `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);cursor:pointer;${dim}" onclick="closeModal();openIncidentModal(${inc._id})"><span style="color:var(--text2);">${fmtDT(inc.opened_at)}</span> <span style="color:${sc};font-weight:600;">${inc.status}</span> ${escHtml(INCIDENT_LABELS[inc.type]||inc.type)}</div>`;}).join('')}`:'';
+  const html2=html+incHTML+`
+    ${(p.intake_log&&p.intake_log.length)?`<div class="divider"></div><div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:6px;">入站流程紀錄</div>${p.intake_log.map(l=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text2);">${fmtDT(l.at)}</span> <span style="color:var(--primary);font-weight:600;">${escHtml(l.by)}</span> — ${INTAKE_STEPS.find(s=>s.key===l.step)?.label||l.step}</div>`).join('')}`:''}
     ${p.status==='已離站'?`<div class="person-detail-row"><span class="pdr-label">離站原因</span><span class="pdr-value">${escHtml(p.exit_reason||'—')}</span></div><div class="person-detail-row"><span class="pdr-label">離站時間</span><span class="pdr-value">${fmtDT(p.exit_at)}</span></div>`:''}`;
   const isExited=p.status==='已離站', isSettled=p.status==='已安置'||p.health_flag==='已隔離';
-  const footerBtns=isExited?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`:isSettled?`<button class="btn btn-outline btn-sm" onclick="printPersonConfirmation(${p._id})">🖨️ 確認單</button><button class="btn btn-danger btn-sm" onclick="openExitModal(${p._id})">離站</button>`:`<button class="btn btn-outline btn-sm" onclick="printPersonConfirmation(${p._id})">🖨️ 確認單</button><button class="btn btn-outline flex-1" onclick="openPersonIntakeFlow(${p._id});closeModal()">繼續流程</button><button class="btn btn-danger btn-sm" onclick="openExitModal(${p._id})">離站</button>`;
-  openModal(`${p.display_id||'未編號'} 詳情`,html,footerBtns);
+  const footerBtns=isExited?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`:isSettled?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button><button class="btn btn-outline flex-1" onclick="printPersonConfirmation(${p._id})">確認單</button><button class="btn btn-danger flex-1" onclick="openExitModal(${p._id})">離站</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button><button class="btn btn-outline flex-1" onclick="printPersonConfirmation(${p._id})">確認單</button><button class="btn btn-primary flex-1" onclick="openPersonIntakeFlow(${p._id});closeModal()">繼續流程</button><button class="btn btn-danger flex-1" onclick="openExitModal(${p._id})">離站</button>`;
+  openModal(`${p.display_id||'未編號'} 詳情`,html2,footerBtns);
 }
 
 const SKILL_OPTIONS=['醫療','工程','社工','翻譯','後勤','安全'];
@@ -1454,29 +1460,48 @@ async function saveSkills(personId){
 }
 
 async function quickUpdateHealth(personId,value){
-  const p=await db.persons.get(personId);if(!p)return;
+  const p=await db.persons.getDecrypted(personId);if(!p)return;
   const prev=p.health_flag||'正常';if(prev===value)return;
-  await FreezeGateway.writePerson(personId,AuditManager.stamp({health_flag:value}),db.persons);
-  syncAfterWrite('persons',personId);
-  AuditLogManager.write('health_flag_changed',{person_id:personId,old_value:prev,new_value:value}).catch(()=>{});
+  const operator=AuditManager.getOperator()||App.role;
   const displayId=p.display_id||String(personId);
+
+  // 寫入健康標記 + 在人員備註記錄誰改的
+  const prevNotes=p.notes||'';
+  const now=nowISO();
+  const healthNote=`${fmtDT(now)} ${operator} — 健康標記 ${prev}→${value}`;
+  await FreezeGateway.writePerson(personId,AuditManager.stamp({health_flag:value,notes:prevNotes+(prevNotes?'; ':'')+healthNote}),db.persons);
+  syncAfterWrite('persons',personId);
+  AuditLogManager.write('health_flag_changed',{person_id:personId,display_id:displayId,old_value:prev,new_value:value,by:operator}).catch(()=>{});
+
   async function findOpenIncident(type){const all=await db.incidents.where('status').notEqual('已結案').toArray();return all.find(i=>i.type===type&&Array.isArray(i.linked_persons)&&i.linked_persons.includes(displayId))||null;}
-  async function appendNote(inc,text){const notes=[...(inc.notes||[]),{time:nowISO(),text}];await db.incidents.update(inc._id,AuditManager.stamp({notes,status:'處理中'}));syncAfterWrite('incidents',inc._id);}
+  async function appendNote(inc,text){const notes=[...(inc.notes||[]),{time:nowISO(),text,by:operator}];await db.incidents.update(inc._id,AuditManager.stamp({notes,status:'處理中'}));syncAfterWrite('incidents',inc._id);}
+
   if(value==='需關注'){
-    const ex=await findOpenIncident('resident_distress');
-    if(ex){await appendNote(ex,`健康標記更新為「需關注」（前次：${prev}）`);showToast('⚠️ 健康標記已更新，已追加至既有事件');}
-    else{const id=await db.incidents.add(AuditManager.stamp({type:'resident_distress',severity:'普通',status:'已通報',linked_persons:[displayId],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`健康標記更新為「需關注」（前次：${prev}）`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('⚠️ 健康標記已更新，已建立事件');}
+    // 彈出原因選擇，讓操作員決定事件類型
+    closeModal();
+    openModal(`⚠️ ${displayId} 標記為「需關注」`,`<div class="info-box warn">請選擇原因並填寫說明，將建立對應事件。</div><div class="form-group"><label class="form-label">事件類型</label><select class="form-input form-select" id="health-inc-type"><option value="resident_distress">災民情緒激動</option><option value="noise_disturbance">喧嘩</option><option value="dangerous_resident">危險收容者</option><option value="immediate_needs">即時需求</option><option value="other">其他</option></select></div><div class="form-group"><label class="form-label">說明</label><input class="form-input" id="health-inc-note" placeholder="簡述原因"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal();openPersonModal(${personId})">略過（不建事件）</button><button class="btn btn-primary flex-1" onclick="createHealthIncident(${personId},'${escHtml(displayId)}')">建立事件</button>`);
   } else if(value==='已隔離'){
     const ex=await findOpenIncident('medical_infection');
     if(ex){await appendNote(ex,`健康標記更新為「已隔離」（前次：${prev}），床位：${p.bed_id||'未分配'}`);showToast('🚨 健康標記已更新，已追加至既有事件');}
-    else{const id=await db.incidents.add(AuditManager.stamp({type:'medical_infection',severity:'緊急',status:'已通報',linked_persons:[displayId],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`${displayId} 健康標記更新為「已隔離」，床位：${p.bed_id||'未分配'}，請安排移至隔離區。`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('🚨 已隔離，緊急事件已建立');}
+    else{const id=await db.incidents.add(AuditManager.stamp({type:'medical_infection',severity:'緊急',status:'已通報',linked_persons:[displayId],reported_by:operator,assigned_to:operator,notes:[{time:nowISO(),text:`${displayId} 健康標記更新為「已隔離」（前次：${prev}），床位：${p.bed_id||'未分配'}`,by:operator}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',id);showToast('🚨 已隔離，緊急事件已建立');}
+    await renderDashboard();await renderCurrentTab();const updated=await db.persons.getDecrypted(personId);showPersonDetail(updated);
   } else if(value==='正常'){
-    const relType=prev==='已隔離'?'medical_infection':'resident_distress';
-    const ex=await findOpenIncident(relType);
-    if(ex){await appendNote(ex,`健康標記解除為「正常」（前次：${prev}），請確認後手動結案`);showToast('✅ 健康標記已解除，已追加紀錄');}
-    else showToast('✅ 健康標記已更新為正常');
+    // 找所有關聯的未結事件並追加備註
+    const pid=String(personId);
+    const allOpen=await db.incidents.filter(inc=>['已通報','待處理','處理中'].includes(inc.status)&&(inc.linked_persons||[]).some(lp=>lp===displayId||lp===pid)).toArray();
+    for(const inc of allOpen){await appendNote(inc,`健康標記解除為「正常」（前次：${prev}），請確認後手動結案`);}
+    showToast(allOpen.length?`✅ 健康標記已解除，${allOpen.length} 個事件已追加紀錄`:'✅ 健康標記已更新為正常');
+    await renderDashboard();await renderCurrentTab();const updated=await db.persons.getDecrypted(personId);showPersonDetail(updated);
   }
-  await renderDashboard(); await renderCurrentTab(); const updated=await db.persons.getDecrypted(personId); showPersonDetail(updated);
+}
+async function createHealthIncident(personId,displayId){
+  const type=el('health-inc-type')?.value||'other';
+  const note=el('health-inc-note')?.value.trim()||'';
+  const operator=AuditManager.getOperator()||App.role;
+  const label=INCIDENT_LABELS[type]||type;
+  const id=await db.incidents.add(AuditManager.stamp({type,severity:'普通',status:'已通報',linked_persons:[displayId],reported_by:operator,assigned_to:operator,notes:[{time:nowISO(),text:note||`健康標記變更為「需關注」`,by:operator}],opened_at:nowISO(),closed_at:null}));
+  syncAfterWrite('incidents',id);closeModal();showToast(`⚠️ 已建立事件：${label}`);
+  await renderDashboard();await renderCurrentTab();await renderIncidents();const updated=await db.persons.getDecrypted(personId);showPersonDetail(updated);
 }
 
 async function confirmPaperDestroyed(personId){
@@ -1618,7 +1643,7 @@ async function completeIntakeStep(personId,stepKey){
   let updates={};
   switch(stepKey){
     case 'san_gate': case 'waiting': {const fp=await db.persons.get(personId);if(!fp?.san_gate_done){showToast('請先點擊「安」方塊確認清消關卡');return;}if(fp.status==='等候中'){updates.status='登記中';updates.registering_started_at=nowISO();}if(!fp.display_id){const dp=await db.persons.getDecrypted(personId);const did=await generateShelterDisplayId(dp.gender,dp.age_group);updates.display_id=did;showToast(`識別碼：${did}`);}break;}
-    case 'needs_cmist': {const hasNeeds=document.getElementById('needs-yes')?.classList.contains('btn-danger');const note=hasNeeds?(el('step-needs')?.value.trim()||''):'';const health=el('step-health')?.value||'正常';if(hasNeeds&&!note){showToast('請填寫需求描述');return;}updates.immediate_needs_noted=true;updates.immediate_needs_note=note;updates.health_flag=health;updates.cmist=collectCmist();updates.cmist_assessed=true;App._pendingCmistDispatch=personId;if(hasNeeds&&note){const ni=await db.incidents.add(AuditManager.stamp({type:'immediate_needs',severity:'普通',status:'已通報',linked_persons:[p.display_id||String(personId)],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`即時需求：${note}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',ni);showToast('⚠️ 即時需求事件已建立');}break;}
+    case 'needs_cmist': {const hasNeeds=document.getElementById('needs-yes')?.classList.contains('btn-danger');const note=hasNeeds?(el('step-needs')?.value.trim()||''):'';const health=el('step-health')?.value||'正常';if(hasNeeds&&!note){showToast('請填寫需求描述');return;}updates.immediate_needs_noted=true;updates.immediate_needs_note=note;if(health==='正常')updates.health_flag='正常';updates.cmist=collectCmist();updates.cmist_assessed=true;App._pendingCmistDispatch=personId;if(hasNeeds&&note){const ni=await db.incidents.add(AuditManager.stamp({type:'immediate_needs',severity:'普通',status:'已通報',linked_persons:[p.display_id||String(personId)],reported_by:AuditManager.getOperator()||App.role,assigned_to:AuditManager.getOperator()||App.role,notes:[{time:nowISO(),text:`即時需求：${note}`}],opened_at:nowISO(),closed_at:null}));syncAfterWrite('incidents',ni);showToast('⚠️ 即時需求事件已建立');}if(health!=='正常')App._pendingHealthUpdate={personId,value:health};break;}
     case 'tagging_badge': {const nn=document.getElementById('idcard-none'),cc=document.getElementById('idcard-collected');const none=nn?.classList.contains('btn-primary'),coll=cc?.classList.contains('btn-success');if(!none&&!coll){const w=document.getElementById('idcard-warn');if(w)w.style.display='block';showToast('請確認管制物品寄存狀態');return;}if(!el('step-badge')?.checked){showToast('請確認識別證已發放');return;}updates.id_card_collected=coll?true:false;if(coll){const ci=[...document.querySelectorAll('input[name="idcard_item"]:checked')].map(c=>c.value);if(ci.length===0){showToast('請勾選收繳的物品項目');return;}updates.id_card_items=ci;updates.id_card_note=el('idcard-note')?.value.trim()||'';}else{updates.id_card_items=[];updates.id_card_note='';}const hp=el('step-haspets')?.checked||false;updates.pets={has_pets:hp,counts:{dog:parseInt(el('pet-dog')?.value)||0,cat:parseInt(el('pet-cat')?.value)||0,small:0,bird:0,reptile:0,other:0},placement:el('pet-placement')?.value||'',placement_note:el('pet-placement-note')?.value.trim()||''};updates.id_badge_issued=true;break;}
     case 'consent_covenant': {
       if(_consentCache.ops===false){showToast('❌ B 軌（日常運作）拒絕，無法收容，請按「拒簽離站」');return;}
@@ -1636,8 +1661,27 @@ async function completeIntakeStep(personId,stepKey){
   const updatedRaw=await db.persons.get(personId);syncAfterWrite('persons',updatedRaw);
   const updatedP=await db.persons.getDecrypted(personId);
   if(App._pendingCmistDispatch===personId){App._pendingCmistDispatch=null;await cmistAutoDispatch(personId).catch(e=>console.warn('[CMIST]',e));}
-  if(updatedP.status==='已安置'){closeModal();showToast('✅ 入站流程完成！');}
-  else showIntakeStep(updatedP,getPersonStepIndex(updatedP));
+  // 入站流程中健康標記變更 → 建立事件但不中斷流程
+  if(App._pendingHealthUpdate?.personId===personId){
+    const hv=App._pendingHealthUpdate.value;App._pendingHealthUpdate=null;
+    const dp=await db.persons.getDecrypted(personId);
+    const did=dp.display_id||String(personId);
+    const op=AuditManager.getOperator()||App.role;
+    if(hv==='已隔離'){
+      await db.incidents.add(AuditManager.stamp({type:'medical_infection',severity:'緊急',status:'已通報',linked_persons:[did],reported_by:op,assigned_to:op,notes:[{time:nowISO(),text:`${did} 入站時標記為「已隔離」`,by:op}],opened_at:nowISO(),closed_at:null}));
+      showToast('🚨 已隔離，緊急事件已建立');
+    } else if(hv==='需關注'){
+      showToast('⚠️ 需關注已記錄，入站完成後可在人員詳情建立事件');
+    }
+    // 寫入健康標記備註
+    const prevNotes=dp.notes||'';const now2=nowISO();const ts=new Date(now2).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+    await FreezeGateway.writePerson(personId,AuditManager.stamp({health_flag:hv,notes:prevNotes+(prevNotes?'; ':'')+`${fmtDT(now2)} ${op} — 健康標記 正常→${hv}`}),db.persons);
+    syncAfterWrite('persons',personId);
+    await renderIncidents();
+  }
+  const updatedP2=await db.persons.getDecrypted(personId);
+  if(updatedP2.status==='已安置'){closeModal();showToast('✅ 入站流程完成！');}
+  else showIntakeStep(updatedP2,getPersonStepIndex(updatedP2));
   await renderIntake();await renderDashboard();await refreshCapacityBanner();
 }
 
@@ -1745,7 +1789,7 @@ async function openBedModal(bedDisplayId){
   const statusLabels={empty:'空置',occupied:'已佔用',suspended:'暫停'};
   let personCard='';
   if(bed.assigned_to){const pRaw=await db.persons.where('display_id').equals(bed.assigned_to).first();if(pRaw){const p=await PersonCrypto.decryptPerson(pRaw);personCard=`<div class="card-sm mt-2" onclick="openPersonModal(${p._id});closeModal();" style="cursor:pointer;"><div class="font-semibold">${escHtml(p.display_id)} — ${escHtml(p.name)}</div><div class="text-sm text-gray">${p.age_group||'—'} · ${p.health_flag||'正常'}</div></div>`;}}
-  openModal(`床位 ${bedDisplayId}`,`<div class="person-detail-row"><span class="pdr-label">區域</span><span class="pdr-value">${escHtml(zoneName)}</span></div><div class="person-detail-row"><span class="pdr-label">狀態</span><span class="pdr-value">${statusLabels[bed.status]||bed.status}</span></div><div class="person-detail-row"><span class="pdr-label">分配給</span><span class="pdr-value">${escHtml(bed.assigned_to||'—')}</span></div>${personCard}`,`<button class="btn btn-ghost btn-sm" onclick="toggleBedSuspend('${bedDisplayId}')">${bed.status==='suspended'?'🔓 恢復':'🔒 暫停'}</button><button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`);
+  openModal(`床位 ${bedDisplayId}`,`<div class="person-detail-row"><span class="pdr-label">區域</span><span class="pdr-value">${escHtml(zoneName)}</span></div><div class="person-detail-row"><span class="pdr-label">狀態</span><span class="pdr-value">${statusLabels[bed.status]||bed.status}</span></div><div class="person-detail-row"><span class="pdr-label">分配給</span><span class="pdr-value">${escHtml(bed.assigned_to||'—')}</span></div>${personCard}`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button><button class="btn btn-outline flex-1" onclick="toggleBedSuspend('${bedDisplayId}')">${bed.status==='suspended'?'恢復':'暫停'}</button>`);
 }
 async function toggleBedSuspend(bedDisplayId){
   const bed=await db.beds.where('display_id').equals(bedDisplayId).first();if(!bed)return;
@@ -1774,7 +1818,7 @@ async function reportResourceShortage(resId){const r=await db.resources.get(resI
 </script>
 <script>
 /* ══ INCIDENTS ═════════════════════════════════════════════════ */
-const INCIDENT_LABELS={medical_infection:'醫療/傳染病緊急事件',capacity_overload:'收容能量超載',noise_disturbance:'災民喧嘩',power_outage:'停電',air_raid:'空襲或飛彈攻擊',security_threat:'攻擊或治安威脅',id_mismatch:'身分核對不符',covenant_refused:'拒絕收容公約',dangerous_resident:'危險收容者',resource_shortage:'物資缺漏',suspicious_person:'發現可疑人士',facility_damage:'場地/設備損壞',volunteer_conflict:'志工衝突升級',rumor_spread:'謠言蔓延',resident_distress:'災民情緒激動',pet_placement:'🐾 寵物外送安置',immediate_needs:'即時需求',medical_transfer:'🚑 需醫療轉介/轉送',non_medical_transport:'🚐 需非醫療接駁',language_assist:'語言協助',medication_mgmt:'藥品管理',accessible_bed:'無障礙床位分配',charging_arrange:'電動輔具充電安排',other:'其他'};
+const INCIDENT_LABELS={medical_infection:'醫療/傳染病緊急事件',capacity_overload:'收容能量超載',noise_disturbance:'災民喧嘩',power_outage:'停電',air_raid:'空襲或飛彈攻擊',security_threat:'攻擊或治安威脅',id_mismatch:'身分核對不符',dangerous_resident:'危險收容者',resource_shortage:'物資缺漏',suspicious_person:'發現可疑人士',facility_damage:'場地/設備損壞',volunteer_conflict:'志工衝突升級',rumor_spread:'謠言蔓延',resident_distress:'災民情緒激動',pet_placement:'寵物外送安置',immediate_needs:'即時需求',medical_transfer:'需醫療轉介/轉送',non_medical_transport:'需非醫療接駁',language_assist:'語言協助',medication_mgmt:'藥品管理',accessible_bed:'無障礙床位分配',charging_arrange:'電動輔具充電安排',other:'其他'};
 let _incidentCache={};
 async function renderIncidents(){
   const incidents=await db.incidents.orderBy('opened_at').reverse().toArray();
@@ -1788,38 +1832,59 @@ async function renderIncidents(){
 }
 function incidentCardHTML(inc){
   const sc={已通報:'open',處理中:'handling',已結案:'closed'}[inc.status]||'open';
-  return `<div class="incident-card ${inc.severity==='緊急'?'urgent':'normal'}" onclick="openIncidentModal(${inc._id})"><div class="flex items-center justify-between"><div class="incident-title">${escHtml(INCIDENT_LABELS[inc.type]||inc.type)}</div><span class="incident-status ${sc}">${inc.status}</span></div><div class="incident-meta"><span>${inc.severity==='緊急'?'🔴':'🔵'} ${inc.severity}</span><span>⏱ ${fmtDT(inc.opened_at)}</span><span>👤 ${escHtml(inc.assigned_to||'未指派')}</span>${inc.linked_persons?.length?`<span>🔗 ${inc.linked_persons.join(', ')}</span>`:''}</div></div>`;
+  const dimmed=inc.status==='已結案'?'opacity:.5;':'';
+  return `<div class="incident-card ${inc.severity==='緊急'?'urgent':'normal'}" style="${dimmed}" onclick="openIncidentModal(${inc._id})"><div class="flex items-center justify-between"><div class="incident-title">${escHtml(INCIDENT_LABELS[inc.type]||inc.type)}</div><span class="incident-status ${sc}">${inc.status}</span></div><div class="incident-meta"><span>${inc.severity==='緊急'?'🔴':'🔵'} ${inc.severity}</span><span>⏱ ${fmtDT(inc.opened_at)}</span><span>👤 ${escHtml(inc.assigned_to||'未指派')}</span>${inc.linked_persons?.length?`<span>🔗 ${inc.linked_persons.join(', ')}</span>`:''}</div></div>`;
 }
-function openNewIncidentModal(){openModal('新增事件',`<div class="form-group"><label class="form-label">事件類型 <span class="req">*</span></label><select class="form-input form-select" id="inc-type">${Object.entries(INCIDENT_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">嚴重程度</label><select class="form-input form-select" id="inc-severity"><option>普通</option><option>緊急</option></select></div><div class="form-group"><label class="form-label">涉及人員（display_id，逗號分隔）</label><input class="form-input" id="inc-persons" placeholder="如：P-001, P-002"></div><div class="form-group"><label class="form-label">指派給</label><input class="form-input" id="inc-assign" placeholder="負責人姓名或角色" value="${AuditManager.getOperator()||App.role||''}"></div><div class="form-group"><label class="form-label">初始描述</label><textarea class="form-input form-textarea" id="inc-notes" placeholder="事件描述…"></textarea></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-danger flex-1" onclick="createIncident()">建立事件</button>`);}
+const _URGENT_TYPES=['medical_infection','air_raid','security_threat','medical_transfer'];
+function _onIncTypeChange(){const t=el('inc-type')?.value,s=el('inc-severity');if(s)s.value=_URGENT_TYPES.includes(t)?'緊急':'普通';}
+async function openNewIncidentModal(){
+  const persons=await db.persons.toArrayDecrypted();
+  const activePersons=persons.filter(p=>p.status!=='已離站'&&p.display_id);
+  const personOpts=activePersons.map(p=>`<option value="${escHtml(p.display_id)}">${escHtml(p.display_id)} ${escHtml(p.name||'')}</option>`).join('');
+  openModal('新增事件',`<div class="form-group"><label class="form-label">事件類型 <span class="req">*</span></label><select class="form-input form-select" id="inc-type" onchange="_onIncTypeChange()">${Object.entries(INCIDENT_LABELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">嚴重程度</label><select class="form-input form-select" id="inc-severity"><option>普通</option><option>緊急</option></select></div><div class="form-group"><label class="form-label">涉及人員</label><select class="form-input form-select" id="inc-persons-select"><option value="">— 選擇人員 —</option>${personOpts}</select><div id="inc-persons-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;"></div></div><div class="form-group"><label class="form-label">指派給</label><input class="form-input" id="inc-assign" placeholder="負責人姓名" value="${AuditManager.getOperator()||App.role||''}"></div><div class="form-group"><label class="form-label">初始描述</label><textarea class="form-input form-textarea" id="inc-notes" placeholder="事件描述…"></textarea></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-danger flex-1" onclick="createIncident()">建立事件</button>`);
+  el('inc-persons-select')?.addEventListener('change',function(){const v=this.value;if(!v)return;this.value='';const tags=el('inc-persons-tags');if(!tags)return;if(tags.querySelector(`[data-did="${v}"]`))return;const tag=document.createElement('span');tag.dataset.did=v;tag.style.cssText='font-size:12px;background:var(--primary);color:#fff;border-radius:12px;padding:2px 8px;cursor:pointer;';tag.textContent=v+' ✕';tag.onclick=()=>tag.remove();tags.appendChild(tag);});
+}
 async function createIncident(){
-  const type=el('inc-type')?.value,severity=el('inc-severity')?.value||'普通',linked=(el('inc-persons')?.value||'').split(',').map(s=>s.trim()).filter(Boolean),noteTxt=el('inc-notes')?.value.trim()||'';
+  const type=el('inc-type')?.value,severity=el('inc-severity')?.value||'普通';
+  const tags=el('inc-persons-tags');const linked=tags?[...tags.querySelectorAll('[data-did]')].map(t=>t.dataset.did):[];
+  const noteTxt=el('inc-notes')?.value.trim()||'';
   const id=await db.incidents.add(AuditManager.stamp({type,severity,status:'已通報',linked_persons:linked,reported_by:AuditManager.getOperator()||App.role,assigned_to:el('inc-assign')?.value||'',notes:noteTxt?[{time:nowISO(),text:noteTxt}]:[],opened_at:nowISO(),closed_at:null}));
   syncAfterWrite('incidents',id);closeModal();showToast('事件已通報');renderIncidents();renderDashboard();refreshCapacityBanner();
 }
 async function openIncidentModal(incId){
   const inc=_incidentCache[incId]||await db.incidents.get(incId);if(!inc)return;
   const isClosed=inc.status==='已結案';
-  const notes=(inc.notes||[]).map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;"><span style="color:var(--text2)">${fmtDT(n.time)}</span> — ${escHtml(n.text)}</div>`).join('');
-  openModal(INCIDENT_LABELS[inc.type]||inc.type,`<div class="flex gap-2 mb-2"><span class="tag ${inc.severity==='緊急'?'tag-red':'tag-blue'}">${inc.severity}</span><span class="tag ${inc.status==='已結案'?'tag-green':inc.status==='處理中'?'tag-orange':'tag-red'}">${inc.status}</span></div><div class="person-detail-row"><span class="pdr-label">通報時間</span><span class="pdr-value">${fmtDT(inc.opened_at)}</span></div><div class="person-detail-row"><span class="pdr-label">負責人</span><span class="pdr-value">${escHtml(inc.assigned_to||'未指派')}</span></div><div class="person-detail-row"><span class="pdr-label">涉及人員</span><span class="pdr-value">${escHtml(inc.linked_persons?.join(', ')||'無')}</span></div>${isClosed?`<div class="person-detail-row"><span class="pdr-label">結案時間</span><span class="pdr-value">${fmtDT(inc.closed_at)}</span></div>`:''}<div class="divider"></div><div class="font-semibold mb-1">處置紀錄</div><div>${notes||'<span style="color:var(--text3)">無記錄</span>'}</div>${!isClosed?`<div class="divider"></div><div class="form-group"><label class="form-label">追加處置紀錄</label><textarea class="form-input form-textarea" id="inc-new-note" placeholder="補充說明…"></textarea></div>`:''}`
-  ,isClosed?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`:`<button class="btn btn-ghost btn-sm" onclick="closeModal()">關閉</button>${inc.status!=='處理中'?`<button class="btn btn-outline btn-sm" onclick="updateIncidentStatus(${incId},'處理中')">標記處理中</button>`:''}<button class="btn btn-primary btn-sm" onclick="addIncidentNote(${incId})">追加紀錄</button>${(inc.notes||[]).some(n=>n.time>=inc.opened_at&&n.text&&n.text.trim().length>=5)?`<button class="btn btn-sm" style="background:var(--green);color:#fff;" onclick="updateIncidentStatus(${incId},'已結案')">結案</button>`:`<button class="btn btn-sm" style="background:var(--border);color:var(--text3);cursor:not-allowed;" disabled title="請先追加處置紀錄">結案</button>`}`);
+  const notes=(inc.notes||[]).map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;"><span style="color:var(--text2)">${fmtDT(n.time)}</span>${n.by?` <span style="color:var(--primary);font-weight:600;">${escHtml(n.by)}</span>`:''} — ${escHtml(n.text)}</div>`).join('');
+  openModal(INCIDENT_LABELS[inc.type]||inc.type,`<div class="flex gap-2 mb-2"><span class="tag ${inc.severity==='緊急'?'tag-red':'tag-blue'}">${inc.severity}</span><span class="tag ${inc.status==='已結案'?'tag-green':inc.status==='處理中'?'tag-orange':'tag-red'}">${inc.status}</span></div><div class="person-detail-row"><span class="pdr-label">通報時間</span><span class="pdr-value">${fmtDT(inc.opened_at)}</span></div><div class="person-detail-row"><span class="pdr-label">負責人</span><span class="pdr-value">${escHtml(inc.assigned_to||'未指派')}</span></div><div class="person-detail-row"><span class="pdr-label">涉及人員</span><span class="pdr-value">${(inc.linked_persons||[]).length?inc.linked_persons.map(did=>`<span style="color:var(--primary);cursor:pointer;text-decoration:underline;" onclick="closeModal();openPersonModalByDisplayId('${escHtml(did)}')">${escHtml(did)}</span>`).join(', '):'無'}</span></div>${isClosed?`<div class="person-detail-row"><span class="pdr-label">結案時間</span><span class="pdr-value">${fmtDT(inc.closed_at)}</span></div>`:''}<div class="divider"></div><div class="font-semibold mb-1">處置紀錄</div><div>${notes||'<span style="color:var(--text3)">無記錄</span>'}</div>${!isClosed?`<div class="divider"></div><div class="form-group"><label class="form-label">追加處置紀錄</label><textarea class="form-input form-textarea" id="inc-new-note" placeholder="補充說明…"></textarea></div>`:''}`
+  ,isClosed?`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`:`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>${inc.status!=='處理中'?`<button class="btn btn-outline flex-1" onclick="updateIncidentStatus(${incId},'處理中')">處理中</button>`:''}<button class="btn btn-primary flex-1" onclick="addIncidentNote(${incId})">追加紀錄</button>${(inc.notes||[]).some(n=>n.time>=inc.opened_at&&n.text&&n.text.trim().length>=5)?`<button class="btn flex-1" style="background:var(--green);color:#fff;" onclick="updateIncidentStatus(${incId},'已結案')">結案</button>`:`<button class="btn flex-1" style="background:var(--border);color:var(--text3);cursor:not-allowed;" disabled title="請先追加處置紀錄">結案</button>`}`);
 }
 async function updateIncidentStatus(incId,status){
   const inc=await db.incidents.get(incId);
   if(status==='已結案'){const hm=(inc.notes||[]).some(n=>n.time>=inc.opened_at&&n.text&&n.text.trim().length>=5);if(!hm){showToast('⚠️ 請先追加處置紀錄才可結案');return;}}
-  const upd={status};if(status==='已結案')upd.closed_at=nowISO();
+  const operator=AuditManager.getOperator()||App.role;
+  const statusNote={time:nowISO(),text:`狀態變更為「${status}」`,by:operator};
+  const upd={status,notes:[...(inc.notes||[]),statusNote]};if(status==='已結案')upd.closed_at=nowISO();
   await db.incidents.update(incId,AuditManager.stamp(upd));delete _incidentCache[incId];syncAfterWrite('incidents',incId);
-  if(status==='已結案'&&inc&&(inc.type==='medical_infection'||inc.type==='resident_distress')&&Array.isArray(inc.linked_persons)&&inc.linked_persons.length>0){
-    const tFlag=inc.type==='medical_infection'?'已隔離':'需關注',synced=[];
-    for(const did of inc.linked_persons){const p=await db.persons.where('display_id').equals(did).first();if(p&&p.health_flag===tFlag&&p.status!=='已離站'){await FreezeGateway.writePerson(p._id,AuditManager.stamp({health_flag:'正常'}),db.persons);syncAfterWrite('persons',p._id);synced.push(did);}}
-    showToast(synced.length>0?`事件已結案，${synced.join('、')} 健康標記已同步更新為正常`:`事件已更新：${status}`);
+  if(status==='已結案'&&Array.isArray(inc.linked_persons)&&inc.linked_persons.length>0){
+    // 檢查涉及人員是否有非正常健康標記
+    const abnormal=[];
+    for(const did of inc.linked_persons){const raw=await db.persons.where('display_id').equals(did).first();if(!raw)continue;const dp=await PersonCrypto.decryptPerson(raw);if(dp.health_flag&&dp.health_flag!=='正常'&&dp.status!=='已離站')abnormal.push({id:raw._id,did,flag:dp.health_flag});}
+    if(abnormal.length>0){
+      const names=abnormal.map(a=>`${a.did}（${a.flag}）`).join('、');
+      const ok=await confirm2('恢復健康標記？',`涉及人員 ${names} 目前健康標記非正常。\n是否同時恢復為「正常」？`);
+      if(ok){for(const a of abnormal){const dp2=await db.persons.getDecrypted(a.id);const prev2=dp2.notes||'';await FreezeGateway.writePerson(a.id,AuditManager.stamp({health_flag:'正常',notes:prev2+(prev2?'; ':'')+`${fmtDT(nowISO())} ${operator} — 健康標記 ${a.flag}→正常（事件結案連動）`}),db.persons);syncAfterWrite('persons',a.id);}showToast(`事件已結案，${abnormal.length} 人健康標記已恢復正常`);}
+      else showToast('事件已結案');
+    } else showToast('事件已結案');
   } else showToast(`事件已更新：${status}`);
   closeModal();renderIncidents();renderDashboard();refreshCapacityBanner();
 }
 async function addIncidentNote(incId){
   const inc=await db.incidents.get(incId),noteText=el('inc-new-note')?.value.trim();
   if(!noteText){showToast('請輸入紀錄內容');return;}
-  const notes=[...(inc.notes||[]),{time:nowISO(),text:noteText}];
-  await db.incidents.update(incId,AuditManager.stamp({notes,status:'處理中'}));delete _incidentCache[incId];syncAfterWrite('incidents',incId);showToast('紀錄已追加');renderIncidents();await openIncidentModal(incId);
+  const operator=AuditManager.getOperator()||App.role;
+  const notes=[...(inc.notes||[]),{time:nowISO(),text:noteText,by:operator}];
+  await db.incidents.update(incId,AuditManager.stamp({notes,status:'處理中'}));delete _incidentCache[incId];syncAfterWrite('incidents',incId);
+  showToast('紀錄已追加');renderIncidents();await openIncidentModal(incId);
 }
 
 /* ══ ROSTER ════════════════════════════════════════════════════ */
@@ -2308,7 +2373,7 @@ async function executeFullDestroy(){
 /* ══ AUDIT LOG / ENCRYPTED EXPORT / HARDWARE WARNING ══════════ */
 async function openAuditLogViewer(){
   const logs=await AuditLogManager.query(100);
-  const rows=logs.map(log=>{const detail=(()=>{try{return JSON.parse(log.detail||'{}');}catch{return {};}})();return `<tr style="font-size:12px;"><td style="white-space:nowrap;padding:4px 6px;">${fmtDT(log.timestamp)}</td><td style="padding:4px 6px;">${escHtml(log.action)}</td><td style="padding:4px 6px;">${escHtml(log.operator_name)}</td><td style="padding:4px 6px;color:var(--text2);">${JSON.stringify(detail).slice(0,80)}</td></tr>`;}).join('');
+  const rows=logs.map(log=>{const detail=(()=>{try{return JSON.parse(log.detail||'{}');}catch{return {};}})();return `<tr style="font-size:12px;"><td style="white-space:nowrap;padding:4px 6px;color:var(--text2);">${fmtDT(log.timestamp)}</td><td style="padding:4px 6px;"><span style="color:var(--primary);font-weight:600;">${escHtml(log.operator_name)}</span></td><td style="padding:4px 6px;">${escHtml(log.action)}</td><td style="padding:4px 6px;color:var(--text2);">${JSON.stringify(detail).slice(0,80)}</td></tr>`;}).join('');
   openModal('📋 稽核日誌（本機最近 100 筆）',`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:12px;font-weight:700;border-bottom:2px solid var(--border);"><th style="padding:4px 6px;">時間</th><th style="padding:4px 6px;">動作</th><th style="padding:4px 6px;">操作者</th><th style="padding:4px 6px;">詳情</th></tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:var(--text2);">尚無記錄</td></tr>'}</tbody></table></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`);
 }
 
