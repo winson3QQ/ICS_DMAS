@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.40';</script>
+<script>const PWA_VERSION='v2.2.41';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -2050,6 +2050,37 @@ async function clearAllTestData(){
    技術規格：qrcode-generator, Error Correction M, Version ≤ 10, < 500 bytes
    ════════════════════════════════════════════════════════════════ */
 
+/* ── 自動推算值勤人數（最近 30 分鐘有操作的不重複人員數）── */
+async function calcShelterActiveStaff() {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const operators = new Set();
+
+  // 1. intake_log（未加密，直接讀）
+  const persons = await db.persons.toArray();
+  persons.forEach(p => {
+    (p.intake_log || []).forEach(entry => {
+      if (entry.at >= cutoff && entry.by) operators.add(entry.by);
+    });
+  });
+
+  // 2. incidents.reported_by（未加密）
+  const incidents = await db.incidents
+    .filter(i => (i.opened_at || '') >= cutoff)
+    .toArray();
+  incidents.forEach(i => { if (i.reported_by) operators.add(i.reported_by); });
+
+  // 3. audit_log（排除系統動作）
+  const SYSTEM_ACTIONS = ['login_success','login_demo','login_degraded',
+                          'snapshot_exported','qr_generated','full_data_destroy'];
+  const logs = await db.audit_log
+    .where('timestamp').above(cutoff)
+    .filter(r => !SYSTEM_ACTIONS.includes(r.action))
+    .toArray();
+  logs.forEach(r => { if (r.operator_name) operators.add(r.operator_name); });
+
+  return operators.size;
+}
+
 /* ── QR payload 計算（§9.2 欄位計算規則）── */
 async function buildQrPayload(staffOnDuty) {
   const [beds, persons, incidents, snapRow] = await Promise.all([
@@ -2121,6 +2152,9 @@ function openQrReportModal() {
         <button onclick="stepperChange('qr-staff',1)">＋</button>
       </div>
       <div class="form-hint">包含組長及一般人員等所有當值人員</div>
+      <div id="auto-staff-hint" style="font-size:11px;color:var(--text3);margin-top:4px;text-align:center;">
+        系統推算（最近30分鐘有操作）：計算中…
+      </div>
     </div>
   `, `
     <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
@@ -2128,6 +2162,13 @@ function openQrReportModal() {
   `);
   // 非同步載入預覽統計
   setTimeout(loadQrPreviewStats, 80);
+  // 自動推算值勤人數並填入
+  calcShelterActiveStaff().then(n => {
+    const hint = document.getElementById('auto-staff-hint');
+    if (hint) hint.textContent = '系統推算（最近30分鐘有操作）：' + n + ' 人';
+    const input = document.getElementById('qr-staff');
+    if (input && n > 0) input.value = n;
+  });
 }
 
 async function loadQrPreviewStats() {
@@ -2153,7 +2194,9 @@ async function loadQrPreviewStats() {
 
 async function generateAndShowQr() {
   const staffInput = document.getElementById('qr-staff');
-  const staffOnDuty = parseInt(staffInput?.value) || 0;
+  const autoStaff = await calcShelterActiveStaff();
+  const manualStaff = parseInt(staffInput?.value) || 0;
+  const staffOnDuty = autoStaff > 0 ? autoStaff : manualStaff;
 
   try {
     const { payload, snapshotUuid, srtDetail } = await buildQrPayload(staffOnDuty);

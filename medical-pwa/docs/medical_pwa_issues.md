@@ -50,7 +50,7 @@
 
 ## 🔴 演習前必修
 
-### P1 — 缺少「非前進組送入」的最少欄位表單
+### ✅ P1 — 缺少「非前進組送入」的最少欄位表單（已完成）
 
 **現況**
 - 來源 C 按鈕標示為「🚶 自行抵達」，語意不完整
@@ -64,6 +64,10 @@
 1. 按鈕改為「🙋 非前進組送入」
 2. `renderIntakeForm()` 加入 C 來源區塊（送入方式、性別觀察、年齡段觀察、來源描述、主要傷況）
 3. `doSubmitIntake()` 讀取 C 欄位（含 `arrival_mode`、`source_sex`、`source_age`）
+
+> **【v0.5.0-alpha 已修】** `renderIntakeForm()` 的非B分支已包含安檢狀態、
+> 性別/年齡觀察、外觀特徵描述，並直接進入 START 檢傷。
+> C 來源建檔前強制填寫性別與年齡（行 1930 驗證）。
 
 ---
 
@@ -101,6 +105,10 @@ function openWristbandModal(displayId, color, qrPayload) {
 }
 ```
 
+> **【演習不需要】** 腕帶識別採用顏色腕帶 + `display_id` 手寫方式。
+> QR code 因折疊問題不適合腕帶，條碼腕帶需要熱感應印表機，演習前不具備此硬體。
+> 護理員在 app 輸入 `display_id` 手動查詢傷患即可。
+
 ---
 
 ### P8 — 全域掃碼查詢傷患
@@ -115,15 +123,17 @@ function openWristbandModal(displayId, color, qrPayload) {
 3. `handleQrResult()` 依 scanMode 分流：lookup 模式走 `handlePatientScanResult()`，intake 模式走原有 MIST 帶入
 4. `handlePatientScanResult()` 從 DB 查 display_id，找到後呼叫 `openPatientDetail(patient.id)`
 
+> **【演習不需要】** 全域掃碼查詢的前提是傷患身上有可掃描的識別碼。
+> 演習採用 `display_id` 手動查詢，P8 與 P7 一同延後至硬體決定後再做。
+
 ---
 
 ## 🟡 演習前需決定
 
 ### P3 — `getRedSlotsFree()` 永遠回傳 999
 - 紅區滿載警報永遠不觸發
-- **方案 A**：固定常數 `RED_ZONE_CAPACITY = 5`（最快）
-- **方案 B**：從 config 表讀取，管理員可設定
-- **尚未決定方案**
+- **決定方案**：從 config 讀取 `red_capacity`，預設值 5，管理員可在設定頁調整
+- 非架構問題，一行修正即可
 
 ### P4 — 現場生命徵象 vs 到院生命徵象混用
 - patient card 顯示的是現場 MIST-S 數值，非到院 START 數值
@@ -159,10 +169,10 @@ function openWristbandModal(displayId, color, qrPayload) {
 |------|------|------|
 | ✅ | P2 ID 重複 | 已修 |
 | ✅ | UX 優化（v0.3.41–v0.3.48） | 已完成 |
-| 🔴 | P1 C 來源表單 | **待做** |
-| 🔴 | P7 腕帶 QR | **待做** |
-| 🔴 | P8 全域掃碼 | **待做** |
-| 🟡 | P3 紅區容量 | 待決定方案 |
+| ✅ | P1 C 來源表單 | 已完成（v0.5.0-alpha） |
+| 🟢 | P7 腕帶 QR | 演習不需要，display_id 手寫即可 |
+| 🟢 | P8 全域掃碼 | 演習不需要，同 P7 |
+| 🔴 | P3 紅區容量 | 小修：從 config 讀 red_capacity |
 | 🟡 | P4 生命徵象分開 | 待做 |
 | 🟡 | Badge 定義 | 待決定 |
 | 🟢 | P5 / P6 / P9 | 演習後 |

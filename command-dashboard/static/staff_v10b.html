@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>ICS 幕僚儀表板 v10b</title>
+<style>
+:root {
+  --bg:#eef1f6; --surface:#fff; --surface2:#f4f6fa; --border:#d8e0ec;
+  --green:#1a9e52; --green-bg:#eaf7f0;
+  --yellow:#d49000; --yellow-bg:#fff8e0;
+  --red:#cc2a2a; --red-bg:#fdeaea;
+  --blue:#2060b0; --blue-bg:#e8f0fc;
+  --text:#1a2535; --text2:#4a5a70; --text3:#7a8ba0;
+  --mono:'IBM Plex Mono',monospace;
+  --hdr:48px; --ab:28px;
+  --src-a:#2060b0; --src-b:#d49000; --src-c:#1a9e52;
+}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,'PingFang TC',sans-serif;}
+
+/* HEADER */
+#hdr{height:var(--hdr);background:#1a2535;border-bottom:2px solid #0d1825;display:flex;align-items:center;padding:0 12px;gap:10px;flex-shrink:0;}
+.h-logo{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;letter-spacing:.12em;}
+.h-ver{font-family:var(--mono);font-size:8px;color:#3a5070;border:1px solid #2d4060;padding:1px 5px;border-radius:2px;}
+.h-clock{font-family:var(--mono);font-size:17px;font-weight:700;color:#fff;}
+.h-sep{width:1px;height:22px;background:#2a3f5a;flex-shrink:0;}
+.h-alerts{flex:1;display:flex;align-items:center;gap:8px;overflow:hidden;}
+.h-al{font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap;}
+.h-pipe{color:#2a3f5a;}
+.h-metrics{display:flex;gap:5px;flex-shrink:0;}
+.hm{display:flex;flex-direction:column;align-items:center;padding:2px 7px;border-radius:4px;border:1px solid #2a3f5a;}
+.hm .hl{font-family:var(--mono);font-size:7px;color:#4a6080;text-transform:uppercase;letter-spacing:.08em;}
+.hm .hv{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;line-height:1.2;}
+.hm.alert{border-color:var(--red);background:rgba(204,42,42,.2);} .hm.alert .hv{color:#ff6b6b;}
+.hm.warn .hv{color:var(--yellow);}
+#conn{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:#00d466;flex-shrink:0;}
+#conn .dot{width:6px;height:6px;border-radius:50%;background:#00d466;box-shadow:0 0 4px #00d466;}
+
+
+/* ANALYSIS BAR */
+#analysis-bar{
+  background:#1e2d42;border-bottom:1px solid #2a3f5a;
+  padding:4px 12px;display:flex;align-items:center;gap:6px;
+  flex-wrap:nowrap;overflow:hidden;flex-shrink:0;
+}
+.ab-item{
+  display:flex;align-items:center;gap:4px;
+  font-family:var(--mono);font-size:9px;white-space:nowrap;
+  padding:2px 7px;border-radius:3px;border:1px solid rgba(255,255,255,.08);
+  flex-shrink:0;
+}
+.ab-icon{font-size:10px;}
+.ab-sep{color:#2a3f5a;flex-shrink:0;}
+
+/* MAIN: 2×2 grid */
+#main{
+  height:calc(100vh - var(--hdr) - var(--ab));
+  display:grid;
+  grid-template-rows:1fr 1fr;
+  grid-template-columns:1fr 1fr;
+  gap:5px;padding:5px;overflow:hidden;
+}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:7px;display:flex;flex-direction:column;overflow:hidden;min-height:0;cursor:default;}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.card-title{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);}
+.card-meta{font-family:var(--mono);font-size:8px;color:var(--text3);}
+.card-body{flex:1;padding:6px 8px;overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:4px;}
+
+/* LEGEND */
+.legend{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;}
+.li{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:8px;color:var(--text3);}
+.ld{width:16px;height:3px;border-radius:1px;flex-shrink:0;}
+.ld.dash{background:transparent;border-top:2px dashed;}
+
+/* CHART */
+.chart-wrap{flex:1;min-height:0;position:relative;}
+canvas{display:block;width:100%!important;height:100%!important;}
+
+/* OVERLAY MODAL */
+#overlay{
+  display:none;position:fixed;inset:0;background:rgba(10,20,35,.75);
+  z-index:100;align-items:center;justify-content:center;
+}
+#overlay.show{display:flex;}
+#modal{
+  background:var(--surface);border-radius:10px;border:1px solid var(--border);
+  width:min(680px,92vw);max-height:88vh;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+#modal-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+#modal-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--text2);}
+#modal-close{font-size:16px;cursor:pointer;color:var(--text3);background:none;border:none;padding:2px 6px;border-radius:3px;}
+#modal-close:hover{background:var(--bg);}
+#modal-body{flex:1;overflow-y:auto;padding:14px;}
+
+/* SLICE PANEL */
+.slice-time{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text2);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.slice-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.slice-card{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;}
+.slice-card-title{font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;}
+.slice-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:3px;}
+.slice-row .sk{color:var(--text3);}
+.slice-row .sv{font-family:var(--mono);font-weight:700;}
+.slice-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:3px;}
+.slice-fill{height:100%;border-radius:2px;}
+.src-breakdown{display:flex;gap:5px;margin-top:6px;}
+.src-chip{flex:1;padding:4px 6px;border-radius:4px;text-align:center;border:1px solid;}
+.src-chip .sc-label{font-family:var(--mono);font-size:7px;margin-bottom:1px;}
+.src-chip .sc-val{font-family:var(--mono);font-size:16px;font-weight:700;line-height:1;}
+
+/* DRILL BTN */
+.drill-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--mono);font-size:8px;color:var(--blue);
+  background:var(--blue-bg);border:1px solid var(--blue);
+  border-radius:3px;padding:2px 6px;cursor:pointer;margin-top:6px;
+}
+.drill-btn:hover{background:var(--blue);color:#fff;}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div class="h-logo">ICS</div>
+  <div class="h-ver">幕僚 v10b</div>
+  <div class="h-clock" id="clock">--:--:--</div>
+  <div class="h-sep"></div>
+  <div class="h-alerts">
+    <span class="h-al" id="al-1" style="color:#7a8ba0;">量能 —</span>
+    <span class="h-pipe">|</span>
+    <span class="h-al" id="al-2" style="color:#7a8ba0;">來源 —</span>
+    <span class="h-pipe">|</span>
+    <span class="h-al" id="al-3" style="color:#7a8ba0;">橋接 —</span>
+    <span class="h-pipe">|</span>
+    <span class="h-al" id="al-4" style="color:#7a8ba0;">資源 —</span>
+  </div>
+  <div class="h-sep"></div>
+  <div class="h-metrics">
+    <div class="hm" id="hm-cd"><div class="hl">醫療警戒</div><div class="hv" id="hm-cd-v">—</div></div>
+    <div class="hm" id="hm-src"><div class="hl">主要來源</div><div class="hv" id="hm-src-v">—</div></div>
+    <div class="hm"><div class="hl">更新</div><div class="hv" id="hm-upd" style="font-size:10px;">—</div></div>
+  </div>
+  <div class="h-sep"></div>
+  <div id="conn"><div class="dot"></div><span>模擬</span></div>
+</div>
+
+<div id="analysis-bar" id="analysis-bar"></div>
+<div id="main">
+  <div class="card" id="card-1">
+    <div class="card-hdr">
+      <div class="card-title">① 量能壓力 · 收容+醫療床位</div>
+      <div class="card-meta">點時間點查切面</div>
+    </div>
+    <div class="card-body">
+      <div class="legend">
+        <div class="li"><div class="ld" style="background:var(--yellow);"></div>收容床位%</div>
+        <div class="li"><div class="ld" style="background:var(--red);"></div>醫療床位%</div>
+        <div class="li"><div class="ld dash" style="border-color:rgba(90,138,176,.6);"></div>警戒70%</div>
+        <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.5);"></div>危急90%</div>
+      </div>
+      <div class="chart-wrap"><canvas id="c1"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" id="card-2">
+    <div class="card-hdr">
+      <div class="card-title">② 流量來源 · 醫療入站分布</div>
+      <div class="card-meta">點時間點查切面</div>
+    </div>
+    <div class="card-body">
+      <div class="legend">
+        <div class="li"><div class="ld" style="background:var(--src-a);"></div>A 前進組</div>
+        <div class="li"><div class="ld" style="background:var(--src-b);"></div>B 收容轉送</div>
+        <div class="li"><div class="ld" style="background:var(--src-c);"></div>C 自行抵達</div>
+        <div class="li"><div class="ld dash" style="border-color:rgba(90,138,176,.5);"></div>收容待入站</div>
+      </div>
+      <div class="chart-wrap"><canvas id="c2"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" id="card-3">
+    <div class="card-hdr">
+      <div class="card-title">③ 橋接訊號 · SRT Red+ → 醫療紅傷</div>
+      <div class="card-meta">點時間點查切面</div>
+    </div>
+    <div class="card-body">
+      <div class="legend">
+        <div class="li"><div class="ld" style="background:var(--red);"></div>SRT Red+（收容）</div>
+        <div class="li"><div class="ld" style="background:var(--yellow);"></div>醫療紅色傷患</div>
+        <div class="li" style="color:var(--text3);font-size:7px;margin-left:4px;">▶ 延遲約15分鐘</div>
+      </div>
+      <div class="chart-wrap"><canvas id="c3"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" id="card-4">
+    <div class="card-hdr">
+      <div class="card-title">④ 資源 · 人力+物資消耗</div>
+      <div class="card-meta">點時間點查切面</div>
+    </div>
+    <div class="card-body">
+      <div class="legend">
+        <div class="li"><div class="ld" style="background:#5a8ab0;"></div>收容值勤</div>
+        <div class="li"><div class="ld" style="background:#8a5ab0;"></div>醫療值勤</div>
+        <div class="li"><div class="ld" style="background:var(--red);"></div>IV%</div>
+        <div class="li"><div class="ld" style="background:var(--yellow);"></div>氧氣%</div>
+        <div class="li"><div class="ld" style="background:var(--green);"></div>止血帶%</div>
+      </div>
+      <div class="chart-wrap"><canvas id="c4"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- OVERLAY -->
+<div id="overlay">
+  <div id="modal">
+    <div id="modal-hdr">
+      <div id="modal-title">切面</div>
+      <button id="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ── Mock Data ──────────────────────────────────────────────────────────────
+const TIMES = ['10:00','10:05','10:10','10:15','10:20','10:25','10:30','10:35','10:40','10:45','10:50','11:00'];
+
+const S = [ // shelter snapshots
+  {bu:20,bt:80,pending:2,staff:8,srt_r:0,srt_y:5,srt_g:15},
+  {bu:23,bt:80,pending:2,staff:8,srt_r:0,srt_y:6,srt_g:17},
+  {bu:26,bt:80,pending:3,staff:8,srt_r:1,srt_y:8,srt_g:17},
+  {bu:30,bt:80,pending:3,staff:8,srt_r:1,srt_y:9,srt_g:20},
+  {bu:33,bt:80,pending:4,staff:8,srt_r:2,srt_y:10,srt_g:21},
+  {bu:36,bt:80,pending:4,staff:7,srt_r:2,srt_y:11,srt_g:23},
+  {bu:38,bt:80,pending:4,staff:7,srt_r:3,srt_y:12,srt_g:23},
+  {bu:39,bt:80,pending:4,staff:7,srt_r:3,srt_y:12,srt_g:24},
+  {bu:41,bt:80,pending:4,staff:8,srt_r:3,srt_y:13,srt_g:25},
+  {bu:42,bt:80,pending:4,staff:8,srt_r:4,srt_y:13,srt_g:25},
+  {bu:43,bt:80,pending:5,staff:8,srt_r:4,srt_y:14,srt_g:25},
+  {bu:44,bt:80,pending:4,staff:8,srt_r:4,srt_y:14,srt_g:26},
+];
+
+const M = [ // medical snapshots
+  {bu:1,bt:10,waiting:0,evac:0,cr:0,cy:1,cg:3,cb:0,staff:5,src_a:1,src_b:0,src_c:0,iv:10,oxy:5,tour:30},
+  {bu:2,bt:10,waiting:0,evac:0,cr:0,cy:2,cg:4,cb:0,staff:5,src_a:1,src_b:1,src_c:0,iv:10,oxy:5,tour:30},
+  {bu:3,bt:10,waiting:1,evac:0,cr:1,cy:2,cg:5,cb:0,staff:5,src_a:2,src_b:1,src_c:0,iv:9,oxy:5,tour:28},
+  {bu:4,bt:10,waiting:1,evac:1,cr:1,cy:3,cg:6,cb:0,staff:5,src_a:2,src_b:2,src_c:0,iv:8,oxy:4,tour:26},
+  {bu:4,bt:10,waiting:1,evac:1,cr:1,cy:3,cg:7,cb:0,staff:5,src_a:3,src_b:1,src_c:0,iv:8,oxy:4,tour:25},
+  {bu:5,bt:10,waiting:2,evac:1,cr:1,cy:4,cg:7,cb:1,staff:5,src_a:3,src_b:2,src_c:0,iv:7,oxy:4,tour:23},
+  {bu:5,bt:10,waiting:2,evac:1,cr:2,cy:4,cg:8,cb:1,staff:5,src_a:3,src_b:2,src_c:0,iv:6,oxy:3,tour:22},
+  {bu:6,bt:10,waiting:2,evac:2,cr:2,cy:4,cg:8,cb:1,staff:4,src_a:3,src_b:2,src_c:1,iv:6,oxy:3,tour:20},
+  {bu:6,bt:10,waiting:3,evac:2,cr:2,cy:4,cg:8,cb:1,staff:4,src_a:3,src_b:2,src_c:1,iv:5,oxy:3,tour:19},
+  {bu:7,bt:10,waiting:3,evac:2,cr:2,cy:4,cg:8,cb:1,staff:5,src_a:3,src_b:3,src_c:1,iv:5,oxy:2,tour:18},
+  {bu:7,bt:10,waiting:3,evac:2,cr:2,cy:4,cg:8,cb:1,staff:5,src_a:3,src_b:3,src_c:1,iv:4,oxy:2,tour:18},
+  {bu:7,bt:10,waiting:3,evac:2,cr:2,cy:4,cg:8,cb:1,staff:5,src_a:3,src_b:3,src_c:1,iv:4,oxy:2,tour:18},
+];
+
+const N = TIMES.length;
+
+// Derived series
+const sPct  = S.map(s=>Math.round(s.bu/s.bt*100));
+const mPct  = M.map(m=>Math.round(m.bu/m.bt*100));
+const srcA  = M.map(m=>m.src_a);
+const srcB  = M.map(m=>m.src_b);
+const srcC  = M.map(m=>m.src_c);
+const pend  = S.map(s=>s.pending);
+const srtR  = S.map(s=>s.srt_r);
+const medCR = M.map(m=>m.cr);
+const SHELTER_STAFF_MAX = 20;
+const MEDICAL_STAFF_MAX = 20;
+const sStaff= S.map(s=>s.staff/SHELTER_STAFF_MAX*100);
+const mStaff= M.map(m=>m.staff/MEDICAL_STAFF_MAX*100);
+// 物資初始值：真實 API 接入後從 calc.medical.supplies_max 讀取
+const sm = window._calc?.medical?.supplies_max || {iv:10, oxygen:5, tourniquet:30};
+const ivPct = M.map(m=>Math.round(m.iv/sm.iv*100));
+const oxPct = M.map(m=>Math.round(m.oxy/sm.oxygen*100));
+const toP   = M.map(m=>Math.round(m.tour/sm.tourniquet*100));
+
+// ── Canvas chart ───────────────────────────────────────────────────────────
+function drawChart(id, datasets, opts, onClickCb) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const par = canvas.parentElement;
+  const W = par.clientWidth, H = par.clientHeight;
+  if (!W||!H) return;
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const pad = {t:6,r:24,b:20,l:28};
+  const cW = W-pad.l-pad.r, cH = H-pad.t-pad.b;
+  const yMin = opts.yMin||0, yMax = opts.yMax||100;
+  const yR = yMax-yMin||1;
+
+  function px(i){ return pad.l+(i/(N-1))*cW; }
+  function py(v){ return pad.t+cH-((v-yMin)/yR)*cH; }
+
+  // Grid
+  ctx.strokeStyle='#d8e0ec'; ctx.lineWidth=0.5;
+  [0,25,50,75,100].filter(v=>v>=yMin&&v<=yMax).forEach(v=>{
+    const y=py(v);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
+    ctx.fillStyle='#9ab0c8'; ctx.font='6px IBM Plex Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText(v, pad.l-3, y+2);
+  });
+
+  // Threshold lines
+  (opts.thresholds||[]).forEach(th=>{
+    ctx.strokeStyle=th.color; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+    const y=py(th.value);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Stacked fill (for source chart)
+  if (opts.stacked) {
+    const stacks = opts.stacked; // array of {data, color}
+    for (let i=0; i<N; i++) {
+      let base = 0;
+      stacks.forEach(st=>{
+        const v = st.data[i];
+        const x = px(i), barW = cW/(N-1)*0.6;
+        ctx.fillStyle = st.color;
+        const barH = (v/yR)*cH;
+        ctx.fillRect(x-barW/2, py(base+v), barW, barH);
+        base += v;
+      });
+    }
+  }
+
+  // Lines
+  datasets.forEach(ds=>{
+    if (ds.fill) {
+      ctx.beginPath();
+      ds.data.forEach((v,i)=>{ i===0?ctx.moveTo(px(i),py(v)):ctx.lineTo(px(i),py(v)); });
+      ctx.lineTo(px(N-1),py(yMin)); ctx.lineTo(px(0),py(yMin)); ctx.closePath();
+      ctx.fillStyle=ds.fillColor||'rgba(200,220,255,.1)'; ctx.fill();
+    }
+    ctx.strokeStyle=ds.color; ctx.lineWidth=ds.w||2; ctx.lineJoin='round';
+    ctx.setLineDash(ds.dash||[]);
+    ctx.beginPath();
+    ds.data.forEach((v,i)=>{ i===0?ctx.moveTo(px(i),py(v)):ctx.lineTo(px(i),py(v)); });
+    ctx.stroke(); ctx.setLineDash([]);
+    ds.data.forEach((v,i)=>{
+      ctx.fillStyle=ds.color; ctx.beginPath(); ctx.arc(px(i),py(v),2.5,0,Math.PI*2); ctx.fill();
+    });
+    // Last value
+    const lv=ds.data[N-1];
+    ctx.fillStyle=ds.color; ctx.font='bold 8px IBM Plex Mono,monospace'; ctx.textAlign='left';
+    ctx.fillText(lv+(ds.unit||''), px(N-1)+4, py(lv)+3);
+  });
+
+  // X labels
+  ctx.fillStyle='#7a8ba0'; ctx.font='7px IBM Plex Mono,monospace'; ctx.textAlign='center';
+  TIMES.forEach((t,i)=>{ if(i%2===0||i===N-1) ctx.fillText(t,px(i),H-3); });
+
+  // Click area
+  if (onClickCb) {
+    canvas._clickCb = onClickCb;
+    canvas._px = px;
+    canvas._pad = pad;
+    canvas._cW = cW;
+    canvas.onclick = function(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) - pad.l;
+      const idx = Math.round((x / cW) * (N-1));
+      if (idx >= 0 && idx < N) onClickCb(idx);
+    };
+  }
+}
+
+
+// ── Trend Analysis ─────────────────────────────────────────────────────────
+
+// Compute slope: difference between last-3 avg and first-3 avg
+function slope(arr) {
+  const n = arr.length;
+  if (n < 4) return 0;
+  const recent = (arr[n-1]+arr[n-2]+arr[n-3])/3;
+  const early  = (arr[0]+arr[1]+arr[2])/3;
+  return recent - early;
+}
+
+// Rate per snapshot
+function rate(arr) {
+  const n = arr.length;
+  if (n < 2) return 0;
+  return ((arr[n-1]-arr[0])/(n-1)).toFixed(2)*1;
+}
+
+// Minutes until value reaches threshold at current rate
+function minsUntil(current, threshold, ratePerSnap, snapMins) {
+  if (ratePerSnap <= 0) return null;
+  const remaining = threshold - current;
+  if (remaining <= 0) return 0;
+  return Math.round((remaining / ratePerSnap) * snapMins);
+}
+
+function buildAnalysis() {
+  const ls = S[N-1], lm = M[N-1];
+  const items = [];
+
+  // 1. 量能加速判斷
+  const sSl = slope(sPct), mSl = slope(mPct);
+  const mRate = rate(mPct); // % per snapshot (5min)
+  if (mSl > 15) {
+    items.push({icon:'🔴', text:'醫療量能加速上升', color:'#ff6b6b', detail:'過去1小時上升'+mSl.toFixed(0)+'%，速率加快'});
+  } else if (mSl > 5) {
+    items.push({icon:'🟡', text:'醫療量能持續上升', color:'var(--yellow)', detail:'穩定上升中'});
+  }
+  if (sSl > 20) {
+    items.push({icon:'🟡', text:'收容量能加速', color:'var(--yellow)', detail:'收容上升'+sSl.toFixed(0)+'%'});
+  }
+
+  // 2. 來源比例變化
+  const srcARate = rate(srcA), srcBRate = rate(srcB);
+  if (srcBRate > 0.3) {
+    items.push({icon:'⚠️', text:'B來源（收容轉送）上升', color:'var(--src-b)', detail:'SRT篩選壓力正在轉移至醫療'});
+  }
+  if (srcARate > 0.3) {
+    items.push({icon:'🔵', text:'A來源（前進組）持續輸入', color:'var(--src-a)', detail:'前線傷患持續送達，確認前進組狀況'});
+  }
+
+  // 3. SRT橋接觸發
+  const srtSlope = slope(srtR);
+  const crSlope  = slope(medCR);
+  if (srtR[N-4] < medCR[N-1] && srtSlope > 0) {
+    items.push({icon:'🔗', text:'SRT橋接延遲已觸發', color:'#ff6b6b', detail:'SRT Red+上升後約15分鐘，醫療紅傷跟進'});
+  }
+
+  // 4. 物資預估見底
+  const ivR = rate(ivPct); // % per snapshot
+  if (ivR < 0) {
+    const minsIV = minsUntil(lm.iv/10*100, 20, Math.abs(ivR), 5);
+    if (minsIV !== null && minsIV < 60) {
+      items.push({icon:'🔴', text:'IV輸液'+minsIV+'分見底', color:'#ff6b6b', detail:'按目前消耗速率，剩'+lm.iv+'/10支'});
+    }
+  }
+  const oxR = rate(oxPct);
+  if (oxR < 0) {
+    const minsOx = minsUntil(lm.oxy/sm.oxygen*100, 20, Math.abs(oxR), 5);
+    if (minsOx !== null && minsOx < 60) {
+      items.push({icon:'🟡', text:'氧氣瓶'+minsOx+'分見底', color:'var(--yellow)', detail:'剩'+lm.oxy+'/'+sm.oxygen+'瓶'});
+    }
+  }
+
+  // 5. 人力下降
+  const sStaffSlope = slope(sStaff), mStaffSlope = slope(mStaff);
+  if (mStaffSlope < -10) {
+    items.push({icon:'⚠️', text:'醫療人力下降', color:'var(--yellow)', detail:'目前'+lm.staff+'人值勤，確認是否需要增援'});
+  }
+
+  // 6. 醫療警戒倒數
+  if (mPct[N-1] >= 70) {
+    const minsTo90 = minsUntil(mPct[N-1], 90, Math.abs(mRate), 5);
+    if (minsTo90 !== null && minsTo90 < 30) {
+      items.push({icon:'🔴', text:'醫療危急倒數'+minsTo90+'分', color:'#ff6b6b', detail:'按目前速率將達90%滿載'});
+    }
+  }
+
+  return items;
+}
+
+function renderAnalysisBar() {
+  const items = buildAnalysis();
+  const bar = document.getElementById('analysis-bar');
+  if (!bar) return;
+  if (items.length === 0) {
+    bar.innerHTML = '<div class="ab-item" style="color:#00d466;"><span class="ab-icon">✅</span><span>目前無異常趨勢</span></div>';
+    return;
+  }
+  bar.innerHTML = items.map((item,i) =>
+    (i>0?'<div class="ab-sep">·</div>':'')
+    +'<div class="ab-item" style="color:'+item.color+';border-color:'+item.color+'22;">'
+    +'<span class="ab-icon">'+item.icon+'</span>'
+    +'<span>'+item.text+'</span>'
+    +'</div>'
+  ).join('');
+}
+
+function buildSliceAnalysis(idx) {
+  if (idx < 2) return '';
+  const items = [];
+
+  // Compare to 3 snapshots ago
+  const prev = Math.max(0, idx-3);
+  const sDiff = sPct[idx]-sPct[prev];
+  const mDiff = mPct[idx]-mPct[prev];
+  const ivDiff = M[idx].iv - M[prev].iv;
+  const srtDiff = srtR[idx]-srtR[prev];
+  const crDiff = medCR[idx]-medCR[prev];
+
+  if (mDiff > 0) items.push('醫療床位在過去15分鐘上升 <b style="color:var(--red);">+'+mDiff+'%</b>');
+  if (sDiff > 0) items.push('收容床位在過去15分鐘上升 <b style="color:var(--yellow);">+'+sDiff+'%</b>');
+  if (srtDiff > 0 && crDiff === 0) items.push('<b style="color:var(--red);">SRT Red+ 已上升'+srtDiff+'，醫療紅傷尚未跟進</b>——預計15分鐘內出現');
+  if (srtDiff > 0 && crDiff > 0) items.push('SRT橋接效應已觸發：收容 Red+ ↑'+srtDiff+'，醫療紅傷 ↑'+crDiff);
+  if (ivDiff < 0) {
+    const rate15 = Math.abs(ivDiff);
+    const minsLeft = Math.round((M[idx].iv / (rate15/3)) * 5);
+    items.push('IV消耗速率 '+rate15+'/15分鐘，按此速率還剩 <b style="color:var(--red);">'+minsLeft+'分鐘</b>');
+  }
+
+  // Source change
+  const srcADiff = M[idx].src_a - M[prev].src_a;
+  const srcBDiff = M[idx].src_b - M[prev].src_b;
+  if (srcBDiff > srcADiff && srcBDiff > 0) items.push('收容轉送（B）在過去15分鐘增加'+srcBDiff+'人——<b style="color:var(--src-b);">根源在收容端</b>');
+  if (srcADiff > srcBDiff && srcADiff > 0) items.push('前進組送入（A）在過去15分鐘增加'+srcADiff+'人——<b style="color:var(--src-a);">確認前進組狀況</b>');
+
+  if (items.length === 0) return '';
+  return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-top:10px;">'
+    +'<div style="font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">趨勢分析</div>'
+    +'<ul style="padding-left:14px;">'
+    +items.map(i=>'<li style="font-size:11px;color:var(--text2);margin-bottom:5px;line-height:1.5;">'+i+'</li>').join('')
+    +'</ul></div>';
+}
+
+// ── Render all charts ──────────────────────────────────────────────────────
+function renderCharts() {
+  const cb = showSlice;
+
+  drawChart('c1', [
+    {data:sPct, color:'var(--yellow)', w:2.5, unit:'%', fill:true, fillColor:'rgba(212,144,0,.08)'},
+    {data:mPct, color:'var(--red)',    w:2.5, unit:'%', fill:true, fillColor:'rgba(204,42,42,.08)'},
+  ], {yMin:0,yMax:100, thresholds:[{value:70,color:'rgba(90,138,176,.5)'},{value:90,color:'rgba(204,42,42,.4)'}]}, cb);
+
+  // Source chart: stacked bars + pending line
+  const srcMax = Math.max(...M.map(m=>m.src_a+m.src_b+m.src_c))+2;
+  drawChart('c2', [
+    {data:pend, color:'#5a8ab0', w:1.5, dash:[4,2], unit:''},
+  ], {
+    yMin:0, yMax:srcMax+2,
+    stacked:[
+      {data:srcA, color:'var(--src-a)'},
+      {data:srcB, color:'var(--src-b)'},
+      {data:srcC, color:'var(--src-c)'},
+    ]
+  }, cb);
+
+  drawChart('c3', [
+    {data:srtR,  color:'var(--red)',    w:2.5, unit:'', fill:true, fillColor:'rgba(204,42,42,.1)'},
+    {data:medCR, color:'var(--yellow)', w:2,   unit:'', fill:true, fillColor:'rgba(212,144,0,.08)'},
+  ], {yMin:0,yMax:8}, cb);
+
+  drawChart('c4', [
+    {data:sStaff, color:'#5a8ab0', w:2,   unit:'%', dash:[5,2]},
+    {data:mStaff, color:'#8a5ab0', w:2,   unit:'%', dash:[5,2]},
+    {data:ivPct,  color:'var(--red)',    w:1.5, unit:'%'},
+    {data:oxPct,  color:'var(--yellow)', w:1.5, unit:'%'},
+    {data:toP,    color:'var(--green)',  w:1.5, unit:'%'},
+  ], {yMin:0,yMax:100, thresholds:[{value:20,color:'rgba(204,42,42,.4)'}]}, cb);
+}
+
+// ── Update header ──────────────────────────────────────────────────────────
+function updateHeader() {
+  const ls = S[N-1], lm = M[N-1];
+  const sp = Math.round(ls.bu/ls.bt*100), mp = Math.round(lm.bu/lm.bt*100);
+  const sc = sp>=90?'#ff6b6b':sp>=70?'var(--yellow)':'#00d466';
+  const mc = mp>=90?'#ff6b6b':mp>=70?'var(--yellow)':'#00d466';
+  el('al-1').textContent='收容'+sp+'% 醫療'+mp+'%';
+  el('al-1').style.color = mp>=90?'#ff6b6b':mp>=70||sp>=70?'var(--yellow)':'#00d466';
+
+  const totA=srcA[N-1], totB=srcB[N-1], totC=srcC[N-1];
+  const maxSrc = Math.max(totA,totB,totC);
+  const srcName = maxSrc===totA?'A前進':maxSrc===totB?'B收容':'C自行';
+  el('al-2').textContent='主要來源：'+srcName;
+  el('al-2').style.color=maxSrc===totA?'var(--src-a)':maxSrc===totB?'var(--src-b)':'var(--src-c)';
+
+  el('al-3').textContent='SRT Red+ '+srtR[N-1]+' → 醫療紅傷'+medCR[N-1];
+  el('al-3').style.color=srtR[N-1]>=3?'#ff6b6b':'var(--yellow)';
+
+  const ivLeft=lm.iv, ivRate=((M[0].iv-lm.iv)/(N-1)*12).toFixed(1);
+  el('al-4').textContent='IV剩'+ivLeft+'/10 · 每小時-'+ivRate;
+  el('al-4').style.color=ivLeft<=3?'#ff6b6b':ivLeft<=5?'var(--yellow)':'#00d466';
+
+  el('hm-cd-v').textContent='8分'; el('hm-cd').className='hm alert';
+  el('hm-src-v').textContent=srcName;
+  el('hm-upd').textContent='11:00';
+}
+
+// ── Slice modal ────────────────────────────────────────────────────────────
+function el(id){ return document.getElementById(id); }
+
+function showSlice(idx) {
+  const s = S[idx], m = M[idx], t = TIMES[idx];
+  const sp = Math.round(s.bu/s.bt*100), mp = Math.round(m.bu/m.bt*100);
+  const slc = sp>=90?'var(--red)':sp>=70?'var(--yellow)':'var(--green)';
+  const mlc = mp>=90?'var(--red)':mp>=70?'var(--yellow)':'var(--green)';
+  const totSrc = m.src_a+m.src_b+m.src_c;
+
+  el('modal-title').textContent='切面快照 · '+t;
+  el('modal-body').innerHTML =
+    '<div class="slice-time">'+t+' 時間點完整切面</div>'
+
+    // Row 1: shelter + medical
+    +'<div class="slice-grid">'
+
+    // Shelter card
+    +'<div class="slice-card">'
+    +'<div class="slice-card-title">收容組</div>'
+    +'<div class="slice-row"><span class="sk">床位</span><span class="sv" style="color:'+slc+';">'+s.bu+'/'+s.bt+'（'+sp+'%）</span></div>'
+    +'<div class="slice-bar"><div class="slice-fill" style="width:'+sp+'%;background:'+slc+';"></div></div>'
+    +'<div class="slice-row" style="margin-top:6px;"><span class="sk">待入站</span><span class="sv" style="color:'+(s.pending>3?'var(--red)':s.pending>1?'var(--yellow)':'var(--text)')+';">'+s.pending+' 人</span></div>'
+    +'<div class="slice-row"><span class="sk">值勤</span><span class="sv">'+s.staff+' 人</span></div>'
+    +'<div style="margin-top:6px;"><div style="font-family:var(--mono);font-size:7px;color:var(--text3);margin-bottom:3px;">SRT 分布</div>'
+    +'<div style="display:flex;height:12px;border-radius:3px;overflow:hidden;gap:1px;">'
+    +(s.srt_r>0?'<div style="flex:'+s.srt_r+';background:var(--red);display:flex;align-items:center;justify-content:center;"><span style="font-family:var(--mono);font-size:8px;color:#fff;">'+s.srt_r+'</span></div>':'')
+    +(s.srt_y>0?'<div style="flex:'+s.srt_y+';background:var(--yellow);display:flex;align-items:center;justify-content:center;"><span style="font-family:var(--mono);font-size:8px;color:#fff;">'+s.srt_y+'</span></div>':'')
+    +(s.srt_g>0?'<div style="flex:'+s.srt_g+';background:var(--green);display:flex;align-items:center;justify-content:center;"><span style="font-family:var(--mono);font-size:8px;color:#fff;">'+s.srt_g+'</span></div>':'')
+    +'</div></div>'
+    +'</div>'
+
+    // Medical card
+    +'<div class="slice-card">'
+    +'<div class="slice-card-title">醫療組</div>'
+    +'<div class="slice-row"><span class="sk">床位</span><span class="sv" style="color:'+mlc+';">'+m.bu+'/'+m.bt+'（'+mp+'%）</span></div>'
+    +'<div class="slice-bar"><div class="slice-fill" style="width:'+mp+'%;background:'+mlc+';"></div></div>'
+    +'<div style="display:flex;height:12px;border-radius:3px;overflow:hidden;gap:1px;margin-top:3px;">'
+    +(m.cr>0?'<div style="flex:'+m.cr+';background:var(--red);display:flex;align-items:center;justify-content:center;"><span style="font-family:var(--mono);font-size:8px;color:#fff;">'+m.cr+'</span></div>':'')
+    +(m.cy>0?'<div style="flex:'+m.cy+';background:var(--yellow);display:flex;align-items:center;justify-content:center;"><span style="font-family:var(--mono);font-size:8px;color:#fff;">'+m.cy+'</span></div>':'')
+    +(m.cg>0?'<div style="flex:'+m.cg+';background:var(--green);display:flex;align-items:center;justify-content:center;"><span style="font-family:var(--mono);font-size:8px;color:#fff;">'+m.cg+'</span></div>':'')
+    +(m.cb>0?'<div style="flex:'+m.cb+';background:#444;display:flex;align-items:center;justify-content:center;"><span style="font-family:var(--mono);font-size:8px;color:#fff;">'+m.cb+'</span></div>':'')
+    +'</div>'
+    +'<div class="slice-row" style="margin-top:6px;"><span class="sk">等待進入</span><span class="sv" style="color:'+(m.waiting>2?'var(--red)':'var(--text)')+';">'+m.waiting+' 人</span></div>'
+    +'<div class="slice-row"><span class="sk">待後送</span><span class="sv">'+m.evac+' 人</span></div>'
+    +'<div class="slice-row"><span class="sk">值勤</span><span class="sv">'+m.staff+' 人</span></div>'
+    +'</div>'
+    +'</div>'
+
+    // Source breakdown
+    +'<div class="slice-card" style="margin-bottom:10px;">'
+    +'<div class="slice-card-title">醫療入站來源（累計至 '+t+'）</div>'
+    +'<div class="src-breakdown">'
+    +'<div class="src-chip" style="background:rgba(32,96,176,.08);border-color:var(--src-a);">'
+    +'<div class="sc-label" style="color:var(--src-a);">A 前進組</div>'
+    +'<div class="sc-val" style="color:var(--src-a);">'+m.src_a+'</div>'
+    +'</div>'
+    +'<div class="src-chip" style="background:rgba(212,144,0,.08);border-color:var(--src-b);">'
+    +'<div class="sc-label" style="color:var(--src-b);">B 收容轉送</div>'
+    +'<div class="sc-val" style="color:var(--src-b);">'+m.src_b+'</div>'
+    +'</div>'
+    +'<div class="src-chip" style="background:rgba(26,158,82,.08);border-color:var(--src-c);">'
+    +'<div class="sc-label" style="color:var(--src-c);">C 自行抵達</div>'
+    +'<div class="sc-val" style="color:var(--src-c);">'+m.src_c+'</div>'
+    +'</div>'
+    +'</div>'
+    +(m.src_a>m.src_b&&m.src_a>m.src_c?'<div style="font-family:var(--mono);font-size:8px;color:var(--src-a);margin-top:6px;">▶ 主要來自前進組 → 確認前線傷患狀況</div>'
+      :m.src_b>m.src_a&&m.src_b>m.src_c?'<div style="font-family:var(--mono);font-size:8px;color:var(--src-b);margin-top:6px;">▶ 主要來自收容轉送 → SRT 篩選壓力轉移中</div>'
+      :'<div style="font-family:var(--mono);font-size:8px;color:var(--src-c);margin-top:6px;">▶ 主要自行抵達 → 確認外圍壓力來源</div>')
+    +'</div>'
+
+    // Resources
+    +'<div class="slice-card">'
+    +'<div class="slice-card-title">物資狀況</div>'
+    +[{l:'IV 輸液',v:m.iv,t:sm.iv},{l:'氧氣瓶',v:m.oxy,t:sm.oxygen},{l:'止血帶',v:m.tour,t:sm.tourniquet}].map(r=>{
+      const p=r.v/r.t, c=p<=.2?'var(--red)':p<=.4?'var(--yellow)':'var(--green)';
+      return '<div class="slice-row"><span class="sk">'+r.l+'</span><span class="sv" style="color:'+c+';">'+r.v+'/'+r.t+'</span></div>'
+        +'<div class="slice-bar"><div class="slice-fill" style="width:'+(p*100).toFixed(0)+'%;background:'+c+';"></div></div>';
+    }).join('')
+    +'</div>';
+
+  el('modal-body').innerHTML += buildSliceAnalysis(idx);
+  el('overlay').className='show';
+}
+
+function closeModal() {
+  el('overlay').className='';
+}
+
+el('overlay').addEventListener('click', function(e){
+  if(e.target===this) closeModal();
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+setInterval(()=>{ el('clock').textContent=new Date().toTimeString().slice(0,8); },1000);
+el('clock').textContent=new Date().toTimeString().slice(0,8);
+
+updateHeader();
+renderAnalysisBar();
+setTimeout(()=>{ renderCharts(); }, 80);
+window.addEventListener('resize', ()=>{ renderCharts(); });
+</script>
+</body>
+</html>

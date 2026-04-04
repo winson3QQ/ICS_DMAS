@@ -21,6 +21,7 @@ from typing import Optional
 import json
 from pathlib import Path
 
+import asyncio
 import db
 import calc_engine
 
@@ -33,6 +34,25 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",   # 開發時可用 Swagger UI 測試
 )
+
+
+# 預留：定時快照 loop（各組快照由 /api/snapshots 推送，此 loop 供未來擴充）
+@app.on_event("startup")
+async def start_snapshot_scheduler():
+    asyncio.create_task(_snapshot_loop())
+
+
+async def _snapshot_loop():
+    """預留結構：未來可在此自動產生 sentinel 快照"""
+    await asyncio.sleep(30)  # 啟動後 30 秒才開始，等各組連線
+    while True:
+        try:
+            # 目前只是預留，實際快照來自各組 PWA 推送
+            pass
+        except Exception:
+            pass
+        await asyncio.sleep(300)  # 每 5 分鐘
+
 
 # CORS：允許同區網所有裝置（各組 Pi、iPad）存取
 app.add_middleware(
@@ -304,6 +324,10 @@ def get_dashboard():
     pending_decisions = db.get_decisions("pending")
     decided_decisions = db.get_decisions("approved") + db.get_decisions("completed")
 
+    # 歷史快照（供趨勢圖用）
+    shelter_history = db.get_snapshots("shelter", 12)
+    medical_history = db.get_snapshots("medical", 12)
+
     return {
         "calc": calc,
         "events": events,
@@ -312,6 +336,8 @@ def get_dashboard():
             "decided": sorted(decided_decisions,
                               key=lambda d: d.get("decided_at",""), reverse=True)[:20],
         },
+        "shelter_history": shelter_history,
+        "medical_history": medical_history,
     }
 
 

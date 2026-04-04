@@ -391,6 +391,7 @@ def dashboard_calc(
             "bed_trend": med_bed_trend,
             "waiting_trend": med_waiting_trend,
             "countdown_to_red": med_countdown,
+            "source_breakdown": _extract_source_breakdown(med),
         },
         "shelter": {
             "snapshot":  shel,
@@ -408,6 +409,18 @@ def dashboard_calc(
         },
         "medical_pressure": mpi,
         "low_confidence_count": low_conf_count,
+    }
+
+
+def _extract_source_breakdown(snap: dict | None) -> dict:
+    """從快照 extra 欄位取得醫療入站來源分布"""
+    if not snap:
+        return {"a": 0, "b": 0, "c": 0}
+    extra = snap.get("extra") or {}
+    return {
+        "a": extra.get("src_a", 0),
+        "b": extra.get("src_b", 0),
+        "c": extra.get("src_c", 0),
     }
 
 

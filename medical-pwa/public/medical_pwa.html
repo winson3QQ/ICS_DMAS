@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.5.0-alpha';</script>
+<script>const PWA_VERSION='v0.5.1-alpha';</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3102,18 +3102,45 @@ function renderStub(el, icon, title, desc) {
 /* ════════════════════════════════════════════════════════════════
    QR SNAPSHOT
 ════════════════════════════════════════════════════════════════ */
+/* ── 自動推算值勤人數（最近 30 分鐘有操作的不重複人員數）── */
+async function calcMedicalActiveStaff() {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const operators = new Set();
+  const triages = await db.triages.filter(t => (t.triage_at || '') >= cutoff).toArray();
+  triages.forEach(t => { if (t.triage_by) operators.add(t.triage_by); });
+  const patients = await db.patients.filter(p => (p.updated_at || '') >= cutoff).toArray();
+  patients.forEach(p => { if (p.operator_name) operators.add(p.operator_name); });
+  return operators.size;
+}
+
 async function doQrSnapshot() {
   const r=countByColor('red'), y=countByColor('yellow'), g=countByColor('green'), b=countByColor('black');
   const pending = getPendingTransfer();
   const uuid = generateSnapshotUUID();
   const now = localISO();
+
+  // 來源分布（任務 6a）
+  const allPatients = await db.patients.toArray();
+  const src_a = allPatients.filter(p => p.source_type === 'A').length;
+  const src_b = allPatients.filter(p => p.source_type === 'B').length;
+  const src_c = allPatients.filter(p => p.source_type === 'C').length;
+
+  // 自動推算值勤人數（任務 7-2）
+  const staff_on_duty = await calcMedicalActiveStaff();
+
+  // 物資初始值（任務 8-1）
+  const cfg = await db.config.get('supplies_max');
+  const supplies_max = cfg?.value || { iv:10, oxygen:5, tourniquet:30 };
+
   // 精簡 payload（縮短 key 名，減少 QR 密度，提升掃描成功率）
-  const payload = { v:1, src:'med', t:now.slice(0,16), r, y, g, b, pe:pending };
+  const payload = { v:1, src:'med', t:now.slice(0,16), r, y, g, b, pe:pending, st:staff_on_duty };
   const payloadStr = JSON.stringify(payload);
-  // 完整資料仍存 DB
+  // 完整資料仍存 DB（含 extra 欄位供指揮部使用）
   await db.snapshots.add({ snapshot_uuid:uuid, snapshot_time:now, type:'qr',
     payload: JSON.stringify({ v:1, snapshot_id:uuid, t:now, src:'medical',
-      casualties:{ red:r, yellow:y, green:g, black:b }, pending_evac:pending }) });
+      casualties:{ red:r, yellow:y, green:g, black:b }, pending_evac:pending,
+      staff_on_duty,
+      extra:{ src_a, src_b, src_c, supplies_max } }) });
 
   openModal('QR 快照',
     `<div style="text-align:center">

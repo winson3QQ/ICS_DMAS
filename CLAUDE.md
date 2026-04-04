@@ -47,6 +47,13 @@
 
 **軌道一：程式版本（SemVer）** — 格式 `vMAJOR.MINOR.PATCH`，以 git tag 標記。
 
+**Git tag 命名規則**（三組各自獨立）：
+- `medical-vX.Y.Z[-alpha|-beta]` — 醫療組 PWA
+- `shelter-vX.Y.Z[-alpha]` — 收容組 PWA
+- `server-vX.Y.Z` — 共用 Pi Server（`ics_ws_server.js`）
+
+每次 commit 若包含版號遞增，**必須同時打對應的 git tag**。舊有 `v0.1.0`（無 prefix）為歷史遺留，不再使用。
+
 | 位號 | 觸發條件 |
 |------|---------|
 | PATCH +1 | bug fix 完成，行為有改變 |
