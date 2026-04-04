@@ -5,7 +5,7 @@
    ════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const CACHE_NAME = 'medical-pwa-v0.7.0-alpha';
+const CACHE_NAME = 'medical-pwa-v0.8.0-alpha';
 const STATIC_ASSETS = [
   './medical_pwa.html',
   './sw.js',

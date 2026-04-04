@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.7.0-alpha';</script>
+<script>const PWA_VERSION='v0.8.0-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -1735,7 +1735,21 @@ function renderIntakeForm() {
 }
 
 function renderXABCDE() {
+  const traumaTypes = ['一般外傷','墜落傷；高度___','穿刺傷','燒燙傷','電擊傷','生物咬噬傷','OHCA','輾/壓傷','其他___'];
   return `
+    <div class="section-hdr">現在狀況（創傷）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:13px;margin-bottom:8px;">
+      ${traumaTypes.map(t=>`<label style="display:flex;align-items:center;gap:4px;padding:3px 0;"><input type="checkbox" class="tr-type-chk" value="${t}"> ${t}</label>`).join('')}
+    </div>
+    <div class="form-group">
+      <div class="form-label" style="font-size:12px;">止血帶</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;">
+        <div><label><input type="checkbox" id="tq-upper-l"> 上肢左</label> <input class="form-input" id="tq-upper-l-time" placeholder="上緊時間" style="font-size:12px;padding:4px 6px;margin-top:2px;"></div>
+        <div><label><input type="checkbox" id="tq-upper-r"> 上肢右</label> <input class="form-input" id="tq-upper-r-time" placeholder="上緊時間" style="font-size:12px;padding:4px 6px;margin-top:2px;"></div>
+        <div><label><input type="checkbox" id="tq-lower-l"> 下肢左</label> <input class="form-input" id="tq-lower-l-time" placeholder="上緊時間" style="font-size:12px;padding:4px 6px;margin-top:2px;"></div>
+        <div><label><input type="checkbox" id="tq-lower-r"> 下肢右</label> <input class="form-input" id="tq-lower-r-time" placeholder="上緊時間" style="font-size:12px;padding:4px 6px;margin-top:2px;"></div>
+      </div>
+    </div>
     <div class="section-hdr">XABCDE 評估（創傷）</div>
 
     <div class="form-group">
@@ -1830,7 +1844,12 @@ function renderXABCDE() {
 }
 
 function renderSampleOpqrst() {
+  const nonTraumaTypes = ['呼吸問題(喘/呼吸急促)','呼吸道問題(異物哽塞)','疑似中毒','癲癇/抽搐','昏迷(意識不清)','行為異常','胸痛/悶','孕婦急症','腹痛','溺水','一般疾病','OHCA','頭痛/頭暈/昏厥/昏厥','發燒','噁心/嘔吐/腹瀉','肢體無力'];
   return `
+    <div class="section-hdr">現在狀況（非創傷）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:13px;margin-bottom:12px;">
+      ${nonTraumaTypes.map(t=>`<label style="display:flex;align-items:center;gap:4px;padding:3px 0;"><input type="checkbox" class="nt-type-chk" value="${t}"> ${t}</label>`).join('')}
+    </div>
     <div class="section-hdr">ABC 初步評估（非創）</div>
     <div class="form-group">
       <div class="form-label">A — 呼吸道 <span style="font-size:11px;color:var(--text3);font-weight:400;">正常＝自然通暢</span></div>
@@ -1899,16 +1918,13 @@ function renderSampleOpqrst() {
     </div>
     <div class="form-group">
       <div class="form-label">A — 過敏史</div>
-      <div class="mist-combo">
-        <select class="mist-select" id="sample-a-sel" onchange="mistFill('sample-a','sample-a-sel')">
-          <option value="">— 快速選擇 —</option>
-          <option value="無已知過敏">無已知過敏 ✓</option>
-          <option>藥物過敏（詳見補充）</option>
-          <option>食物過敏</option>
-          <option>不明</option>
-        </select>
-        <input class="form-input" id="sample-a" placeholder="補充（如：盤尼西林、NSAIDs…）">
+      <div style="display:flex;gap:8px;font-size:13px;margin-bottom:6px;">
+        <label><input type="checkbox" id="allergy-none" onchange="if(this.checked){document.getElementById('allergy-drug').checked=false;document.getElementById('allergy-food').checked=false;document.getElementById('allergy-other').checked=false;}"> 無已知過敏</label>
+        <label><input type="checkbox" id="allergy-drug" onchange="if(this.checked)document.getElementById('allergy-none').checked=false;"> 藥物</label>
+        <label><input type="checkbox" id="allergy-food" onchange="if(this.checked)document.getElementById('allergy-none').checked=false;"> 食物</label>
+        <label><input type="checkbox" id="allergy-other" onchange="if(this.checked)document.getElementById('allergy-none').checked=false;"> 其他</label>
       </div>
+      <input class="form-input" id="sample-a" placeholder="過敏原（如：盤尼西林、海鮮、乳膠…）">
     </div>
     <div class="form-group">
       <div class="form-label">M — 用藥史</div>
@@ -1925,16 +1941,10 @@ function renderSampleOpqrst() {
     </div>
     <div class="form-group">
       <div class="form-label">P — 過去病史</div>
-      <div class="mist-combo">
-        <select class="mist-select" id="sample-p-sel" onchange="mistAppend('sample-p','sample-p-sel')">
-          <option value="">— 快速選擇 —</option>
-          <option value="無重大病史">無重大病史</option>
-          <option>高血壓</option><option>糖尿病</option>
-          <option>心臟病 / 冠心症</option><option>腦中風</option>
-          <option>氣喘 / COPD</option><option>腎臟病</option>
-        </select>
-        <input class="form-input" id="sample-p" placeholder="補充病史">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:13px;margin-bottom:6px;">
+        ${['心臟疾病','肝臟疾病','腎臟疾病','精神疾病','高血壓','糖尿病','慢性阻塞性肺疾病','中風','癲癇','癌症','無','不詳'].map(d=>`<label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="pmh-chk" value="${d}"> ${d}</label>`).join('')}
       </div>
+      <input class="form-input" id="sample-p" placeholder="其他/手術史補充…">
     </div>
     <div class="form-group">
       <div class="form-label">L — 最後進食時間</div>
@@ -2744,21 +2754,26 @@ async function openPatientDetail(id) {
       <div style="font-size:12px;line-height:2;background:var(--surface2);padding:8px 12px;border-radius:8px;">
         ${(() => {
           const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '—';
-          const lines = [];
-          // 初始檢傷（放到最後，因為是最早的記錄）
+          const recolorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
+          // 全部事件統一進時間軸，新→舊排序
+          const allEvents = [];
+          // 初始檢傷
           const initTriage = triages.find(t => !t.trauma_or_medical);
           const triageTime = initTriage?.triage_at || p.created_at || p.updated_at;
           const triageBy = initTriage?.triage_by || p.operator_name;
-          // 治療評估（新→舊排序）
+          allEvents.push({ at: triageTime, html: `<div><span style="color:var(--text3)">${fmt(triageTime)}</span> <span style="color:var(--primary);font-weight:600;">${triageBy}</span> — 檢傷</div>` });
+          // 治療評估
           const assessRecs = triages.filter(t => !!t.trauma_or_medical).sort((a,b) => (a.triage_at||'') < (b.triage_at||'') ? 1 : -1);
+          let assessCount = assessRecs.length;
           assessRecs.forEach((t, i) => {
-            const label = i === 0 ? '初評' : `複評 ${i}`;
+            const label = i === assessCount-1 ? '初評' : `複評 ${assessCount-1-i}`;
             const typeLabel = t.trauma_or_medical === 'trauma' ? '🩸 創傷' : '💊 非創';
-            lines.push(`<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--primary);font-weight:600;">${t.triage_by||'—'}</span> — ${label} ${typeLabel}</div>`);
-            if (t.chief_issue) lines.push(`<div style="margin-left:2em;color:var(--text2);">主訴：${t.chief_issue}</div>`);
-            if (t.vitals_summary) lines.push(`<div style="margin-left:2em;color:var(--text2);">徵象：${t.vitals_summary}</div>`);
-            // 完整評估細節
+            let html = `<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--primary);font-weight:600;">${t.triage_by||'—'}</span> — ${label} ${typeLabel}</div>`;
+            if (t.chief_issue) html += `<div style="margin-left:2em;color:var(--text2);">主訴：${t.chief_issue}</div>`;
+            if (t.vitals_summary) html += `<div style="margin-left:2em;color:var(--text2);">徵象：${t.vitals_summary}</div>`;
             const detail = [];
+            if (t.condition_types?.length) detail.push(`狀況：${t.condition_types.join('、')}`);
+            if (t.tourniquets?.length) detail.push(`止血帶：${t.tourniquets.map(q=>q.site+(q.time?' '+q.time:'')).join('、')}`);
             if (t.trauma_or_medical === 'trauma') {
               if (t.x_hemorrhage_controlled) detail.push(`X 止血：${t.x_hemorrhage_controlled}`);
               if (t.a_airway_patent)          detail.push(`A 呼吸道：${t.a_airway_patent}`);
@@ -2781,22 +2796,26 @@ async function openPatientDetail(id) {
               if (t.opqrst_quality) detail.push(`Q 性質：${t.opqrst_quality}`);
               if (t.opqrst_severity)detail.push(`嚴重度：${t.opqrst_severity}`);
             }
+            if (t.past_medical_history?.length) detail.push(`病史：${t.past_medical_history.join('、')}`);
+            if (t.allergy_flags?.length) detail.push(`過敏：${t.allergy_flags.join('、')}${t.allergy_detail?' — '+t.allergy_detail:''}`);
+            if (t.routes?.airway?.length) detail.push(`管路：${t.routes.airway.join('、')}${t.routes.airway_detail?' '+t.routes.airway_detail:''}`);
+            if (t.routes?.o2?.length) detail.push(`給氧：${t.routes.o2.join('、')}${t.routes.o2_flow?' '+t.routes.o2_flow+'L/min':''}`);
+            if (t.routes?.iv) detail.push(`靜脈通路：已建立${t.routes.iv_detail?' — '+t.routes.iv_detail:''}`);
+            if (t.treatment) detail.push(`治療：${t.treatment}`);
             if (detail.length > 0) {
-              lines.push(`<div style="margin-left:2em;margin-top:2px;">${detail.map(d=>`<div style="color:var(--text3);font-size:11px;">${d}</div>`).join('')}</div>`);
+              html += `<div style="margin-left:2em;margin-top:2px;">${detail.map(d=>`<div style="color:var(--text3);font-size:11px;">${d}</div>`).join('')}</div>`;
             }
+            allEvents.push({ at: t.triage_at||'', html });
           });
-          // 轉燈號、後送、交接：統一排入時間軸
-          const recolorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
-          const events = [];
+          // 轉色
           triages.filter(t => !!t.retriage_to).forEach(t => {
-            events.push({ at: t.triage_at||'', html: `<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--primary);font-weight:600;">${t.triage_by||'—'}</span> — 轉色 ${recolorDot[t.retriage_from]||''}→${recolorDot[t.retriage_to]||t.retriage_to}</div>` });
+            allEvents.push({ at: t.triage_at||'', html: `<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--primary);font-weight:600;">${t.triage_by||'—'}</span> — 轉色 ${recolorDot[t.retriage_from]||''}→${recolorDot[t.retriage_to]||t.retriage_to}</div>` });
           });
-          if (p.transferred_at) events.push({ at: p.transferred_at, html: `<div><span style="color:var(--text3)">${fmt(p.transferred_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.transferred_by||'—'}</span> — 後送</div>` });
-          if (p.handoff_at)     events.push({ at: p.handoff_at,     html: `<div><span style="color:var(--text3)">${fmt(p.handoff_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.handoff_by||'—'}</span> — 交接</div>` });
-          events.sort((a,b) => a.at < b.at ? 1 : -1).forEach(e => lines.push(e.html));
-          // 初始檢傷放最後（最早的記錄）
-          lines.push(`<div><span style="color:var(--text3)">${fmt(triageTime)}</span> <span style="color:var(--primary);font-weight:600;">${triageBy}</span> — 檢傷</div>`);
-          return lines.join('');
+          if (p.transferred_at) allEvents.push({ at: p.transferred_at, html: `<div><span style="color:var(--text3)">${fmt(p.transferred_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.transferred_by||'—'}</span> — 後送</div>` });
+          if (p.handoff_at)     allEvents.push({ at: p.handoff_at,     html: `<div><span style="color:var(--text3)">${fmt(p.handoff_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.handoff_by||'—'}</span> — 交接</div>` });
+          // 新→舊排序
+          allEvents.sort((a,b) => a.at < b.at ? 1 : -1);
+          return allEvents.map(e=>e.html).join('');
         })()}
       </div>
     </div>`,
@@ -2955,12 +2974,60 @@ function renderTreatmentModal() {
       <div class="form-label">主訴摘要</div>
       <textarea class="form-input form-textarea" id="ta-chief" placeholder="chief issue…"></textarea>
     </div>
-    <div class="form-group">
-      <div class="form-label">生命徵象摘要</div>
-      <input class="form-input" id="ta-vitals" placeholder="HR __ BP __/__ RR __ SpO2 __%">
+    <div class="section-hdr">生命徵象</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:13px;">
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">心跳 HR（次/分）</div><input class="form-input" id="v-hr" type="number" inputmode="numeric" placeholder="60–100"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">血壓 BP（mmHg）</div><div style="display:flex;gap:4px;align-items:center;"><input class="form-input" id="v-sbp" type="number" inputmode="numeric" placeholder="收縮" style="flex:1;"><span>/</span><input class="form-input" id="v-dbp" type="number" inputmode="numeric" placeholder="舒張" style="flex:1;"></div></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">呼吸 RR（次/分）</div><input class="form-input" id="v-rr" type="number" inputmode="numeric" placeholder="12–20"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">體溫 Temp（°C）</div><input class="form-input" id="v-temp" type="number" inputmode="decimal" step="0.1" placeholder="36.0–37.5"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">血氧 SpO₂（%）</div><input class="form-input" id="v-spo2" type="number" inputmode="numeric" placeholder="≥94"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">血糖（mg/dL）</div><input class="form-input" id="v-glucose" type="number" inputmode="numeric" placeholder="70–140"></div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;font-size:13px;">
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">GCS E（睜眼）</div><select class="form-select" id="v-gcs-e" style="font-size:13px;padding:6px;"><option value="">—</option><option value="4">4 自發</option><option value="3">3 聲音</option><option value="2">2 疼痛</option><option value="1">1 無</option></select></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">GCS V（語言）</div><select class="form-select" id="v-gcs-v" style="font-size:13px;padding:6px;"><option value="">—</option><option value="5">5 正常</option><option value="4">4 混亂</option><option value="3">3 不適語</option><option value="2">2 無意義</option><option value="1">1 無</option></select></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">GCS M（運動）</div><select class="form-select" id="v-gcs-m" style="font-size:13px;padding:6px;"><option value="">—</option><option value="6">6 服從</option><option value="5">5 定位</option><option value="4">4 退縮</option><option value="3">3 異曲</option><option value="2">2 伸展</option><option value="1">1 無</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:6px;font-size:13px;">
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">瞳孔 R（mm）</div><input class="form-input" id="v-pupil-r" type="number" inputmode="decimal" step="0.5" placeholder="2–6"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">瞳孔 L（mm）</div><input class="form-input" id="v-pupil-l" type="number" inputmode="decimal" step="0.5" placeholder="2–6"></div>
+    </div>
+    <input type="hidden" id="ta-vitals">
     <div id="ta-trauma-section" style="display:${injType==='trauma'?'block':'none'}">${renderXABCDE()}</div>
     <div id="ta-medical-section" style="display:${injType==='medical'?'block':'none'}">${renderSampleOpqrst()}</div>
+    <div class="section-hdr" style="margin-top:12px;">管路</div>
+    <div class="form-group">
+      <div class="form-label" style="font-size:12px;">呼吸道器材</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:13px;">
+        <label><input type="checkbox" class="airway-chk" value="鼻咽呼吸道"> 鼻咽呼吸道 NPA</label>
+        <label><input type="checkbox" class="airway-chk" value="口咽呼吸道"> 口咽呼吸道 OPA</label>
+        <label><input type="checkbox" class="airway-chk" value="I-GEL聲門上"> I-GEL 聲門上</label>
+        <label><input type="checkbox" class="airway-chk" value="氣管內管"> 氣管內管 ETT</label>
+        <label><input type="checkbox" class="airway-chk" value="氣切/氣管內管"> 氣切/氣管內管</label>
+      </div>
+      <input class="form-input" id="airway-detail" placeholder="型號/尺寸/固定深度（公分）" style="margin-top:4px;">
+    </div>
+    <div class="form-group">
+      <div class="form-label" style="font-size:12px;">給氧方式</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;">
+        <label><input type="checkbox" class="o2-chk" value="氧氣鼻導管"> 鼻導管</label>
+        <label><input type="checkbox" class="o2-chk" value="一般面罩"> 一般面罩</label>
+        <label><input type="checkbox" class="o2-chk" value="非再吸入性面罩"> 非再吸入性面罩</label>
+        <label><input type="checkbox" class="o2-chk" value="BVM"> BVM</label>
+      </div>
+      <input class="form-input" id="o2-flow" placeholder="流量 L/min" type="number" inputmode="numeric" style="margin-top:4px;">
+    </div>
+    <div class="form-group">
+      <div class="form-label" style="font-size:12px;">靜脈通路</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px;">
+        <label><input type="checkbox" id="iv-established"> 靜脈留置針已建立</label>
+      </div>
+      <input class="form-input" id="iv-detail" placeholder="放置部位、Fr.號、輸液種類" style="margin-top:4px;">
+    </div>
+    <div class="section-hdr">給藥 / 治療</div>
+    <div class="form-group">
+      <textarea class="form-input form-textarea" id="ta-treatment" placeholder="已執行的處置與給藥紀錄…" style="min-height:60px;"></textarea>
+    </div>
     <div class="section-hdr" style="margin-top:12px;">轉燈號（選填）</div>
     <div style="display:flex;gap:8px;padding:0 0 12px;">${recolorBtns}</div>
     <button class="btn btn-primary btn-full" onclick="saveTreatmentAssessment(${id})">💾 儲存評估</button>
@@ -2995,18 +3062,77 @@ function taSetRecolor(btn) {
   });
 }
 
+function _collectChecked(cls) { return [...document.querySelectorAll('.'+cls+':checked')].map(c=>c.value); }
+function _buildVitalsSummary() {
+  const parts = [];
+  const hr=gv('v-hr'), sbp=gv('v-sbp'), dbp=gv('v-dbp'), rr=gv('v-rr'), temp=gv('v-temp'), spo2=gv('v-spo2'), gluc=gv('v-glucose');
+  const ge=gv('v-gcs-e'), gvv=gv('v-gcs-v'), gm=gv('v-gcs-m');
+  const pr=gv('v-pupil-r'), pl=gv('v-pupil-l');
+  if(hr) parts.push('HR '+hr);
+  if(sbp||dbp) parts.push('BP '+(sbp||'?')+'/'+(dbp||'?'));
+  if(rr) parts.push('RR '+rr);
+  if(temp) parts.push('T '+temp+'°C');
+  if(spo2) parts.push('SpO₂ '+spo2+'%');
+  if(ge&&gvv&&gm) parts.push('GCS E'+ge+'V'+gvv+'M'+gm+'='+(+ge+(+gvv)+(+gm)));
+  if(pr||pl) parts.push('瞳孔 R'+( pr||'?')+'/L'+(pl||'?'));
+  if(gluc) parts.push('血糖 '+gluc);
+  return parts.join('  ');
+}
 async function saveTreatmentAssessment(id) {
   const injType = _treatState.injuryType || null;
   if (!injType) { showToast('請先選擇傷情分類（創傷或非創）'); return; }
   if (!gv('ta-chief')?.trim()) { showToast('請填寫主訴摘要'); return; }
-  if (!gv('ta-vitals')?.trim()) { showToast('請填寫生命徵象'); return; }
+  // 至少填一項生命徵象
+  const vitalsSummary = _buildVitalsSummary();
+  if (!vitalsSummary) { showToast('請至少填寫一項生命徵象'); return; }
   const now = localISO();
+  // 結構化生命徵象
+  const vitals = {
+    hr: gv('v-hr')||null, sbp: gv('v-sbp')||null, dbp: gv('v-dbp')||null,
+    rr: gv('v-rr')||null, temp: gv('v-temp')||null, spo2: gv('v-spo2')||null,
+    glucose: gv('v-glucose')||null,
+    gcs_e: gv('v-gcs-e')||null, gcs_v: gv('v-gcs-v')||null, gcs_m: gv('v-gcs-m')||null,
+    pupil_r: gv('v-pupil-r')||null, pupil_l: gv('v-pupil-l')||null,
+  };
+  // 條件型 checkbox
+  const conditionTypes = injType==='trauma' ? _collectChecked('tr-type-chk') : _collectChecked('nt-type-chk');
+  // 止血帶
+  const tourniquets = [];
+  [['upper-l','上肢左'],['upper-r','上肢右'],['lower-l','下肢左'],['lower-r','下肢右']].forEach(([k,label])=>{
+    if(document.getElementById('tq-'+k)?.checked) tourniquets.push({site:label, time:gv('tq-'+k+'-time')||''});
+  });
+  // 過去病史 multi-check
+  const pmh = _collectChecked('pmh-chk');
+  // 過敏史
+  const allergyFlags = [];
+  if(document.getElementById('allergy-none')?.checked) allergyFlags.push('無已知過敏');
+  if(document.getElementById('allergy-drug')?.checked) allergyFlags.push('藥物');
+  if(document.getElementById('allergy-food')?.checked) allergyFlags.push('食物');
+  if(document.getElementById('allergy-other')?.checked) allergyFlags.push('其他');
+  // 管路
+  const airwayDevices = _collectChecked('airway-chk');
+  const o2Devices = _collectChecked('o2-chk');
+  const routes = {
+    airway: airwayDevices, airway_detail: gv('airway-detail')||'',
+    o2: o2Devices, o2_flow: gv('o2-flow')||'',
+    iv: !!document.getElementById('iv-established')?.checked, iv_detail: gv('iv-detail')||'',
+  };
+  // 給藥治療
+  const treatment = gv('ta-treatment') || '';
   const assessData = {
     trauma_or_medical: injType,
     triage_at: now,
     triage_by: _state.operatorName,
     chief_issue: gv('ta-chief') || '',
-    vitals_summary: gv('ta-vitals') || '',
+    vitals_summary: vitalsSummary,
+    vitals_structured: vitals,
+    condition_types: conditionTypes,
+    tourniquets: tourniquets.length ? tourniquets : null,
+    past_medical_history: pmh,
+    allergy_flags: allergyFlags,
+    allergy_detail: gv('sample-a') || '',
+    routes,
+    treatment,
     // XABCDE
     x_hemorrhage_controlled: getMist('x-hemorrhage','x-hemorrhage-notes'),
     a_airway_patent: getMist('a-airway','a-airway-notes'),
@@ -3039,7 +3165,14 @@ async function saveTreatmentAssessment(id) {
     assessed_by: _state.operatorName,
     assessed_at: now,
     chief_issue: gv('ta-chief') || '',
-    vitals_summary: gv('ta-vitals') || '',
+    vitals_summary: vitalsSummary,
+    vitals_structured: vitals,
+    condition_types: conditionTypes,
+    past_medical_history: pmh,
+    allergy_flags: allergyFlags,
+    allergy_detail: gv('sample-a') || '',
+    routes,
+    treatment,
     ...(newColor && newColor !== oldColor ? { triage_color: newColor, current_zone: zoneMap[newColor] } : {}),
     reassess_due_at: localISO(new Date(Date.now() + reassessMins * 60000)),
     updated_at: now,
