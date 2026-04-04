@@ -2,7 +2,7 @@
 
 ## 系統需求與規格書
 
-**v2.4 · 2026-04**
+**v2.7 · 2026-04**
 
 ---
 
@@ -10,8 +10,8 @@
 
 | 項目 | 內容 |
 |------|------|
-| **文件版本** | v2.4（整合 v2.3 + 設計邊界決策 + QR 應急模式 + 自助入站） |
-| **對應程式版本** | v0.1.0 |
+| **文件版本** | v2.7（整合 v2.3 + 設計邊界決策 + QR 應急模式 + 自助入站） |
+| **對應程式版本** | v2.2.44 |
 | **編制日期** | 2026-03 |
 | **適用範圍** | 鄉鎮層防災演訓及實際災害收容作業（多裝置協作 + 安全網路版） |
 | **機密層級** | C（僅供收容組內部使用） |
@@ -657,16 +657,15 @@ scp 192.168.100.20+1-key.pem pi@192.168.100.20:~/certs/
 
 | 系統 Incident type | 來源 SOP | 來源事件名稱 |
 |--------------------|----------|-------------|
-| medical_infection | 填表分流（等候區） | 醫療/傳染病緊急事件 |
-| capacity_overload | 填表分流（等候區） | 收容能量超載 |
+| infectious_risk | 填表分流（等候區） | 傳染疑慮 |
+| capacity_overload | 填表分流（等候區） | 量能超載 |
 | noise_disturbance | 填表分流（等候區） | 災民喧嘩影響他人 |
 | power_outage | 填表分流（等候區） | 停電 |
 | air_raid | 填表分流（等候區） | 空襲或飛彈攻擊 |
 | security_threat | 填表分流（等候區） | 攻擊或治安威脅 |
 | id_mismatch | 身份標籤與物品對應 | 核對不符 → 轉維安 |
-| covenant_refused | 確認收容公約 | 不同意公約 |
 | dangerous_resident | 當前操作員 | 收容者造成他人危險 |
-| resource_shortage | 當前操作員 | 缺料/缺件/損壞 |
+| resource_shortage | 當前操作員 | 物資短缺 |
 | suspicious_person | 當前操作員 | 發現可疑人士或危險物品 |
 | facility_damage | 當前操作員 | 場地/設備遭破壞 |
 | volunteer_conflict | 服務窗口日常 | 志工衝突升級 |
@@ -848,6 +847,22 @@ QR 應急模式使用快取的 `site_salt` 衍生**與 online 模式相同的金
 | 11 | **資料庫 Schema 文件** | 新增 database_schema.md | docs |
 | 12 | **Alpha 版標示** | 登入頁及設定頁顯示 ALPHA 標記 | 全域 |
 
+### v2.7 變更（對應程式 v2.2.40–v2.2.44 / server v0.3.0）
+
+| # | 變更項目 | 說明 | 影響範圍 |
+|---|----------|------|----------|
+| 1 | **事件嚴重度三級制** | `緊急/普通` 改為 `高/中/低`（高＝立即威脅、中＝需追蹤、低＝知悉）；Dashboard 警示燈號三色（紅/藍/綠） | §3.2、附錄 B |
+| 2 | **事件類型統一** | `medical_infection` → `infectious_risk`；`capacity_overload` 等 label 精簡；高嚴重度預設類型新增 `capacity_overload` | §3.2、附錄 B |
+| 3 | **清消關卡單向確認** | `toggleSanGate` 確認後不可反轉，避免誤撤清消紀錄 | §4 入站流程 |
+| 4 | **入站步驟順序驗證** | `completeIntakeStep` 檢查前序步驟全部完成才允許勾選下一步 | §4 入站流程 |
+| 5 | **已結案事件保護** | `addIncidentNote`/`updateIncidentStatus` 加入已結案防護，防止意外修改 | §3.2 |
+| 6 | **PersonCrypto 跨帳號解密** | `deriveKey(salt, salt)` — 同一 site_salt 下所有帳號產生相同金鑰，換手可互解 | §6 安全 |
+| 7 | **Tab 記憶** | 登入後恢復上次 tab（`localStorage shelter_last_tab`），登出時清除 | UX |
+| 8 | **CSS .person-id ellipsis** | 長識別碼自動截斷（`overflow:hidden; text-overflow:ellipsis`），防止破版 | UX |
+| 9 | **容量 banner 初始空白** | 移除硬編碼初始值（「量能充足 0/30」），改由 `refreshCapacityBanner()` 動態填入 | UX |
+| 10 | **自動推算值勤人數** | QR 通報 modal 新增 `calcShelterActiveStaff()`：統計最近 30 分鐘有操作的不重複操作員數作為建議值 | §9 QR |
+| 11 | **登入副標動態化** | 移除硬編碼 ALPHA 標籤，由程式動態設定 | 登入頁 |
+
 ### 已知待改善（backlog）
 
 | # | 項目 | 優先級 |
@@ -862,4 +877,4 @@ QR 應急模式使用快取的 `site_salt` 衍生**與 online 模式相同的金
 
 ---
 
-*收容組 PWA 規格書 v2.6 · 2026-04 · 對應程式版本 v2.2.39-alpha / server v0.3.0 · 整合 security_network_spec_v1.2 · 機密層級 C*
+*收容組 PWA 規格書 v2.7 · 2026-04 · 對應程式版本 v2.2.44 / server v0.3.0 · 整合 security_network_spec_v1.2 · 機密層級 C*
