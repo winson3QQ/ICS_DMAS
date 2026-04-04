@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.8.0-alpha';</script>
+<script>const PWA_VERSION='v0.8.2-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -581,33 +581,33 @@ function setSlotConfig(red, yellow, green) {
    急救責任醫院清單（依距離排序，來源：中寮演訓指揮部）
 ════════════════════════════════════════════════════════════════ */
 const HOSPITAL_LIST = [
-  {id:1,  name:'南投基督教醫院',   level:'中度級', county:'南投縣', km:14.0, min:22, priority:true},
-  {id:2,  name:'衛福部南投醫院',   level:'重度級', county:'南投縣', km:14.3, min:24, priority:false},
-  {id:3,  name:'佑民醫院',         level:'中度級', county:'南投縣', km:20.4, min:27, priority:false},
-  {id:4,  name:'竹山秀傳醫院',     level:'中度級', county:'南投縣', km:20.0, min:30, priority:false},
-  {id:5,  name:'東華醫院',         level:'一般級', county:'南投縣', km:29.5, min:34, priority:false},
-  {id:6,  name:'亞洲大學附屬醫院', level:'中度級', county:'台中市', km:34.8, min:35, priority:true},
-  {id:7,  name:'員榮醫院員生院區', level:'中度級', county:'彰化縣', km:32.8, min:37, priority:false},
-  {id:8,  name:'員林基督教醫院',   level:'中度級', county:'彰化縣', km:33.1, min:38, priority:false},
-  {id:9,  name:'衛福部彰化醫院',   level:'中度級', county:'彰化縣', km:35.5, min:42, priority:false},
-  {id:10, name:'大里仁愛醫院',     level:'中度級', county:'台中市', km:40.0, min:42, priority:false},
-  {id:11, name:'中山醫學大學附設醫院', level:'重度級', county:'台中市', km:41.5, min:44, priority:false},
-  {id:12, name:'長安醫院',         level:'中度級', county:'台中市', km:43.6, min:44, priority:false},
-  {id:13, name:'烏日林新醫院',     level:'中度級', county:'台中市', km:46.1, min:46, priority:false},
-  {id:14, name:'國軍臺中總醫院',   level:'中度級', county:'台中市', km:45.5, min:47, priority:false},
-  {id:15, name:'衛福部臺中醫院',   level:'中度級', county:'台中市', km:43.0, min:48, priority:false},
-  {id:16, name:'秀傳紀念醫院',     level:'重度級', county:'彰化縣', km:49.7, min:48, priority:false},
-  {id:17, name:'林新醫院',         level:'中度級', county:'台中市', km:50.1, min:48, priority:false},
-  {id:18, name:'成大醫院斗六分院', level:'一般級', county:'雲林縣', km:47.6, min:49, priority:false},
-  {id:19, name:'澄清綜合醫院',     level:'中度級', county:'台中市', km:43.7, min:51, priority:false},
-  {id:20, name:'臺大雲林斗六院區', level:'重度級', county:'雲林縣', km:57.3, min:51, priority:false},
-  {id:21, name:'彰化基督教醫院',   level:'重度級', county:'彰化縣', km:52.4, min:52, priority:false},
-  {id:22, name:'中國醫藥大學附設醫院', level:'重度級', county:'台中市', km:45.7, min:54, priority:false},
-  {id:23, name:'埔里基督教醫院',   level:'中度級', county:'南投縣', km:63.0, min:54, priority:false},
-  {id:24, name:'臺中榮總埔里分院', level:'中度級', county:'南投縣', km:67.2, min:54, priority:false},
-  {id:25, name:'鹿港基督教醫院',   level:'中度級', county:'彰化縣', km:51.7, min:55, priority:false},
-  {id:26, name:'彰濱秀傳紀念醫院', level:'重度級', county:'彰化縣', km:55.8, min:56, priority:false},
   {id:27, name:'衛福部豐原醫院',   level:'中度級', county:'台中市', km:55.8, min:56, priority:false},
+  {id:26, name:'彰濱秀傳紀念醫院', level:'重度級', county:'彰化縣', km:55.8, min:56, priority:false},
+  {id:25, name:'鹿港基督教醫院',   level:'中度級', county:'彰化縣', km:51.7, min:55, priority:false},
+  {id:24, name:'臺中榮總埔里分院', level:'中度級', county:'南投縣', km:67.2, min:54, priority:false},
+  {id:23, name:'埔里基督教醫院',   level:'中度級', county:'南投縣', km:63.0, min:54, priority:false},
+  {id:22, name:'中國醫藥大學附設醫院', level:'重度級', county:'台中市', km:45.7, min:54, priority:false},
+  {id:21, name:'彰化基督教醫院',   level:'重度級', county:'彰化縣', km:52.4, min:52, priority:false},
+  {id:20, name:'臺大雲林斗六院區', level:'重度級', county:'雲林縣', km:57.3, min:51, priority:false},
+  {id:19, name:'澄清綜合醫院',     level:'中度級', county:'台中市', km:43.7, min:51, priority:false},
+  {id:18, name:'成大醫院斗六分院', level:'一般級', county:'雲林縣', km:47.6, min:49, priority:false},
+  {id:17, name:'林新醫院',         level:'中度級', county:'台中市', km:50.1, min:48, priority:false},
+  {id:16, name:'秀傳紀念醫院',     level:'重度級', county:'彰化縣', km:49.7, min:48, priority:false},
+  {id:15, name:'衛福部臺中醫院',   level:'中度級', county:'台中市', km:43.0, min:48, priority:false},
+  {id:14, name:'國軍臺中總醫院',   level:'中度級', county:'台中市', km:45.5, min:47, priority:false},
+  {id:13, name:'烏日林新醫院',     level:'中度級', county:'台中市', km:46.1, min:46, priority:false},
+  {id:12, name:'長安醫院',         level:'中度級', county:'台中市', km:43.6, min:44, priority:false},
+  {id:11, name:'中山醫學大學附設醫院', level:'重度級', county:'台中市', km:41.5, min:44, priority:false},
+  {id:10, name:'大里仁愛醫院',     level:'中度級', county:'台中市', km:40.0, min:42, priority:false},
+  {id:9,  name:'衛福部彰化醫院',   level:'中度級', county:'彰化縣', km:35.5, min:42, priority:false},
+  {id:8,  name:'員林基督教醫院',   level:'中度級', county:'彰化縣', km:33.1, min:38, priority:false},
+  {id:7,  name:'員榮醫院員生院區', level:'中度級', county:'彰化縣', km:32.8, min:37, priority:false},
+  {id:6,  name:'亞洲大學附屬醫院', level:'中度級', county:'台中市', km:34.8, min:35, priority:true},
+  {id:5,  name:'東華醫院',         level:'一般級', county:'南投縣', km:29.5, min:34, priority:false},
+  {id:4,  name:'竹山秀傳醫院',     level:'中度級', county:'南投縣', km:20.0, min:30, priority:false},
+  {id:3,  name:'佑民醫院',         level:'中度級', county:'南投縣', km:20.4, min:27, priority:false},
+  {id:2,  name:'衛福部南投醫院',   level:'重度級', county:'南投縣', km:14.3, min:24, priority:false},
+  {id:1,  name:'南投基督教醫院',   level:'中度級', county:'南投縣', km:14.0, min:22, priority:true},
 ];
 
 /* ════════════════════════════════════════════════════════════════
@@ -1462,6 +1462,10 @@ function renderDashboard(el) {
     <div class="dash-row">
       <span class="dash-row-label">已評估，治療中</span>
       <span class="dash-row-val">${_state.patients.filter(p=>p.care_status==='assessed'&&p.disposition!=='後送'&&p.disposition!=='離開'&&p.current_zone!=='已離區').length}</span>
+    </div>
+    <div class="dash-row">
+      <span class="dash-row-label">👁 留觀中</span>
+      <span class="dash-row-val">${_state.patients.filter(p=>p.care_status==='monitoring'&&p.disposition!=='後送'&&p.disposition!=='離開'&&p.current_zone!=='已離區').length}</span>
     </div>
     <div class="dash-row">
       <span class="dash-row-label">等待後送${(()=>{const ot=_state.patients.filter(p=>p.disposition==='後送'&&p.transferred_at&&(Date.now()-new Date(p.transferred_at))>=30*60000).length;return ot>0?' <span style="color:var(--red);font-weight:600;">（'+ot+' 逾時）</span>':'';})()}</span>
@@ -2484,13 +2488,22 @@ function renderPatientCard(p) {
       <div style="font-size:11px;color:${waitOverdue?'var(--red)':'var(--text3)'};margin:4px 0 2px;${waitOverdue?'font-weight:600;':''}">⏱ 等待後送 ${waited} 分鐘${waitOverdue?' ⚠️ 逾時':''}</div>
       <div style="font-size:12px;margin:2px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
         <span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;font-weight:700;font-size:11px;">#${tfOrder}</span>
-        ${tfDir?`<span>📍 ${escHtml(tfDir)}</span>`:''}
-        ${tfHosp?`<span>🏥 ${escHtml(tfHosp)}</span>`:''}
+        ${tfDir?`<span>📍 ${tfDir}</span>`:''}
+        ${tfHosp?`<span>🏥 ${tfHosp}</span>`:''}
         <button class="pc-btn" style="font-size:11px;padding:2px 8px;${tfCalled?'background:var(--green);color:#fff;border-color:var(--green);':''}" onclick="event.stopPropagation();toggleTransferCalled(${p.id})">${tfCalled?'✅ 已call':'☎ call'}</button>
       </div>
       <div class="pc-actions mt-1">
         <button class="pc-btn" onclick="event.stopPropagation();cancelTransfer(${p.id})">✕ 取消</button>
         <button class="pc-btn primary" onclick="event.stopPropagation();openIsbar(${p.id})">📋 ISBAR 交接</button>
+      </div>`;
+  } else if (careStatus === 'monitoring') {
+    actionRow = `
+      <div style="font-size:11px;color:var(--primary);font-weight:600;margin:4px 0 2px;">👁 留觀中</div>
+      <div class="pc-actions mt-1">
+        <button class="pc-btn" onclick="event.stopPropagation();openMoveZone(${p.id})">移區</button>
+        <button class="pc-btn primary" onclick="event.stopPropagation();openCareRecord(${p.id})">+ 照護紀錄</button>
+        <button class="pc-btn" onclick="event.stopPropagation();openTreatmentAssessment(${p.id})">↻ 重評</button>
+        <button class="pc-btn primary" onclick="event.stopPropagation();markTransfer(${p.id})">後送</button>
       </div>`;
   } else {
     const continueBtn = !assessDone
@@ -2642,6 +2655,7 @@ async function doSetDisposition(id) {
   const p = await db.patients.get(id);
   const reason = document.getElementById('disp-reason')?.value?.trim() || '';
   const upd = { disposition: val, updated_at: now };
+  if (val === '留觀') { upd.care_status = 'monitoring'; }
   if (val === '死亡') {
     upd.current_zone = '黑區';
     upd.triage_color = 'black';
@@ -2718,7 +2732,8 @@ async function openPatientDetail(id) {
   // Progress steps
   const steps = [
     { key:'triage',    label:'檢傷',  done: true },
-    { key:'assess',    label:'治療評估', done: careStatus === 'assessed' || careStatus === 'pending_transfer' },
+    { key:'assess',    label:'治療評估', done: careStatus === 'assessed' || careStatus === 'monitoring' || careStatus === 'pending_transfer' },
+    { key:'monitor',   label:'留觀',  done: careStatus === 'monitoring' },
     { key:'transfer',  label:'後送',  done: careStatus === 'pending_transfer' || p.disposition === '後送' || p.disposition === '離開' },
   ];
   const progressBar = `<div style="display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;">
@@ -2734,6 +2749,8 @@ async function openPatientDetail(id) {
   const isDischarged = p.current_zone === '已離區' || p.disposition === '離開';
   const continueBtn = isDischarged ? '' : careStatus === 'triaged'
     ? `<button class="btn btn-warning flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 繼續評估</button>`
+    : careStatus === 'monitoring'
+    ? `<button class="btn btn-primary flex-1" onclick="closeModal();openCareRecord(${id})">👁 照護紀錄</button>`
     : `<button class="btn btn-outline flex-1" onclick="closeModal();openTreatmentAssessment(${id})">📋 更新評估</button>`;
   const colorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
   openModal(
@@ -2805,6 +2822,16 @@ async function openPatientDetail(id) {
             if (detail.length > 0) {
               html += `<div style="margin-left:2em;margin-top:2px;">${detail.map(d=>`<div style="color:var(--text3);font-size:11px;">${d}</div>`).join('')}</div>`;
             }
+            allEvents.push({ at: t.triage_at||'', html });
+          });
+          // 照護紀錄
+          const careRecs = triages.filter(t => t.record_type === 'care').sort((a,b) => (a.triage_at||'') < (b.triage_at||'') ? 1 : -1);
+          careRecs.forEach((t, i) => {
+            let html = `<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--primary);font-weight:600;">${t.triage_by||'—'}</span> — 👁 照護紀錄 #${careRecs.length - i}</div>`;
+            if (t.vitals_summary) html += `<div style="margin-left:2em;color:var(--text2);">徵象：${t.vitals_summary}</div>`;
+            if (t.consciousness) html += `<div style="margin-left:2em;color:var(--text2);">意識：${t.consciousness}</div>`;
+            if (t.treatment) html += `<div style="margin-left:2em;color:var(--text2);">處置：${t.treatment}</div>`;
+            if (t.care_notes) html += `<div style="margin-left:2em;color:var(--text3);font-size:11px;">備註：${t.care_notes}</div>`;
             allEvents.push({ at: t.triage_at||'', html });
           });
           // 轉色
@@ -3180,6 +3207,107 @@ async function saveTreatmentAssessment(id) {
   closeModal();
   const toastMsg = newColor && newColor !== oldColor ? `✅ 治療評估已儲存（燈號轉為${zoneMap[newColor]}）` : '✅ 治療評估已儲存';
   showToast(toastMsg);
+  renderCurrentTab();
+}
+
+/* ─── 延長照護紀錄（留觀中定時巡視） ─── */
+async function openCareRecord(id) {
+  const p = await db.patients.get(id);
+  if (!p) return;
+  // 查詢此病患的照護紀錄筆數
+  const careCount = await db.triages.where('patient_id').equals(id).filter(t => t.record_type === 'care').count();
+  openModal(`照護紀錄 #${careCount+1} — ${p.display_id}`,
+    `<div class="section-hdr">生命徵象</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:13px;">
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">心跳 HR（次/分）</div><input class="form-input" id="cr-hr" type="number" inputmode="numeric" placeholder="60–100"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">血壓 BP（mmHg）</div><div style="display:flex;gap:4px;align-items:center;"><input class="form-input" id="cr-sbp" type="number" inputmode="numeric" placeholder="收縮" style="flex:1;"><span>/</span><input class="form-input" id="cr-dbp" type="number" inputmode="numeric" placeholder="舒張" style="flex:1;"></div></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">呼吸 RR（次/分）</div><input class="form-input" id="cr-rr" type="number" inputmode="numeric" placeholder="12–20"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">體溫 Temp（°C）</div><input class="form-input" id="cr-temp" type="number" inputmode="decimal" step="0.1" placeholder="36.0–37.5"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">血氧 SpO₂（%）</div><input class="form-input" id="cr-spo2" type="number" inputmode="numeric" placeholder="≥94"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">血糖（mg/dL）</div><input class="form-input" id="cr-glucose" type="number" inputmode="numeric" placeholder="70–140"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;font-size:13px;">
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">GCS E（睜眼）</div><select class="form-select" id="cr-gcs-e" style="font-size:13px;padding:6px;"><option value="">—</option><option value="4">4 自發</option><option value="3">3 聲音</option><option value="2">2 疼痛</option><option value="1">1 無</option></select></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">GCS V（語言）</div><select class="form-select" id="cr-gcs-v" style="font-size:13px;padding:6px;"><option value="">—</option><option value="5">5 正常</option><option value="4">4 混亂</option><option value="3">3 不適語</option><option value="2">2 無意義</option><option value="1">1 無</option></select></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">GCS M（運動）</div><select class="form-select" id="cr-gcs-m" style="font-size:13px;padding:6px;"><option value="">—</option><option value="6">6 服從</option><option value="5">5 定位</option><option value="4">4 退縮</option><option value="3">3 異曲</option><option value="2">2 伸展</option><option value="1">1 無</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:6px;font-size:13px;">
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">瞳孔 R（mm）</div><input class="form-input" id="cr-pupil-r" type="number" inputmode="decimal" step="0.5" placeholder="2–6"></div>
+      <div class="form-group" style="margin:0;"><div class="form-label" style="font-size:11px;">瞳孔 L（mm）</div><input class="form-input" id="cr-pupil-l" type="number" inputmode="decimal" step="0.5" placeholder="2–6"></div>
+    </div>
+    <div class="section-hdr" style="margin-top:10px;">意識 / 狀態變化</div>
+    <div class="form-group">
+      <select class="form-select" id="cr-consciousness" style="font-size:13px;">
+        <option value="">未填</option>
+        <option value="清醒">清醒</option>
+        <option value="嗜睡">嗜睡</option>
+        <option value="混亂">混亂</option>
+        <option value="昏迷">昏迷</option>
+        <option value="躁動">躁動</option>
+      </select>
+    </div>
+    <div class="section-hdr">處置紀錄</div>
+    <div class="form-group">
+      <textarea class="form-input form-textarea" id="cr-treatment" placeholder="給藥、換藥、管路處理…" style="min-height:60px;"></textarea>
+    </div>
+    <div class="form-group">
+      <div class="form-label" style="font-size:12px;">備註</div>
+      <textarea class="form-input form-textarea" id="cr-notes" placeholder="特殊觀察、家屬交代…" style="min-height:40px;"></textarea>
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="saveCareRecord(${id})">儲存</button>`
+  );
+}
+
+function _buildCareVitalsSummary() {
+  const g = id => document.getElementById(id)?.value?.trim() || '';
+  const parts = [];
+  const hr=g('cr-hr'), sbp=g('cr-sbp'), dbp=g('cr-dbp'), rr=g('cr-rr'), temp=g('cr-temp'), spo2=g('cr-spo2'), gluc=g('cr-glucose');
+  const ge=g('cr-gcs-e'), gvv=g('cr-gcs-v'), gm=g('cr-gcs-m');
+  const pr=g('cr-pupil-r'), pl=g('cr-pupil-l');
+  if(hr) parts.push('HR '+hr);
+  if(sbp||dbp) parts.push('BP '+(sbp||'?')+'/'+(dbp||'?'));
+  if(rr) parts.push('RR '+rr);
+  if(temp) parts.push('T '+temp+'°C');
+  if(spo2) parts.push('SpO₂ '+spo2+'%');
+  if(ge&&gvv&&gm) parts.push('GCS E'+ge+'V'+gvv+'M'+gm+'='+(+ge+(+gvv)+(+gm)));
+  if(pr||pl) parts.push('瞳孔 R'+(pr||'?')+'/L'+(pl||'?'));
+  if(gluc) parts.push('血糖 '+gluc);
+  return parts.join('  ');
+}
+
+async function saveCareRecord(id) {
+  const vitalsSummary = _buildCareVitalsSummary();
+  if (!vitalsSummary) { showToast('請至少填寫一項生命徵象'); return; }
+  const g = fid => document.getElementById(fid)?.value?.trim() || '';
+  const now = localISO();
+  const vitals = {
+    hr: g('cr-hr')||null, sbp: g('cr-sbp')||null, dbp: g('cr-dbp')||null,
+    rr: g('cr-rr')||null, temp: g('cr-temp')||null, spo2: g('cr-spo2')||null,
+    glucose: g('cr-glucose')||null,
+    gcs_e: g('cr-gcs-e')||null, gcs_v: g('cr-gcs-v')||null, gcs_m: g('cr-gcs-m')||null,
+    pupil_r: g('cr-pupil-r')||null, pupil_l: g('cr-pupil-l')||null,
+  };
+  const rec = {
+    patient_id: id,
+    record_type: 'care',
+    triage_at: now,
+    triage_by: _state.operatorName,
+    vitals_summary: vitalsSummary,
+    vitals_structured: vitals,
+    consciousness: g('cr-consciousness') || null,
+    treatment: g('cr-treatment') || '',
+    care_notes: g('cr-notes') || '',
+  };
+  await db.triages.add(rec);
+  // 更新病患最新生命徵象
+  await db.patients.update(id, {
+    vitals_summary: vitalsSummary,
+    vitals_structured: vitals,
+    updated_at: now,
+  });
+  closeModal();
+  showToast('✅ 照護紀錄已儲存');
   renderCurrentTab();
 }
 
