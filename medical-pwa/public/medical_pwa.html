@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.6.4-alpha';</script>
+<script>const PWA_VERSION='v0.7.0-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -578,6 +578,39 @@ function setSlotConfig(red, yellow, green) {
 }
 
 /* ════════════════════════════════════════════════════════════════
+   急救責任醫院清單（依距離排序，來源：中寮演訓指揮部）
+════════════════════════════════════════════════════════════════ */
+const HOSPITAL_LIST = [
+  {id:1,  name:'南投基督教醫院',   level:'中度級', county:'南投縣', km:14.0, min:22, priority:true},
+  {id:2,  name:'衛福部南投醫院',   level:'重度級', county:'南投縣', km:14.3, min:24, priority:false},
+  {id:3,  name:'佑民醫院',         level:'中度級', county:'南投縣', km:20.4, min:27, priority:false},
+  {id:4,  name:'竹山秀傳醫院',     level:'中度級', county:'南投縣', km:20.0, min:30, priority:false},
+  {id:5,  name:'東華醫院',         level:'一般級', county:'南投縣', km:29.5, min:34, priority:false},
+  {id:6,  name:'亞洲大學附屬醫院', level:'中度級', county:'台中市', km:34.8, min:35, priority:true},
+  {id:7,  name:'員榮醫院員生院區', level:'中度級', county:'彰化縣', km:32.8, min:37, priority:false},
+  {id:8,  name:'員林基督教醫院',   level:'中度級', county:'彰化縣', km:33.1, min:38, priority:false},
+  {id:9,  name:'衛福部彰化醫院',   level:'中度級', county:'彰化縣', km:35.5, min:42, priority:false},
+  {id:10, name:'大里仁愛醫院',     level:'中度級', county:'台中市', km:40.0, min:42, priority:false},
+  {id:11, name:'中山醫學大學附設醫院', level:'重度級', county:'台中市', km:41.5, min:44, priority:false},
+  {id:12, name:'長安醫院',         level:'中度級', county:'台中市', km:43.6, min:44, priority:false},
+  {id:13, name:'烏日林新醫院',     level:'中度級', county:'台中市', km:46.1, min:46, priority:false},
+  {id:14, name:'國軍臺中總醫院',   level:'中度級', county:'台中市', km:45.5, min:47, priority:false},
+  {id:15, name:'衛福部臺中醫院',   level:'中度級', county:'台中市', km:43.0, min:48, priority:false},
+  {id:16, name:'秀傳紀念醫院',     level:'重度級', county:'彰化縣', km:49.7, min:48, priority:false},
+  {id:17, name:'林新醫院',         level:'中度級', county:'台中市', km:50.1, min:48, priority:false},
+  {id:18, name:'成大醫院斗六分院', level:'一般級', county:'雲林縣', km:47.6, min:49, priority:false},
+  {id:19, name:'澄清綜合醫院',     level:'中度級', county:'台中市', km:43.7, min:51, priority:false},
+  {id:20, name:'臺大雲林斗六院區', level:'重度級', county:'雲林縣', km:57.3, min:51, priority:false},
+  {id:21, name:'彰化基督教醫院',   level:'重度級', county:'彰化縣', km:52.4, min:52, priority:false},
+  {id:22, name:'中國醫藥大學附設醫院', level:'重度級', county:'台中市', km:45.7, min:54, priority:false},
+  {id:23, name:'埔里基督教醫院',   level:'中度級', county:'南投縣', km:63.0, min:54, priority:false},
+  {id:24, name:'臺中榮總埔里分院', level:'中度級', county:'南投縣', km:67.2, min:54, priority:false},
+  {id:25, name:'鹿港基督教醫院',   level:'中度級', county:'彰化縣', km:51.7, min:55, priority:false},
+  {id:26, name:'彰濱秀傳紀念醫院', level:'重度級', county:'彰化縣', km:55.8, min:56, priority:false},
+  {id:27, name:'衛福部豐原醫院',   level:'中度級', county:'台中市', km:55.8, min:56, priority:false},
+];
+
+/* ════════════════════════════════════════════════════════════════
    STATE
 ════════════════════════════════════════════════════════════════ */
 let _state = {
@@ -715,11 +748,11 @@ async function handleLogin() {
       // session ID
       const sid = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
       sessionStorage.setItem('med_session_id', sid);
-      // site_salt + PersonCrypto 金鑰衍生
+      // site_salt + PersonCrypto 共享金鑰衍生（所有帳號相同，跨帳號可互解）
       if (result.site_salt) localStorage.setItem('med_site_salt', result.site_salt);
       const salt = result.site_salt || localStorage.getItem('med_site_salt') || localStorage.getItem('med_enc_salt_' + username);
       if (!result.site_salt) console.warn('[PersonCrypto] Pi 未回傳 site_salt，退回舊版 per-device salt');
-      await PersonCrypto.deriveKey(pin, salt);
+      await PersonCrypto.deriveKey(salt, salt);
       await PersonCrypto.exportToSession();
       // PinLock
       await PinLock.setup(pin);
@@ -762,7 +795,7 @@ async function handleLogin() {
   const saltKey = 'med_enc_salt_degraded';
   let salt = localStorage.getItem(saltKey);
   if (!salt) { salt = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem(saltKey, salt); }
-  await PersonCrypto.deriveKey(pin, salt);
+  await PersonCrypto.deriveKey(salt, salt);
   await PersonCrypto.exportToSession();
   // 稽核
   AuditManager.setOperator(name + '【降級】');
@@ -1438,6 +1471,23 @@ function renderDashboard(el) {
       <span class="dash-row-label">已後送 / 離區</span>
       <span class="dash-row-val">${_state.patients.filter(p=>p.disposition==='離開'||p.current_zone==='已離區').length}</span>
     </div>
+    <div class="section-hdr">即時統計（依檢傷分類）</div>
+    ${(()=>{
+      const colors=['red','yellow','green','black'];
+      const labels={red:'紅',yellow:'黃',green:'綠',black:'黑'};
+      const bgColors={red:'#fee',yellow:'#fff8e1',green:'#e8f5e9',black:'#f5f5f5'};
+      const rows=colors.map(c=>{
+        const inSite=_state.patients.filter(p=>p.triage_color===c&&p.disposition!=='離開'&&p.current_zone!=='已離區').length;
+        const departed=_state.patients.filter(p=>p.triage_color===c&&(p.disposition==='離開'||p.current_zone==='已離區')).length;
+        return{c,label:labels[c],bg:bgColors[c],inSite,departed,total:inSite+departed};
+      });
+      const totIn=rows.reduce((s,r)=>s+r.inSite,0), totOut=rows.reduce((s,r)=>s+r.departed,0);
+      return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin:0 0 8px;">
+        <tr style="background:var(--bg);font-weight:700;"><td style="padding:6px 10px;"></td><td style="text-align:center;padding:6px 4px;">站內</td><td style="text-align:center;padding:6px 4px;">離站</td><td style="text-align:center;padding:6px 4px;">合計</td></tr>
+        ${rows.map(r=>`<tr style="background:${r.bg};"><td style="padding:5px 10px;font-weight:700;">${r.label}</td><td style="text-align:center;">${r.inSite}</td><td style="text-align:center;">${r.departed}</td><td style="text-align:center;font-weight:600;">${r.total}</td></tr>`).join('')}
+        <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border);"><td style="padding:6px 10px;">合計</td><td style="text-align:center;">${totIn}</td><td style="text-align:center;">${totOut}</td><td style="text-align:center;">${totIn+totOut}</td></tr>
+      </table>`;
+    })()}
     <div class="section-hdr">快速操作</div>
     <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-primary btn-full" onclick="switchTab('intake')">➕ 接收新傷患</button>
@@ -2236,13 +2286,22 @@ async function generateDraftId(sexCode, ageCode) {
 
 async function submitIntake() {
   if (!_state.intakeTriageColor) { showToast('請選擇檢傷分色'); return; }
+  if (_state.intakeSecurity === 'incomplete') { showToast('請先完成安檢'); return; }
   if (_state.intakeSource === 'B' && !_state.intakeShelterNumber.trim()) { showToast('收容轉送傷患必須填寫收容編號'); return; }
   const colorDotMap = { red:'🔴 紅', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
   const zoneMap = { red:'紅區', yellow:'黃區', green:'綠區', black:'黑區' };
   const colorLabel = colorDotMap[_state.intakeTriageColor] || _state.intakeTriageColor;
   const zoneName = zoneMap[_state.intakeTriageColor];
+  // 檢查目標治療區是否已滿載
+  let overloadWarn = '';
+  if (_state.intakeTriageColor !== 'black') {
+    const slots = getSlotConfig();
+    const cap = slots[_state.intakeTriageColor] || 0;
+    const current = _state.patients.filter(p => p.triage_color === _state.intakeTriageColor && p.current_zone !== '已離區').length;
+    if (current >= cap) overloadWarn = `<div style="background:var(--red-bg);color:var(--red);padding:10px 12px;border-radius:var(--r-sm);margin-top:8px;font-weight:700;">⚠️ ${zoneName}已滿載（${current}/${cap}），建檔後將超載</div>`;
+  }
   openModal('確認建檔',
-    `<p style="padding:16px 4px;font-size:15px;line-height:1.7;">確認將此傷患建檔並分至 <strong>${zoneName}</strong>（${colorLabel}）？<br>建檔後如需修改燈號，請透過治療評估重評。</p>`,
+    `<p style="padding:16px 4px;font-size:15px;line-height:1.7;">確認將此傷患建檔並分至 <strong>${zoneName}</strong>（${colorLabel}）？<br>建檔後如需修改燈號，請透過治療評估重評。</p>${overloadWarn}`,
     `<button class="btn btn-ghost flex-1" onclick="closeModal()">返回修改</button>
      <button class="btn btn-primary flex-1" onclick="closeModal();doSubmitIntake()">確認建檔</button>`
   );
@@ -2407,8 +2466,18 @@ function renderPatientCard(p) {
   if (isTransferQueue) {
     const waited = p.transferred_at ? Math.floor((Date.now()-new Date(p.transferred_at))/60000) : 0;
     const waitOverdue = waited >= 30;
+    const tfDir = p.transfer_direction || '';
+    const tfHosp = p.transfer_hospital || '';
+    const tfOrder = p.transfer_order || '—';
+    const tfCalled = p.transfer_called;
     actionRow = `
-      <div style="font-size:11px;color:${waitOverdue?'var(--red)':'var(--text3)'};margin:4px 0 6px;${waitOverdue?'font-weight:600;':''}">⏱ 等待後送 ${waited} 分鐘${waitOverdue?' ⚠️ 逾時':''}</div>
+      <div style="font-size:11px;color:${waitOverdue?'var(--red)':'var(--text3)'};margin:4px 0 2px;${waitOverdue?'font-weight:600;':''}">⏱ 等待後送 ${waited} 分鐘${waitOverdue?' ⚠️ 逾時':''}</div>
+      <div style="font-size:12px;margin:2px 0 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        <span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;font-weight:700;font-size:11px;">#${tfOrder}</span>
+        ${tfDir?`<span>📍 ${escHtml(tfDir)}</span>`:''}
+        ${tfHosp?`<span>🏥 ${escHtml(tfHosp)}</span>`:''}
+        <button class="pc-btn" style="font-size:11px;padding:2px 8px;${tfCalled?'background:var(--green);color:#fff;border-color:var(--green);':''}" onclick="event.stopPropagation();toggleTransferCalled(${p.id})">${tfCalled?'✅ 已call':'☎ call'}</button>
+      </div>
       <div class="pc-actions mt-1">
         <button class="pc-btn" onclick="event.stopPropagation();cancelTransfer(${p.id})">✕ 取消</button>
         <button class="pc-btn primary" onclick="event.stopPropagation();openIsbar(${p.id})">📋 ISBAR 交接</button>
@@ -2451,16 +2520,80 @@ async function resetReassess(id) {
 }
 
 async function markTransfer(id) {
+  const p = await db.patients.get(id);
+  if (!p) { showToast('找不到該傷患'); return; }
+  if (p.care_status !== 'assessed') { showToast('請先完成治療評估才可後送'); return; }
+  if (p.disposition === '後送') { showToast('此傷患已在後送佇列中'); return; }
+  // 自動計算緊急順位：紅 > 黃 > 綠，同色依進站時間
+  const pending = _state.patients.filter(q => q.disposition === '後送');
+  const colorPri = {red:1, yellow:2, green:3, black:4};
+  const myPri = colorPri[p.triage_color] || 3;
+  const order = pending.filter(q => (colorPri[q.triage_color]||3) < myPri).length + 1;
+  // 醫院選項 HTML
+  const hospOpts = HOSPITAL_LIST.map(h =>
+    `<option value="${h.name}">${h.priority?'⭐ ':''}${h.name}（${h.level}，${h.min}分）</option>`
+  ).join('');
+  openModal('後送登記 — ' + p.display_id,
+    `<div class="flex flex-col gap-2">
+      <div class="info-box info text-sm">建議緊急順位：<strong>#${order}</strong>（${p.triage_color==='red'?'🔴 紅':p.triage_color==='yellow'?'🟡 黃':'🟢 綠'}）</div>
+      <div class="form-group">
+        <div class="form-label">離站動向 <span class="req">*</span></div>
+        <select class="form-select" id="tf-direction" onchange="_onTfDirectionChange()">
+          <option value="">— 請選擇 —</option>
+          <option value="119">119 救護車</option>
+          <option value="車">車輛（自填車號）</option>
+          <option value="自容">自行返回收容區</option>
+          <option value="容帶回">收容組帶回</option>
+          <option value="自行離開">自行離開</option>
+        </select>
+      </div>
+      <div class="form-group" id="tf-vehicle-group" style="display:none;">
+        <div class="form-label">車牌號碼</div>
+        <input class="form-input" id="tf-vehicle" placeholder="例：ABC-0123">
+      </div>
+      <div class="form-group">
+        <div class="form-label">後送醫院</div>
+        <select class="form-select" id="tf-hospital">
+          <option value="">— 尚未決定 —</option>
+          ${hospOpts}
+        </select>
+      </div>
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="doMarkTransfer(${id},${order})">確認加入後送佇列</button>`
+  );
+}
+function _onTfDirectionChange() {
+  const v = document.getElementById('tf-direction')?.value;
+  const g = document.getElementById('tf-vehicle-group');
+  if (g) g.style.display = v === '車' ? 'block' : 'none';
+}
+async function doMarkTransfer(id, order) {
+  const dir = document.getElementById('tf-direction')?.value;
+  if (!dir) { showToast('請選擇離站動向'); return; }
+  const vehicle = document.getElementById('tf-vehicle')?.value?.trim() || '';
+  const hospital = document.getElementById('tf-hospital')?.value || '';
+  const direction = dir === '車' ? `車 ${vehicle}` : dir;
   const now = localISO();
-  await db.patients.update(id, { disposition:'後送', transferred_by: _state.operatorName, transferred_at: now, updated_at: now });
-  showToast('已標記待後送');
+  await db.patients.update(id, {
+    disposition:'後送', transferred_by: _state.operatorName, transferred_at: now, updated_at: now,
+    transfer_direction: direction, transfer_hospital: hospital, transfer_order: order, transfer_called: false,
+  });
+  closeModal();
+  showToast(`${direction}${hospital ? ' → '+hospital : ''}`);
   renderCurrentTab();
 }
 
 async function cancelTransfer(id) {
-  await db.patients.update(id, { disposition:'在場', transferred_by: null, transferred_at: null, updated_at: localISO() });
+  await db.patients.update(id, { disposition:'在場', transferred_by:null, transferred_at:null, transfer_direction:null, transfer_hospital:null, transfer_order:null, transfer_called:false, updated_at:localISO() });
   showToast('已取消待後送');
   renderCurrentTab();
+}
+async function toggleTransferCalled(id) {
+  const p = await db.patients.get(id);
+  if (!p) return;
+  await db.patients.update(id, { transfer_called: !p.transfer_called, updated_at: localISO() });
+  await loadPatients(); renderCurrentTab();
 }
 
 function openSetDisposition(id, displayId) {
@@ -2941,7 +3074,7 @@ async function openIsbar(patientId) {
       </div>
       <div class="form-group">
         <div class="form-label">R — Recommendation（建議 / 目的地）</div>
-        <textarea class="form-input form-textarea" id="isbar-r" placeholder="建議後送至…，需要…車輛…"></textarea>
+        <textarea class="form-input form-textarea" id="isbar-r" placeholder="建議後送至…，需要…車輛…">${p.transfer_hospital?`後送至 ${p.transfer_hospital}（${p.transfer_direction||''}）`:''}</textarea>
       </div>
       <div class="form-group">
         <div class="form-label">必要救命處置核對</div>
@@ -3299,10 +3432,12 @@ async function openIncidentDetail(id) {
 }
 
 async function addIncidentNote(id) {
+  const inc = await db.incidents.get(id);
+  if (!inc) { showToast('找不到該事件'); return; }
+  if (inc.status === '已結案') { showToast('已結案事件不可修改'); return; }
   const noteText = document.getElementById('inc-new-note')?.value?.trim();
   const assigned = document.getElementById('inc-assign')?.value || '';
   if (!noteText) { showToast('請填寫紀錄內容'); return; }
-  const inc = await db.incidents.get(id);
   const notes = [...(inc.notes||[]), { time: localISO(), text: noteText, by: _state.operatorName }];
   await db.incidents.update(id, { notes, assigned_to: assigned });
   showToast('紀錄已追加');
@@ -3312,6 +3447,8 @@ async function addIncidentNote(id) {
 
 async function updateIncidentStatus(id, status) {
   const inc = await db.incidents.get(id);
+  if (!inc) { showToast('找不到該事件'); return; }
+  if (inc.status === '已結案') { showToast('已結案事件不可變更狀態'); return; }
   if (status === '已結案' && (inc.notes||[]).length < 1) {
     showToast('⚠️ 請先追加處置紀錄才可結案'); return;
   }

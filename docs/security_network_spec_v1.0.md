@@ -263,6 +263,19 @@ LUKS 僅在 Pi / Mini PC 正式部署時設定，不影響 Mac 開發流程。
 - Field Node：長按實體按鈕 5 秒 → MicroSD 快速格式化
 - Panic 按鈕需有防誤觸保護蓋
 
+### 5.5 Client-Side IndexedDB 加密（TODO）
+
+**現況**：PWA 端使用 PersonCrypto（AES-256-GCM）加密 IndexedDB 中的個資欄位。金鑰透過 `PBKDF2(passphrase, site_salt)` 派生。
+
+**已知問題**：目前 passphrase 與 salt 皆為 `site_salt`（`PBKDF2(site_salt, site_salt)`），所有帳號共享同一金鑰以支援跨帳號換手。但 `site_salt` 存於 localStorage，等同裝置上明文可取得，因此靜態資料保護效果有限。
+
+**長期方案（擇一）**：
+1. **Server 端解密再下發**：Pi 持有 master key，sync 時以明文下發至 client，client 用 per-PIN key 加密本地副本。保留靜態保護，但需改 sync 協議。
+2. **Server 下發 group key**：Pi 在登入成功後下發加密用的 group key（不存 localStorage，僅存 sessionStorage），session 結束即消失。靜態保護中等。
+3. **放棄 client-side 加密，依賴 LUKS**：Pi 部署後有全碟加密，client 端 IndexedDB 加密移除。最簡單但手機端無保護。
+
+**決策時機**：Pi 到貨、LUKS 部署完成後再決定。
+
 ---
 
 ## 6. 服務啟動設定（加入 TLS）

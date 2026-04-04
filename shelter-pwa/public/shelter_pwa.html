@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.43';</script>
+<script>const PWA_VERSION='v2.2.44';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -171,7 +171,7 @@
     .person-card:active { opacity: .8; }
     .person-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; flex-shrink: 0; }
     .person-info { flex: 1; min-width: 0; }
-    .person-id { font-size: 16px; font-weight: 700; }
+    .person-id { font-size: 16px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .person-meta { font-size: 12px; color: var(--text2); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 6px; }
     .status-badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; }
     .status-waiting { background: var(--gray-bg); color: var(--gray); }
@@ -1307,8 +1307,10 @@ async function renderIntake() {
 
 async function toggleSanGate(personId) {
   const p=await db.persons.get(personId); if(!p)return;
-  await FreezeGateway.writePerson(personId,AuditManager.stamp({san_gate_done:!p.san_gate_done}),db.persons);
-  if(!p.san_gate_done){
+  // 已確認清消不可反轉
+  if(p.san_gate_done){showToast('清消已確認，無法撤銷');return;}
+  await FreezeGateway.writePerson(personId,AuditManager.stamp({san_gate_done:true}),db.persons);
+  {
     // 清消確認：狀態改為登記中 + 自動產生識別碼
     const upd={};
     if(p.status==='等候中'){upd.status='登記中';upd.registering_started_at=nowISO();}
@@ -1643,6 +1645,11 @@ async function assignBed(personId,bedDisplayId){
 
 async function completeIntakeStep(personId,stepKey){
   const p=await db.persons.get(personId);if(!p)return;
+  // 步驟順序驗證：目標步驟之前的所有步驟必須已完成
+  const dp0=await db.persons.getDecrypted(personId);
+  const STEP_KEYS=INTAKE_STEPS.map(s=>s.key);
+  const targetIdx=STEP_KEYS.indexOf(stepKey);
+  if(targetIdx>0){for(let i=0;i<targetIdx;i++){if(!IntakeValidator.isStepDone(dp0,STEP_KEYS[i])){showToast(`請先完成「${INTAKE_STEPS[i].label}」`);return;}}}
   let updates={};
   switch(stepKey){
     case 'san_gate': case 'waiting': {const fp=await db.persons.get(personId);if(!fp?.san_gate_done){showToast('請先點擊「安」方塊確認清消關卡');return;}if(fp.status==='等候中'){updates.status='登記中';updates.registering_started_at=nowISO();}if(!fp.display_id){const dp=await db.persons.getDecrypted(personId);const did=await generateShelterDisplayId(dp.gender,dp.age_group);updates.display_id=did;showToast(`識別碼：${did}`);}break;}
@@ -1864,6 +1871,8 @@ async function openIncidentModal(incId){
 }
 async function updateIncidentStatus(incId,status){
   const inc=await db.incidents.get(incId);
+  if(!inc){showToast('找不到該事件');return;}
+  if(inc.status==='已結案'){showToast('已結案事件不可變更狀態');return;}
   if(status==='已結案'){const hm=(inc.notes||[]).some(n=>n.time>=inc.opened_at&&n.text&&n.text.trim().length>=5);if(!hm){showToast('⚠️ 請先追加處置紀錄才可結案');return;}}
   const operator=AuditManager.getOperator()||App.role;
   const statusNote={time:nowISO(),text:`狀態變更為「${status}」`,by:operator};
@@ -1883,7 +1892,10 @@ async function updateIncidentStatus(incId,status){
   closeModal();renderIncidents();renderDashboard();refreshCapacityBanner();
 }
 async function addIncidentNote(incId){
-  const inc=await db.incidents.get(incId),noteText=el('inc-new-note')?.value.trim();
+  const inc=await db.incidents.get(incId);
+  if(!inc){showToast('找不到該事件');return;}
+  if(inc.status==='已結案'){showToast('已結案事件不可修改');return;}
+  const noteText=el('inc-new-note')?.value.trim();
   if(!noteText){showToast('請輸入紀錄內容');return;}
   const operator=AuditManager.getOperator()||App.role;
   const notes=[...(inc.notes||[]),{time:nowISO(),text:noteText,by:operator}];
@@ -2852,7 +2864,9 @@ async function handleLogin(roleHint) {
       if(result.site_salt)localStorage.setItem('shelter_site_salt',result.site_salt);
       const salt=result.site_salt||localStorage.getItem('shelter_site_salt')||localStorage.getItem('shelter_enc_salt_'+username);
       if(!result.site_salt)console.warn('[PersonCrypto] Pi 未回傳 site_salt，退回舊版 per-device salt（金鑰可能跨裝置不一致）');
-      await PersonCrypto.deriveKey(pin,salt);
+      // 用 site_salt 當 passphrase，所有帳號產生相同金鑰（跨帳號換手可互解）
+      // TODO: 長期方案應改為 server 端解密再下發，或 server 下發 group key
+      await PersonCrypto.deriveKey(salt,salt);
       await PersonCrypto.exportToSession();
       await PinLock.setup(pin);
       sessionStorage.setItem('shelter_session_username',result.username);
@@ -2877,7 +2891,7 @@ async function handleLogin(roleHint) {
   const sid=crypto.randomUUID?crypto.randomUUID():uuid();sessionStorage.setItem('shelter_session_id',sid);
   const saltKey='shelter_enc_salt_degraded';let salt=localStorage.getItem(saltKey);
   if(!salt){salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');localStorage.setItem(saltKey,salt);}
-  await PersonCrypto.deriveKey(pin,salt);
+  await PersonCrypto.deriveKey(salt,salt);
   await PersonCrypto.exportToSession();
   AuditManager.setOperator(name+'【降級】');
   await AuditLogManager.write('login_degraded',{name,role:cachedRole});
