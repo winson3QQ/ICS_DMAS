@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.8.2-alpha';</script>
+<script>const PWA_VERSION='v0.8.3-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -3443,12 +3443,16 @@ const DEFAULT_RESOURCES = [
   { name:'AED', category:'監測器材', qty_initial:1, qty_low_threshold:1 },
 ];
 
+function _stepperChange(id, delta) {
+  const input = document.getElementById(id);
+  if (input) { const v = parseInt(input.value) || 0; input.value = Math.max(parseInt(input.min)||0, v + delta); }
+}
+
 async function renderResources(el) {
   const items = await db.resources.toArray();
 
   if (items.length === 0) {
     el.innerHTML = `
-      <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
       <div class="section-hdr">開場盤點</div>
       <div class="p-2">
         <div class="info-box info mb-2 text-sm">系統載入預設物資清單，請依實際數量調整後確認。</div>
@@ -3471,16 +3475,22 @@ async function renderResources(el) {
     <div class="section-hdr">${cat}</div>
     ${catItems.map(r => {
       const low = r.qty_current <= r.qty_low_threshold;
+      const pct = r.qty_initial > 0 ? Math.min(100, Math.round((r.qty_current / r.qty_initial) * 100)) : 0;
+      const barColor = low ? 'var(--orange)' : 'var(--green)';
       return `
-        <div class="card mb-1" style="${low ? 'border-left:3px solid var(--orange)' : ''}">
+        <div class="card mb-1" style="${low ? 'border-left:3px solid var(--orange)' : ''};cursor:pointer;" onclick="openResourceDetail(${r.id})">
           <div class="flex justify-between items-center">
             <span class="font-semibold text-sm">${r.name}</span>
-            <span class="${low ? 'text-red font-bold' : ''}">${r.qty_current} / ${r.qty_initial}</span>
+            <span class="${low ? 'text-red font-bold' : ''}" style="font-size:15px;">${r.qty_current} <span style="font-size:11px;color:var(--text3);">/ ${r.qty_initial}</span></span>
           </div>
-          ${low ? `<div class="text-xs" style="color:var(--orange);">⚠️ 低量（門檻 ${r.qty_low_threshold}）</div>` : ''}
-          <div class="flex gap-1 mt-1">
-            <button class="pc-btn" onclick="useResource(${r.id},1)">取用 1</button>
-            <button class="pc-btn" onclick="restockResource(${r.id})">補給</button>
+          <div style="height:4px;background:var(--border);border-radius:2px;margin:6px 0 4px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px;transition:width .3s;"></div>
+          </div>
+          ${low ? `<div class="text-xs" style="color:var(--orange);margin-bottom:4px;">⚠️ 低量（門檻 ${r.qty_low_threshold}）</div>` : ''}
+          <div class="flex gap-1">
+            <button class="pc-btn" onclick="event.stopPropagation();openResourceUse(${r.id})">取用</button>
+            <button class="pc-btn" onclick="event.stopPropagation();openResourceAdd(${r.id})">補充</button>
+            ${low ? `<button class="pc-btn" style="color:var(--red);border-color:var(--red);" onclick="event.stopPropagation();reportResourceShortage(${r.id})">缺料通報</button>` : ''}
           </div>
         </div>`;
     }).join('')}
@@ -3494,13 +3504,13 @@ async function renderResources(el) {
     : '尚未完成盤點';
 
   el.innerHTML = `
-    <div style="padding:14px;"><button class="btn btn-ghost" onclick="_state.morePage=null;renderCurrentTab()">← 返回</button></div>
     ${(resCheckOverdue||resCheckNever) ? `<div class="info-box warn" style="margin:0 14px 10px;">⏰ ${resCheckNever?'尚未完成盤點確認':'距上次盤點逾 30 分鐘'}，請盤點後標記完成。</div>` : ''}
     ${lowItems.length > 0 ? `<div class="info-box warn" style="margin:0 14px 10px;">⚠️ ${lowItems.length} 項低量：${lowItems.map(r=>r.name).join('、')}</div>` : ''}
     ${listHtml}
     <div style="padding:14px;display:flex;flex-direction:column;gap:8px;">
-      <button class="btn btn-primary btn-full btn-sm" onclick="markResourceCheck()">✓ 標記盤點完成（${lastCheckText}）</button>
-      <button class="btn btn-outline btn-full btn-sm" onclick="resetInventory()">重置盤點</button>
+      <button class="btn btn-primary btn-full btn-sm" onclick="openAddResourceModal()">＋ 新增物資</button>
+      <button class="btn btn-outline btn-full btn-sm" onclick="markResourceCheck()">✓ 標記盤點完成（${lastCheckText}）</button>
+      <button class="btn btn-ghost btn-full btn-sm" onclick="resetInventory()">重置盤點</button>
     </div>
   `;
 }
@@ -3508,42 +3518,187 @@ async function renderResources(el) {
 async function initResources() {
   const rows = DEFAULT_RESOURCES.map((r,i) => {
     const qty = parseInt(document.getElementById('res-qty-'+i)?.value || r.qty_initial, 10);
-    return { ...r, qty_current: qty, qty_initial: qty };
+    return { ...r, qty_current: qty, qty_initial: qty, transactions: [] };
   });
   await db.resources.bulkAdd(rows);
   showToast('盤點完成');
   renderCurrentTab();
 }
 
-async function useResource(id, qty) {
+async function openResourceUse(id) {
   const r = await db.resources.get(id);
   if (!r) return;
-  const newQty = Math.max(0, r.qty_current - qty);
-  await db.resources.update(id, { qty_current: newQty });
+  openModal(`取用：${r.name}`,
+    `<div style="text-align:center;padding:10px 0 16px;">
+      <span style="font-size:32px;font-weight:900;color:var(--primary);">${r.qty_current}</span>
+      <span style="font-size:14px;color:var(--text3);"> / ${r.qty_initial}</span>
+    </div>
+    <div class="form-group">
+      <div class="form-label">取用數量 <span class="req">*</span></div>
+      <div style="display:flex;align-items:center;gap:0;border:2px solid var(--border);border-radius:8px;overflow:hidden;">
+        <button style="width:44px;height:44px;background:var(--bg);font-size:20px;font-weight:700;color:var(--primary);border:none;cursor:pointer;" onclick="_stepperChange('use-qty',-1)">－</button>
+        <input id="use-qty" type="number" value="1" min="1" max="${r.qty_current}" style="flex:1;text-align:center;border:none;border-left:2px solid var(--border);border-right:2px solid var(--border);height:44px;font-size:16px;font-weight:700;width:60px;">
+        <button style="width:44px;height:44px;background:var(--bg);font-size:20px;font-weight:700;color:var(--primary);border:none;cursor:pointer;" onclick="_stepperChange('use-qty',1)">＋</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">取用原因</div>
+      <input class="form-input" id="use-reason" placeholder="如：用於 P-001">
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="doUseResource(${id})">確認取用</button>`
+  );
+}
+
+async function doUseResource(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const qty = parseInt(document.getElementById('use-qty')?.value) || 0;
+  const reason = document.getElementById('use-reason')?.value?.trim() || '';
+  if (qty <= 0) { showToast('數量必須大於 0'); return; }
+  if (qty > r.qty_current) { showToast('數量超過庫存'); return; }
+  const now = localISO();
+  const tx = [...(r.transactions || []), { time: now, type: 'use', qty, reason, by: _state.operatorName }];
+  const newQty = r.qty_current - qty;
+  await db.resources.update(id, { qty_current: newQty, transactions: tx });
+  closeModal();
   if (newQty <= r.qty_low_threshold) {
     await db.incidents.add({
       type:'resource_shortage', severity:'中', status:'已通報',
-      notes:[{ time: localISO(), text: `${r.name} 低量（剩 ${newQty}）`, by: _state.operatorName }],
-      reported_by:_state.operatorName, assigned_to:'',
-      reported_at:localISO()
+      notes:[{ time: now, text: `${r.name} 低量（剩 ${newQty}）`, by: _state.operatorName }],
+      reported_by: _state.operatorName, assigned_to:'', reported_at: now
     });
-    showToast(`⚠️ ${r.name} 低量，事件已建立`);
+    showToast(`⚠️ ${r.name} 低量（剩 ${newQty}），事件已建立`);
   } else {
-    showToast(`${r.name} 已取用 ${qty}`);
+    showToast(`${r.name} 取用 ${qty} ✅`);
   }
   renderCurrentTab();
 }
 
-async function restockResource(id) {
+async function openResourceAdd(id) {
   const r = await db.resources.get(id);
   if (!r) return;
-  const input = prompt(`補給 ${r.name}，請輸入補充數量：`);
-  if (!input) return;
-  const qty = parseInt(input, 10);
-  if (isNaN(qty) || qty <= 0) return;
-  await db.resources.update(id, { qty_current: r.qty_current + qty });
-  showToast(`${r.name} 補給 +${qty}`);
+  openModal(`補充：${r.name}`,
+    `<div style="text-align:center;padding:10px 0 16px;">
+      <span style="font-size:32px;font-weight:900;color:var(--primary);">${r.qty_current}</span>
+      <span style="font-size:14px;color:var(--text3);"> / ${r.qty_initial}</span>
+    </div>
+    <div class="form-group">
+      <div class="form-label">補充數量 <span class="req">*</span></div>
+      <div style="display:flex;align-items:center;gap:0;border:2px solid var(--border);border-radius:8px;overflow:hidden;">
+        <button style="width:44px;height:44px;background:var(--bg);font-size:20px;font-weight:700;color:var(--primary);border:none;cursor:pointer;" onclick="_stepperChange('add-qty',-1)">－</button>
+        <input id="add-qty" type="number" value="1" min="1" style="flex:1;text-align:center;border:none;border-left:2px solid var(--border);border-right:2px solid var(--border);height:44px;font-size:16px;font-weight:700;width:60px;">
+        <button style="width:44px;height:44px;background:var(--bg);font-size:20px;font-weight:700;color:var(--primary);border:none;cursor:pointer;" onclick="_stepperChange('add-qty',1)">＋</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">補充說明</div>
+      <input class="form-input" id="add-reason" placeholder="（可選）">
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="doAddResource(${id})">確認補充</button>`
+  );
+}
+
+async function doAddResource(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const qty = parseInt(document.getElementById('add-qty')?.value) || 0;
+  if (qty <= 0) { showToast('數量必須大於 0'); return; }
+  const reason = document.getElementById('add-reason')?.value?.trim() || '';
+  const now = localISO();
+  const tx = [...(r.transactions || []), { time: now, type: 'add', qty, reason, by: _state.operatorName }];
+  await db.resources.update(id, { qty_current: r.qty_current + qty, transactions: tx });
+  closeModal();
+  showToast(`${r.name} 補充 +${qty} ✅`);
   renderCurrentTab();
+}
+
+async function reportResourceShortage(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const now = localISO();
+  await db.incidents.add({
+    type:'resource_shortage', severity:'中', status:'已通報',
+    notes:[{ time: now, text: `物資缺漏：${r.name}，目前剩餘 ${r.qty_current}`, by: _state.operatorName }],
+    reported_by: _state.operatorName, assigned_to:'', reported_at: now
+  });
+  showToast('⚠️ 缺料事件已通報');
+  renderCurrentTab();
+}
+
+function openAddResourceModal() {
+  openModal('新增物資',
+    `<div class="form-group">
+      <div class="form-label">物資名稱 <span class="req">*</span></div>
+      <input class="form-input" id="new-res-name" placeholder="如：生理食鹽水">
+    </div>
+    <div class="form-group">
+      <div class="form-label">類別</div>
+      <select class="form-select" id="new-res-cat">
+        <option>止血類</option><option>呼吸道類</option><option>循環類</option>
+        <option>藥品</option><option>固定類</option><option>保暖類</option>
+        <option>監測器材</option><option>其他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">初始數量</div>
+      <input class="form-input" id="new-res-qty" type="number" value="0" min="0">
+    </div>
+    <div class="form-group">
+      <div class="form-label">低量警戒線</div>
+      <input class="form-input" id="new-res-thresh" type="number" value="2" min="0">
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="saveNewResource()">新增</button>`
+  );
+}
+
+async function saveNewResource() {
+  const name = document.getElementById('new-res-name')?.value?.trim();
+  if (!name) { showToast('請填寫物資名稱'); return; }
+  const qty = parseInt(document.getElementById('new-res-qty')?.value) || 0;
+  await db.resources.add({
+    name, category: document.getElementById('new-res-cat')?.value || '其他',
+    qty_initial: qty, qty_current: qty,
+    qty_low_threshold: parseInt(document.getElementById('new-res-thresh')?.value) || 2,
+    transactions: []
+  });
+  closeModal();
+  showToast('物資已新增');
+  renderCurrentTab();
+}
+
+async function openResourceDetail(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  const txList = (r.transactions || []).slice().reverse();
+  const txHtml = txList.length === 0
+    ? '<div style="color:var(--text3);padding:8px;">尚無異動紀錄</div>'
+    : txList.map(t => {
+      const icon = t.type === 'use' ? '📤' : '📥';
+      const color = t.type === 'use' ? 'var(--red)' : 'var(--green)';
+      const sign = t.type === 'use' ? '-' : '+';
+      return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+        <span>${icon}</span> <span style="color:${color};font-weight:700;">${sign}${t.qty}</span>
+        <span style="color:var(--text3);margin-left:4px;">${(t.time||'').slice(0,16).replace('T',' ')}</span>
+        <span style="color:var(--primary);font-weight:600;margin-left:4px;">${t.by||''}</span>
+        ${t.reason ? `<span style="color:var(--text2);margin-left:4px;">${t.reason}</span>` : ''}
+      </div>`;
+    }).join('');
+  openModal(`${r.name} — 物資詳情`,
+    `<div style="text-align:center;padding:10px 0;">
+      <span style="font-size:36px;font-weight:900;color:var(--primary);">${r.qty_current}</span>
+      <span style="font-size:14px;color:var(--text3);"> / ${r.qty_initial}</span>
+    </div>
+    <div class="dash-row"><span class="dash-row-label">類別</span><span class="dash-row-val">${r.category}</span></div>
+    <div class="dash-row"><span class="dash-row-label">警戒線</span><span class="dash-row-val">${r.qty_low_threshold}</span></div>
+    <div class="section-hdr">異動紀錄（${txList.length} 筆）</div>
+    <div style="max-height:200px;overflow-y:auto;">${txHtml}</div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>
+     <button class="btn btn-outline flex-1" onclick="closeModal();openResourceUse(${id})">取用</button>
+     <button class="btn btn-primary flex-1" onclick="closeModal();openResourceAdd(${id})">補充</button>`
+  );
 }
 
 async function resetInventory() {
