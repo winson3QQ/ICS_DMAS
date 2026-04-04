@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.6.2-alpha';</script>
+<script>const PWA_VERSION='v0.6.4-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -1356,7 +1356,7 @@ async function updateTabBadges() {
   const bTransfer = document.getElementById('tab-badge-transfer');
   if (bTransfer) { bTransfer.textContent = pendingTx; bTransfer.classList.toggle('hidden', pendingTx === 0); }
   // 事件：開放事件數
-  const openInc = await db.incidents.where('status').equals('open').count();
+  const openInc = await db.incidents.filter(i => i.status !== '已結案').count();
   const bEvents = document.getElementById('tab-badge-events');
   if (bEvents) { bEvents.textContent = openInc; bEvents.classList.toggle('hidden', openInc === 0); }
 }
@@ -1366,9 +1366,9 @@ async function updateTabBadges() {
 ════════════════════════════════════════════════════════════════ */
 async function refreshAlertBanner() {
   const banner = document.getElementById('alert-banner');
-  const openIncidents = await db.incidents.where('status').equals('open').count();
+  const openIncidents = await db.incidents.filter(i => i.status !== '已結案').count();
   const redFull = countByZone('紅區') > 0 && getRedSlotsFree() === 0;
-  const securityOpen = openIncidents > 0 && await db.incidents.where({status:'open',type:'security_threat'}).count() > 0;
+  const securityOpen = openIncidents > 0 && await db.incidents.filter(i => i.status !== '已結案' && i.type === 'security_threat').count() > 0;
   if (securityOpen) {
     banner.style.display='block'; banner.className='';
     banner.textContent = '🚨 安全威脅事件 — 請立即確認';
@@ -2188,10 +2188,10 @@ function onSecurityChange() {
       // 建立安全威脅事件，並記錄 ID 待建檔後連結傷患
       db.incidents.add({
         type: 'security_threat',
-        severity: '緊急',
+        severity: '高',
         status: 'open',
         reported_at: localISO(),
-        notes: `入院安檢同步處理中（危急）— 操作者：${_state.operatorName}`,
+        notes: [{ time: localISO(), text: `入院安檢同步處理中（危急）`, by: _state.operatorName }],
         reported_by: _state.operatorName,
       }).then(incId => {
         _state.pendingSecurityIncidentId = incId;
@@ -2467,27 +2467,62 @@ function openSetDisposition(id, displayId) {
   openModal('變更處置狀態 — ' + displayId,
     `<div class="form-group">
       <div class="form-label">處置狀態</div>
-      <select class="form-select" id="disp-select">
-        <option value="在場">在場（持續治療）</option>
+      <select class="form-select" id="disp-select" onchange="_onDispChange()">
         <option value="留觀">留觀（穩定觀察）</option>
-        <option value="後送">後送（待轉送）</option>
-        <option value="離開">離開（已離區）</option>
-        <option value="死亡">死亡</option>
+        <option value="死亡">死亡（需填原因）</option>
         <option value="撤退中">撤退中</option>
       </select>
+    </div>
+    <div class="form-group" id="disp-reason-group" style="display:none;">
+      <div class="form-label">死亡原因 <span class="req">*</span></div>
+      <textarea class="form-input form-textarea" id="disp-reason" placeholder="簡述死亡原因…" style="min-height:60px;"></textarea>
     </div>`,
     `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
      <button class="btn btn-primary flex-1" onclick="doSetDisposition(${id})">確認</button>`
   );
 }
 
+function _onDispChange() {
+  const v = document.getElementById('disp-select')?.value;
+  const g = document.getElementById('disp-reason-group');
+  if (g) g.style.display = v === '死亡' ? 'block' : 'none';
+}
+
 async function doSetDisposition(id) {
   const val = document.getElementById('disp-select')?.value;
   if (!val) return;
+  if (val === '死亡') {
+    const reason = document.getElementById('disp-reason')?.value?.trim();
+    if (!reason) { showToast('請填寫死亡原因'); return; }
+  }
   const now = localISO();
+  const p = await db.patients.get(id);
+  const reason = document.getElementById('disp-reason')?.value?.trim() || '';
   const upd = { disposition: val, updated_at: now };
-  if (val === '離開' || val === '死亡') upd.current_zone = '已離區';
+  if (val === '死亡') {
+    upd.current_zone = '黑區';
+    upd.triage_color = 'black';
+    upd.death_reason = reason;
+  }
   await db.patients.update(id, upd);
+  // 寫入歷程紀錄
+  const noteText = val === '死亡' ? `死亡 — ${reason}` : val;
+  await db.triages.add({ patient_id: id, triage_at: now, triage_by: _state.operatorName,
+    retriage_from: p?.disposition || '在場', retriage_to: noteText, disposition_change: true });
+  // 死亡：自動結案所有關聯事件
+  if (val === '死亡') {
+    const linked = await db.incidents
+      .filter(inc => inc.status !== '已結案' && inc.status !== 'closed' && inc.patient_id === id)
+      .toArray();
+    for (const inc of linked) {
+      const statusNote = { time: now, text: `傷患死亡，事件自動結案（${reason}）`, by: _state.operatorName };
+      await db.incidents.update(inc.id, {
+        status: '已結案', closed_at: now, closed_by: _state.operatorName,
+        notes: [...(inc.notes || []), statusNote],
+      });
+    }
+    if (linked.length > 0) showToast(`${linked.length} 件關聯事件已自動結案`);
+  }
   closeModal();
   showToast('處置狀態已更新：' + val);
   renderCurrentTab();
@@ -2577,13 +2612,12 @@ async function openPatientDetail(id) {
         ${(() => {
           const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '—';
           const lines = [];
-          // 初始檢傷：triages 中沒有 trauma_or_medical 欄位的那筆
+          // 初始檢傷（放到最後，因為是最早的記錄）
           const initTriage = triages.find(t => !t.trauma_or_medical);
           const triageTime = initTriage?.triage_at || p.created_at || p.updated_at;
           const triageBy = initTriage?.triage_by || p.operator_name;
-          lines.push(`<div><span style="color:var(--text3)">檢傷</span>　${triageBy} · ${fmt(triageTime)}</div>`);
-          // 治療評估（按時間排序）
-          const assessRecs = triages.filter(t => !!t.trauma_or_medical).sort((a,b) => (a.triage_at||'') > (b.triage_at||'') ? 1 : -1);
+          // 治療評估（新→舊排序）
+          const assessRecs = triages.filter(t => !!t.trauma_or_medical).sort((a,b) => (a.triage_at||'') < (b.triage_at||'') ? 1 : -1);
           assessRecs.forEach((t, i) => {
             const label = i === 0 ? '初評' : `複評 ${i}`;
             const typeLabel = t.trauma_or_medical === 'trauma' ? '🩸 創傷' : '💊 非創';
@@ -2626,7 +2660,9 @@ async function openPatientDetail(id) {
           });
           if (p.transferred_at) events.push({ at: p.transferred_at, html: `<div><span style="color:var(--text3)">${fmt(p.transferred_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.transferred_by||'—'}</span> — 後送</div>` });
           if (p.handoff_at)     events.push({ at: p.handoff_at,     html: `<div><span style="color:var(--text3)">${fmt(p.handoff_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.handoff_by||'—'}</span> — 交接</div>` });
-          events.sort((a,b) => a.at > b.at ? 1 : -1).forEach(e => lines.push(e.html));
+          events.sort((a,b) => a.at < b.at ? 1 : -1).forEach(e => lines.push(e.html));
+          // 初始檢傷放最後（最早的記錄）
+          lines.push(`<div><span style="color:var(--text3)">${fmt(triageTime)}</span> <span style="color:var(--primary);font-weight:600;">${triageBy}</span> — 檢傷</div>`);
           return lines.join('');
         })()}
       </div>
@@ -2748,9 +2784,11 @@ function renderTransferCard(p) {
 /* ─── 治療評估（治療官從分區看板開啟，繼續填傷型+XABCDE/SAMPLE） ─── */
 const _treatState = { patientId: null, injuryType: null, newColor: null };
 
-function openTreatmentAssessment(id) {
+async function openTreatmentAssessment(id) {
   _treatState.patientId = id;
-  _treatState.injuryType = null;
+  // 複評時預填上次的傷型
+  const p = await db.patients.get(id);
+  _treatState.injuryType = p?.injury_type || null;
   _treatState.newColor = null;
   renderTreatmentModal();
 }
@@ -2826,6 +2864,7 @@ function taSetRecolor(btn) {
 
 async function saveTreatmentAssessment(id) {
   const injType = _treatState.injuryType || null;
+  if (!injType) { showToast('請先選擇傷情分類（創傷或非創）'); return; }
   if (!gv('ta-chief')?.trim()) { showToast('請填寫主訴摘要'); return; }
   if (!gv('ta-vitals')?.trim()) { showToast('請填寫生命徵象'); return; }
   const now = localISO();
@@ -2958,18 +2997,37 @@ async function doCompleteHandoff() {
   await db.patients.update(patientId, patientUpdate);
   closeModal();
   showToast(`${p.display_id} 後送交接完成`);
-  const linkedThreats = await db.incidents
-    .filter(inc => inc.status === 'open' && inc.type === 'security_threat' && inc.patient_id === patientId)
+  // 查所有關聯的未結事件（不限類型）
+  const linkedOpen = await db.incidents
+    .filter(inc => inc.status !== '已結案' && inc.status !== 'closed' && inc.patient_id === patientId)
     .toArray();
-  if (linkedThreats.length > 0) {
-    for (const inc of linkedThreats) {
-      await db.incidents.update(inc.id, {
-        patient_transferred_at: now,
-        patient_transferred_reminded_to: _state.operatorName,
-      });
-    }
-    setTimeout(() => showToast(`⚠️ ${p.display_id} 有未結案安全威脅，已提醒 ${_state.operatorName} 手動處理`), 2800);
+  if (linkedOpen.length > 0) {
+    const typeLabels = linkedOpen.map(inc => INCIDENT_TYPES[inc.type] || inc.type).join('、');
+    _confirmInModal(
+      '關聯事件未結案',
+      `${p.display_id} 已後送，但仍有 ${linkedOpen.length} 件未結案事件：\n${typeLabels}\n\n是否全部結案？`,
+      `_closeLinkedIncidents(${patientId})`,
+      'closeModal()'
+    );
+  } else {
+    renderCurrentTab();
   }
+}
+
+async function _closeLinkedIncidents(patientId) {
+  const now = localISO();
+  const linked = await db.incidents
+    .filter(inc => inc.status !== '已結案' && inc.status !== 'closed' && inc.patient_id === patientId)
+    .toArray();
+  for (const inc of linked) {
+    const statusNote = { time: now, text: '傷患已後送，事件自動結案', by: _state.operatorName };
+    await db.incidents.update(inc.id, {
+      status: '已結案', closed_at: now, closed_by: _state.operatorName,
+      notes: [...(inc.notes || []), statusNote],
+    });
+  }
+  closeModal();
+  showToast(`${linked.length} 件關聯事件已結案`);
   renderCurrentTab();
 }
 
@@ -3070,10 +3128,10 @@ async function useResource(id, qty) {
   await db.resources.update(id, { qty_current: newQty });
   if (newQty <= r.qty_low_threshold) {
     await db.incidents.add({
-      type:'resource_shortage', severity:'普通', status:'open',
-      notes:`${r.name} 低量（剩 ${newQty}）`,
+      type:'resource_shortage', severity:'中', status:'已通報',
+      notes:[{ time: localISO(), text: `${r.name} 低量（剩 ${newQty}）`, by: _state.operatorName }],
       reported_by:_state.operatorName, assigned_to:'',
-      linked_patients:'', reported_at:localISO()
+      reported_at:localISO()
     });
     showToast(`⚠️ ${r.name} 低量，事件已建立`);
   } else {
@@ -3111,8 +3169,8 @@ const INCIDENT_TYPES = {
 
 async function renderIncidents(el) {
   const all = await db.incidents.toArray();
-  const open = all.filter(i => i.status === 'open');
-  const closed = all.filter(i => i.status === 'closed');
+  const open = all.filter(i => i.status !== '已結案' && i.status !== 'closed');
+  const closed = all.filter(i => i.status === '已結案' || i.status === 'closed');
 
   el.innerHTML = `
     <div style="padding:14px;display:flex;justify-content:space-between;align-items:center;">
@@ -3130,16 +3188,23 @@ async function renderIncidents(el) {
 }
 
 function renderIncidentCard(inc, isOpen) {
-  const sevColor = inc.severity === '緊急' ? 'var(--red)' : 'var(--blue)';
-  const sevTag = inc.severity === '緊急' ? 'tag-red' : 'tag-blue';
-  const sevLabel = inc.severity || '普通';
+  // 舊資料相容
+  if (inc.status === 'open') inc.status = '已通報';
+  if (inc.status === 'closed') inc.status = '已結案';
+  if (inc.severity === 'high') inc.severity = '高';
+  if (inc.severity === 'medium') inc.severity = '中';
+  if (inc.severity === 'low') inc.severity = '低';
+  const sevColor = inc.severity === '高' ? 'var(--red)' : inc.severity === '中' ? 'var(--orange)' : 'var(--green)';
+  const sevTag = inc.severity === '高' ? 'tag-red' : inc.severity === '中' ? 'tag-yellow' : 'tag-green';
+  const statusTag = inc.status === '已結案' ? 'tag-green' : inc.status === '處理中' ? 'tag-orange' : 'tag-red';
+  const lastNote = Array.isArray(inc.notes) && inc.notes.length > 0 ? inc.notes[inc.notes.length-1].text : (typeof inc.notes === 'string' ? inc.notes : '—');
   return `
     <div class="card mb-2" style="${isOpen ? 'border-left:3px solid '+sevColor : 'opacity:.5'};cursor:pointer;" onclick="openIncidentDetail(${inc.id})">
       <div class="flex justify-between items-center mb-1">
         <span class="font-semibold">${INCIDENT_TYPES[inc.type]||inc.type}</span>
-        <span class="tag ${sevTag}">${sevLabel}</span>
+        <div class="flex gap-1"><span class="tag ${sevTag}">${inc.severity||'中'}</span><span class="tag ${statusTag}">${inc.status}</span></div>
       </div>
-      <div class="text-sm mb-1" style="white-space:pre-wrap;">${inc.notes||'—'}</div>
+      <div class="text-sm mb-1" style="white-space:pre-wrap;">${lastNote}</div>
       ${inc.patient_transferred_at ? `<div class="text-xs" style="color:var(--orange);font-weight:600;margin-bottom:2px;">⚠️ 傷患已後送，待 ${inc.patient_transferred_reminded_to||'—'} 手動結案</div>` : ''}
       <div class="text-xs"><span style="color:var(--text3)">${(inc.reported_at||'').slice(0,16).replace('T',' ')}</span> <span style="color:var(--primary);font-weight:600;">${inc.reported_by||'（系統自動）'}</span> — 通報</div>
     </div>
@@ -3159,11 +3224,19 @@ const INCIDENT_GUIDANCE = {
 async function openIncidentDetail(id) {
   const inc = await db.incidents.get(id);
   if (!inc) return;
-  const sevTag = inc.severity === '緊急' ? 'tag-red' : 'tag-blue';
-  const sevLabel = inc.severity || '普通';
-  const statusLabel = inc.status === 'open' ? '🔴 開放中' : '✅ 已結案';
+  // 舊資料相容：英文值映射為中文
+  if (inc.status === 'open') inc.status = '已通報';
+  if (inc.status === 'closed') inc.status = '已結案';
+  if (inc.severity === 'high') inc.severity = '高';
+  if (inc.severity === 'medium') inc.severity = '中';
+  if (inc.severity === 'low') inc.severity = '低';
+  if (typeof inc.notes === 'string') inc.notes = inc.notes ? [{ time: inc.reported_at || '', text: inc.notes, by: inc.reported_by || '' }] : [];
+  const sevTag = inc.severity === '高' ? 'tag-red' : inc.severity === '中' ? 'tag-yellow' : 'tag-green';
+  const sevLabel = inc.severity || '中';
+  const isClosed = inc.status === '已結案';
+  const statusTag = isClosed ? 'tag-green' : inc.status === '處理中' ? 'tag-orange' : 'tag-red';
   const guidance = INCIDENT_GUIDANCE[inc.type] || '';
-  // 關聯傷患（唯讀）：顯示觸發事件的傷患，置於頂部
+
   let patientBanner = '';
   if (inc.patient_id) {
     const lp = _state.patients.find(p => p.id === inc.patient_id) || await db.patients.get(inc.patient_id);
@@ -3179,85 +3252,83 @@ async function openIncidentDetail(id) {
         </div>
         <button class="btn btn-primary btn-sm" onclick="closeModal();openPatientDetail(${inc.patient_id})">查看履歷</button>
       </div>`;
-  } else {
-    patientBanner = `<div style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text3);">無關聯傷患記錄</div>`;
   }
+
   const transferAlert = inc.patient_transferred_at ? `
     <div style="background:var(--orange-bg,#fff3e0);border:1px solid var(--orange);border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:var(--orange);">
       ⚠️ 傷患已後送（${inc.patient_transferred_at.slice(0,16).replace('T',' ')}）<br>
-      <span style="font-weight:400;font-size:12px;">提醒 ${inc.patient_transferred_reminded_to||'—'} 手動結案，此事件仍開放中</span>
+      <span style="font-weight:400;font-size:12px;">提醒 ${inc.patient_transferred_reminded_to||'—'} 手動結案</span>
     </div>` : '';
+
+  const notesHtml = (inc.notes||[]).map(n =>
+    `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">` +
+    `<span style="color:var(--text3)">${(n.time||'').slice(0,16).replace('T',' ')}</span> ` +
+    `<span style="color:var(--primary);font-weight:600;">${n.by||'—'}</span> — ${n.text||''}` +
+    `</div>`
+  ).join('') || '<span style="color:var(--text3)">無記錄</span>';
+
   openModal(
     INCIDENT_TYPES[inc.type]||inc.type,
     `<div class="flex flex-col gap-1">
       ${transferAlert}
       ${patientBanner}
-      <div class="dash-row"><span class="dash-row-label">狀態</span><span class="dash-row-val">${statusLabel}</span></div>
-      <div class="dash-row"><span class="dash-row-label">嚴重程度</span><span class="dash-row-val"><span class="tag ${sevTag}">${sevLabel}</span></span></div>
+      <div class="flex gap-2 mb-2"><span class="tag ${sevTag}">${sevLabel}</span><span class="tag ${statusTag}">${inc.status}</span></div>
       <div class="dash-row"><span class="dash-row-label">通報者</span><span class="dash-row-val">${inc.reported_by||'—'}</span></div>
       <div class="dash-row"><span class="dash-row-label">通報時間</span><span class="dash-row-val text-sm">${(inc.reported_at||'').slice(0,16).replace('T',' ')}</span></div>
+      <div class="dash-row"><span class="dash-row-label">負責人</span><span class="dash-row-val">${inc.assigned_to||'未指派'}</span></div>
       ${inc.closed_at ? `<div class="dash-row"><span class="dash-row-label">結案時間</span><span class="dash-row-val text-sm">${inc.closed_at.slice(0,16).replace('T',' ')}</span></div>` : ''}
-      ${inc.notes ? `<div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:13px;white-space:pre-wrap;">${inc.notes}</div>` : ''}
+      ${inc.closed_by ? `<div class="dash-row"><span class="dash-row-label">結案人員</span><span class="dash-row-val">${inc.closed_by}</span></div>` : ''}
       ${guidance ? `<div class="section-hdr" style="margin:8px -4px 4px;">建議處置步驟</div>
         <div class="info-box info" style="font-size:12px;white-space:pre-wrap;">${guidance}</div>` : ''}
-      ${inc.status === 'open' ? `
+      <div class="section-hdr" style="margin:8px -4px 4px;">處置紀錄</div>
+      <div>${notesHtml}</div>
+      ${!isClosed ? `
       <div class="section-hdr" style="margin:8px -4px 4px;">指派負責人</div>
       <input class="form-input" id="inc-assign" placeholder="姓名或角色" value="${inc.assigned_to||''}">
-      <div class="section-hdr" style="margin:8px -4px 4px;">處置記錄</div>
-      <textarea class="form-input form-textarea" id="inc-action" placeholder="已採取的措施、後續追蹤…" style="min-height:70px;">${inc.action_notes||''}</textarea>
-      <button class="btn btn-outline btn-full" onclick="saveIncidentAction(${id})">💾 更新記錄</button>
-      ` : `
-      ${inc.assigned_to ? `<div class="dash-row"><span class="dash-row-label">處理人員</span><span class="dash-row-val">${inc.assigned_to}</span></div>` : ''}
-      ${inc.closed_by ? `<div class="dash-row"><span class="dash-row-label">結案人員</span><span class="dash-row-val">${inc.closed_by}</span></div>` : ''}
-      ${inc.action_notes ? `<div class="section-hdr" style="margin:8px -4px 4px;">處置記錄</div>
-        <div style="padding:10px;background:var(--surface2);border-radius:8px;font-size:13px;white-space:pre-wrap;">${inc.action_notes}</div>` : ''}
-      `}
+      <div class="section-hdr" style="margin:8px -4px 4px;">追加處置紀錄</div>
+      <textarea class="form-input form-textarea" id="inc-new-note" placeholder="補充說明…" style="min-height:70px;"></textarea>
+      ` : ''}
     </div>`,
-    inc.status === 'open'
-      ? `<button class="btn btn-danger flex-1" onclick="closeIncidentWithConfirm(${id})">結案</button>
-         <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
-      : `<button class="btn btn-ghost btn-full" onclick="closeModal()">關閉</button>`
+    isClosed
+      ? `<button class="btn btn-ghost btn-full" onclick="closeModal()">關閉</button>`
+      : `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>
+         ${inc.status !== '處理中' ? `<button class="btn btn-outline flex-1" onclick="updateIncidentStatus(${id},'處理中')">處理中</button>` : ''}
+         <button class="btn btn-primary flex-1" onclick="addIncidentNote(${id})">追加紀錄</button>
+         ${(inc.notes||[]).length >= 1 ? `<button class="btn flex-1" style="background:var(--green);color:#fff;" onclick="updateIncidentStatus(${id},'已結案')">結案</button>` : `<button class="btn flex-1" style="background:var(--border);color:var(--text3);cursor:not-allowed;" disabled>結案</button>`}`
   );
 }
 
-async function saveIncidentAction(id) {
+async function addIncidentNote(id) {
+  const noteText = document.getElementById('inc-new-note')?.value?.trim();
   const assigned = document.getElementById('inc-assign')?.value || '';
-  const action = document.getElementById('inc-action')?.value || '';
-  await db.incidents.update(id, { assigned_to: assigned, action_notes: action });
-  showToast('處置記錄已更新');
-}
-
-let _pendingIncidentClose = null;
-
-async function closeIncidentWithConfirm(id) {
-  const action = document.getElementById('inc-action')?.value || '';
-  if (!action.trim()) { showToast('請先填寫處置記錄再結案'); return; }
-  const assigned = document.getElementById('inc-assign')?.value || '';
-  _pendingIncidentClose = { id, action, assigned };
-  _confirmInModal(
-    '確認結案',
-    '結案後事件記錄將設為唯讀，無法修改，確認繼續？',
-    'doCloseIncident()',
-    `openIncidentDetail(${id})`
-  );
-}
-
-async function doCloseIncident() {
-  const { id, action, assigned } = _pendingIncidentClose;
-  _pendingIncidentClose = null;
-  await db.incidents.update(id, {
-    status: 'closed', closed_at: localISO(),
-    action_notes: action,
-    assigned_to: assigned,
-    closed_by: _state.operatorName,
-  });
+  if (!noteText) { showToast('請填寫紀錄內容'); return; }
   const inc = await db.incidents.get(id);
-  if (inc?.type === 'security_threat' && inc.patient_id) {
-    await db.patients.update(inc.patient_id, { security_cleared: 'yes', updated_at: localISO() });
-    await loadPatients();
-  }
+  const notes = [...(inc.notes||[]), { time: localISO(), text: noteText, by: _state.operatorName }];
+  await db.incidents.update(id, { notes, assigned_to: assigned });
+  showToast('紀錄已追加');
   closeModal();
-  showToast('事件已結案');
+  openIncidentDetail(id);
+}
+
+async function updateIncidentStatus(id, status) {
+  const inc = await db.incidents.get(id);
+  if (status === '已結案' && (inc.notes||[]).length < 1) {
+    showToast('⚠️ 請先追加處置紀錄才可結案'); return;
+  }
+  const assigned = document.getElementById('inc-assign')?.value || inc.assigned_to || '';
+  const statusNote = { time: localISO(), text: `狀態變更為「${status}」`, by: _state.operatorName };
+  const upd = { status, notes: [...(inc.notes||[]), statusNote], assigned_to: assigned };
+  if (status === '已結案') {
+    upd.closed_at = localISO();
+    upd.closed_by = _state.operatorName;
+    if (inc.type === 'security_threat' && inc.patient_id) {
+      await db.patients.update(inc.patient_id, { security_cleared: 'yes', updated_at: localISO() });
+      await loadPatients();
+    }
+  }
+  await db.incidents.update(id, upd);
+  closeModal();
+  showToast(`事件已更新：${status}`);
   renderCurrentTab();
 }
 
@@ -3279,8 +3350,9 @@ function openCreateIncident() {
       <div class="form-group">
         <div class="form-label">嚴重程度</div>
         <select class="form-select" id="inc-sev">
-          <option value="緊急">緊急</option>
-          <option value="普通" selected>普通</option>
+          <option value="高">高（立即威脅）</option>
+          <option value="中" selected>中（需追蹤）</option>
+          <option value="低">低（知悉）</option>
         </select>
       </div>
       <div class="form-group">
@@ -3302,21 +3374,24 @@ function _autoIncidentSeverity() {
   const type = document.getElementById('inc-type')?.value;
   const sev = document.getElementById('inc-sev');
   if (!sev) return;
-  const URGENT_TYPES = ['security_threat', 'infectious_risk', 'capacity_overload', 'evacuation'];
-  sev.value = URGENT_TYPES.includes(type) ? '緊急' : '普通';
+  const HIGH_TYPES = ['security_threat', 'infectious_risk', 'capacity_overload', 'evacuation'];
+  sev.value = HIGH_TYPES.includes(type) ? '高' : '中';
 }
 
 async function createIncident() {
   const type = document.getElementById('inc-type')?.value;
   const severity = document.getElementById('inc-sev')?.value;
-  const notes = document.getElementById('inc-notes')?.value;
+  const noteText = document.getElementById('inc-notes')?.value?.trim();
   const patientId = parseInt(document.getElementById('inc-patient')?.value) || null;
-  if (!notes?.trim()) { showToast('請填寫事件說明'); return; }
+  if (!noteText) { showToast('請填寫事件說明'); return; }
   const id = await db.incidents.add({
-    type, severity, status:'open', notes,
-    reported_by:_state.operatorName, assigned_to:'',
-    patient_id: patientId, linked_patients:'', reported_at:localISO()
+    type, severity, status:'已通報',
+    notes: [{ time: localISO(), text: noteText, by: _state.operatorName }],
+    reported_by: _state.operatorName, assigned_to:'',
+    patient_id: patientId, reported_at: localISO(), closed_at: null
   });
+  closeModal();
+  showToast('事件已通報');
   await renderCurrentTab();
   openIncidentDetail(id);
 }
@@ -3328,7 +3403,7 @@ async function createIncident() {
 async function renderShift(el) {
   const shifts = await db.shifts.toArray();
   const redPatients = _state.patients.filter(p => p.triage_color === 'red' && p.current_zone !== '已離區');
-  const openIncidents = await db.incidents.where('status').equals('open').count();
+  const openIncidents = await db.incidents.filter(i => i.status !== '已結案').count();
   const lowResources = await db.resources.filter(r => r.qty_current <= r.qty_low_threshold).count();
   const pendingEvac = getPendingTransfer();
   const lastShift = shifts.length > 0 ? shifts[shifts.length-1] : null;
@@ -3482,6 +3557,7 @@ function openModal(title, body, footer) {
   document.getElementById('modal-body').innerHTML = body;
   document.getElementById('modal-footer').innerHTML = footer || `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`;
   document.getElementById('modal-overlay').classList.remove('hidden');
+  document.getElementById('modal-body').scrollTop = 0;
 }
 function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
 function handleOverlayClick(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
