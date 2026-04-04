@@ -1,6 +1,11 @@
+/* ════════════════════════════════════════════════════════════════════
+   醫療組 PWA — sw.js
+   Service Worker：離線快取（Offline First）
+   策略：Cache First（本地），Network First（外部 CDN）
+   ════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const CACHE_NAME = 'medical-pwa-v0.5.1-alpha';
+const CACHE_NAME = 'medical-pwa-v0.6.2-alpha';
 const STATIC_ASSETS = [
   './medical_pwa.html',
   './sw.js',
@@ -11,6 +16,7 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', event => {
+  console.log('[SW medical] install', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       return cache.addAll(STATIC_ASSETS).catch(e => {
@@ -22,10 +28,14 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
+  console.log('[SW medical] activate', CACHE_NAME);
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    caches.keys().then(keys => {
+      return Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => {
+        console.log('[SW medical] Removing old cache:', k);
+        return caches.delete(k);
+      }));
+    })
   );
   self.clients.claim();
 });
@@ -34,6 +44,26 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.protocol === 'ws:' || url.protocol === 'wss:') return;
   if (event.request.method !== 'GET') return;
+
+  // 外部 CDN 資源：Network First（Dexie、PapaParse、qrcode）
+  if (url.origin !== self.location.origin) {
+    event.respondWith(
+      fetch(event.request).then(resp => {
+        if (resp && resp.status === 200) {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+        }
+        return resp;
+      }).catch(() => {
+        return caches.match(event.request).then(cached => {
+          return cached || new Response('', { status: 503, statusText: 'Offline' });
+        });
+      })
+    );
+    return;
+  }
+
+  // 本地資源：Cache First
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
@@ -46,4 +76,13 @@ self.addEventListener('fetch', event => {
       });
     })
   );
+});
+
+// 接收主頁面指令（動態快取更新）
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'CACHE_UPDATE') {
+    caches.open(CACHE_NAME).then(cache => {
+      cache.add(event.data.url).catch(e => console.warn('[SW medical] CACHE_UPDATE failed:', e));
+    });
+  }
 });

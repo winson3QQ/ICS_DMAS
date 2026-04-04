@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.41';</script>
+<script>const PWA_VERSION='v2.2.42';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -337,7 +337,7 @@
   <div class="login-wrap">
     <div class="login-icon-wrap"><img src="badge.png" alt="Taiwan Civil Defense"></div>
     <div class="login-title" id="shelter-name-title">收容組管理系統</div>
-    <div class="login-sub" id="shelter-loc-subtitle">Shelter Team PWA · <span style="color:var(--red);font-weight:700;">ALPHA</span></div>
+    <div class="login-sub" id="shelter-loc-subtitle"></div>
     <!-- Pi 連線狀態 -->
     <div class="login-status-row">
       <div id="login-pi-status" class="login-pi-status">🟡 伺服器連線中…</div>
@@ -385,9 +385,9 @@
 <div id="app" class="hidden">
   <div id="capacity-banner" class="green">
     <div class="cap-info">
-      <div class="cap-label" id="cap-label-text">量能充足</div>
-      <div class="cap-numbers" id="cap-numbers-text">0/30</div>
-      <div class="cap-status" id="cap-zone-text">已安置 / 總容量</div>
+      <div class="cap-label" id="cap-label-text"></div>
+      <div class="cap-numbers" id="cap-numbers-text"></div>
+      <div class="cap-status" id="cap-zone-text"></div>
     </div>
     <button class="cap-copy" onclick="copyCapacityReport()">📋 複製通報文字</button>
   </div>
@@ -1008,7 +1008,8 @@ const App = {
     const isLeader=role==='組長';
     document.getElementById('tab-roster').classList.remove('hidden');
     document.getElementById('tab-settings').classList.toggle('hidden',!isLeader);
-    this.switchTab('dashboard');
+    const initTab = localStorage.getItem('shelter_last_tab') || 'dashboard';
+    this.switchTab(initTab);
     // 啟動閒置計時器（無論從哪條路徑進入儀表板）
     if(PinLock.isSetup())PinLock.unlock();
   },
@@ -1104,6 +1105,7 @@ function closeModal(){el('modal-overlay').classList.remove('open');const m=el('m
 const TAB_TITLES={dashboard:'儀表板',intake:'入站流程',beds:'床位地圖',resources:'物資管理',incidents:'事件管理',roster:'人員名冊',settings:'設定'};
 function switchTab(tab){
   App.currentTab=tab;
+  localStorage.setItem('shelter_last_tab', tab);
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
   const panel=el(`panel-${tab}`), tabBtn=el(`tab-${tab}`);
@@ -1116,6 +1118,7 @@ function switchRole(){
   PinLock.clear();PersonCrypto.clearKey();AuditManager.clearSession();
   sessionStorage.removeItem('shelter_session_id');sessionStorage.removeItem('shelter_session_username');
   sessionStorage.removeItem('shelter_login_time');
+  localStorage.removeItem('shelter_last_tab');
   const ltBadge=document.getElementById('login-time-badge');if(ltBadge)ltBadge.textContent='';
   localStorage.removeItem('shelter_role');
   App.role=null;

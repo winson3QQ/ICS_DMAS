@@ -2,7 +2,28 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.5.1-alpha';</script>
+<script>const PWA_VERSION='v0.6.2-alpha';</script>
+<script>
+(function(){
+  var MAX=200,_buf=[];
+  window._dbgLog=function(level,msg){
+    var ts=new Date().toLocaleTimeString('zh-TW',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:3});
+    _buf.push({ts:ts,level:level,msg:msg});
+    if(_buf.length>MAX)_buf.shift();
+    var list=document.getElementById('debug-log-list');
+    var panel=document.getElementById('debug-log-panel');
+    if(list&&panel&&!panel.classList.contains('hidden'))_renderDbgLog(list);
+  };
+  window._renderDbgLog=function(list){
+    if(!list)return;
+    list.innerHTML=_buf.map(function(e){
+      var c=e.level==='E'?'#f88':e.level==='W'?'#fe8':e.level==='D'?'#8cf':'#cfc';
+      return '<span style="color:'+c+'">['+e.ts+']['+e.level+'] '+e.msg.replace(/</g,'&lt;')+'</span>';
+    }).join('\n');
+    list.scrollTop=list.scrollHeight;
+  };
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -80,6 +101,17 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .info-box.warn{background:var(--yellow-bg);color:var(--orange);}
 .info-box.error{background:var(--red-bg);color:var(--red);}
 .info-box.success{background:var(--green-bg);color:var(--green);}
+/* ── Settings（比照 shelter）── */
+.settings-section{background:var(--surface);border-radius:var(--r);margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.settings-item{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;gap:12px;}
+.settings-item:last-child{border-bottom:none;}
+.settings-item:active{background:var(--bg);}
+.settings-item .si-icon{font-size:22px;width:32px;text-align:center;}
+.settings-item .si-text{flex:1;}
+.settings-item .si-title{font-size:15px;font-weight:600;}
+.settings-item .si-sub{font-size:12px;color:var(--text2);margin-top:2px;}
+.settings-item .si-arrow{color:var(--text3);font-size:18px;}
+.settings-item.danger .si-title{color:var(--red);}
 /* ── Layout ── */
 #login-screen,#app{position:fixed;inset:0;display:flex;flex-direction:column;}
 #login-screen{background:var(--bg);color:var(--text);align-items:center;padding:24px;overflow-y:auto;}
@@ -130,7 +162,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 #app-tabs{height:var(--tab-h);background:var(--surface);border-top:1px solid var(--border);display:flex;flex-shrink:0;}
 .tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 0;background:transparent;border:none;color:var(--text3);font-size:11px;font-weight:600;position:relative;cursor:pointer;transition:color .15s;}
 .tab-item.active{color:var(--primary);}
-.tab-item .tab-icon{font-size:20px;}
+.tab-item svg{width:22px;height:22px;}
 .tab-badge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
 .tab-badge-alert{position:absolute;top:4px;right:calc(50% + 4px);background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
 /* ── Capacity bar ── */
@@ -289,6 +321,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
       <button class="adm-tab active" id="adm-tab-list" onclick="admShowTab('list')">帳號列表</button>
       <button class="adm-tab" id="adm-tab-add" onclick="admShowTab('add')">新增帳號</button>
       <button class="adm-tab" id="adm-tab-cfg" onclick="admShowTab('cfg')">設定</button>
+      <button class="adm-tab" id="adm-tab-log" onclick="admShowTab('log')">日誌</button>
     </div>
     <div class="adm-body">
       <div id="adm-panel-list"></div>
@@ -307,6 +340,9 @@ input,select,textarea{font-family:inherit;font-size:16px;}
         <button class="btn btn-primary btn-full" onclick="admAddAccount()">建立帳號</button>
         <div id="adm-add-msg" style="font-size:13px;margin-top:8px;min-height:16px;"></div>
       </div>
+      <div id="adm-panel-log" style="display:none;">
+        <div id="adm-log-list" style="font-size:12px;line-height:1.8;"></div>
+      </div>
       <div id="adm-panel-cfg" style="display:none;">
         <div class="form-group"><label class="form-label">修改管理員 PIN</label>
           <input class="form-input" id="adm-cfg-pin" type="password" inputmode="numeric" maxlength="6" placeholder="新管理員 PIN（4-6 位數字）" oninput="this.value=this.value.replace(/\D/g,'')">
@@ -323,7 +359,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div id="app-header">
     <div class="hdr-left">
       <div class="hdr-title"><svg width="20" height="20" viewBox="0 0 88 88" style="flex-shrink:0;"><path d="M34,4 h20 a3,3 0 0 1 3,3 v23 h23 a3,3 0 0 1 3,3 v20 a3,3 0 0 1 -3,3 h-23 v23 a3,3 0 0 1 -3,3 h-20 a3,3 0 0 1 -3,-3 v-23 h-23 a3,3 0 0 1 -3,-3 v-20 a3,3 0 0 1 3,-3 h23 v-23 a3,3 0 0 1 3,-3 z" fill="none" stroke="var(--primary)" stroke-width="6"/></svg>醫療組</div>
-      <span id="sync-dot" title="同步狀態" style="font-size:11px;cursor:pointer;">⚫</span>
+      <span id="sync-dot" title="同步狀態（點擊查看 WS log）" style="font-size:11px;cursor:pointer;" onclick="document.getElementById('debug-log-panel')?.classList.toggle('hidden')">⚫</span>
     </div>
     <div class="hdr-right">
       <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:var(--red-bg);color:var(--primary);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
@@ -337,29 +373,13 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div id="app-content"></div>
 
   <div id="app-tabs">
-    <button class="tab-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
-      <span class="tab-icon">📊</span>儀表板
-    </button>
-    <button class="tab-item" data-tab="intake" onclick="switchTab('intake')" style="position:relative;">
-      <span class="tab-icon">➕</span>接收/檢傷
-      <span class="tab-badge hidden" id="tab-badge-intake"></span>
-    </button>
-    <button class="tab-item" data-tab="zones" onclick="switchTab('zones')" style="position:relative;">
-      <span class="tab-icon">🏥</span>治療區
-      <span class="tab-badge-alert hidden" id="tab-badge-zones-alert">!</span>
-      <span class="tab-badge hidden" id="tab-badge-zones"></span>
-    </button>
-    <button class="tab-item" data-tab="transfer" onclick="switchTab('transfer')" style="position:relative;">
-      <span class="tab-icon">🚑</span>後送
-      <span class="tab-badge hidden" id="tab-badge-transfer"></span>
-    </button>
-    <button class="tab-item" data-tab="events" onclick="switchTab('events')" style="position:relative;">
-      <span class="tab-icon">⚠️</span>事件
-      <span class="tab-badge hidden" id="tab-badge-events"></span>
-    </button>
-    <button class="tab-item" data-tab="more" onclick="switchTab('more')">
-      <span class="tab-icon">⋯</span>更多
-    </button>
+    <div class="tab-item active" id="tab-dashboard" data-tab="dashboard" onclick="switchTab('dashboard')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>儀表板</div>
+    <div class="tab-item" id="tab-intake" data-tab="intake" onclick="switchTab('intake')" style="position:relative;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>接收<span class="tab-badge hidden" id="tab-badge-intake"></span></div>
+    <div class="tab-item" id="tab-zones" data-tab="zones" onclick="switchTab('zones')" style="position:relative;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/></svg>治療區<span class="tab-badge-alert hidden" id="tab-badge-zones-alert">!</span><span class="tab-badge hidden" id="tab-badge-zones"></span></div>
+    <div class="tab-item" id="tab-resources" data-tab="resources" onclick="switchTab('resources')" style="position:relative;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 15h-4v2h-6v-2H5v-2h4v-2h6v2h4v2zm-7-6c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/></svg>物資</div>
+    <div class="tab-item" id="tab-transfer" data-tab="transfer" onclick="switchTab('transfer')" style="position:relative;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 18.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5zM19.92 12h-3.92v-4h3l3 4zM6 18.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5zM20 8l3 4v5h-2c0 1.66-1.34 3-3 3s-3-1.34-3-3H9c0 1.66-1.34 3-3 3s-3-1.34-3-3H1V6c0-1.1.9-2 2-2h14v4h3z"/></svg>後送<span class="tab-badge hidden" id="tab-badge-transfer"></span></div>
+    <div class="tab-item" id="tab-events" data-tab="events" onclick="switchTab('events')" style="position:relative;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>事件<span class="tab-badge hidden" id="tab-badge-events"></span></div>
+    <div class="tab-item" id="tab-settings" data-tab="settings" onclick="switchTab('settings')" style="display:none;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>設定</div>
   </div>
 </div>
 
@@ -368,7 +388,14 @@ input,select,textarea{font-family:inherit;font-size:16px;}
   <div class="idle-title">⚠️ 閒置中</div>
   <div class="idle-sub">即將自動登出，請觸碰螢幕繼續</div>
   <div class="idle-cd" id="idle-cd">30</div>
-  <button class="btn btn-primary" onclick="resetIdle()">繼續作業</button>
+  <button class="btn btn-primary" onclick="PinLock.continueSession()">繼續作業</button>
+</div>
+<div id="auto-logout-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff;">
+  <div style="font-size:48px;">⏱️</div>
+  <div style="font-size:20px;font-weight:700;">閒置警告</div>
+  <div style="font-size:14px;opacity:.8;">即將自動登出</div>
+  <div id="auto-logout-countdown" style="font-size:64px;font-weight:700;color:#FF8A80;">30</div>
+  <button class="btn btn-primary" onclick="PinLock.continueSession()" style="padding:14px 40px;font-size:16px;">繼續作業</button>
 </div>
 
 <!-- ══ MODAL ══════════════════════════════════════════════════════ -->
@@ -460,10 +487,38 @@ db.version(4).stores({
   config:    'key',
   accounts:  '++id, username, role, status'
 });
+db.version(5).stores({
+  patients:  '++id, display_id, triage_color, current_zone, injury_type, care_status, source_sex, source_age, disposition, updated_at',
+  triages:   '++id, patient_id, triage_at, trauma_or_medical',
+  slots:     '++id, zone, status',
+  transfers: '++id, patient_id, status, created_at',
+  resources: '++id, name, category',
+  incidents: '++id, type, severity, status, reported_at',
+  shifts:    '++id, started_at, role, operator_name',
+  snapshots: '++id, snapshot_uuid, snapshot_time, type',
+  config:    'key',
+  accounts:  '++id, username, role, status',
+  audit_log: '++id, action, operator_name, timestamp',
+  time_sync: '++id, device_id, timestamp'
+});
 
-/* ════════════════════════════════════════════════════════════════
-   CRYPTO (PIN hash)
-════════════════════════════════════════════════════════════════ */
+/* ══ AuditManager ══════════════════════════════════════════════ */
+(function() {
+  const SESSION_KEY = 'med_operator_name';
+  window.AuditManager = {
+    stamp(updates) {
+      return Object.assign({}, updates, {
+        operator_name: this.getOperator() || '未登入',
+        updated_at: new Date().toISOString(),
+      });
+    },
+    setOperator(name) { const t=(name||'').trim(); if(t) sessionStorage.setItem(SESSION_KEY,t); },
+    getOperator() { return sessionStorage.getItem(SESSION_KEY)||''; },
+    clearSession() { sessionStorage.removeItem(SESSION_KEY); },
+  };
+})();
+
+/* ══ Crypto (PIN hash — 保留向後相容) ═════════════════════════ */
 const Crypto = {
   async hashPin(pin, salt='medical-pwa-v2') {
     const enc = new TextEncoder();
@@ -472,25 +527,42 @@ const Crypto = {
       { name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256' }, raw, 256
     );
     return Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  },
-
-  // AES-256-GCM 加密匯出（PBKDF2 衍生金鑰）
-  async encryptExport(plaintext, passphrase) {
-    const enc = new TextEncoder();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv   = crypto.getRandomValues(new Uint8Array(12));
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']
-    );
-    const key = await crypto.subtle.deriveKey(
-      { name:'PBKDF2', salt, iterations:200000, hash:'SHA-256' },
-      keyMaterial, { name:'AES-GCM', length:256 }, false, ['encrypt']
-    );
-    const cipherBuf = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(plaintext));
-    const toHex = arr => Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
-    const toB64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
-    return JSON.stringify({ v:1, alg:'AES-256-GCM', salt:toHex(salt), iv:toHex(iv), data:toB64(cipherBuf) });
   }
+};
+
+/* ══ ExportCrypto（從 shelter 複製，對齊加密匯出）════════════ */
+window.ExportCrypto = {
+  async encrypt(plaintext, password) {
+    const enc=new TextEncoder(), salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+    const km=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt']);
+    const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,enc.encode(plaintext));
+    const combined=new Uint8Array(16+12+ct.byteLength); combined.set(salt,0); combined.set(iv,16); combined.set(new Uint8Array(ct),28);
+    return btoa(String.fromCharCode(...combined));
+  },
+  async decrypt(b64, password) {
+    const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)), salt=bytes.slice(0,16), iv=bytes.slice(16,28), ct=bytes.slice(28);
+    const enc=new TextEncoder(), km=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+    return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ct));
+  },
+  async promptAndDownload(content, filename, mimeType) {
+    return new Promise(resolve => {
+      openModal('設定傳輸密碼',`<div class="info-box warn" style="font-size:13px;">此匯出含個人資料，將以 AES-256-GCM 加密。<br>請設定傳輸密碼，並以另一管道（如無線電、口頭）告知接收方。</div><div class="form-group mt-2"><label class="form-label">傳輸密碼 <span class="req">*</span></label><input id="export-pwd" type="password" class="form-input" placeholder="至少 8 字元" autocomplete="off"></div><div class="form-group"><label class="form-label">再次確認密碼 <span class="req">*</span></label><input id="export-pwd2" type="password" class="form-input" placeholder="再輸入一次" autocomplete="off"></div><div id="export-pwd-err" style="color:var(--red);font-size:13px;display:none;"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="ExportCrypto._doEncrypt('${filename}','${mimeType}')">加密並下載</button>`);
+      ExportCrypto._pendingContent=content; ExportCrypto._pendingFilename=filename; ExportCrypto._resolve=resolve;
+    });
+  },
+  async _doEncrypt(filename, mimeType) {
+    const pwd=document.getElementById('export-pwd')?.value||'', pwd2=document.getElementById('export-pwd2')?.value||'', err=document.getElementById('export-pwd-err');
+    if(pwd.length<8){err.textContent='密碼至少 8 字元'; err.style.display='block'; return;}
+    if(pwd!==pwd2){err.textContent='兩次密碼不一致'; err.style.display='block'; return;}
+    err.style.display='none';
+    const encrypted=await ExportCrypto.encrypt(ExportCrypto._pendingContent,pwd);
+    const blob=new Blob([encrypted],{type:'text/plain;charset=utf-8'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=ExportCrypto._pendingFilename+'.enc'; a.click(); URL.revokeObjectURL(url);
+    closeModal(); showToast('✅ 已加密下載（副檔名 .enc）。請以另一管道告知接收方密碼。');
+    if(ExportCrypto._resolve)ExportCrypto._resolve(true);
+  },
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -622,40 +694,99 @@ async function enterDemoMode(role) {
 
 async function handleLogin() {
   const warn = document.getElementById('login-warn');
-  warn.textContent = '';
+  warn.style.display = 'none';
 
-  const username = document.getElementById('login-username').value.trim();
-  const pin = document.getElementById('login-pin').value;
-
-  if (!username) { warn.textContent = '⚠️ 請輸入帳號'; return; }
-  if (!pin || pin.length < 4 || !/^\d+$/.test(pin)) { warn.textContent = '⚠️ PIN 需為 4–6 位數字'; return; }
+  const pinInput = document.getElementById('login-pin');
+  const pin = pinInput ? pinInput.value.trim() : '';
+  if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+    warn.textContent = '⚠️ 請輸入 4-6 位數字 PIN'; warn.style.display = 'block'; pinInput?.focus(); return;
+  }
 
   /* 主要路徑：Pi 可用 */
   if (!WsManager.isDegraded()) {
+    const ui = document.getElementById('login-username');
+    const username = ui ? ui.value.trim() : '';
+    if (!username) { warn.textContent = '⚠️ 請輸入任務帳號'; warn.style.display = 'block'; ui?.focus(); return; }
     try {
-      warn.textContent = '⏳ 驗證中…';
+      warn.textContent = '⏳ 驗證中…'; warn.style.display = 'block';
       const result = await WsManager.authenticate(username, pin);
-      warn.textContent = '';
-      document.getElementById('login-pin').value = '';
+      warn.style.display = 'none';
+      if (pinInput) pinInput.value = '';
+      // session ID
+      const sid = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      sessionStorage.setItem('med_session_id', sid);
+      // site_salt + PersonCrypto 金鑰衍生
       if (result.site_salt) localStorage.setItem('med_site_salt', result.site_salt);
+      const salt = result.site_salt || localStorage.getItem('med_site_salt') || localStorage.getItem('med_enc_salt_' + username);
+      if (!result.site_salt) console.warn('[PersonCrypto] Pi 未回傳 site_salt，退回舊版 per-device salt');
+      await PersonCrypto.deriveKey(pin, salt);
+      await PersonCrypto.exportToSession();
+      // PinLock
+      await PinLock.setup(pin);
+      // session 儲存（向後相容 + 新分散 key）
+      sessionStorage.setItem('med_session_username', result.username);
       localStorage.setItem('med_session', JSON.stringify({ username: result.username, role: result.role }));
+      localStorage.setItem('med_role', result.role);
+      // 稽核
+      AuditManager.setOperator(result.username);
+      await AuditLogManager.write('login_success', { username: result.username, role: result.role, mode: 'pi_auth' });
+      sessionStorage.setItem('med_login_time', new Date().toISOString());
       showApp({ username: result.username, role: result.role, display_name: result.username });
+      // 背景恢復推送
+      _autoRecoveryPush();
     } catch(e) {
-      warn.textContent = '❌ ' + (e.message || '驗證失敗');
-      document.getElementById('login-pin').value = '';
+      warn.textContent = '❌ ' + (e.message || '驗證失敗'); warn.style.display = 'block';
+      if (pinInput) { pinInput.value = ''; pinInput.focus(); }
     }
     return;
   }
 
-  /* 降級路徑：使用快取 */
-  const cached = localStorage.getItem('med_session');
-  if (!cached) { warn.textContent = '⚠️ 尚未透過 Pi 登入過，無法使用離線模式'; return; }
-  warn.textContent = '';
-  document.getElementById('login-pin').value = '';
+  /* 降級路徑：使用快取角色，無快取則擋住 */
+  const cachedRole = localStorage.getItem('med_role');
+  if (!cachedRole) { warn.textContent = '⚠️ 尚未透過 Pi 登入過，無法使用離線模式'; warn.style.display = 'block'; return; }
+  const ui2 = document.getElementById('login-username');
+  const name = ui2 ? ui2.value.trim() : '';
+  if (!name) { warn.textContent = '⚠️ 離線模式：請輸入姓名或帳號'; warn.style.display = 'block'; ui2?.focus(); return; }
+  // PIN 驗證或設定
+  if (PinLock.isSetup()) {
+    const ok = await PinLock.verify(pin);
+    if (!ok) { warn.textContent = '⚠️ PIN 不符，請重新輸入'; warn.style.display = 'block'; if (pinInput) { pinInput.value = ''; pinInput.focus(); } return; }
+  } else {
+    await PinLock.setup(pin);
+  }
+  if (pinInput) pinInput.value = '';
+  // session ID
+  const sid = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  sessionStorage.setItem('med_session_id', sid);
+  // 降級 salt + PersonCrypto
+  const saltKey = 'med_enc_salt_degraded';
+  let salt = localStorage.getItem(saltKey);
+  if (!salt) { salt = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem(saltKey, salt); }
+  await PersonCrypto.deriveKey(pin, salt);
+  await PersonCrypto.exportToSession();
+  // 稽核
+  AuditManager.setOperator(name + '【降級】');
+  await AuditLogManager.write('login_degraded', { name, role: cachedRole });
+  sessionStorage.setItem('med_login_time', new Date().toISOString());
+  showApp({ username: name, role: cachedRole, display_name: name });
+}
+
+/* ══ 重連後自動推送斷線期間資料（從 shelter 複製）════════════════ */
+async function _autoRecoveryPush() {
   try {
-    const sess = JSON.parse(cached);
-    showApp({ username: sess.username || username, role: sess.role || '一般', display_name: sess.username || username });
-  } catch(_) { warn.textContent = '⚠️ 離線登入失敗'; }
+    if (!WsManager.isConnected()) return;
+    const lastSyncStr = localStorage.getItem('med_last_sync_ts') || '1970-01-01T00:00:00.000Z';
+    const lastSync = new Date(lastSyncStr).getTime();
+    const now = Date.now();
+    if (now - lastSync < 60_000) return;
+    const count = await WsManager.pushRecoveryData();
+    if (count > 0) {
+      showToast(`🔄 網路恢復：已同步 ${count} 筆記錄至 Pi`);
+      await AuditLogManager.write('network_recovery_push', { records_sent: count, triggered_by: 'auto_reconnect' });
+    }
+  } catch(e) {
+    console.warn('[AutoRecovery] push failed:', e.message);
+  }
 }
 
 function showApp(acct) {
@@ -666,6 +797,9 @@ function showApp(acct) {
   document.getElementById('app').classList.remove('hidden');
   const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
   document.getElementById('hdr-role').innerHTML = `<span>${acct.role}・${_state.operatorName}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">登入 ${loginTime}</span>`;
+  // 組長才顯示設定 tab
+  const settingsTab = document.getElementById('tab-settings');
+  if (settingsTab) settingsTab.style.display = (acct.role === '組長') ? '' : 'none';
   startIdleTimer();
   const initTab = localStorage.getItem('med_last_tab') || 'dashboard';
   _state.currentTab = initTab;
@@ -673,77 +807,116 @@ function showApp(acct) {
   loadPatients().then(renderCurrentTab);
 }
 
-/* ════════════════════════════════════════════════════════════════
-   IDLE TIMER  (90s 警告 + 30s 自動登出)
-════════════════════════════════════════════════════════════════ */
-function startIdleTimer() {
-  clearIdleTimers();
-  _state.idleTimer = setTimeout(showIdleWarning, IDLE_WARN_S * 1000);
-  let secsLeft = IDLE_WARN_S;
-  _state.idleCountdown = setInterval(() => { secsLeft--; updateIdleHdr(secsLeft); }, 1000);
-  updateIdleHdr(IDLE_WARN_S);
-}
+/* ══ PinLock（從 shelter 複製，醫療組色系）═══════════════════ */
+(function() {
+  'use strict';
+  const IDLE_MS=90*1000, WARN_MS=30, PIN_HASH_KEY='med_pin_hash', SALT_KEY='med_pin_salt';
+  let _idleTimer=null, _warnTimer=null, _countdownTick=null, _locked=false, _pinHash=null, _lastInteract=0;
+  async function hashPin(pin,saltHex) {
+    const enc=new TextEncoder(), key=await crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveBits']);
+    const salt=hexToBytes(saltHex), bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:100000},key,256);
+    return bytesToHex(new Uint8Array(bits));
+  }
+  function bytesToHex(b){return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');}
+  function hexToBytes(h){return new Uint8Array(h.match(/.{2}/g).map(b=>parseInt(b,16)));}
+  function resetIdle(evt){
+    _lastInteract=Date.now();
+    clearTimeout(_idleTimer);
+    _idleTimer=setTimeout(()=>PinLock.lock('idle'),IDLE_MS);
+    _updateCountdown();
+  }
+  function _updateCountdown(){
+    const el=document.getElementById('idle-countdown');if(!el)return;
+    const remaining=Math.max(0,Math.round((IDLE_MS+WARN_MS*1000-(Date.now()-_lastInteract))/1000));
+    if(remaining<=0){el.textContent='';return;}
+    const m=Math.floor(remaining/60),s=remaining%60;
+    el.textContent=(m>0?m+'分':'')+s+'秒 後登出';
+    el.style.color=remaining<=30?'#C62828':remaining<=60?'#C07800':'var(--text2)';
+  }
+  ['touchstart','mousedown','keydown','scroll'].forEach(e=>document.addEventListener(e,resetIdle,{passive:true}));
+  window.PinLock = {
+    async setup(pin) {
+      if(!pin||pin.length<4||pin.length>6||!/^\d+$/.test(pin))return false;
+      const saltBytes=crypto.getRandomValues(new Uint8Array(16)), saltHex=bytesToHex(saltBytes);
+      _pinHash=await hashPin(pin,saltHex);
+      sessionStorage.setItem(SALT_KEY,saltHex); sessionStorage.setItem(PIN_HASH_KEY,_pinHash);
+      _locked=false; resetIdle(); _startCountdownTick(); return true;
+    },
+    async verify(pin) {
+      const saltHex=sessionStorage.getItem(SALT_KEY), storedH=sessionStorage.getItem(PIN_HASH_KEY)||_pinHash;
+      if(!saltHex||!storedH)return false;
+      return await hashPin(pin,saltHex)===storedH;
+    },
+    isSetup(){return !!sessionStorage.getItem(PIN_HASH_KEY);},
+    isLocked(){return _locked;},
+    lock(reason){
+      if(!this.isSetup())return; _locked=true;
+      if(reason==='idle'){_showLogoutWarning();}else{showPinLockScreen('');}
+    },
+    unlock(){_locked=false; hidePinLockScreen(); _hideLogoutWarning(); resetIdle(); _startCountdownTick();},
+    continueSession(){if(!_locked)return; _hideLogoutWarning(); _locked=false; resetIdle();},
+    clear(){sessionStorage.removeItem(PIN_HASH_KEY); sessionStorage.removeItem(SALT_KEY); _pinHash=null; _locked=false; clearTimeout(_idleTimer); clearInterval(_countdownTick); _countdownTick=null; _hideLogoutWarning(); const el=document.getElementById('idle-countdown');if(el)el.textContent='';},
+  };
+  function showPinLockScreen(msg) {
+    let o=document.getElementById('pin-lock-overlay');
+    if(!o){
+      o=document.createElement('div'); o.id='pin-lock-overlay';
+      o.style.cssText='position:fixed;inset:0;background:linear-gradient(135deg,#6B0000,#C62828);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;';
+      o.innerHTML=`<div style="font-size:48px">🔒</div><div style="color:#fff;font-size:20px;font-weight:700;">醫療組已鎖定</div><div id="pin-lock-msg" style="color:rgba(255,255,255,.8);font-size:13px;text-align:center;">${msg||''}</div><input id="pin-unlock-input" type="password" inputmode="numeric" maxlength="6" placeholder="請輸入 PIN" style="width:100%;max-width:280px;padding:14px;border-radius:10px;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:22px;text-align:center;letter-spacing:8px;outline:none;"><div id="pin-lock-err" style="color:#FFD08A;font-size:13px;display:none;">PIN 錯誤，請再試一次</div><button onclick="PinLock._attemptUnlock()" style="background:#fff;color:#C62828;font-weight:700;font-size:16px;padding:12px 40px;border:none;border-radius:10px;cursor:pointer;">解鎖</button>`;
+      document.body.appendChild(o);
+      o.querySelector('#pin-unlock-input').addEventListener('keydown',e=>{if(e.key==='Enter')PinLock._attemptUnlock();});
+    } else { o.style.display='flex'; document.getElementById('pin-lock-msg').textContent=msg||''; document.getElementById('pin-lock-err').style.display='none'; }
+    setTimeout(()=>document.getElementById('pin-unlock-input')?.focus(),100);
+  }
+  function hidePinLockScreen(){const o=document.getElementById('pin-lock-overlay');if(o)o.style.display='none';}
+  function _showLogoutWarning(){
+    const o=document.getElementById('auto-logout-overlay');if(!o)return;
+    o.style.display='flex';
+    let sec=WARN_MS;
+    const cd=document.getElementById('auto-logout-countdown');if(cd)cd.textContent=sec;
+    clearInterval(_warnTimer);
+    _warnTimer=setInterval(()=>{
+      sec--;if(cd)cd.textContent=sec;
+      if(sec<=0){clearInterval(_warnTimer);o.style.display='none';if(typeof doLock==='function')doLock();}
+    },1000);
+  }
+  function _hideLogoutWarning(){clearInterval(_warnTimer);const o=document.getElementById('auto-logout-overlay');if(o)o.style.display='none';}
+  function _startCountdownTick(){clearInterval(_countdownTick);_countdownTick=setInterval(_updateCountdown,1000);}
+  PinLock._attemptUnlock=async function(){
+    const pin=document.getElementById('pin-unlock-input')?.value||'', ok=await PinLock.verify(pin);
+    if(ok){document.getElementById('pin-unlock-input').value=''; PinLock.unlock();}
+    else{document.getElementById('pin-lock-err').style.display='block'; document.getElementById('pin-unlock-input').value=''; document.getElementById('pin-unlock-input').focus();}
+  };
+})();
 
-function showIdleWarning() {
-  clearInterval(_state.idleCountdown); _state.idleCountdown = null;
-  _state.idleWarning = true;
-  document.getElementById('idle-warning').classList.remove('hidden');
-  let cd = IDLE_LOCK_S;
-  document.getElementById('idle-cd').textContent = cd;
-  _state.idleWarnTimer = setInterval(()=>{
-    cd--;
-    document.getElementById('idle-cd').textContent = cd;
-    updateIdleHdr(cd);
-    if (cd <= 0) { clearIdleTimers(); doLock(); }
-  }, 1000);
-}
-
-function resetIdle() {
-  clearIdleTimers();
-  document.getElementById('idle-warning').classList.add('hidden');
-  _state.idleWarning = false;
-  startIdleTimer();
-  updateIdleHdr(IDLE_WARN_S);
-}
+/* ══ idle 整合函式（供 showApp / doLock 呼叫）══════════════════ */
+function startIdleTimer() { /* PinLock 的 resetIdle 已自動啟動 */ }
+function clearIdleTimers() { PinLock.clear(); }
 
 function doLock() {
-  const lastUser = _state.operatorName; // 保留以便預填
+  const lastUser = _state.operatorName;
+  PinLock.clear();
+  if(window.PersonCrypto)PersonCrypto.clearKey();
+  AuditManager.clearSession();
+  sessionStorage.removeItem('med_session_id');
+  sessionStorage.removeItem('med_session_username');
+  sessionStorage.removeItem('med_login_time');
   localStorage.removeItem('med_session');
   localStorage.removeItem('med_last_tab');
-  document.getElementById('idle-warning').classList.add('hidden');
+  document.getElementById('idle-warning')?.classList.add('hidden');
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   const warn = document.getElementById('login-warn');
   warn.textContent = '⚠️ 閒置登出，請重新登入';
-  _state.idleWarning = false;
   _state.currentAccountId = null;
   _state.role = '';
   _state.operatorName = '';
-  // 預填帳號欄，游標移至 PIN
   const usernameEl = document.getElementById('login-username');
   if (usernameEl && lastUser) usernameEl.value = lastUser;
   document.getElementById('login-pin')?.focus();
 }
 
-function clearIdleTimers() {
-  clearTimeout(_state.idleTimer);
-  clearInterval(_state.idleWarnTimer);
-  clearInterval(_state.idleCountdown);
-}
-
-function updateIdleHdr(secsLeft) {
-  const el = document.getElementById('idle-countdown');
-  if (!el) return;
-  if (secsLeft <= 0) { el.textContent = ''; return; }
-  const m = Math.floor(secsLeft/60), s = secsLeft%60;
-  el.textContent = m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
-  el.style.color = secsLeft <= 30 ? '#C62828' : '#999';
-}
-
-// 任何互動都重置
-['touchstart','mousedown','keydown','scroll'].forEach(ev=>{
-  document.addEventListener(ev, ()=>{ if(!_state.idleWarning && _state.role) startIdleTimer(); }, { passive:true });
-});
+// resetIdle 已由 PinLock IIFE 內的 document event listener 處理
 
 /* ══ SyncManager ════════════════════════════════════════════════ */
 const SyncManager = (() => {
@@ -926,7 +1099,11 @@ const WsManager = (function(){
     _startTimeSync(){if(_timeSyncTimer)clearInterval(_timeSyncTimer);_timeSyncTimer=setInterval(()=>{if(_connected&&_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'time_sync_req',device_id:SyncManager.deviceId()}));},TIME_SYNC_INTERVAL);},
     _requestCatchup(){const since=localStorage.getItem('med_last_sync_ts')||'1970-01-01T00:00:00.000Z';if(_ws&&_ws.readyState===WebSocket.OPEN)_ws.send(JSON.stringify({type:'catchup_req',since}));},
   };
-  function _syncTime(piIso){const piMs=new Date(piIso).getTime(),localMs=Date.now();_piTimeOffset=piMs-localMs;}
+  function _syncTime(piIso){
+    const piMs=new Date(piIso).getTime(),localMs=Date.now();_piTimeOffset=piMs-localMs;
+    // 時間同步歷史追蹤（對齊 shelter）
+    try{db.time_sync.add({device_id:SyncManager.deviceId(),pi_time:piIso,local_time:new Date(localMs).toISOString(),offset_ms:_piTimeOffset,timestamp:new Date().toISOString()}).catch(()=>{});}catch(e){}
+  }
   function _scheduleReconnect(){
     if(_reconnectTimer)return;
     _wsLog.debug(`scheduleReconnect in ${_backoffMs}ms`);
@@ -1016,6 +1193,72 @@ function saveMedPiUrl(){const val=document.getElementById('med-pi-url-input')?.v
 const _origBroadcast=SyncManager.broadcast.bind(SyncManager);
 SyncManager.broadcast=function(table,record){_origBroadcast(table,record);WsManager.sendDelta(table,record);};
 
+/* ══ AuditLogManager（從 shelter 複製）══════════════════════════ */
+const AuditLogManager = {
+  async write(action, detail={}) {
+    const entry={action,operator_name:AuditManager.getOperator()||'未知',device_id:SyncManager.deviceId(),session_id:sessionStorage.getItem('med_session_id')||'',timestamp:WsManager.isConnected()?WsManager.piNow():new Date().toISOString(),detail:JSON.stringify(detail)};
+    try{await db.audit_log.add(entry);}catch(e){}
+    if(WsManager.sendAuditEvent)WsManager.sendAuditEvent(action,detail);
+  },
+  async query(limit=50){return db.audit_log.orderBy('timestamp').reverse().limit(limit).toArray();},
+};
+
+/* ══ PersonCrypto（從 shelter 複製，醫療組欄位）═════════════════ */
+const PersonCrypto = (function(){
+  'use strict';
+  let _cryptoKey=null, _keyEnabled=false;
+  const PERSONAL_FIELDS=['name','source_sex','source_age','chief_complaint','vital_signs','medication','allergy','notes','appearance_desc'];
+  const _SESSION_JWK_KEY='med_enc_key_jwk';
+  function enc(str){return new TextEncoder().encode(str);}
+  function hex2buf(h){return new Uint8Array(h.match(/.{2}/g).map(b=>parseInt(b,16)));}
+  return{
+    isEnabled(){return _keyEnabled;},
+    async deriveKey(pin,saltHex){
+      const raw=await crypto.subtle.importKey('raw',enc(pin),'PBKDF2',false,['deriveKey']);
+      _cryptoKey=await crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt:hex2buf(saltHex),iterations:200000},raw,{name:'AES-GCM',length:256},true,['encrypt','decrypt']);
+      _keyEnabled=true;
+    },
+    async exportToSession(){
+      if(!_cryptoKey)return;
+      try{const jwk=await crypto.subtle.exportKey('jwk',_cryptoKey);sessionStorage.setItem(_SESSION_JWK_KEY,JSON.stringify(jwk));}
+      catch(e){console.warn('[PersonCrypto] exportToSession failed:',e);}
+    },
+    async restoreFromSession(){
+      const raw=sessionStorage.getItem(_SESSION_JWK_KEY);if(!raw)return false;
+      try{
+        const jwk=JSON.parse(raw);
+        _cryptoKey=await crypto.subtle.importKey('jwk',jwk,{name:'AES-GCM'},true,['encrypt','decrypt']);
+        _keyEnabled=true;return true;
+      }catch(e){console.warn('[PersonCrypto] restoreFromSession failed:',e);return false;}
+    },
+    async encryptPerson(person){
+      if(!_keyEnabled||!_cryptoKey)return person;
+      const sensitive={},safe={...person};
+      for(const f of PERSONAL_FIELDS){if(f in person){sensitive[f]=person[f];delete safe[f];}}
+      const iv=crypto.getRandomValues(new Uint8Array(12));
+      const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},_cryptoKey,enc(JSON.stringify(sensitive)));
+      safe._enc=btoa(String.fromCharCode(...iv))+'.'+btoa(String.fromCharCode(...new Uint8Array(cipher)));
+      return safe;
+    },
+    async decryptPerson(person){
+      if(!_keyEnabled||!_cryptoKey||!person._enc)return person;
+      try{
+        const[ivB64,ctB64]=person._enc.split('.');
+        const iv=Uint8Array.from(atob(ivB64),c=>c.charCodeAt(0)),ct=Uint8Array.from(atob(ctB64),c=>c.charCodeAt(0));
+        const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv},_cryptoKey,ct);
+        const sensitive=JSON.parse(new TextDecoder().decode(plain));
+        const result={...person};delete result._enc;return{...result,...sensitive};
+      }catch(e){console.warn('[PersonCrypto] Decrypt failed for id',person.id,e);return person;}
+    },
+    getKey(){return _cryptoKey;},
+    clearKey(){_cryptoKey=null;_keyEnabled=false;sessionStorage.removeItem(_SESSION_JWK_KEY);},
+  };
+})();
+
+/* ── 覆寫 db.patients 的讀取，透明解密 ── */
+db.patients.getDecrypted=async function(id){const raw=await db.patients.get(id);if(!raw)return null;return PersonCrypto.decryptPerson(raw);};
+db.patients.toArrayDecrypted=async function(){const rows=await db.patients.toArray();return Promise.all(rows.map(r=>PersonCrypto.decryptPerson(r)));};
+
 /* ════════════════════════════════════════════════════════════════
    DB HELPERS
 ════════════════════════════════════════════════════════════════ */
@@ -1084,9 +1327,10 @@ async function renderCurrentTab() {
       renderZones(content);
       _state.zoneTimer = setInterval(()=>{ if(_state.currentTab==='zones') refreshZoneCountdowns(); }, 30000);
       break;
+    case 'resources':  await renderResources(content); break;
     case 'transfer':  await renderTransfer(content); break;
     case 'events':    await renderIncidents(content); break;
-    case 'more':      await renderMore(content); break;
+    case 'settings':  await renderSettings(content); break;
   }
 }
 
@@ -1187,7 +1431,7 @@ function renderDashboard(el) {
       <span class="dash-row-val">${_state.patients.filter(p=>p.care_status==='assessed'&&p.disposition!=='後送'&&p.disposition!=='離開'&&p.current_zone!=='已離區').length}</span>
     </div>
     <div class="dash-row">
-      <span class="dash-row-label">等待後送</span>
+      <span class="dash-row-label">等待後送${(()=>{const ot=_state.patients.filter(p=>p.disposition==='後送'&&p.transferred_at&&(Date.now()-new Date(p.transferred_at))>=30*60000).length;return ot>0?' <span style="color:var(--red);font-weight:600;">（'+ot+' 逾時）</span>':'';})()}</span>
       <span class="dash-row-val" style="color:${pending>0?'var(--red)':'inherit'}">${pending}</span>
     </div>
     <div class="dash-row">
@@ -1944,7 +2188,7 @@ function onSecurityChange() {
       // 建立安全威脅事件，並記錄 ID 待建檔後連結傷患
       db.incidents.add({
         type: 'security_threat',
-        severity: 'high',
+        severity: '緊急',
         status: 'open',
         reported_at: localISO(),
         notes: `入院安檢同步處理中（危急）— 操作者：${_state.operatorName}`,
@@ -1999,8 +2243,8 @@ async function submitIntake() {
   const zoneName = zoneMap[_state.intakeTriageColor];
   openModal('確認建檔',
     `<p style="padding:16px 4px;font-size:15px;line-height:1.7;">確認將此傷患建檔並分至 <strong>${zoneName}</strong>（${colorLabel}）？<br>建檔後如需修改燈號，請透過治療評估重評。</p>`,
-    `<button class="btn btn-primary flex-1" onclick="closeModal();doSubmitIntake()">確認建檔</button>
-     <button class="btn btn-ghost flex-1" onclick="closeModal()">返回修改</button>`
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">返回修改</button>
+     <button class="btn btn-primary flex-1" onclick="closeModal();doSubmitIntake()">確認建檔</button>`
   );
 }
 
@@ -2147,14 +2391,14 @@ function renderPatientCard(p) {
   // Medical history lines
   const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '';
   const histLines = [];
-  histLines.push(`<span style="color:var(--text3)">建檔</span> ${p.operator_name}・${fmt(p.created_at||p.updated_at)}`);
+  histLines.push(`<span style="color:var(--text3)">${fmt(p.created_at||p.updated_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.operator_name}</span> — 建檔`);
   if (assessDone && p.assessed_by) {
-    histLines.push(`<span style="color:var(--text3)">評估</span> ${p.assessed_by}・${fmt(p.assessed_at)}`);
+    histLines.push(`<span style="color:var(--text3)">${fmt(p.assessed_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.assessed_by}</span> — 評估`);
   } else if (!assessDone) {
     histLines.push(`<span style="color:#E65100;font-weight:600;">⬜ 治療評估待接手</span>`);
   }
   if (p.transferred_at) {
-    histLines.push(`<span style="color:var(--text3)">後送</span> ${p.transferred_by||'—'}・${fmt(p.transferred_at)}`);
+    histLines.push(`<span style="color:var(--text3)">${fmt(p.transferred_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.transferred_by||'—'}</span> — 後送`);
   }
   const history = `<div style="font-size:11px;line-height:1.8;margin-top:4px;padding-top:4px;border-top:1px solid var(--border);">${histLines.join('<br>')}</div>`;
 
@@ -2162,8 +2406,9 @@ function renderPatientCard(p) {
   let actionRow;
   if (isTransferQueue) {
     const waited = p.transferred_at ? Math.floor((Date.now()-new Date(p.transferred_at))/60000) : 0;
+    const waitOverdue = waited >= 30;
     actionRow = `
-      <div style="font-size:11px;color:var(--text3);margin:4px 0 6px;">⏱ 等待後送 ${waited} 分鐘</div>
+      <div style="font-size:11px;color:${waitOverdue?'var(--red)':'var(--text3)'};margin:4px 0 6px;${waitOverdue?'font-weight:600;':''}">⏱ 等待後送 ${waited} 分鐘${waitOverdue?' ⚠️ 逾時':''}</div>
       <div class="pc-actions mt-1">
         <button class="pc-btn" onclick="event.stopPropagation();cancelTransfer(${p.id})">✕ 取消</button>
         <button class="pc-btn primary" onclick="event.stopPropagation();openIsbar(${p.id})">📋 ISBAR 交接</button>
@@ -2215,6 +2460,36 @@ async function markTransfer(id) {
 async function cancelTransfer(id) {
   await db.patients.update(id, { disposition:'在場', transferred_by: null, transferred_at: null, updated_at: localISO() });
   showToast('已取消待後送');
+  renderCurrentTab();
+}
+
+function openSetDisposition(id, displayId) {
+  openModal('變更處置狀態 — ' + displayId,
+    `<div class="form-group">
+      <div class="form-label">處置狀態</div>
+      <select class="form-select" id="disp-select">
+        <option value="在場">在場（持續治療）</option>
+        <option value="留觀">留觀（穩定觀察）</option>
+        <option value="後送">後送（待轉送）</option>
+        <option value="離開">離開（已離區）</option>
+        <option value="死亡">死亡</option>
+        <option value="撤退中">撤退中</option>
+      </select>
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="doSetDisposition(${id})">確認</button>`
+  );
+}
+
+async function doSetDisposition(id) {
+  const val = document.getElementById('disp-select')?.value;
+  if (!val) return;
+  const now = localISO();
+  const upd = { disposition: val, updated_at: now };
+  if (val === '離開' || val === '死亡') upd.current_zone = '已離區';
+  await db.patients.update(id, upd);
+  closeModal();
+  showToast('處置狀態已更新：' + val);
   renderCurrentTab();
 }
 
@@ -2312,7 +2587,7 @@ async function openPatientDetail(id) {
           assessRecs.forEach((t, i) => {
             const label = i === 0 ? '初評' : `複評 ${i}`;
             const typeLabel = t.trauma_or_medical === 'trauma' ? '🩸 創傷' : '💊 非創';
-            lines.push(`<div><span style="color:var(--text3)">${label}</span>　${typeLabel}　${t.triage_by||'—'} · ${fmt(t.triage_at)}</div>`);
+            lines.push(`<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--primary);font-weight:600;">${t.triage_by||'—'}</span> — ${label} ${typeLabel}</div>`);
             if (t.chief_issue) lines.push(`<div style="margin-left:2em;color:var(--text2);">主訴：${t.chief_issue}</div>`);
             if (t.vitals_summary) lines.push(`<div style="margin-left:2em;color:var(--text2);">徵象：${t.vitals_summary}</div>`);
             // 完整評估細節
@@ -2347,17 +2622,18 @@ async function openPatientDetail(id) {
           const recolorDot = { red:'🔴', yellow:'🟡', green:'🟢', black:'⚫' };
           const events = [];
           triages.filter(t => !!t.retriage_to).forEach(t => {
-            events.push({ at: t.triage_at||'', html: `<div><span style="color:var(--text3)">轉色</span>　${recolorDot[t.retriage_from]||''}→${recolorDot[t.retriage_to]||t.retriage_to}　${t.triage_by||'—'} · ${fmt(t.triage_at)}</div>` });
+            events.push({ at: t.triage_at||'', html: `<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--primary);font-weight:600;">${t.triage_by||'—'}</span> — 轉色 ${recolorDot[t.retriage_from]||''}→${recolorDot[t.retriage_to]||t.retriage_to}</div>` });
           });
-          if (p.transferred_at) events.push({ at: p.transferred_at, html: `<div><span style="color:var(--text3)">後送</span>　${p.transferred_by||'—'} · ${fmt(p.transferred_at)}</div>` });
-          if (p.handoff_at)     events.push({ at: p.handoff_at,     html: `<div><span style="color:var(--text3)">交接</span>　${p.handoff_by||'—'} · ${fmt(p.handoff_at)}</div>` });
+          if (p.transferred_at) events.push({ at: p.transferred_at, html: `<div><span style="color:var(--text3)">${fmt(p.transferred_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.transferred_by||'—'}</span> — 後送</div>` });
+          if (p.handoff_at)     events.push({ at: p.handoff_at,     html: `<div><span style="color:var(--text3)">${fmt(p.handoff_at)}</span> <span style="color:var(--primary);font-weight:600;">${p.handoff_by||'—'}</span> — 交接</div>` });
           events.sort((a,b) => a.at > b.at ? 1 : -1).forEach(e => lines.push(e.html));
           return lines.join('');
         })()}
       </div>
     </div>`,
-    `${continueBtn}
-     <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>
+     ${continueBtn}
+     ${isDischarged ? '' : `<button class="btn btn-outline flex-1" onclick="closeModal();openSetDisposition(${id},'${p.display_id}')">狀態</button>`}`
   );
 }
 
@@ -2365,46 +2641,58 @@ async function openPatientDetail(id) {
 /* ════════════════════════════════════════════════════════════════
    MORE PAGE
 ════════════════════════════════════════════════════════════════ */
-async function renderMore(el) {
-  if (_state.morePage === 'resources') { await renderResources(el); return; }
+async function renderSettings(el) {
   if (_state.morePage === 'incidents') { await renderIncidents(el); return; }
   if (_state.morePage === 'shift')     { await renderShift(el); return; }
 
-  const openInc = await db.incidents.where('status').equals('open').count();
-  const lowRes = await db.resources.filter(r => r.qty_current <= r.qty_low_threshold).count();
   const lastShift = (await db.shifts.orderBy('started_at').last());
   const shiftAgo = lastShift ? Math.floor((Date.now()-new Date(lastShift.started_at))/3600000) : null;
-  const lastResCheck = parseInt(localStorage.getItem('med_last_res_check') || '0', 10);
-  const resCheckOverdue = lastResCheck > 0 && (Date.now() - lastResCheck) > 30 * 60 * 1000;
-  const resCheckNever = lastResCheck === 0;
 
   el.innerHTML = `
-    <div class="section-hdr">功能</div>
-    <div class="dash-row" onclick="_state.morePage='resources';renderCurrentTab()" style="cursor:pointer;">
-      <span class="dash-row-label">📦 物資管理</span>
-      <span class="flex items-center gap-1">${lowRes>0?`<span class="tag tag-yellow">${lowRes} 低量</span>`:''}${resCheckOverdue?`<span class="tag tag-yellow">逾期盤點</span>`:''}  <span class="text-gray text-sm">→</span></span>
+    <div class="settings-section">
+      <div class="settings-item" onclick="_state.morePage='shift';renderCurrentTab()">
+        <span class="si-icon">🔄</span>
+        <div class="si-text"><div class="si-title">交班 / 快照</div><div class="si-sub">產生交班快照與摘要${shiftAgo!==null?' · '+shiftAgo+'h 前':''}</div></div>
+        <span class="si-arrow">›</span>
+      </div>
+      <div class="settings-item" onclick="openSlotConfig()">
+        <span class="si-icon">🏥</span>
+        <div class="si-text"><div class="si-title">設定各區床位容量</div><div class="si-sub">紅、黃、綠區容量調整</div></div>
+        <span class="si-arrow">›</span>
+      </div>
     </div>
-    <div class="dash-row" onclick="_state.morePage='shift';renderCurrentTab()" style="cursor:pointer;">
-      <span class="dash-row-label">🔄 交班 / 快照</span>
-      <span class="flex items-center gap-1">${shiftAgo!==null?`<span class="text-xs text-gray">${shiftAgo}h 前</span>`:''}  <span class="text-gray text-sm">→</span></span>
+    <div class="settings-section">
+      <div class="settings-item" onclick="doQrSnapshot()">
+        <span class="si-icon">📷</span>
+        <div class="si-text"><div class="si-title">產生 QR 快照</div><div class="si-sub">供指揮部幕僚掃描（每 20 分鐘更新一次）</div></div>
+        <span class="si-arrow">›</span>
+      </div>
+      <div class="settings-item" onclick="doExportEncrypted()">
+        <span class="si-icon">🔐</span>
+        <div class="si-text"><div class="si-title">加密匯出資料</div><div class="si-sub">AES-256-GCM 加密，含個資完整快照</div></div>
+        <span class="si-arrow">›</span>
+      </div>
+      <div class="settings-item" onclick="openAuditLogViewer()">
+        <span class="si-icon">📋</span>
+        <div class="si-text"><div class="si-title">查看稽核日誌</div><div class="si-sub">高風險操作記錄（不可刪除）</div></div>
+        <span class="si-arrow">›</span>
+      </div>
     </div>
-    <div class="section-hdr">系統</div>
-    <div class="dash-row" style="cursor:pointer;" onclick="doQrSnapshot()">
-      <span class="dash-row-label">📷 產生 QR 快照</span><span class="text-gray text-sm">→</span>
+    <div class="settings-section">
+      <div class="settings-item" onclick="openAdminPanel()">
+        <span class="si-icon">👤</span>
+        <div class="si-text"><div class="si-title">帳號管理</div><div class="si-sub">新增、修改、刪除帳號</div></div>
+        <span class="si-arrow">›</span>
+      </div>
     </div>
-    <div class="dash-row" style="cursor:pointer;" onclick="doExportEncrypted()">
-      <span class="dash-row-label">📤 加密匯出資料</span><span class="text-gray text-sm">→</span>
+    <div class="settings-section">
+      <div class="settings-item" onclick="doLogout()">
+        <span class="si-icon">🔒</span>
+        <div class="si-text"><div class="si-title">登出（切換角色）</div><div class="si-sub">清除 session，回到登入頁</div></div>
+        <span class="si-arrow">›</span>
+      </div>
     </div>
-    <div class="dash-row" style="cursor:pointer;" onclick="openSlotConfig()">
-      <span class="dash-row-label">🏥 設定各區床位容量</span><span class="text-gray text-sm">→</span>
-    </div>
-    <div class="dash-row" style="cursor:pointer;" onclick="openAdminPanel()">
-      <span class="dash-row-label">👤 帳號管理</span><span class="text-gray text-sm">→</span>
-    </div>
-    <div class="dash-row" style="cursor:pointer;" onclick="doLogout()">
-      <span class="dash-row-label">🔒 登出（切換角色）</span><span class="text-gray text-sm">→</span>
-    </div>
-    <div style="padding:14px;font-size:12px;color:var(--text3);text-align:center;">
+    <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;margin-bottom:20px;">
       醫療組 PWA ${PWA_VERSION} · 規格 v0.4
     </div>
   `;
@@ -2442,7 +2730,7 @@ async function renderTransfer(el) {
       const pt = _state.patients.find(p => p.id === t.patient_id);
       const colorCls = pt ? (pt.triage_color || '') : '';
       return `
-      <div class="patient-card ${colorCls} mb-1" style="opacity:.75;cursor:pointer;" onclick="openPatientDetail(${t.patient_id})">
+      <div class="patient-card ${colorCls} mb-1" style="opacity:.5;cursor:pointer;" onclick="openPatientDetail(${t.patient_id})">
         <div class="flex justify-between items-center">
           <span class="text-sm font-semibold">${t.patient_display_id||'—'}</span>
           <span class="tag tag-green">已交接</span>
@@ -2782,7 +3070,7 @@ async function useResource(id, qty) {
   await db.resources.update(id, { qty_current: newQty });
   if (newQty <= r.qty_low_threshold) {
     await db.incidents.add({
-      type:'resource_shortage', severity:'medium', status:'open',
+      type:'resource_shortage', severity:'普通', status:'open',
       notes:`${r.name} 低量（剩 ${newQty}）`,
       reported_by:_state.operatorName, assigned_to:'',
       linked_patients:'', reported_at:localISO()
@@ -2842,18 +3130,18 @@ async function renderIncidents(el) {
 }
 
 function renderIncidentCard(inc, isOpen) {
-  const sevColor = { high:'var(--red)', medium:'var(--orange)', low:'var(--green)' }[inc.severity] || 'var(--gray)';
-  const sevTag = inc.severity === 'high' ? 'tag-red' : inc.severity === 'medium' ? 'tag-yellow' : 'tag-green';
-  const sevLabel = inc.severity === 'high' ? '高' : inc.severity === 'medium' ? '中' : '低';
+  const sevColor = inc.severity === '緊急' ? 'var(--red)' : 'var(--blue)';
+  const sevTag = inc.severity === '緊急' ? 'tag-red' : 'tag-blue';
+  const sevLabel = inc.severity || '普通';
   return `
-    <div class="card mb-2" style="${isOpen ? 'border-left:3px solid '+sevColor : 'opacity:.7'};cursor:pointer;" onclick="openIncidentDetail(${inc.id})">
+    <div class="card mb-2" style="${isOpen ? 'border-left:3px solid '+sevColor : 'opacity:.5'};cursor:pointer;" onclick="openIncidentDetail(${inc.id})">
       <div class="flex justify-between items-center mb-1">
         <span class="font-semibold">${INCIDENT_TYPES[inc.type]||inc.type}</span>
         <span class="tag ${sevTag}">${sevLabel}</span>
       </div>
       <div class="text-sm mb-1" style="white-space:pre-wrap;">${inc.notes||'—'}</div>
       ${inc.patient_transferred_at ? `<div class="text-xs" style="color:var(--orange);font-weight:600;margin-bottom:2px;">⚠️ 傷患已後送，待 ${inc.patient_transferred_reminded_to||'—'} 手動結案</div>` : ''}
-      <div class="text-xs text-gray">${inc.reported_by||'（系統自動）'} · ${(inc.reported_at||'').slice(0,16).replace('T',' ')}</div>
+      <div class="text-xs"><span style="color:var(--text3)">${(inc.reported_at||'').slice(0,16).replace('T',' ')}</span> <span style="color:var(--primary);font-weight:600;">${inc.reported_by||'（系統自動）'}</span> — 通報</div>
     </div>
   `;
 }
@@ -2871,8 +3159,8 @@ const INCIDENT_GUIDANCE = {
 async function openIncidentDetail(id) {
   const inc = await db.incidents.get(id);
   if (!inc) return;
-  const sevTag = inc.severity === 'high' ? 'tag-red' : inc.severity === 'medium' ? 'tag-yellow' : 'tag-green';
-  const sevLabel = inc.severity === 'high' ? '高（立即威脅）' : inc.severity === 'medium' ? '中（需追蹤）' : '低（知悉）';
+  const sevTag = inc.severity === '緊急' ? 'tag-red' : 'tag-blue';
+  const sevLabel = inc.severity || '普通';
   const statusLabel = inc.status === 'open' ? '🔴 開放中' : '✅ 已結案';
   const guidance = INCIDENT_GUIDANCE[inc.type] || '';
   // 關聯傷患（唯讀）：顯示觸發事件的傷患，置於頂部
@@ -2984,16 +3272,15 @@ function openCreateIncident() {
     `<div class="flex flex-col gap-2">
       <div class="form-group">
         <div class="form-label">事件類型</div>
-        <select class="form-select" id="inc-type">
+        <select class="form-select" id="inc-type" onchange="_autoIncidentSeverity()">
           ${Object.entries(INCIDENT_TYPES).map(([v,l]) => `<option value="${v}">${l}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
         <div class="form-label">嚴重程度</div>
         <select class="form-select" id="inc-sev">
-          <option value="high">高（立即威脅）</option>
-          <option value="medium" selected>中（需追蹤）</option>
-          <option value="low">低（知悉）</option>
+          <option value="緊急">緊急</option>
+          <option value="普通" selected>普通</option>
         </select>
       </div>
       <div class="form-group">
@@ -3005,9 +3292,18 @@ function openCreateIncident() {
         <textarea class="form-input form-textarea" id="inc-notes" placeholder="簡述事件狀況…"></textarea>
       </div>
     </div>`,
-    `<button class="btn btn-danger flex-1" onclick="createIncident()">通報</button>
-     <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-danger flex-1" onclick="createIncident()">通報</button>`
   );
+  _autoIncidentSeverity();
+}
+
+function _autoIncidentSeverity() {
+  const type = document.getElementById('inc-type')?.value;
+  const sev = document.getElementById('inc-sev');
+  if (!sev) return;
+  const URGENT_TYPES = ['security_threat', 'infectious_risk', 'capacity_overload', 'evacuation'];
+  sev.value = URGENT_TYPES.includes(type) ? '緊急' : '普通';
 }
 
 async function createIncident() {
@@ -3193,8 +3489,8 @@ function _confirmInModal(title, msg, confirmFnStr, cancelFnStr) {
   document.getElementById('modal-title').textContent = title;
   document.getElementById('modal-body').innerHTML = `<p style="padding:16px 4px;font-size:15px;line-height:1.7;">${msg}</p>`;
   document.getElementById('modal-footer').innerHTML = `
-    <button class="btn btn-danger flex-1" onclick="${confirmFnStr}">確認</button>
-    <button class="btn btn-ghost flex-1" onclick="${cancelFnStr||'closeModal()'}">取消</button>`;
+    <button class="btn btn-ghost flex-1" onclick="${cancelFnStr||'closeModal()'}">取消</button>
+    <button class="btn btn-danger flex-1" onclick="${confirmFnStr}">確認</button>`;
 }
 
 let _toastTimer;
@@ -3258,11 +3554,51 @@ function admShowMain() {
 }
 
 function admShowTab(tab) {
-  ['list','add','cfg'].forEach(t => {
-    document.getElementById('adm-panel-'+t).style.display = t===tab ? 'block' : 'none';
-    document.getElementById('adm-tab-'+t).classList.toggle('active', t===tab);
+  ['list','add','cfg','log'].forEach(t => {
+    const p = document.getElementById('adm-panel-'+t);
+    const b = document.getElementById('adm-tab-'+t);
+    if (p) p.style.display = t===tab ? 'block' : 'none';
+    if (b) b.classList.toggle('active', t===tab);
   });
   if (tab === 'list') admLoadAccounts();
+  if (tab === 'log') admLoadLog();
+}
+
+async function admLoadLog() {
+  const el = document.getElementById('adm-log-list');
+  if (!el) return;
+  el.innerHTML = '載入中…';
+  try {
+    const logs = await AuditLogManager.query(100);
+    if (logs.length === 0) { el.innerHTML = '<div style="color:var(--text3);padding:16px;text-align:center;">尚無稽核日誌</div>'; return; }
+    el.innerHTML = logs.map(l =>
+      `<div style="padding:6px 0;border-bottom:1px solid var(--border);">` +
+      `<span style="color:var(--text3)">${(l.timestamp||'').slice(0,19).replace('T',' ')}</span> ` +
+      `<span style="color:var(--primary);font-weight:600;">${l.operator_name||'—'}</span> — ` +
+      `${l.action}` +
+      `${l.detail && l.detail !== '{}' ? ' <span style="color:var(--text3);">'+l.detail+'</span>' : ''}` +
+      `</div>`
+    ).join('');
+  } catch(e) { el.innerHTML = '<div style="color:var(--red);">載入失敗：'+e.message+'</div>'; }
+}
+
+async function openAuditLogViewer() {
+  let html = '載入中…';
+  try {
+    const logs = await AuditLogManager.query(100);
+    if (logs.length === 0) { html = '<div style="color:var(--text3);text-align:center;">尚無稽核日誌</div>'; }
+    else {
+      html = logs.map(l =>
+        `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">` +
+        `<span style="color:var(--text3)">${(l.timestamp||'').slice(0,19).replace('T',' ')}</span> ` +
+        `<span style="color:var(--primary);font-weight:600;">${l.operator_name||'—'}</span> — ${l.action}` +
+        `${l.detail && l.detail !== '{}' ? ' <span style="color:var(--text3);">'+l.detail+'</span>' : ''}` +
+        `</div>`
+      ).join('');
+    }
+  } catch(e) { html = '<div style="color:var(--red);">載入失敗</div>'; }
+  openModal('稽核日誌', `<div style="max-height:60vh;overflow-y:auto;line-height:1.8;">${html}</div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`);
 }
 
 async function admLoadAccounts() {
@@ -3385,8 +3721,8 @@ async function doExportEncrypted() {
     </div>
     <div id="exp-err" class="text-sm text-red mt-1" style="min-height:18px;"></div>
   `, `
-    <button class="btn btn-primary flex-1" onclick="confirmExport()">加密下載</button>
     <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+    <button class="btn btn-primary flex-1" onclick="confirmExport()">加密下載</button>
   `);
 }
 
@@ -3399,7 +3735,7 @@ async function confirmExport() {
   if (pw !== pw2)      { errEl.textContent = '兩次密碼不一致'; return; }
   if (!_exportPayload) { errEl.textContent = '資料遺失，請重新操作'; return; }
   try {
-    const encrypted = await Crypto.encryptExport(_exportPayload, pw);
+    const encrypted = await ExportCrypto.encrypt(_exportPayload, pw);
     const blob = new Blob([encrypted], { type:'application/octet-stream' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -3437,8 +3773,8 @@ function openSlotConfig() {
       <input type="number" id="slot-green" class="form-input" value="${cfg.green}" min="1" max="99" inputmode="numeric">
     </div>
   `, `
-    <button class="btn btn-primary flex-1" onclick="saveSlotConfig()">儲存</button>
     <button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+    <button class="btn btn-primary flex-1" onclick="saveSlotConfig()">儲存</button>
   `);
 }
 
@@ -3473,5 +3809,17 @@ async function boot() {
 
 boot();
 </script>
+<div id="debug-log-panel" class="hidden" style="
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,.92);color:#cfc;font-family:monospace;font-size:11px;
+  display:flex;flex-direction:column;z-index:99999;padding:8px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <span style="color:#ff9;font-weight:bold;">Debug Log（點 ⚫ 或此處關閉）</span>
+    <button onclick="document.getElementById('debug-log-panel').classList.add('hidden')"
+      style="background:#333;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:13px;cursor:pointer;">✕</button>
+  </div>
+  <div id="debug-log-list" style="flex:1;overflow-y:auto;white-space:pre-wrap;word-break:break-all;line-height:1.4;"></div>
+  <button onclick="document.getElementById('debug-log-list').textContent=''" style="margin-top:6px;background:#333;color:#aaa;border:none;border-radius:4px;padding:4px;font-size:12px;cursor:pointer;">清除</button>
+</div>
 </body>
 </html>
