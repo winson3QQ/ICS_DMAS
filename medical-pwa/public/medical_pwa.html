@@ -4052,9 +4052,39 @@ async function doQrSnapshot() {
   // 自動推算值勤人數（任務 7-2）
   const staff_on_duty = await calcMedicalActiveStaff();
 
-  // 物資初始值（任務 8-1）
+  // 物資現況（任務 8-1）
   const cfg = await db.config.get('supplies_max');
   const supplies_max = cfg?.value || { iv:10, oxygen:5, tourniquet:30 };
+  const allRes = await db.resources.toArray();
+  const findRes = name => allRes.find(r => r.name && r.name.includes(name));
+  const ivRes = findRes('IV') || findRes('iv') || findRes('通路');
+  const oxRes = findRes('氧氣');
+  const tqRes = findRes('止血帶');
+  const supplies = {
+    iv:        ivRes ? ivRes.qty_current : supplies_max.iv,
+    oxygen:    oxRes ? oxRes.qty_current : supplies_max.oxygen,
+    tourniquet: tqRes ? tqRes.qty_current : supplies_max.tourniquet,
+  };
+
+  // 人均服務量
+  const inPlace = r + y + g + b;
+  const staff_ratio = staff_on_duty > 0 ? Math.round(inPlace / staff_on_duty * 10) / 10 : 0;
+
+  // 事件壓力（最近 30 分鐘）
+  const cutoff30 = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const allInc = await db.incidents.toArray();
+  const openInc = allInc.filter(i => i.status !== '已結案' && i.status !== 'closed');
+  const recent = allInc.filter(i => (i.reported_at || i.opened_at || '') >= cutoff30);
+  const incident_pressure = {
+    high:   recent.filter(i => i.severity === '高' || i.severity === 'high').length,
+    medium: recent.filter(i => i.severity === '中' || i.severity === 'medium').length,
+    low:    recent.filter(i => i.severity === '低' || i.severity === 'low').length,
+    open_total: openInc.length,
+    resolved_30min: allInc.filter(i =>
+      (i.status === '已結案' || i.status === 'closed') &&
+      (i.closed_at || '') >= cutoff30
+    ).length,
+  };
 
   // 精簡 payload（縮短 key 名，減少 QR 密度，提升掃描成功率）
   const payload = { v:1, src:'med', t:now.slice(0,16), r, y, g, b, pe:pending, st:staff_on_duty };
@@ -4064,7 +4094,8 @@ async function doQrSnapshot() {
     payload: JSON.stringify({ v:1, snapshot_id:uuid, t:now, src:'medical',
       casualties:{ red:r, yellow:y, green:g, black:b }, pending_evac:pending,
       staff_on_duty,
-      extra:{ src_a, src_b, src_c, supplies_max } }) });
+      extra:{ src_a, src_b, src_c, supplies, supplies_max,
+              staff_ratio, incident_pressure } }) });
 
   openModal('QR 快照',
     `<div style="text-align:center">

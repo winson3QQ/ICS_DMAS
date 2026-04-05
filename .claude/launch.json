@@ -28,6 +28,13 @@
       "runtimeArgs": ["src/medical_ws_server.js"],
       "port": 8776,
       "cwd": "medical-pwa"
+    },
+    {
+      "name": "指揮部儀表板",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"],
+      "port": 8000,
+      "cwd": "command-dashboard/src"
     }
   ]
 }

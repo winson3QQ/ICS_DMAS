@@ -194,25 +194,11 @@ def upsert_snapshot(data: dict) -> dict:
     now = _now()
     extra = data.get("extra") or {}
 
-    # 從 QR-MEDICAL 的 supplies 結構搬到 extra
-    if "supplies" in data:
-        extra["supplies"] = data["supplies"]
-    if "units" in data:
-        extra["units"] = data["units"]   # QR-FORWARD 多小隊
-    if "srt" in data:
-        extra["srt"] = data["srt"]
-    if "pending_intake" in data:
-        extra["pending_intake"] = data["pending_intake"]
-    if "cmist_pending" in data:
-        extra["cmist_pending"] = data["cmist_pending"]
-    if "post_total" in data:
-        extra["post_total"] = data["post_total"]
-    if "post_anomaly" in data:
-        extra["post_anomaly"] = data["post_anomaly"]
-    if "qrf_available" in data:
-        extra["qrf_available"] = data["qrf_available"]
-    if "isolation_count" in data:
-        extra["isolation_count"] = data["isolation_count"]
+    # 從頂層搬到 extra（僅當頂層有實際值時才覆寫，避免 Pydantic None 蓋掉 extra 原有值）
+    for key in ("supplies", "units", "srt", "pending_intake", "cmist_pending",
+                "post_total", "post_anomaly", "qrf_available", "isolation_count"):
+        if data.get(key) is not None:
+            extra[key] = data[key]
 
     sql = """
         INSERT OR IGNORE INTO snapshots
@@ -223,7 +209,7 @@ def upsert_snapshot(data: dict) -> dict:
         VALUES
             (?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?)
     """
-    casualties = data.get("casualties", {})
+    casualties = data.get("casualties") or {}
     with get_conn() as conn:
         cur = conn.execute(sql, (
             data["snapshot_id"],
@@ -580,6 +566,8 @@ def execute_three_pass(source_unit: str, sync_data: dict,
 
             extra_json = json.dumps(snap.get("extra") or {}, ensure_ascii=False)
 
+            casualties = snap.get("casualties") or {}
+
             if existing:
                 ex_source = existing["source"] if existing else "auto"
                 # 若已有 QR 版本 → 以完整記錄覆蓋，更新 source=merged
@@ -596,10 +584,10 @@ def execute_three_pass(source_unit: str, sync_data: dict,
                 """, (
                     new_source,
                     extra_json,
-                    snap.get("casualties_red"),
-                    snap.get("casualties_yellow"),
-                    snap.get("casualties_green"),
-                    snap.get("casualties_black"),
+                    casualties.get("red")   or snap.get("casualties_red"),
+                    casualties.get("yellow")or snap.get("casualties_yellow"),
+                    casualties.get("green") or snap.get("casualties_green"),
+                    casualties.get("black") or snap.get("casualties_black"),
                     snap.get("bed_used"),
                     snap.get("bed_total"),
                     snap.get("waiting_count"),
@@ -612,21 +600,21 @@ def execute_three_pass(source_unit: str, sync_data: dict,
             else:
                 # 指揮部沒有此快照 → 直接補入，source=sync_recovery
                 node_type = snap.get("node_type") or _unit_to_node(source_unit)
-                new_id = str(uuid.uuid4())
+                casualties = snap.get("casualties") or {}
                 conn.execute("""
                     INSERT OR IGNORE INTO snapshots
-                        (id, snapshot_id, node_type, source, snapshot_time,
+                        (snapshot_id, node_type, source, snapshot_time,
                          casualties_red, casualties_yellow, casualties_green, casualties_black,
                          bed_used, bed_total, waiting_count, pending_evac,
-                         vehicle_available, staff_on_duty, extra)
-                    VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?)
+                         vehicle_available, staff_on_duty, extra, received_at)
+                    VALUES (?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?)
                 """, (
-                    new_id, snap_id, node_type, "sync_recovery",
+                    snap_id, node_type, "sync_recovery",
                     snap.get("t") or snap.get("snapshot_time") or now,
-                    snap.get("casualties_red"),
-                    snap.get("casualties_yellow"),
-                    snap.get("casualties_green"),
-                    snap.get("casualties_black"),
+                    casualties.get("red")   or snap.get("casualties_red"),
+                    casualties.get("yellow")or snap.get("casualties_yellow"),
+                    casualties.get("green") or snap.get("casualties_green"),
+                    casualties.get("black") or snap.get("casualties_black"),
                     snap.get("bed_used"),
                     snap.get("bed_total"),
                     snap.get("waiting_count"),
@@ -634,6 +622,7 @@ def execute_three_pass(source_unit: str, sync_data: dict,
                     snap.get("vehicle_available"),
                     snap.get("staff_on_duty"),
                     extra_json,
+                    now,
                 ))
                 p1_added += 1
 

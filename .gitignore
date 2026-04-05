@@ -32,3 +32,7 @@ wireshark/
 
 # TLS 憑證（含私鑰，不可提交）
 certs/
+*.pem
+
+# 臨時指令檔
+claude_code_instructions.md

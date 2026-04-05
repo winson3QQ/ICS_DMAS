@@ -192,6 +192,13 @@ def post_snapshot(snap: SnapshotIn):
         "snapshot_security": "security",
         "snapshot_ccp":      "ccp",
         "snapshot_evac":     "evac",
+        # 相容 Pi Server 推送的短名格式
+        "shelter":  "shelter",
+        "medical":  "medical",
+        "forward":  "forward",
+        "security": "security",
+        "ccp":      "ccp",
+        "evac":     "evac",
     }
     node_type = type_map.get(snap.type)
     if not node_type:
@@ -325,8 +332,8 @@ def get_dashboard():
     decided_decisions = db.get_decisions("approved") + db.get_decisions("completed")
 
     # 歷史快照（供趨勢圖用）
-    shelter_history = db.get_snapshots("shelter", 12)
-    medical_history = db.get_snapshots("medical", 12)
+    shelter_history = db.get_snapshots("shelter", 100)
+    medical_history = db.get_snapshots("medical", 100)
 
     return {
         "calc": calc,
@@ -364,10 +371,10 @@ def index():
     return """
     <html><head><meta charset="UTF-8"><title>ICS 指揮部</title></head>
     <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
-    <h2 style="color:#fff">ICS 指揮部 v1.1 — Phase 1 本機模擬</h2>
+    <h2 style="color:#fff">ICS 指揮部 command-v0.1.0</h2>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">儀表板</p>
-    <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 指揮官版儀表板 v8</a></p>
-    <p><a href="/static/staff_dashboard.html" style="color:#90b8e8">▶ 幕僚版儀表板</a></p>
+    <p><a href="/static/staff_v12.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.1.0</a></p>
+    <p style="margin-top:16px;font-size:12px;color:#6e7b96">工具</p>
     <p><a href="/static/qr_scanner.html" style="color:#90b8e8">▶ QR 快照掃描</a></p>
     <p><a href="/static/manual_input.html" style="color:#90b8e8">▶ 手動輸入</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">API</p>

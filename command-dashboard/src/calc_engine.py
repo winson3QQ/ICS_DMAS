@@ -392,11 +392,17 @@ def dashboard_calc(
             "waiting_trend": med_waiting_trend,
             "countdown_to_red": med_countdown,
             "source_breakdown": _extract_source_breakdown(med),
+            "incident_pressure": _extract_ipi(med),
+            "supplies": _extract_supplies(med),
+            "ops_metrics": _extract_ops_metrics(med),
         },
         "shelter": {
             "snapshot":  shel,
             "freshness": freshness_shelter,
             "bed_trend": shel_bed_trend,
+            "incident_pressure": _extract_ipi(shel),
+            "supplies": _extract_supplies(shel),
+            "ops_metrics": _extract_ops_metrics(shel),
         },
         "forward": {
             "snapshot":  fwd,
@@ -421,6 +427,61 @@ def _extract_source_breakdown(snap: dict | None) -> dict:
         "a": extra.get("src_a", 0),
         "b": extra.get("src_b", 0),
         "c": extra.get("src_c", 0),
+    }
+
+
+def _extract_ipi(snap: dict | None) -> dict:
+    """從快照 extra.incident_pressure 取事件壓力三維指標"""
+    default = {
+        "high": 0, "medium": 0, "low": 0,
+        "ipi": 0, "recent_types": [],
+        "open_total": 0, "resolved_30min": 0,
+    }
+    if not snap:
+        return default
+    extra = snap.get("extra") or {}
+    ip = extra.get("incident_pressure")
+    if not ip:
+        return default
+    return {
+        "high":           ip.get("high", 0),
+        "medium":         ip.get("medium", 0),
+        "low":            ip.get("low", 0),
+        "ipi":            ip.get("ipi", 0),
+        "recent_types":   ip.get("recent_types", []),
+        "open_total":     ip.get("open_total", 0),
+        "resolved_30min": ip.get("resolved_30min", 0),
+    }
+
+
+def _extract_supplies(snap: dict | None) -> dict:
+    """從快照 extra 取物資當前值與最大值"""
+    default = {"current": {}, "max": {}}
+    if not snap:
+        return default
+    extra = snap.get("extra") or {}
+    return {
+        "current": extra.get("supplies", {}),
+        "max":     extra.get("supplies_max", {}),
+    }
+
+
+def _extract_ops_metrics(snap: dict | None) -> dict:
+    """從快照 extra 取人力與營運指標"""
+    default = {
+        "active_staff": None,
+        "staff_ratio": None,
+        "stuck_count": 0,
+        "stuck_rate": 0,
+    }
+    if not snap:
+        return default
+    extra = snap.get("extra") or {}
+    return {
+        "active_staff": extra.get("active_staff"),
+        "staff_ratio":  extra.get("staff_ratio"),
+        "stuck_count":  extra.get("stuck_count", 0),
+        "stuck_rate":   extra.get("stuck_rate", 0),
     }
 
 

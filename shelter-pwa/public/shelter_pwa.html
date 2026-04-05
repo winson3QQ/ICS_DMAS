@@ -2134,6 +2134,23 @@ async function buildQrPayload(staffOnDuty) {
       : 'qr-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
   }
 
+  /* 人均服務量 */
+  const staff_ratio = staffOnDuty > 0 ? Math.round(inPlace.length / staffOnDuty * 10) / 10 : 0;
+
+  /* 事件壓力（最近 30 分鐘） */
+  const cutoff30 = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const openInc = incidents.filter(i => i.status !== '已結案');
+  const recent = incidents.filter(i => (i.opened_at || '') >= cutoff30);
+  const incident_pressure = {
+    high:   recent.filter(i => i.severity === '高').length,
+    medium: recent.filter(i => i.severity === '中').length,
+    low:    recent.filter(i => i.severity === '低').length,
+    open_total: openInc.length,
+    resolved_30min: incidents.filter(i =>
+      i.status === '已結案' && (i.closed_at || '') >= cutoff30
+    ).length,
+  };
+
   const payload = {
     v: 1,
     type: 'snapshot_shelter',
@@ -2146,6 +2163,7 @@ async function buildQrPayload(staffOnDuty) {
     pending_intake,
     cmist_pending,
     staff_on_duty: staffOnDuty,
+    extra: { staff_ratio, incident_pressure },
   };
 
   return { payload, snapshotUuid, srtDetail: { purple: inPlace.filter(p=>p.srt_color==='Purple').length } };

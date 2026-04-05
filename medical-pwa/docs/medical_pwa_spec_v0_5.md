@@ -157,6 +157,13 @@ Patient 為所有作業中心。系統列表與大多數畫面以 display_id 呈
 > **【指揮部儀表板依賴】** `source_type`（A/B/C）是指揮部儀表板「② 流量來源圖」的關鍵資料來源。
 > 快照推送時必須包含每個時間點的 A/B/C 累計人數（`src_a`、`src_b`、`src_c` 欄位），
 > 否則指揮部無法診斷醫療壓力的根源。
+>
+> **【v0.5 新增 extra 欄位】** 快照 `extra` 現包含：
+> - `src_a`, `src_b`, `src_c`：來源累計人數
+> - `staff_ratio`：人均服務量（在場傷患 / 活躍操作員）
+> - `supplies`：物資現況 `{ iv, oxygen, tourniquet }`（從 resources 表讀取 qty_current）
+> - `supplies_max`：物資初始值 `{ iv, oxygen, tourniquet }`（從 config 表讀取）
+> - `incident_pressure`：事件壓力 `{ high, medium, low, open_total, resolved_30min }`（最近 30 分鐘）
 
 | security_cleared | Bool | 是否完成安檢；危急時可標記同步處理中 | 必填 |
 | registered_with_shelter | Enum | 已登記 / 未登記 / 已通知補登 | 必填 |
