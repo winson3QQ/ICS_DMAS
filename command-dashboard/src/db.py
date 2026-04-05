@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS events (
     id                      TEXT PRIMARY KEY,  -- UUID
     reported_by_unit        TEXT NOT NULL,
     location_desc           TEXT,
+    location_zone_id        TEXT,              -- 對應 map_config zone.id（地圖據點）
     event_type              TEXT NOT NULL,
     severity                TEXT NOT NULL DEFAULT 'info',  -- critical/warning/info
     status                  TEXT NOT NULL DEFAULT 'open',  -- open/in_progress/resolved/closed
@@ -64,6 +65,8 @@ CREATE TABLE IF NOT EXISTS events (
     needs_commander_decision INTEGER NOT NULL DEFAULT 0,   -- 0/1
     description             TEXT NOT NULL,
     related_person_name     TEXT,
+    assigned_to             TEXT,              -- 負責人
+    notes                   TEXT,              -- JSON array [{time, text, by}]
     occurred_at             TEXT NOT NULL,
     resolved_at             TEXT,
     operator_name           TEXT NOT NULL,
@@ -263,16 +266,17 @@ def create_event(data: dict) -> dict:
     now = _now()
     sql = """
         INSERT INTO events
-            (id, reported_by_unit, location_desc, event_type, severity,
+            (id, reported_by_unit, location_desc, location_zone_id, event_type, severity,
              status, response_type, needs_commander_decision, description,
              related_person_name, occurred_at, operator_name, created_at)
-        VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?)
+        VALUES (?,?,?,?,?,?, ?,?,?,?, ?,?,?,?)
     """
     with get_conn() as conn:
         conn.execute(sql, (
             eid,
             data["reported_by_unit"],
             data.get("location_desc"),
+            data.get("location_zone_id"),
             data["event_type"],
             data.get("severity", "info"),
             "open",
@@ -303,9 +307,43 @@ def get_events(status: str | None = None, limit: int = 50) -> list[dict]:
 
 
 def update_event_status(event_id: str, status: str, operator: str):
+    now = _now()
     with get_conn() as conn:
-        conn.execute("UPDATE events SET status=? WHERE id=?", (status, event_id))
+        upd = "UPDATE events SET status=?"
+        params = [status]
+        if status in ("resolved", "closed"):
+            upd += ", resolved_at=?"
+            params.append(now)
+        # 自動追加狀態變更紀錄到 notes
+        row = conn.execute("SELECT notes FROM events WHERE id=?", (event_id,)).fetchone()
+        notes = json.loads(row["notes"]) if row and row["notes"] else []
+        notes.append({"time": now, "text": f"狀態變更為「{status}」", "by": operator})
+        upd += ", notes=?"
+        params.append(json.dumps(notes, ensure_ascii=False))
+        upd += " WHERE id=?"
+        params.append(event_id)
+        conn.execute(upd, params)
     _audit(operator, None, "event_status_updated", "events", event_id, {"status": status})
+
+
+def add_event_note(event_id: str, text: str, operator: str) -> dict:
+    """追加處置紀錄到事件的 notes JSON 陣列"""
+    now = _now()
+    with get_conn() as conn:
+        row = conn.execute("SELECT notes, status FROM events WHERE id=?", (event_id,)).fetchone()
+        if not row:
+            raise ValueError(f"Event {event_id} not found")
+        notes = json.loads(row["notes"]) if row["notes"] else []
+        notes.append({"time": now, "text": text, "by": operator})
+        # 追加紀錄時自動改為「處理中」
+        new_status = "in_progress" if row["status"] == "open" else row["status"]
+        conn.execute(
+            "UPDATE events SET notes=?, status=? WHERE id=?",
+            (json.dumps(notes, ensure_ascii=False), new_status, event_id)
+        )
+    _audit(operator, None, "event_note_added", "events", event_id,
+           {"text": text[:50]})
+    return {"ok": True, "notes_count": len(notes)}
 
 
 # ──────────────────────────────────────────

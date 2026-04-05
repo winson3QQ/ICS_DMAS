@@ -131,6 +131,7 @@ class EventIn(BaseModel):
     description:              str
     operator_name:            str
     location_desc:            Optional[str] = None
+    location_zone_id:         Optional[str] = None
     response_type:            Optional[str] = None
     needs_commander_decision: bool = False
     related_person_name:      Optional[str] = None
@@ -251,6 +252,18 @@ def update_event_status(event_id: str, status: str, operator: str):
     return {"ok": True}
 
 
+class EventNoteIn(BaseModel):
+    text: str
+    operator: str
+
+
+@app.post("/api/events/{event_id}/notes", tags=["事件"])
+def add_event_note(event_id: str, body: EventNoteIn):
+    """追加處置紀錄（對齊 shelter/medical PWA 的 notes 陣列）"""
+    result = db.add_event_note(event_id, body.text, body.operator)
+    return result
+
+
 # ──────────────────────────────────────────
 # API：裁示
 # ──────────────────────────────────────────
@@ -313,14 +326,16 @@ def get_dashboard():
     forward_snaps  = db.get_snapshots("forward",  40)
     security_snaps = db.get_snapshots("security", 40)
 
-    # 計算引擎
-    calc = calc_engine.dashboard_calc(
-        medical_snaps, shelter_snaps, forward_snaps, security_snaps
-    )
-
-    # 事件
+    # 事件（先取，供升降級引擎使用）
     open_events     = db.get_events("open",        limit=20)
     progress_events = db.get_events("in_progress", limit=20)
+
+    # 計算引擎（含升降級檢查）
+    calc = calc_engine.dashboard_calc(
+        medical_snaps, shelter_snaps, forward_snaps, security_snaps,
+        open_event_count=len(open_events) + len(progress_events),
+        event_trend_up=len(open_events) > 5,
+    )
     events = sorted(
         open_events + progress_events,
         key=lambda e: e["occurred_at"],
@@ -335,13 +350,29 @@ def get_dashboard():
     shelter_history = db.get_snapshots("shelter", 100)
     medical_history = db.get_snapshots("medical", 100)
 
+    # 地圖事件（有 location_zone_id 且未結案）
+    open_events_on_map = [
+        e for e in events if e.get("location_zone_id")
+    ]
+
+    # Decision chain grouping（按 primary_event_id 分組）
+    all_decisions = db.get_decisions()  # 全部
+    chains = {}
+    for dec in all_decisions:
+        key = dec.get("primary_event_id") or dec["id"]
+        if key not in chains:
+            chains[key] = []
+        chains[key].append(dec)
+
     return {
         "calc": calc,
         "events": events,
+        "open_events_on_map": open_events_on_map,
         "decisions": {
             "pending": pending_decisions,
             "decided": sorted(decided_decisions,
                               key=lambda d: d.get("decided_at",""), reverse=True)[:20],
+            "chains": chains,
         },
         "shelter_history": shelter_history,
         "medical_history": medical_history,
@@ -411,10 +442,10 @@ def index():
     return """
     <html><head><meta charset="UTF-8"><title>ICS 指揮部</title></head>
     <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
-    <h2 style="color:#fff">ICS 指揮部 command-v0.3.0</h2>
+    <h2 style="color:#fff">ICS 指揮部 command-v0.4.1</h2>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">儀表板</p>
-    <p><a href="/static/staff_v14.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.3.0（互動事件 + 裁示）</a></p>
-    <p><a href="/static/staff_v13.html" style="color:#6e7b96">▶ 儀表板 command-v0.2.0（地圖投影）</a></p>
+    <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.4.1（升降級 + 流向箭頭）</a></p>
+    <p><a href="/static/staff_v13.html" style="color:#6e7b96">▶ 舊版儀表板 v0.2.0</a></p>
     <p><a href="/static/staff_v12.html" style="color:#6e7b96">▶ 舊版儀表板 v0.1.0</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">工具</p>
     <p><a href="/static/qr_scanner.html" style="color:#90b8e8">▶ QR 快照掃描</a></p>

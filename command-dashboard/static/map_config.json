@@ -8,8 +8,8 @@
           "id": "custom_1775360699714",
           "label": "人多",
           "sub": "",
-          "x_pct": 58.1,
-          "y_pct": 72.7,
+          "x_pct": 58.5,
+          "y_pct": 71.3,
           "node_type": "shelter",
           "icon": "⚠️"
         },
@@ -30,6 +30,15 @@
           "y_pct": 88.8,
           "node_type": "security",
           "icon": "👤"
+        },
+        {
+          "id": "custom_1775364377560",
+          "label": "暴力事件",
+          "sub": "",
+          "x_pct": 49.4,
+          "y_pct": 54.8,
+          "node_type": "urgent",
+          "icon": "⚠️"
         }
       ],
       "flows": []
@@ -37,7 +46,17 @@
     "outdoor": {
       "image": "Satellite_map.png",
       "label": "站外",
-      "zones": [],
+      "zones": [
+        {
+          "id": "custom_1775364744600",
+          "label": "救人",
+          "sub": "",
+          "x_pct": 62.3,
+          "y_pct": 48.4,
+          "node_type": "urgent",
+          "icon": "⚠️"
+        }
+      ],
       "flows": []
     }
   }

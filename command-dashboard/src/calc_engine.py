@@ -341,6 +341,8 @@ def dashboard_calc(
     forward_snaps:  list[dict],
     security_snaps: list[dict],
     thresholds: dict = None,
+    open_event_count: int = 0,
+    event_trend_up: bool = False,
 ) -> dict:
     """
     一次計算所有儀表板需要的數字。
@@ -420,6 +422,14 @@ def dashboard_calc(
     trend_all = [med_bed_trend, med_waiting_trend, shel_bed_trend]
     dci = data_confidence_index(freshness_all, comm, trend_all)
 
+    # ── 升降級檢查 ──
+    esc = escalation_check(
+        shelter_snaps, medical_snaps, forward_snaps, security_snaps,
+        burn_rates,
+        events_open_count=open_event_count,
+        events_trend_up=event_trend_up,
+    )
+
     return {
         "computed_at": _now_utc().strftime("%Y-%m-%dT%H:%M:%SZ"),
 
@@ -457,6 +467,7 @@ def dashboard_calc(
         "comm_health": comm,
         "output_monitor": output,
         "data_confidence": dci,
+        "escalation": esc,
     }
 
 
@@ -811,6 +822,222 @@ def output_monitor(medical_snaps: list[dict],
         result["note"] = "；".join(notes)
 
     return result
+
+
+# ──────────────────────────────────────────
+# 升降級檢查（Escalation Check）
+# ──────────────────────────────────────────
+
+def escalation_check(
+    shelter_snaps: list[dict],
+    medical_snaps: list[dict],
+    forward_snaps: list[dict],
+    security_snaps: list[dict],
+    burn_rates: dict,
+    events_open_count: int = 0,
+    events_trend_up: bool = False,
+) -> dict:
+    """
+    檢查升級 / 降級條件，回傳觸發的規則與整體等級。
+    純函式，不讀 DB。
+
+    回傳：
+      {
+        "triggers_met": [...],   # 升級規則
+        "deescalation": [...],   # 降級規則
+        "level": "normal" | "elevated" | "critical"
+      }
+    """
+    triggers: list[dict] = []
+    deesc: list[dict] = []
+
+    # ── 升級規則 ──
+
+    # ESC-CAP：收容率 > 80% 持續 30 分鐘
+    if shelter_snaps:
+        cap_snaps_30 = _snaps_within_minutes(shelter_snaps, 30)
+        if len(cap_snaps_30) >= 2:
+            all_above_80 = all(
+                _bed_ratio(s) > 0.80 for s in cap_snaps_30
+            )
+            all_above_90 = all(
+                _bed_ratio(s) > 0.90 for s in cap_snaps_30
+            )
+            if all_above_90:
+                triggers.append({
+                    "rule_id": "ESC-CAP",
+                    "description": "收容率 > 90% 持續 30 分鐘",
+                    "severity": "critical",
+                    "direction": "escalation",
+                })
+            elif all_above_80:
+                triggers.append({
+                    "rule_id": "ESC-CAP",
+                    "description": "收容率 > 80% 持續 30 分鐘",
+                    "severity": "warning",
+                    "direction": "escalation",
+                })
+
+    # ESC-RED：Red 傷患佔比突然上升
+    if len(medical_snaps) >= 6:
+        recent_3 = medical_snaps[:3]
+        prev_3 = medical_snaps[3:6]
+        avg_recent = sum(s.get("casualties_red", 0) or 0 for s in recent_3) / 3
+        avg_prev = sum(s.get("casualties_red", 0) or 0 for s in prev_3) / 3
+        abs_increase = avg_recent - avg_prev
+        ratio = avg_recent / avg_prev if avg_prev > 0 else None
+        if abs_increase >= 2 or (ratio is not None and ratio >= 1.5):
+            triggers.append({
+                "rule_id": "ESC-RED",
+                "description": f"Red 傷患急升（近 3 筆均值 {avg_recent:.1f} vs 前 3 筆 {avg_prev:.1f}）",
+                "severity": "warning",
+                "direction": "escalation",
+            })
+
+    # ESC-INC：未結事件 > 5 且持續增加
+    if events_open_count > 5 and events_trend_up:
+        triggers.append({
+            "rule_id": "ESC-INC",
+            "description": f"未結事件 {events_open_count} 件且持續增加",
+            "severity": "warning",
+            "direction": "escalation",
+        })
+
+    # ESC-STAFF：staff_ratio > 8（超載）
+    for label, snaps in [("收容組", shelter_snaps), ("醫療組", medical_snaps)]:
+        if snaps:
+            extra = snaps[0].get("extra") or {}
+            sr = extra.get("staff_ratio")
+            if sr is not None and sr > 8:
+                triggers.append({
+                    "rule_id": "ESC-STAFF",
+                    "description": f"{label} staff_ratio={sr}（超載）",
+                    "severity": "critical",
+                    "direction": "escalation",
+                })
+
+    # ESC-SUPPLY：burn rate time_to_zero < 120 min
+    for key, br in burn_rates.items():
+        ttz = br.get("time_to_zero_min")
+        if ttz is not None and ttz < 120:
+            triggers.append({
+                "rule_id": "ESC-SUPPLY",
+                "description": f"物資 {key} 預估 {int(ttz)} 分鐘歸零",
+                "severity": "critical",
+                "direction": "escalation",
+            })
+
+    # ── 降級規則 ──
+
+    # DE-CAP：收容率 < 50% 持續 1 小時
+    if shelter_snaps:
+        cap_snaps_60 = _snaps_within_minutes(shelter_snaps, 60)
+        if len(cap_snaps_60) >= 2:
+            all_below_50 = all(
+                _bed_ratio(s) < 0.50 for s in cap_snaps_60
+            )
+            if all_below_50:
+                deesc.append({
+                    "rule_id": "DE-CAP",
+                    "description": "收容率 < 50% 持續 1 小時",
+                    "direction": "deescalation",
+                })
+
+    # DE-RED：無新 Red 傷患超過 45 分鐘
+    if medical_snaps:
+        red_snaps_45 = _snaps_within_minutes(medical_snaps, 45)
+        if len(red_snaps_45) >= 2:
+            # 所有快照 casualties_red == 0 或數值不變
+            red_vals = [s.get("casualties_red", 0) or 0 for s in red_snaps_45]
+            all_zero_or_stable = all(v == red_vals[0] for v in red_vals) or all(v == 0 for v in red_vals)
+            if all_zero_or_stable:
+                deesc.append({
+                    "rule_id": "DE-RED",
+                    "description": "無新 Red 傷患超過 45 分鐘",
+                    "direction": "deescalation",
+                })
+
+    # DE-INC：events_open_count == 0
+    if events_open_count == 0:
+        deesc.append({
+            "rule_id": "DE-INC",
+            "description": "無未結事件",
+            "direction": "deescalation",
+        })
+
+    # DE-STAFF：全部組 staff_ratio < 3
+    all_staff_low = True
+    for snaps in [shelter_snaps, medical_snaps]:
+        if snaps:
+            extra = snaps[0].get("extra") or {}
+            sr = extra.get("staff_ratio")
+            if sr is not None and sr >= 3:
+                all_staff_low = False
+                break
+        # 無資料視為不適用，不阻擋降級
+    if all_staff_low:
+        deesc.append({
+            "rule_id": "DE-STAFF",
+            "description": "全部組 staff_ratio < 3",
+            "direction": "deescalation",
+        })
+
+    # DE-SUPPLY：所有物資 burn rate rate_per_min ≤ 0 或 None
+    if burn_rates:
+        all_stable = all(
+            (br.get("rate_per_min") is None or br.get("rate_per_min") <= 0)
+            for br in burn_rates.values()
+        )
+        if all_stable:
+            deesc.append({
+                "rule_id": "DE-SUPPLY",
+                "description": "所有物資消耗穩定或無消耗",
+                "direction": "deescalation",
+            })
+
+    # ── level 判斷 ──
+    severities = [t["severity"] for t in triggers]
+    if "critical" in severities:
+        level = "critical"
+    elif "warning" in severities:
+        level = "elevated"
+    else:
+        level = "normal"
+
+    return {
+        "triggers_met": triggers,
+        "deescalation": deesc,
+        "level": level,
+    }
+
+
+def _snaps_within_minutes(snaps: list[dict], minutes: int) -> list[dict]:
+    """從倒序快照列表中取出最近 N 分鐘內的快照"""
+    if not snaps:
+        return []
+    newest_time = snaps[0].get("snapshot_time", "")
+    if not newest_time:
+        return snaps[:1]
+    result = []
+    for s in snaps:
+        st = s.get("snapshot_time", "")
+        if not st:
+            continue
+        span = _span_minutes(st, newest_time)
+        if span <= minutes:
+            result.append(s)
+        else:
+            break  # 快照倒序，一旦超出範圍後面的更老
+    return result
+
+
+def _bed_ratio(snap: dict) -> float:
+    """計算床位使用率，避免除以零"""
+    used = snap.get("bed_used", 0) or 0
+    total = snap.get("bed_total", 0) or 0
+    if total <= 0:
+        return 0.0
+    return used / total
 
 
 # ──────────────────────────────────────────
