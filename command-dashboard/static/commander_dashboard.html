@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.5.7';</script>
+<script>const CMD_VERSION='v0.6.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -14,6 +14,11 @@
   --mono:'IBM Plex Mono',monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
+/* 細捲軸 */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:var(--text3);}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--mono),-apple-system,sans-serif;}
 
 /* ═══ ZONE A ═══ */
@@ -58,7 +63,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   flex:0 0 18%;display:flex;flex-direction:column;padding:4px 5px;gap:3px;overflow:hidden;
   border-right:1px solid var(--border);
 }
-.side-panel.right{border-right:none;border-left:1px solid var(--border);}
+.side-panel.right{border-right:none;border-left:1px solid var(--border);transition:flex-basis .25s;}
+.side-panel.right.expanded{flex-basis:50%;}
+.side-panel.collapsed{display:none !important;}
 
 /* 中：地圖 */
 #map-panel{
@@ -149,14 +156,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   background:var(--surface2);border:1px solid var(--border);color:var(--text);
   padding:3px 6px;border-radius:4px;font-size:11px;font-family:var(--mono);
 }
-#edit-bar button{
+#edit-bar button:not(.place-grp){
   background:var(--green);color:#fff;border:none;padding:4px 10px;border-radius:4px;
   font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);
 }
 #edit-bar button.del{background:var(--red);}
-.zone-marker.editing{cursor:grab;z-index:20;}
-.zone-marker.editing:active{cursor:grabbing;}
-.zone-marker.editing .zone-info{display:flex;}
+.zone-marker.selected{z-index:20;outline:2px solid var(--green);outline-offset:2px;}
+.zone-marker.selected .zone-info{display:flex;}
+.zone-marker.dragging{cursor:grabbing;z-index:25;}
 #edit-coords{
   position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:10;
   display:none;padding:3px 10px;border-radius:4px;
@@ -454,21 +461,17 @@ canvas{display:block;width:100%!important;height:100%!important;}
     <img id="map-img" src="" alt="地圖載入中">
     <div id="map-overlay"></div>
     <div id="edit-bar">
-      <div id="place-groups" style="display:flex;gap:0;">
+      <button id="btn-delete-marker" class="del" onclick="deleteSelectedMarker()" style="display:none;position:absolute;right:10px;">✕ 刪除</button>
+      <div style="display:flex;gap:0;align-items:center;margin:0 auto;">
         <button class="place-grp" data-grp="forward" onclick="selectPlaceGroup('forward')">前進</button>
         <button class="place-grp" data-grp="security" onclick="selectPlaceGroup('security')">安全</button>
         <button class="place-grp" data-grp="shelter" onclick="selectPlaceGroup('shelter')">收容</button>
         <button class="place-grp" data-grp="medical" onclick="selectPlaceGroup('medical')">醫療</button>
         <button class="place-grp" data-grp="command" onclick="selectPlaceGroup('command')">指揮部</button>
+        <select id="place-type" style="min-width:100px;margin-left:6px;" onchange="onPlaceTypeChange()" disabled>
+          <option value="">—</option>
+        </select>
       </div>
-      <select id="place-type" style="min-width:100px;" onchange="onPlaceTypeChange()" disabled>
-        <option value="">— 選組別 —</option>
-      </select>
-      <span style="flex:1;"></span>
-      <div id="edit-tools" style="display:none;gap:4px;align-items:center;">
-        <button class="del" onclick="deleteSelectedMarker()">✕ 刪除</button>
-      </div>
-      <div class="map-btn" id="btn-edit" title="拖曳/刪除 marker" onclick="toggleEditMode()" style="width:26px;height:26px;font-size:12px;">⚙</div>
     </div>
   </div>
 
@@ -476,7 +479,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
   <div class="side-panel right" id="panel-right">
     <!-- 上：事件追蹤 60% -->
     <div id="right-events" style="flex:6;display:flex;flex-direction:column;overflow:hidden;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;flex-shrink:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;flex-shrink:0;cursor:pointer;border-bottom:1px solid var(--border);" onclick="toggleRightExpand('events')">
         <span style="font-size:10px;font-weight:600;color:var(--text3);">📋 事件追蹤 <span id="evt-count" style="color:var(--yellow);">0</span></span>
       </div>
       <div id="right-evt-list" style="flex:1;overflow-y:auto;padding:0 4px;font-size:10px;">
@@ -487,9 +490,9 @@ canvas{display:block;width:100%!important;height:100%!important;}
     <div style="height:1px;background:var(--border);flex-shrink:0;margin:2px 0;"></div>
     <!-- 下：待裁示 40% -->
     <div id="right-decisions" style="flex:4;display:flex;flex-direction:column;overflow:hidden;">
-      <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;flex-shrink:0;">
-        <span id="dec-tab-pending" class="dec-tab active" onclick="switchDecTab('pending')" style="font-size:10px;font-weight:600;">⚖ 待裁示 <span id="dec-count" style="color:var(--yellow)">0</span></span>
-        <span id="dec-tab-decided" class="dec-tab" onclick="switchDecTab('decided')" style="font-size:10px;">已裁示</span>
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;flex-shrink:0;cursor:pointer;border-bottom:1px solid var(--border);" onclick="toggleRightExpand('decisions')">
+        <span id="dec-tab-pending" class="dec-tab active" onclick="event.stopPropagation();switchDecTab('pending')" style="font-size:10px;font-weight:600;">⚖ 待裁示 <span id="dec-count" style="color:var(--yellow)">0</span></span>
+        <span id="dec-tab-decided" class="dec-tab" onclick="event.stopPropagation();switchDecTab('decided')" style="font-size:10px;">已裁示</span>
       </div>
       <div id="right-dec-list" style="flex:1;overflow-y:auto;padding:0 4px;font-size:10px;">
         無待裁示事項
@@ -518,6 +521,18 @@ canvas{display:block;width:100%!important;height:100%!important;}
   <div class="zc-esc" id="zc-esc">
     <div class="zc-esc-title">📋 升降級觸發</div>
     <div id="zc-esc-list" style="font-size:11px;color:var(--text3);">等待資料⋯</div>
+  </div>
+</div>
+
+<!-- ═══════ 確認 OVERLAY ═══════ -->
+<div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(340px,90vw);overflow:hidden;">
+    <div style="padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;font-weight:700;" id="confirm-title"></div>
+    <div style="padding:20px 16px;font-size:12px;color:var(--text);" id="confirm-msg"></div>
+    <div style="display:flex;gap:8px;padding:0 16px 16px;justify-content:flex-end;">
+      <button onclick="_confirmResolve(false)" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);padding:6px 16px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">取消</button>
+      <button id="confirm-ok" onclick="_confirmResolve(true)" style="background:var(--red);color:#fff;border:none;padding:6px 16px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">確定</button>
+    </div>
   </div>
 </div>
 
@@ -604,7 +619,6 @@ let _mapConfig = null;
 let _currentMap = 'indoor';
 const _pinnedZones = new Set();
 let _startTime = Date.now();
-let _editMode = false;
 let _selectedZoneId = null;
 let _dragState = null;
 let _currentDecisionId = null;
@@ -686,7 +700,7 @@ async function initMap() {
   try {
     const resp = await fetch(API_BASE + '/static/map_config.json');
     _mapConfig = await resp.json();
-    switchMap('indoor');
+    switchMap(sessionStorage.getItem('_currentMap') || 'indoor');
   } catch(e) {
     console.warn('地圖設定載入失敗', e);
     el('map-img').alt = '地圖設定載入失敗';
@@ -696,6 +710,7 @@ async function initMap() {
 function switchMap(key) {
   if (!_mapConfig || !_mapConfig.maps[key]) return;
   _currentMap = key;
+  sessionStorage.setItem('_currentMap', key);
   const m = _mapConfig.maps[key];
   el('map-img').src = '/static/' + m.image;
   // tab 切換
@@ -771,110 +786,99 @@ function renderMapOverlay() {
     const freshLevel = (z.node_type && calc[z.node_type]?.freshness?.level) || '';
     const freshDot = freshLevel ? `<span class="zone-fresh ${freshLevel}"></span>` : '';
 
-    // 事件 marker 處理：倒數、結案隱藏、逾時閃紅
+    // 事件 marker 的顏色 + 倒數 + 逾時
     let countdownText = '';
+    let evtColorClass = '';
     const isEvtZone = !!(z.event_id || z.event_code);
     if (isEvtZone) {
-      // 找對應事件（用 event_id 或 location_zone_id）
       const allEvts = _data?.events || [];
       const ev = z.event_id
         ? allEvts.find(e => e.id === z.event_id)
         : allEvts.find(e => e.location_zone_id === z.id);
 
-      if (!ev) {
-        // 事件不在 open/in_progress 列表中 → 已結案，顯示灰色
-        evtColorClass = 'evt-resolved';
-      }
-
-      if (ev.response_deadline) {
-        countdownText = _countdownStr(ev.response_deadline);
-      }
-      // 逾時 → marker 閃紅
-      if (ev.response_deadline) {
-        const ts = ev.response_deadline.endsWith('Z') ? ev.response_deadline : ev.response_deadline + 'Z';
-        if (new Date(ts).getTime() < Date.now()) {
-          marker.classList.add('overdue');
+      if (!ev || ev.status === 'resolved' || ev.status === 'closed') {
+        // 已結案 → 不渲染 marker
+        return;
+      } else {
+        // 倒數 + 逾時
+        if (ev.response_deadline) {
+          countdownText = _countdownStr(ev.response_deadline);
+          const ts = ev.response_deadline.endsWith('Z') ? ev.response_deadline : ev.response_deadline + 'Z';
+          const deadline = new Date(ts).getTime();
+          if (deadline < Date.now()) {
+            evtColorClass = 'evt-overdue';
+            marker.classList.add('overdue');
+          } else {
+            const created = new Date((ev.occurred_at || ev.created_at).endsWith('Z') ? (ev.occurred_at || ev.created_at) : (ev.occurred_at || ev.created_at) + 'Z').getTime();
+            const total = deadline - created;
+            const remaining = deadline - Date.now();
+            evtColorClass = (remaining < total * 0.5) ? 'evt-warn' : 'evt-new';
+          }
+        } else {
+          evtColorClass = 'evt-new';
         }
       }
     }
 
-    // 事件 marker 的顏色邏輯
-    let evtColorClass = '';
-    if (isEvtZone) {
-      const allEvts2 = _data?.events || [];
-      const ev2 = z.event_id ? allEvts2.find(e => e.id === z.event_id) : allEvts2.find(e => e.location_zone_id === z.id);
-      if (ev2 && ev2.response_deadline) {
-        const ts2 = ev2.response_deadline.endsWith('Z') ? ev2.response_deadline : ev2.response_deadline + 'Z';
-        const deadline2 = new Date(ts2).getTime();
-        const created2 = new Date((ev2.occurred_at || ev2.created_at).endsWith('Z') ? (ev2.occurred_at || ev2.created_at) : (ev2.occurred_at || ev2.created_at) + 'Z').getTime();
-        const total2 = deadline2 - created2;
-        const remaining2 = deadline2 - Date.now();
-        if (remaining2 <= 0) evtColorClass = 'evt-overdue';
-        else if (remaining2 < total2 * 0.5) evtColorClass = 'evt-warn';
-        else evtColorClass = 'evt-new';
-      } else {
-        evtColorClass = 'evt-new';
-      }
-    }
-
-    // 事件 marker：只顯示編號+倒數，不顯示據點 stats；hover 才顯示完整標籤
+    // 事件 marker：簡短編號+倒數；hover 才顯示完整標籤
     const isEvt = !!(z.event_id || z.event_code);
-    const labelText = isEvt
-      ? `${z.event_code || ''} ${z.label}`
-      : z.label;
-    const displayStats = isEvt ? '' : statsText; // 事件不顯示 R:3 Y:2
+    // marker 上只顯示流水號（EV-053），完整日期留給 modal
+    const shortCode = z.event_code ? z.event_code.replace(/-\d{4}-/, '-') : '';
+    const displayStats = isEvt ? '' : statsText;
+
+    const unitMap = {forward:'前進',security:'安全',shelter:'收容',medical:'醫療',command:'指揮部'};
+    // 上方 hover 才顯示的組別+事件名
+    const evtTopLabel = isEvt ? `<div class="zone-info" style="margin-bottom:2px;"><div class="zone-stats" style="color:var(--text2);">${unitMap[z.node_type]||''}　${z.label}</div></div>` : '';
 
     marker.innerHTML = `
+      ${evtTopLabel}
       <div class="zone-dot ${evtColorClass}" style="position:relative">${renderIcon(z.icon)}${freshDot}</div>
       <div class="zone-info" ${isEvt ? 'style="display:flex"' : ''}>
-        <div class="zone-label">${isEvt ? (z.event_code || z.label) : z.label}</div>
+        <div class="zone-label">${isEvt ? (shortCode || z.label) : z.label}</div>
         ${displayStats ? '<div class="zone-stats">' + displayStats + '</div>' : ''}
         ${countdownText ? '<div class="zone-stats" style="color:' + (countdownText.startsWith('逾時') ? 'var(--red)' : 'var(--yellow)') + '">' + countdownText + '</div>' : ''}
       </div>
     `;
 
-    if (_editMode) {
-      // 編輯模式：拖曳定位，點擊填入屬性
-      marker.classList.add('editing');
-      if (z.id === _selectedZoneId) marker.style.outline = '2px solid var(--green)';
-      marker.addEventListener('mousedown', (e) => _startDrag(marker, z, e));
-      marker.addEventListener('touchstart', (e) => _startDrag(marker, z, e), {passive:false});
-    } else {
-      // 正常模式：單擊固定標籤，雙擊開 modal
-      // 用 delay 區分單/雙擊，避免單擊吃掉雙擊
-      let _clickTimer = null;
-      marker.addEventListener('click', (e) => {
-        e.stopPropagation();
-        console.log('[click]', z.id, z.label, 'node_type:', z.node_type, 'event_id:', z.event_id);
-        if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; return; }
-        _clickTimer = setTimeout(() => {
-          _clickTimer = null;
-          console.log('[click-single]', z.id, z.label);
-          if (_pinnedZones.has(z.id)) {
-            _pinnedZones.delete(z.id);
-            marker.classList.remove('pinned');
-          } else {
-            _pinnedZones.add(z.id);
-            marker.classList.add('pinned');
-          }
-        }, 250);
-      });
+    // 選取狀態
+    if (z.id === _selectedZoneId) marker.classList.add('selected');
+
+    // — 長按 >200ms 啟動拖曳，短按 = 單擊選取 —
+    let _pressTimer = null, _didDrag = false;
+    const onDown = (e) => {
+      _didDrag = false;
+      _pressTimer = setTimeout(() => {
+        _pressTimer = null;
+        _didDrag = true;
+        _startDrag(marker, z, e);
+      }, 200);
+    };
+    const onUpCancel = () => { if (_pressTimer) { clearTimeout(_pressTimer); _pressTimer = null; } };
+    marker.addEventListener('mousedown', onDown);
+    marker.addEventListener('touchstart', onDown, {passive:false});
+    marker.addEventListener('mouseup', onUpCancel);
+    marker.addEventListener('touchend', onUpCancel);
+
+    // — 單擊 —
+    const isEventMarker = !!(z.event_id || z.event_code);
+    marker.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (_didDrag) return;
+      if (isEventMarker) {
+        // 事件 marker：單擊直接開 modal（與追蹤區一致）
+        showEventProcessModal(z);
+      } else {
+        // 據點 marker：單擊選取/取消
+        if (_selectedZoneId === z.id) _deselectMarker();
+        else _selectMarker(z.id);
+      }
+    });
+
+    // — 雙擊：據點開詳情 —
+    if (!isEventMarker) {
       marker.addEventListener('dblclick', (e) => {
         e.stopPropagation();
-        if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; }
-        const isEventMarker = z.event_id || z.event_code || (z.node_type !== 'shelter' && z.node_type !== 'medical');
-        console.log('[dblclick]', z.id, z.label, 'node_type:', z.node_type, 'event_id:', z.event_id, 'isEvent:', isEventMarker);
-        try {
-          if (isEventMarker) {
-            console.log('[dblclick] → showEventProcessModal');
-            showEventProcessModal(z);
-          } else {
-            console.log('[dblclick] → showZoneDetail');
-            showZoneDetail(z);
-          }
-        } catch(err) {
-          console.error('[dblclick] ERROR:', err);
-        }
+        showZoneDetail(z);
       });
     }
 
@@ -893,7 +897,7 @@ function renderMapOverlay() {
 function renderFlows() {
   // 移除舊箭頭
   document.querySelectorAll('.flow-arrow').forEach(e => e.remove());
-  if (!_mapConfig || _editMode) return;
+  if (!_mapConfig) return;
   const m = _mapConfig.maps[_currentMap];
   if (!m || !m.flows || !m.flows.length) return;
   const overlay = el('map-overlay');
@@ -933,36 +937,24 @@ function renderFlows() {
 // 事件詳情 Modal + 狀態更新
 // ══════════════════════════════════════════════════════════════
 function showEventDetail(ev) {
-  const age = _decisionAge(ev.occurred_at || ev.created_at);
-  const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
-
-  let html = `<div style="margin-bottom:12px;">`;
-  html += `<span style="display:inline-block;padding:2px 8px;border-radius:3px;background:${sevColor}33;color:${sevColor};font-size:10px;font-weight:700;">${ev.severity}</span>`;
-  html += `<span style="font-size:10px;color:var(--text3);margin-left:8px;">${ev.reported_by_unit} \u00b7 ${age}</span>`;
-  html += `</div>`;
-  html += `<div style="font-size:14px;font-weight:700;margin-bottom:8px;">${ev.event_type}</div>`;
-  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:8px;">${ev.description}</div>`;
-  if (ev.location_desc) html += `<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">\ud83d\udccd ${ev.location_desc}</div>`;
-  html += `<div style="font-size:10px;color:var(--text3);">回報：${ev.operator_name}\u3000狀態：${ev.status}</div>`;
-
-  if (ev.status === 'open' || ev.status === 'in_progress') {
-    html += `<div style="margin-top:12px;display:flex;gap:6px;">`;
-    html += `<button onclick="updateEventStatus('${ev.id}','in_progress')" style="flex:1;padding:6px;background:var(--yellow);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">處理中</button>`;
-    html += `<button onclick="updateEventStatus('${ev.id}','resolved')" style="flex:1;padding:6px;background:var(--green);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">結案</button>`;
-    html += `</div>`;
-  }
-
-  el('modal-title').textContent = '\ud83d\udccb 事件詳情';
-  el('modal-body').innerHTML = html;
-  el('overlay').className = 'show';
+  // 統一格式：與 showEventProcessModal 一致
+  // 建一個虛擬 zone 物件讓 showEventProcessModal 可以處理
+  const fakeZone = { id: ev.location_zone_id || ev.id, event_id: ev.id, event_code: ev.event_code, label: ev.description || ev.event_type, icon: 'event' };
+  sessionStorage.setItem('_openEventId', ev.id);
+  showEventProcessModal(fakeZone);
 }
 
 async function updateEventStatus(eventId, status) {
+  if (status === 'resolved') {
+    const ev = (_data?.events||[]).find(e => e.id === eventId);
+    const notes = ev ? _parseNotes(ev.notes) : [];
+    if (notes.length === 0) return;
+  }
   try {
     const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=指揮官', {
       method: 'PATCH',
     });
-    if (resp.ok) { closeModal(); poll(); }
+    if (resp.ok) { closeModal(); await poll(); }
   } catch(e) { alert('更新失敗：' + e.message); }
 }
 
@@ -982,6 +974,8 @@ function _countdownStr(deadline) {
 }
 
 function showEventProcessModal(zone) {
+  // 記住當前開啟的事件（重刷後恢復）
+  if (zone.event_id) sessionStorage.setItem('_openEventId', zone.event_id);
   // 找對應事件：優先用 event_id，其次用 location_zone_id 比對
   const allEvts = _data?.events || [];
   const ev = zone.event_id
@@ -993,20 +987,26 @@ function showEventProcessModal(zone) {
     return;
   }
 
+  const sevLabel = {critical:'緊急',warning:'警告',info:'一般'}[ev.severity] || ev.severity;
   const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
   const statusLabel = {open:'未結',in_progress:'處理中',resolved:'已結案',closed:'已關閉'}[ev.status] || ev.status;
   const statusC = (ev.status === 'resolved' || ev.status === 'closed') ? 'var(--green)' : 'var(--yellow)';
+  const unitLabel = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'}[ev.reported_by_unit] || ev.reported_by_unit;
   const notes = _parseNotes(ev.notes);
   const isOpen = ev.status === 'open' || ev.status === 'in_progress';
   const countdown = ev.response_deadline ? _countdownStr(ev.response_deadline) : '';
   const countdownColor = countdown.startsWith('逾時') ? 'var(--red)' : 'var(--yellow)';
 
+  // — 標題列（header 區）—
+  const iconHtml = `<span style="display:inline-flex;vertical-align:middle;margin-right:4px;">${renderIcon(zone.icon)}</span>`;
+  el('modal-title').innerHTML = `${iconHtml} ${ev.event_code || ''}　${ev.description || ev.event_type}`;
+
   let html = '';
-  // 標題區
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">`;
-  html += `<div>`;
-  html += `<span style="display:inline-block;padding:2px 8px;border-radius:3px;background:${sevColor}33;color:${sevColor};font-size:10px;font-weight:700;">${ev.severity}</span>`;
-  html += `<span style="font-size:10px;color:${statusC};font-weight:600;margin-left:6px;">${statusLabel}</span>`;
+  // 狀態 + 倒數
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">`;
+  html += `<div style="display:flex;gap:6px;align-items:center;">`;
+  html += `<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${sevColor}22;color:${sevColor};">${sevLabel}</span>`;
+  html += `<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${statusC}22;color:${statusC};">${statusLabel}</span>`;
   html += `</div>`;
   if (countdown && isOpen) {
     html += `<div style="font-size:12px;font-weight:700;color:${countdownColor};cursor:pointer;" onclick="_resetDeadlineMenu('${ev.id}')" title="點擊重設時間">⏱ ${countdown}</div>`;
@@ -1015,14 +1015,10 @@ function showEventProcessModal(zone) {
   }
   html += `</div>`;
 
-  // 事件資訊
-  html += `<div style="font-size:14px;font-weight:700;margin-bottom:6px;">${ev.description || ev.event_type}</div>`;
-  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:4px;">`;
-  html += `回報：${ev.operator_name}　組別：${ev.reported_by_unit}`;
-  if (ev.location_desc) html += `　📍 ${ev.location_desc}`;
-  html += `</div>`;
-  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:10px;">`;
-  html += `發生：${(ev.occurred_at||'').slice(11,16)}　期限：${(ev.response_deadline||'').slice(11,16)}`;
+  // 事件資訊（精簡，不重複標題）
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6;">`;
+  html += `${unitLabel}　回報：${ev.operator_name}<br>`;
+  html += `發生：${(ev.occurred_at||'').slice(0,16).replace('T',' ')}　期限：${(ev.response_deadline||'').slice(0,16).replace('T',' ')}`;
   html += `</div>`;
 
   // 處置紀錄
@@ -1030,38 +1026,38 @@ function showEventProcessModal(zone) {
   html += `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px;">處置紀錄</div>`;
   if (notes.length > 0) {
     notes.forEach(n => {
-      html += `<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
+      html += `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
       html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
       html += n.by ? ` <span style="color:var(--green);font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
     });
   } else {
-    html += `<div style="font-size:10px;color:var(--text3);">無處置紀錄</div>`;
+    html += `<div style="font-size:11px;color:var(--text3);">無處置紀錄</div>`;
   }
   html += `</div>`;
 
   // 操作區（未結案）
   if (isOpen) {
     html += `<div style="border-top:1px solid var(--border);padding-top:8px;">`;
-    // 追加紀錄輸入 + 所有按鈕同一排
-    html += `<div style="display:flex;gap:4px;align-items:center;">`;
-    html += `<input id="ev-proc-note" placeholder="處置紀錄..." style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);">`;
+    html += `<div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">`;
+    html += `<input id="ev-proc-note" placeholder="輸入處置紀錄..." style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);">`;
     html += `<button onclick="_addEventNoteFromModal('${ev.id}')" style="padding:6px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);white-space:nowrap;">追加</button>`;
+    html += `</div>`;
+    html += `<div style="display:flex;gap:6px;">`;
     if (ev.status === 'open') {
-      html += `<button onclick="_updateEvFromModal('${ev.id}','in_progress')" style="padding:6px 10px;background:var(--yellow);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);white-space:nowrap;">處理中</button>`;
+      html += `<button onclick="_updateEvFromModal('${ev.id}','in_progress')" style="flex:1;padding:7px;background:var(--yellow);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">處理中</button>`;
     }
     if (notes.length > 0) {
-      html += `<button onclick="_updateEvFromModal('${ev.id}','resolved')" style="padding:6px 10px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);white-space:nowrap;">結案</button>`;
+      html += `<button onclick="_updateEvFromModal('${ev.id}','resolved')" style="flex:1;padding:7px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">結案</button>`;
     } else {
-      html += `<button disabled style="padding:6px 10px;background:var(--border);color:var(--text3);border:none;border-radius:4px;font-size:11px;cursor:not-allowed;font-family:var(--mono);white-space:nowrap;" title="請先追加處置紀錄">結案</button>`;
+      html += `<button disabled style="flex:1;padding:7px;background:var(--border);color:var(--text3);border:none;border-radius:4px;font-size:11px;cursor:not-allowed;font-family:var(--mono);" title="須先追加處置紀錄才能結案">結案</button>`;
     }
+    html += `<button onclick="closeModal()" style="flex:1;padding:7px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">關閉</button>`;
     html += `</div>`;
     html += `</div>`;
   }
 
-  const iconHtml = `<span style="display:inline-flex;vertical-align:middle;margin-right:4px;">${renderIcon(zone.icon)}</span>`;
-  el('modal-title').innerHTML = `${iconHtml} ${ev.event_code || ''}　${zone.label}`;
   el('modal-body').innerHTML = html;
   el('overlay').className = 'show';
 }
@@ -1086,6 +1082,16 @@ async function _addEventNoteFromModal(eventId) {
 }
 
 async function _updateEvFromModal(eventId, status) {
+  // 結案前必須有處置紀錄
+  if (status === 'resolved') {
+    const ev = (_data?.events||[]).find(e => e.id === eventId);
+    const notes = ev ? _parseNotes(ev.notes) : [];
+    if (notes.length === 0) {
+      const input = document.getElementById('ev-proc-note');
+      if (input) { input.focus(); input.style.borderColor = 'var(--red)'; setTimeout(() => input.style.borderColor = '', 2000); }
+      return;
+    }
+  }
   try {
     const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=指揮部', {
       method: 'PATCH',
@@ -1100,16 +1106,18 @@ async function _updateEvFromModal(eventId, status) {
 // 重設事件 deadline 選單
 function _resetDeadlineMenu(eventId) {
   const choices = [
-    {label: '+10 分鐘', min: 10},
-    {label: '+30 分鐘', min: 30},
-    {label: '+60 分鐘', min: 60},
+    {label: '+10 分', min: 10, color: 'var(--red)'},
+    {label: '+30 分', min: 30, color: 'var(--yellow)'},
+    {label: '+60 分', min: 60, color: 'var(--green)'},
   ];
-  let html = '<div style="font-size:11px;font-weight:600;margin-bottom:6px;">重設處置期限</div>';
-  html += '<div style="display:flex;gap:6px;">';
+  let html = '<div style="font-size:12px;font-weight:700;margin-bottom:12px;">延長處置期限</div>';
+  html += '<div style="display:flex;gap:8px;">';
   choices.forEach(c => {
-    html += `<button onclick="_resetDeadline('${eventId}',${c.min})" style="flex:1;padding:6px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);">${c.label}</button>`;
+    html += `<button onclick="_resetDeadline('${eventId}',${c.min})" style="flex:1;padding:10px 8px;background:${c.color}22;color:${c.color};border:1px solid ${c.color}44;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--mono);transition:background .15s;"
+      onmouseenter="this.style.background='${c.color}44'" onmouseleave="this.style.background='${c.color}22'">${c.label}</button>`;
   });
   html += '</div>';
+  html += '<div style="font-size:10px;color:var(--text3);margin-top:8px;text-align:center;">從現在起重新計算期限</div>';
   el('modal-title').textContent = '⏱ 重設期限';
   el('modal-body').innerHTML = html;
   el('overlay').className = 'show';
@@ -1143,35 +1151,51 @@ function _findZoneByEventId(eventId) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 地圖編輯模式
+// 自訂確認 modal（取代瀏覽器 confirm）
+// ══════════════════════════════════════════════════════════════
+let _confirmCb = null;
+function appConfirm(title, msg) {
+  return new Promise(resolve => {
+    _confirmCb = resolve;
+    el('confirm-title').textContent = title;
+    el('confirm-msg').textContent = msg;
+    el('confirm-overlay').style.display = 'flex';
+  });
+}
+function _confirmResolve(val) {
+  el('confirm-overlay').style.display = 'none';
+  if (_confirmCb) { _confirmCb(val); _confirmCb = null; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Marker 選取 / 拖曳 / 刪除（統一模式，無齒輪切換）
 // ══════════════════════════════════════════════════════════════
 
-function toggleEditMode() {
-  _editMode = !_editMode;
-  el('btn-edit').classList.toggle('active', _editMode);
-  el('edit-tools').style.display = _editMode ? 'flex' : 'none';
-  if (_editMode) cancelPlaceMode();
-  if (!_editMode) {
-    _selectedZoneId = null;
-    el('edit-coords').classList.remove('show');
-  }
+function _selectMarker(zoneId, skipRender) {
+  _selectedZoneId = zoneId;
+  el('btn-delete-marker').style.display = 'inline-block';
+  if (!skipRender) renderMapOverlay();
+}
+
+function _deselectMarker() {
+  _selectedZoneId = null;
+  el('btn-delete-marker').style.display = 'none';
+  el('edit-coords').classList.remove('show');
   renderMapOverlay();
 }
 
 function _startDrag(marker, zone, e) {
-  if (!_editMode) return;
   e.preventDefault();
   e.stopPropagation();
+  marker.classList.add('dragging');
+  marker.classList.add('selected');
   const panel = el('map-panel');
   const rect = panel.getBoundingClientRect();
-  _dragState = { zone, marker, rect };
 
-  // 選取據點並填入屬性
-  _selectZoneForEdit(zone);
+  _selectMarker(zone.id, true); // skipRender：拖曳中不重建 DOM
 
-  // 高亮選取
-  document.querySelectorAll('.zone-marker').forEach(m => m.style.outline = '');
-  marker.style.outline = '2px solid var(--green)';
+  el('edit-coords').textContent = zone.label;
+  el('edit-coords').classList.add('show');
 
   const onMove = (ev) => {
     const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
@@ -1182,15 +1206,22 @@ function _startDrag(marker, zone, e) {
     zone.y_pct = Math.round(y * 10) / 10;
     marker.style.left = zone.x_pct + '%';
     marker.style.top = zone.y_pct + '%';
-    el('edit-coords').textContent = `${zone.label}  x:${zone.x_pct}%  y:${zone.y_pct}%`;
-    el('edit-coords').classList.add('show');
   };
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     document.removeEventListener('touchmove', onMove);
     document.removeEventListener('touchend', onUp);
-    _dragState = null;
+    marker.classList.remove('dragging');
+    el('edit-coords').classList.remove('show');
+    saveMapConfig();
+    // 事件 marker 移動記錄到處置紀錄
+    if (zone.event_id) {
+      fetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ text: '地圖位置已移動', operator: '指揮部' })
+      }).catch(() => {});
+    }
   };
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -1198,31 +1229,32 @@ function _startDrag(marker, zone, e) {
   document.addEventListener('touchend', onUp);
 }
 
-// 選取據點（編輯模式下）
-function _selectZoneForEdit(zone) {
-  _selectedZoneId = zone.id;
-  el('btn-update-zone').style.display = 'inline-block';
-}
-
-// 更新選中據點（目前僅用於拖曳後儲存位置）
-function updateSelectedZone() {
-  if (!_selectedZoneId || !_mapConfig) return;
-  renderMapOverlay();
-}
-
-function deleteSelectedMarker() {
+async function deleteSelectedMarker() {
   if (!_selectedZoneId || !_mapConfig) return;
   const m = _mapConfig.maps[_currentMap];
   const idx = m.zones.findIndex(z => z.id === _selectedZoneId);
   if (idx === -1) return;
+  const zone = m.zones[idx];
+  const ok = await appConfirm('刪除確認', '確定刪除「' + zone.label + '」？');
+  if (!ok) return;
+  // 事件 marker：記錄刪除 + 結案
+  if (zone.event_id) {
+    try {
+      await fetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ text: '地圖 marker 已移除', operator: '指揮部' })
+      });
+      await fetch(API_BASE + '/api/events/' + zone.event_id + '/status?status=resolved&operator=指揮部', { method: 'PATCH' });
+    } catch(e) {}
+  }
   m.zones.splice(idx, 1);
-  // 清除相關 flows
   m.flows = (m.flows || []).filter(f => f.from !== _selectedZoneId && f.to !== _selectedZoneId);
-  _selectedZoneId = null;
   _pinnedZones.delete(_selectedZoneId);
+  _selectedZoneId = null;
+  el('btn-delete-marker').style.display = 'none';
   el('edit-coords').classList.remove('show');
-  el('btn-update-zone').style.display = 'none';
-  renderMapOverlay();
+  saveMapConfig();
+  await poll();
 }
 
 async function saveMapConfig() {
@@ -1252,6 +1284,8 @@ let _placeMode = null; // null 或 { group, type, icon, label }
 let _placeGroup = null;
 
 function selectPlaceGroup(grp) {
+  // 選組別時取消已選取的 marker
+  if (_selectedZoneId) _deselectMarker();
   _placeGroup = grp;
   // 切換按鈕 active
   document.querySelectorAll('.place-grp').forEach(b => b.classList.toggle('active', b.dataset.grp === grp));
@@ -1266,8 +1300,10 @@ function selectPlaceGroup(grp) {
     sel.appendChild(opt);
   });
   _placeMode = null;
-  el('place-type').disabled = false;
+  sel.disabled = false;
   el('map-panel').classList.remove('placing');
+  // 自動展開下拉讓使用者直接看到事件一覽
+  requestAnimationFrame(() => { try { sel.showPicker(); } catch(e) {} });
 }
 
 function onPlaceTypeChange() {
@@ -1287,16 +1323,20 @@ function cancelPlaceMode() {
   _placeMode = null;
   _placeGroup = null;
   document.querySelectorAll('.place-grp').forEach(b => b.classList.remove('active'));
-  el('place-type').value = '';
+  el('place-type').innerHTML = '<option value="">—</option>';
   el('place-type').disabled = true;
   el('map-panel').classList.remove('placing');
 }
 
-// 地圖點擊放置事件
+// 地圖點擊：放置事件 or 取消選取
 el('map-panel').addEventListener('click', async function(e) {
-  if (!_placeMode || _editMode) return;
-  // 避免點到 marker 時觸發
-  if (e.target.closest('.zone-marker')) return;
+  // 點到 marker、edit-bar、map-tabs 不處理
+  if (e.target.closest('.zone-marker') || e.target.closest('#edit-bar') || e.target.closest('#map-tabs')) return;
+  // 非放置模式：點空白地圖取消選取
+  if (!_placeMode) {
+    if (_selectedZoneId) _deselectMarker();
+    return;
+  }
 
   const rect = el('map-panel').getBoundingClientRect();
   const x_pct = Math.round((e.clientX - rect.left) / rect.width * 1000) / 10;
@@ -1478,11 +1518,9 @@ function _eventCardHTML(ev, dimmed) {
   let html = `<div style="padding:8px 10px;margin-bottom:6px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevC};${dimmed?'opacity:.5;':''}">`;
   // 標題列
   html += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-  html += `<span style="font-size:12px;font-weight:700;">${ev.event_type}</span>`;
+  html += `<span style="font-size:12px;font-weight:700;">${ev.description || ev.event_type}</span>`;
   html += `<span style="font-size:10px;color:${statusC};font-weight:600;">${statusLabel}</span>`;
   html += `</div>`;
-  // 描述
-  html += `<div style="font-size:11px;color:var(--text2);margin-top:3px;">${ev.description}</div>`;
   html += `<div style="font-size:10px;color:var(--text3);margin-top:3px;">回報：${ev.operator_name}　${_decisionAge(ev.occurred_at||ev.created_at)}</div>`;
 
   // 處置紀錄（對齊 shelter PWA）
@@ -1683,8 +1721,10 @@ function showDecisionModal(decId) {
   const sevColor = dec.severity === 'critical' ? 'var(--red)' : 'var(--yellow)';
 
   let html = `<div style="margin-bottom:12px;">`;
-  html += `<span style="display:inline-block;padding:2px 8px;border-radius:3px;background:${sevColor}33;color:${sevColor};font-size:10px;font-weight:700;">${dec.severity}</span>`;
-  html += `<span style="font-size:10px;color:var(--text3);margin-left:8px;">${dec.decision_type} \u00b7 ${age}</span>`;
+  const decSevLabel = {critical:'緊急',warning:'警告',info:'一般'}[dec.severity] || dec.severity;
+  const decTypeLabel = {initial:'初始裁示',revision:'修正',escalation:'升級',closure:'結案'}[dec.decision_type] || dec.decision_type;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:3px;background:${sevColor}33;color:${sevColor};font-size:10px;font-weight:700;">${decSevLabel}</span>`;
+  html += `<span style="font-size:10px;color:var(--text3);margin-left:8px;">${decTypeLabel} · ${age}</span>`;
   html += `</div>`;
   html += `<div style="font-size:14px;font-weight:700;margin-bottom:8px;">${dec.decision_title}</div>`;
   html += `<div style="font-size:11px;color:var(--text2);margin-bottom:12px;">${dec.impact_description}</div>`;
@@ -2262,34 +2302,111 @@ function renderZoneC(d) {
     }
   }
 
-  // 事件追蹤
-  const openEvents = (_data?.events || []).filter(e => e.status === 'open' || e.status === 'in_progress');
+  // 事件追蹤（開放 + 已結案灰色）
+  const allEvents = _data?.events || [];
+  const openEvents = allEvents.filter(e => e.status === 'open' || e.status === 'in_progress');
+  const resolvedEvents = allEvents.filter(e => e.status === 'resolved' || e.status === 'closed');
   el('evt-count').textContent = openEvents.length;
-  if (openEvents.length === 0) {
-    el('right-evt-list').innerHTML = '<div style="color:var(--green);font-size:11px;">無開放事件</div>';
+
+  const unitColors = {forward:'#e68c1e',security:'#3366e6',shelter:'#d4b200',medical:'#e03030',command:'#22b05a'};
+  const unitNames = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
+
+  let evtHtml = '';
+  if (openEvents.length === 0 && resolvedEvents.length === 0) {
+    evtHtml = '<div style="color:var(--green);font-size:12px;padding:8px;">無事件</div>';
   } else {
-    // 逾時排前面
     const now = Date.now();
-    const sorted = openEvents.sort((a, b) => {
-      const aOverdue = a.response_deadline && new Date(a.response_deadline.endsWith('Z') ? a.response_deadline : a.response_deadline + 'Z').getTime() < now;
-      const bOverdue = b.response_deadline && new Date(b.response_deadline.endsWith('Z') ? b.response_deadline : b.response_deadline + 'Z').getTime() < now;
-      if (aOverdue && !bOverdue) return -1;
-      if (!aOverdue && bOverdue) return 1;
-      return 0;
+    openEvents.sort((a, b) => {
+      const aOd = a.response_deadline && new Date(a.response_deadline.endsWith('Z') ? a.response_deadline : a.response_deadline+'Z').getTime() < now;
+      const bOd = b.response_deadline && new Date(b.response_deadline.endsWith('Z') ? b.response_deadline : b.response_deadline+'Z').getTime() < now;
+      return (aOd === bOd) ? 0 : aOd ? -1 : 1;
     });
-    let evtHtml = '';
-    sorted.forEach(ev => {
+    openEvents.forEach(ev => {
       const cd = ev.response_deadline ? _countdownStr(ev.response_deadline) : '';
       const isOverdue = cd.startsWith('逾時');
-      const cdColor = isOverdue ? 'var(--red)' : 'var(--text3)';
-      const sevCls = ev.severity === 'critical' ? 'crit' : 'warn';
-      evtHtml += `<div class="zc-esc-item" style="cursor:pointer;padding:2px 0;" onclick="_openEventByCode('${ev.id}')">`;
-      evtHtml += `<span class="tag ${sevCls}">${ev.event_code || '—'}</span>`;
-      evtHtml += `<span style="font-size:10px;">${_truncate(ev.event_type, 12)}</span>`;
-      evtHtml += `<span style="font-size:9px;color:${cdColor};margin-left:auto;font-weight:${isOverdue?'700':'400'};">${cd}</span>`;
+      let tagColor = 'var(--yellow)';
+      if (ev.response_deadline) {
+        const ts = ev.response_deadline.endsWith('Z') ? ev.response_deadline : ev.response_deadline+'Z';
+        const dl = new Date(ts).getTime();
+        if (dl < now) tagColor = 'var(--red)';
+        else {
+          const cr = new Date((ev.occurred_at||ev.created_at).endsWith('Z') ? (ev.occurred_at||ev.created_at) : (ev.occurred_at||ev.created_at)+'Z').getTime();
+          if ((dl - now) < (dl - cr) * 0.5) tagColor = '#e67e22';
+        }
+      }
+      const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
+      const uName = unitNames[ev.reported_by_unit] || '';
+      evtHtml += `<div style="cursor:pointer;padding:6px 8px;margin-bottom:3px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor};" onclick="_openEventByCode('${ev.id}')">`;
+      evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
+      evtHtml += `<span style="font-size:11px;font-weight:700;">${ev.description||ev.event_type}</span>`;
+      evtHtml += `<span style="font-size:10px;font-weight:700;color:${tagColor};">${cd}</span>`;
+      evtHtml += `</div>`;
+      evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">`;
+      evtHtml += `<span style="font-size:9px;color:${uColor};font-weight:600;">${uName}</span>`;
+      evtHtml += `<span style="font-size:9px;color:var(--text3);">${ev.event_code||''}</span>`;
+      evtHtml += `</div>`;
       evtHtml += `</div>`;
     });
-    el('right-evt-list').innerHTML = evtHtml;
+    // 已結案
+    if (resolvedEvents.length > 0) {
+      evtHtml += `<div style="font-size:9px;color:var(--text3);padding:5px 0 2px;font-weight:600;">已結案</div>`;
+      resolvedEvents.forEach(ev => {
+        const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
+        const uName = unitNames[ev.reported_by_unit] || '';
+        evtHtml += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor}55;opacity:.55;" onclick="_openEventByCode('${ev.id}')">`;
+        evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
+        evtHtml += `<span style="font-size:10px;font-weight:600;">${ev.description||ev.event_type}</span>`;
+        evtHtml += `<span style="font-size:9px;color:var(--green);">已結案</span>`;
+        evtHtml += `</div>`;
+        evtHtml += `<div style="display:flex;justify-content:space-between;margin-top:1px;">`;
+        evtHtml += `<span style="font-size:9px;color:${uColor};">${uName}</span>`;
+        evtHtml += `<span style="font-size:8px;color:var(--text3);">${ev.event_code||''}</span>`;
+        evtHtml += `</div>`;
+        evtHtml += `</div>`;
+      });
+    }
+  }
+  el('right-evt-list').innerHTML = evtHtml;
+}
+
+let _expandedSection = sessionStorage.getItem('_expandedSection') || null;
+function toggleRightExpand(section = 'events') {
+  if (_expandedSection === section) {
+    _applyRightExpand(null);
+  } else {
+    _applyRightExpand(section);
+  }
+}
+function _applyRightExpand(section) {
+  _expandedSection = section;
+  sessionStorage.setItem('_expandedSection', section || '');
+  const panel = el('panel-right');
+  const left = el('panel-left');
+  const divider = el('right-events').nextElementSibling;
+
+  if (!section) {
+    // 收合
+    panel.classList.remove('expanded');
+    left.classList.remove('collapsed');
+    el('right-events').style.display = '';
+    el('right-events').style.flex = '6';
+    el('right-decisions').style.display = '';
+    el('right-decisions').style.flex = '4';
+    divider.style.display = '';
+  } else {
+    // 展開
+    panel.classList.add('expanded');
+    left.classList.add('collapsed');
+    divider.style.display = 'none';
+    if (section === 'events') {
+      el('right-events').style.display = '';
+      el('right-events').style.flex = '1';
+      el('right-decisions').style.display = 'none';
+    } else {
+      el('right-decisions').style.display = '';
+      el('right-decisions').style.flex = '1';
+      el('right-events').style.display = 'none';
+    }
   }
 }
 
@@ -2420,7 +2537,7 @@ function showSlice(idx, d, focusType) {
   el('overlay').className = 'show';
 }
 
-function closeModal() { el('overlay').className = ''; }
+function closeModal() { el('overlay').className = ''; sessionStorage.removeItem('_openEventId'); }
 
 // ══════════════════════════════════════════════════════════════
 // Sparkline 放大/縮小
@@ -2462,7 +2579,18 @@ document.title = 'ICS 指揮部 ' + CMD_VERSION;
 document.querySelector('.h-ver').textContent = 'cmd-' + CMD_VERSION;
 
 initMap();
-setTimeout(() => poll(), 300);
+// 恢復展開狀態
+if (_expandedSection) _applyRightExpand(_expandedSection);
+setTimeout(async () => {
+  await poll();
+  // 重刷後恢復上次開啟的事件 modal
+  const savedEvId = sessionStorage.getItem('_openEventId');
+  if (savedEvId) {
+    const zone = _findZoneByEventId(savedEvId);
+    if (zone) showEventProcessModal(zone);
+    else { const ev = (_data?.events||[]).find(e=>e.id===savedEvId); if(ev) showEventDetail(ev); }
+  }
+}, 300);
 setInterval(poll, POLL_INTERVAL);
 window.addEventListener('resize', () => { const d = getSeries(); if (d) renderSparklines(d); });
 </script>

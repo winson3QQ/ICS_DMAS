@@ -329,6 +329,7 @@ def get_dashboard():
     # 事件（先取，供升降級引擎使用）
     open_events     = db.get_events("open",        limit=20)
     progress_events = db.get_events("in_progress", limit=20)
+    resolved_events = db.get_events("resolved",    limit=50)
 
     # 計算引擎（含升降級檢查）
     calc = calc_engine.dashboard_calc(
@@ -337,7 +338,7 @@ def get_dashboard():
         event_trend_up=len(open_events) > 5,
     )
     events = sorted(
-        open_events + progress_events,
+        open_events + progress_events + resolved_events,
         key=lambda e: e["occurred_at"],
         reverse=True
     )
