@@ -157,6 +157,160 @@ def gen_medical(i: int, total: int, shelter_srt_history: list) -> dict:
     }
 
 
+def gen_forward(i: int, total: int) -> dict:
+    """產生一筆前進組快照"""
+    phase = i / total
+    ts = _snap_time(i, total)
+
+    units = [
+        {
+            "unit": "Alpha",
+            "casualties": {
+                "red": max(0, int(1.5 * phase + random.randint(0, 1))),
+                "yellow": max(0, int(2 * phase + random.randint(0, 2))),
+                "green": max(0, int(3 * phase + random.randint(0, 1))),
+                "black": 0,
+            },
+            "ccp_status": random.choice(["active", "active", "standby"]),
+            "vehicle_needed": random.choice([0, 0, 1]),
+            "hazard": random.choice(["none", "none", "fire", "structural"]) if phase > 0.3 else "none",
+            "last_update": ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+        {
+            "unit": "Bravo",
+            "casualties": {
+                "red": max(0, int(0.5 * phase + random.randint(0, 1))),
+                "yellow": max(0, int(1 * phase + random.randint(0, 1))),
+                "green": max(0, int(2 * phase + random.randint(0, 2))),
+                "black": 0,
+            },
+            "ccp_status": "active",
+            "vehicle_needed": 0,
+            "hazard": "none",
+            "last_update": ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+    ]
+
+    return {
+        "v": 3,
+        "type": "forward",
+        "snapshot_id": f"test-f-{i:04d}",
+        "t": ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "src": "test-forward",
+        "source": "auto",
+        "extra": {"units": units},
+    }
+
+
+def gen_security(i: int, total: int) -> dict:
+    """產生一筆安全組快照"""
+    phase = i / total
+    ts = _snap_time(i, total)
+
+    return {
+        "v": 3,
+        "type": "security",
+        "snapshot_id": f"test-sec-{i:04d}",
+        "t": ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "src": "test-security",
+        "source": "auto",
+        "post_total": random.choice([3, 4, 4, 5]),
+        "qrf_available": random.choice([1, 2, 2, 2]),
+        "isolation_count": random.choice([0, 0, 0, 1]) if phase > 0.4 else 0,
+        "extra": {
+            "post_total": random.choice([3, 4, 4, 5]),
+            "post_anomaly": "B2 哨異常" if phase > 0.6 and random.random() < 0.3 else "",
+            "qrf_available": random.choice([1, 2, 2, 2]),
+            "isolation_count": random.choice([0, 0, 1]) if phase > 0.4 else 0,
+        },
+    }
+
+
+def gen_test_events(api: str, n_snap: int):
+    """產生數筆測試事件和待裁示事項"""
+    events = [
+        {
+            "reported_by_unit": "shelter",
+            "event_type": "capacity_warning",
+            "severity": "warning",
+            "description": "收容所使用率達 80%，預計 30 分鐘內滿載",
+            "operator_name": "王計劃",
+            "location_desc": "收容所 A 區",
+            "needs_commander_decision": True,
+        },
+        {
+            "reported_by_unit": "medical",
+            "event_type": "supply_shortage",
+            "severity": "critical",
+            "description": "IV 輸液存量低於 20%，需緊急補給",
+            "operator_name": "林護理",
+            "location_desc": "醫療站",
+            "needs_commander_decision": True,
+        },
+        {
+            "reported_by_unit": "forward",
+            "event_type": "medical_emergency",
+            "severity": "warning",
+            "description": "Alpha 小隊 2 名黃傷需後送，CCP 車輛不足",
+            "operator_name": "張情報",
+            "location_desc": "前進指揮所",
+            "needs_commander_decision": False,
+        },
+        {
+            "reported_by_unit": "security",
+            "event_type": "security_incident",
+            "severity": "info",
+            "description": "B2 哨位回報不明人員接近管制區",
+            "operator_name": "陳安全",
+            "location_desc": "B2 哨",
+            "needs_commander_decision": False,
+        },
+    ]
+
+    # 推送事件
+    ok = 0
+    for ev in events:
+        try:
+            body = json.dumps(ev).encode("utf-8")
+            req = urllib.request.Request(
+                api + "/api/events",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    ok += 1
+        except Exception as e:
+            print(f"  事件推送失敗：{e}")
+
+    # 額外建立一筆直接的 decision（不透過 event 自動建立）
+    dec = {
+        "decision_type": "initial",
+        "severity": "critical",
+        "decision_title": "核可緊急補給運送至醫療站",
+        "impact_description": "IV 輸液將在 45 分鐘內耗盡，需立即調派後勤車輛補給",
+        "suggested_action_a": "調派 1 號後勤車即刻出發補給",
+        "suggested_action_b": "請求上級支援補給",
+        "created_by": "王計劃",
+    }
+    try:
+        body = json.dumps(dec).encode("utf-8")
+        req = urllib.request.Request(
+            api + "/api/decisions",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status == 200:
+                ok += 1
+    except Exception as e:
+        print(f"  裁示推送失敗：{e}")
+
+    print(f"\n  事件/裁示推送完成（{ok} 筆成功）")
+
+
 def main():
     parser = argparse.ArgumentParser(description="產生測試快照推送到 Command Server")
     parser.add_argument("-n", type=int, default=60, help="每組快照數量（預設 60）")
@@ -166,18 +320,25 @@ def main():
     args = parser.parse_args()
 
     n = args.n
-    print(f"產生 {n} 對快照（shelter + medical），推送到 {args.api}")
+    print(f"產生 {n} 組快照（shelter + medical + forward + security），推送到 {args.api}")
 
-    # 先產生全部 shelter 快照取得 SRT 歷史
+    # 先產生全部快照
     shelter_snaps = [gen_shelter(i, n) for i in range(n)]
     srt_red_history = [s["srt"]["red"] for s in shelter_snaps]
     medical_snaps = [gen_medical(i, n, srt_red_history) for i in range(n)]
+    forward_snaps = [gen_forward(i, n) for i in range(n)]
+    security_snaps = [gen_security(i, n) for i in range(n)]
 
     ok = 0
     err = 0
 
     for i in range(n):
-        for label, snap in [("S", shelter_snaps[i]), ("M", medical_snaps[i])]:
+        for label, snap in [
+            ("S", shelter_snaps[i]),
+            ("M", medical_snaps[i]),
+            ("F", forward_snaps[i]),
+            ("X", security_snaps[i]),
+        ]:
             try:
                 body = json.dumps(snap).encode("utf-8")
                 req = urllib.request.Request(
@@ -207,7 +368,11 @@ def main():
         if not args.batch and i < n - 1:
             time.sleep(args.delay)
 
-    print(f"\n完成。成功 {ok}，失敗 {err}")
+    print(f"\n快照完成。成功 {ok}，失敗 {err}")
+
+    # 推送測試事件和裁示
+    print("推送測試事件和裁示...")
+    gen_test_events(args.api, n)
 
 
 if __name__ == "__main__":

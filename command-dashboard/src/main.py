@@ -349,6 +349,33 @@ def get_dashboard():
 
 
 # ──────────────────────────────────────────
+# API：人員清單（各組 Pi 推送在 snapshot extra.staff_list）
+# ──────────────────────────────────────────
+
+@app.get("/api/staff", tags=["人員"])
+def get_staff():
+    """
+    從各組最新快照的 extra.staff_list 取得人員清單。
+    各組 Pi 推送時將值勤人員列表放在 snapshot extra 內。
+    回傳 { shelter: [...], medical: [...], forward: [...], security: [...] }
+    """
+    result = {}
+    for node_type in ("shelter", "medical", "forward", "security"):
+        snap = db.get_latest_snapshot(node_type)
+        if snap:
+            extra = snap.get("extra") or {}
+            staff_list = extra.get("staff_list", [])
+            result[node_type] = {
+                "staff": staff_list,
+                "staff_on_duty": snap.get("staff_on_duty"),
+                "snapshot_time": snap.get("snapshot_time"),
+            }
+        else:
+            result[node_type] = {"staff": [], "staff_on_duty": None, "snapshot_time": None}
+    return result
+
+
+# ──────────────────────────────────────────
 # API：系統狀態
 # ──────────────────────────────────────────
 
@@ -384,9 +411,10 @@ def index():
     return """
     <html><head><meta charset="UTF-8"><title>ICS 指揮部</title></head>
     <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
-    <h2 style="color:#fff">ICS 指揮部 command-v0.2.0</h2>
+    <h2 style="color:#fff">ICS 指揮部 command-v0.3.0</h2>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">儀表板</p>
-    <p><a href="/static/staff_v13.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.2.0（地圖投影）</a></p>
+    <p><a href="/static/staff_v14.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.3.0（互動事件 + 裁示）</a></p>
+    <p><a href="/static/staff_v13.html" style="color:#6e7b96">▶ 儀表板 command-v0.2.0（地圖投影）</a></p>
     <p><a href="/static/staff_v12.html" style="color:#6e7b96">▶ 舊版儀表板 v0.1.0</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">工具</p>
     <p><a href="/static/qr_scanner.html" style="color:#90b8e8">▶ QR 快照掃描</a></p>

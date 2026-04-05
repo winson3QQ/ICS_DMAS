@@ -412,6 +412,14 @@ def dashboard_calc(
     # 產出監控
     output = output_monitor(medical_snaps, shelter_snaps)
 
+    # ── Wave 2 新增：DCI（資料信心度指數）──
+    freshness_all = {
+        "medical": freshness_medical, "shelter": freshness_shelter,
+        "forward": freshness_forward, "security": freshness_security,
+    }
+    trend_all = [med_bed_trend, med_waiting_trend, shel_bed_trend]
+    dci = data_confidence_index(freshness_all, comm, trend_all)
+
     return {
         "computed_at": _now_utc().strftime("%Y-%m-%dT%H:%M:%SZ"),
 
@@ -448,6 +456,7 @@ def dashboard_calc(
         "burn_rates": burn_rates,
         "comm_health": comm,
         "output_monitor": output,
+        "data_confidence": dci,
     }
 
 
@@ -802,6 +811,86 @@ def output_monitor(medical_snaps: list[dict],
         result["note"] = "；".join(notes)
 
     return result
+
+
+# ──────────────────────────────────────────
+# Wave 2：DCI（Data Confidence Index，資料信心度指數）
+# ──────────────────────────────────────────
+
+def data_confidence_index(
+    freshness_all: dict[str, dict],
+    comm_all: dict[str, dict],
+    trends: list[dict],
+) -> dict:
+    """
+    DCI = 加權平均(
+      freshness_score × 0.4,
+      coverage_score × 0.3,
+      trend_confidence_score × 0.2,
+      comm_health_score × 0.1,
+    )
+
+    freshness_all: {"medical": freshness(), "shelter": ..., ...}
+    comm_all:      {"medical": comm_health(), ...}
+    trends:        [trend(), trend(), ...]
+
+    回傳 { overall: 0~100, components: {...}, level: 'high'|'medium'|'low' }
+    """
+    # ① 新鮮度分數：四組平均，level → 分數
+    _fresh_score = {"ok": 100, "warn": 60, "crit": 30, "lkp": 0}
+    fresh_scores = [
+        _fresh_score.get(f.get("level", "lkp"), 0)
+        for f in freshness_all.values()
+    ]
+    freshness_score = sum(fresh_scores) / max(len(fresh_scores), 1)
+
+    # ② 覆蓋率：四組中有幾組有資料（非 lkp）
+    covered = sum(1 for f in freshness_all.values() if f.get("level") != "lkp")
+    coverage_score = covered / max(len(freshness_all), 1) * 100
+
+    # ③ 趨勢信心度平均
+    _conf_score = {"high": 100, "medium": 70, "low": 30, "insufficient": 0}
+    trend_scores = [
+        _conf_score.get(t.get("confidence", "insufficient"), 0)
+        for t in trends
+    ]
+    trend_score = sum(trend_scores) / max(len(trend_scores), 1) if trend_scores else 0
+
+    # ④ 通訊健康度平均
+    _health_score = {"ok": 100, "warn": 60, "crit": 30, "lkp": 0}
+    comm_scores = [
+        _health_score.get(c.get("health_level", "lkp"), 0)
+        for c in comm_all.values()
+    ]
+    comm_score = sum(comm_scores) / max(len(comm_scores), 1)
+
+    # 加權合計
+    overall = (
+        freshness_score * 0.4 +
+        coverage_score * 0.3 +
+        trend_score * 0.2 +
+        comm_score * 0.1
+    )
+    overall = round(overall, 1)
+
+    # 判斷等級
+    if overall >= 70:
+        level = "high"
+    elif overall >= 40:
+        level = "medium"
+    else:
+        level = "low"
+
+    return {
+        "overall": overall,
+        "level": level,
+        "components": {
+            "freshness": round(freshness_score, 1),
+            "coverage": round(coverage_score, 1),
+            "trend_confidence": round(trend_score, 1),
+            "comm_health": round(comm_score, 1),
+        },
+    }
 
 
 def _parse_forward_units(fwd_snap: dict | None) -> list[dict]:

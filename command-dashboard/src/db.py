@@ -280,7 +280,7 @@ def create_event(data: dict) -> dict:
             1 if data.get("needs_commander_decision") else 0,
             data["description"],
             data.get("related_person_name"),
-            data.get("occurred_at", now),
+            data.get("occurred_at") or now,
             data["operator_name"],
             now,
         ))
