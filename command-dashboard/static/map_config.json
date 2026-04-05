@@ -5,15 +5,6 @@
       "label": "站內",
       "zones": [
         {
-          "id": "custom_1775360699714",
-          "label": "人多",
-          "sub": "",
-          "x_pct": 58.5,
-          "y_pct": 71.3,
-          "node_type": "shelter",
-          "icon": "⚠️"
-        },
-        {
           "id": "custom_1775360727119",
           "label": "收容組",
           "sub": "",
@@ -30,15 +21,6 @@
           "y_pct": 88.8,
           "node_type": "security",
           "icon": "👤"
-        },
-        {
-          "id": "custom_1775364377560",
-          "label": "暴力事件",
-          "sub": "",
-          "x_pct": 49.4,
-          "y_pct": 54.8,
-          "node_type": "urgent",
-          "icon": "⚠️"
         }
       ],
       "flows": []
@@ -48,13 +30,37 @@
       "label": "站外",
       "zones": [
         {
-          "id": "custom_1775364744600",
+          "id": "custom_1775388807444",
           "label": "救人",
           "sub": "",
-          "x_pct": 62.3,
-          "y_pct": 48.4,
-          "node_type": "urgent",
-          "icon": "⚠️"
+          "x_pct": 50,
+          "y_pct": 50,
+          "node_type": "forward",
+          "icon": "alert",
+          "event_id": "c1e66423-0a63-43c0-86ff-6f067e17277f",
+          "event_code": "EV-0405-012"
+        },
+        {
+          "id": "custom_1775389171887",
+          "label": "救人",
+          "sub": "",
+          "x_pct": 50,
+          "y_pct": 50,
+          "node_type": "forward",
+          "icon": "warning",
+          "event_id": "36b538f2-065e-4f1e-9be2-3eb52798d359",
+          "event_code": "EV-0405-014"
+        },
+        {
+          "id": "custom_1775389180365",
+          "label": "救人",
+          "sub": "",
+          "x_pct": 50,
+          "y_pct": 50,
+          "node_type": "forward",
+          "icon": "warning",
+          "event_id": "b4d58d49-7865-4c55-9f7d-0b8d9ccfd123",
+          "event_code": "EV-0405-015"
         }
       ],
       "flows": []

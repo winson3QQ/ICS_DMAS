@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.4.2';</script>
+<script>const CMD_VERSION='v0.4.9';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -296,6 +296,10 @@ canvas{display:block;width:100%!important;height:100%!important;}
 /* 事件地圖標記 */
 .event-marker{z-index:8;}
 .event-marker .zone-info{display:flex !important;}
+
+/* 逾時事件 marker 閃爍 */
+.zone-marker.overdue .zone-dot{animation:pulse 1s infinite;}
+.zone-marker.overdue .zone-label{background:rgba(204,42,42,.7);}
 </style>
 </head>
 <body>
@@ -451,6 +455,10 @@ canvas{display:block;width:100%!important;height:100%!important;}
   <div class="zc-esc" id="zc-esc">
     <div class="zc-esc-title">📋 升降級觸發</div>
     <div id="zc-esc-list" style="font-size:11px;color:var(--text3);">等待資料⋯</div>
+  </div>
+  <div class="zc-dec" id="zc-evt">
+    <div class="zc-esc-title">📋 事件追蹤 <span id="evt-count" style="color:var(--yellow)">0</span></div>
+    <div id="zc-evt-list" style="font-size:11px;color:var(--text3);">無開放事件</div>
   </div>
   <div class="zc-dec" id="zc-dec">
     <div class="zc-esc-title" style="display:flex;gap:8px;align-items:center;">
@@ -701,11 +709,46 @@ function renderMapOverlay() {
     const freshLevel = (z.node_type && calc[z.node_type]?.freshness?.level) || '';
     const freshDot = freshLevel ? `<span class="zone-fresh ${freshLevel}"></span>` : '';
 
+    // 事件 marker 處理：倒數、結案隱藏、逾時閃紅
+    let countdownText = '';
+    const isEvtZone = !!(z.event_id || z.event_code);
+    if (isEvtZone) {
+      // 找對應事件（用 event_id 或 location_zone_id）
+      const allEvts = _data?.events || [];
+      const ev = z.event_id
+        ? allEvts.find(e => e.id === z.event_id)
+        : allEvts.find(e => e.location_zone_id === z.id);
+
+      if (!ev) {
+        // 事件不在 open/in_progress 列表中 → 已結案或已刪除，不渲染
+        return;
+      }
+
+      if (ev.response_deadline) {
+        countdownText = _countdownStr(ev.response_deadline);
+      }
+      // 逾時 → marker 閃紅
+      if (ev.response_deadline) {
+        const ts = ev.response_deadline.endsWith('Z') ? ev.response_deadline : ev.response_deadline + 'Z';
+        if (new Date(ts).getTime() < Date.now()) {
+          marker.classList.add('overdue');
+        }
+      }
+    }
+
+    // 事件 marker：只顯示編號+倒數，不顯示據點 stats；hover 才顯示完整標籤
+    const isEvt = !!(z.event_id || z.event_code);
+    const labelText = isEvt
+      ? `${z.event_code || ''} ${z.label}`
+      : z.label;
+    const displayStats = isEvt ? '' : statsText; // 事件不顯示 R:3 Y:2
+
     marker.innerHTML = `
       <div class="zone-dot" style="position:relative">${renderIcon(z.icon)}${freshDot}</div>
-      <div class="zone-info">
-        <div class="zone-label">${z.label}</div>
-        ${statsText ? '<div class="zone-stats">' + statsText + '</div>' : ''}
+      <div class="zone-info" ${isEvt ? 'style="display:flex"' : ''}>
+        <div class="zone-label">${isEvt ? (z.event_code || z.label) : z.label}</div>
+        ${displayStats ? '<div class="zone-stats">' + displayStats + '</div>' : ''}
+        ${countdownText ? '<div class="zone-stats" style="color:' + (countdownText.startsWith('逾時') ? 'var(--red)' : 'var(--yellow)') + '">' + countdownText + '</div>' : ''}
       </div>
     `;
 
@@ -717,20 +760,40 @@ function renderMapOverlay() {
       marker.addEventListener('touchstart', (e) => _startDrag(marker, z, e), {passive:false});
     } else {
       // 正常模式：單擊固定標籤，雙擊開 modal
+      // 用 delay 區分單/雙擊，避免單擊吃掉雙擊
+      let _clickTimer = null;
       marker.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (_pinnedZones.has(z.id)) {
-          _pinnedZones.delete(z.id);
-          marker.classList.remove('pinned');
-        } else {
-          _pinnedZones.add(z.id);
-          marker.classList.add('pinned');
-        }
+        console.log('[click]', z.id, z.label, 'node_type:', z.node_type, 'event_id:', z.event_id);
+        if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; return; }
+        _clickTimer = setTimeout(() => {
+          _clickTimer = null;
+          console.log('[click-single]', z.id, z.label);
+          if (_pinnedZones.has(z.id)) {
+            _pinnedZones.delete(z.id);
+            marker.classList.remove('pinned');
+          } else {
+            _pinnedZones.add(z.id);
+            marker.classList.add('pinned');
+          }
+        }, 250);
       });
-      // 雙擊開據點專屬 modal（所有據點都可以）
       marker.addEventListener('dblclick', (e) => {
         e.stopPropagation();
-        showZoneDetail(z);
+        if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; }
+        const isEventMarker = z.event_id || z.event_code || (z.node_type !== 'shelter' && z.node_type !== 'medical');
+        console.log('[dblclick]', z.id, z.label, 'node_type:', z.node_type, 'event_id:', z.event_id, 'isEvent:', isEventMarker);
+        try {
+          if (isEventMarker) {
+            console.log('[dblclick] → showEventProcessModal');
+            showEventProcessModal(z);
+          } else {
+            console.log('[dblclick] → showZoneDetail');
+            showZoneDetail(z);
+          }
+        } catch(err) {
+          console.error('[dblclick] ERROR:', err);
+        }
       });
     }
 
@@ -740,48 +803,7 @@ function renderMapOverlay() {
   // 流向箭頭
   renderFlows();
 
-  // 渲染地圖上的未結案事件
-  const mapEvents = _data?.open_events_on_map || [];
-  mapEvents.forEach(ev => {
-    const zone = m.zones.find(z => z.id === ev.location_zone_id);
-    if (!zone) return;
-
-    const evMarker = document.createElement('div');
-    evMarker.className = 'zone-marker event-marker';
-    evMarker.style.left = zone.x_pct + '%';
-    evMarker.style.top = (parseFloat(zone.y_pct) + 3) + '%';
-
-    const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
-
-    evMarker.innerHTML = `
-      <div class="zone-dot" style="position:relative">${renderIcon('alert')}</div>
-      <div class="zone-info" style="display:flex">
-        <div class="zone-label" style="background:${sevColor}55;border:1px solid ${sevColor}">${ev.event_type}</div>
-      </div>
-    `;
-
-    // 右鍵開事件詳情
-    evMarker.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      showEventDetail(ev);
-    });
-    // 長按支援
-    let _evLongPress = null;
-    evMarker.addEventListener('touchstart', () => {
-      _evLongPress = setTimeout(() => showEventDetail(ev), 600);
-    }, {passive:false});
-    evMarker.addEventListener('touchend', () => clearTimeout(_evLongPress));
-    evMarker.addEventListener('touchmove', () => clearTimeout(_evLongPress));
-
-    // 單擊固定標籤
-    evMarker.addEventListener('click', (e) => {
-      e.stopPropagation();
-      evMarker.classList.toggle('pinned');
-    });
-
-    overlay.appendChild(evMarker);
-  });
+  // 事件 marker 已統一由 zone marker 處理（v0.4.3+），不再另外渲染
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -864,6 +886,145 @@ async function updateEventStatus(eventId, status) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// 事件處置 Modal（從地圖 marker 雙擊開啟）
+// ══════════════════════════════════════════════════════════════
+
+function _countdownStr(deadline) {
+  if (!deadline) return '';
+  const ts = deadline.endsWith('Z') ? deadline : deadline + 'Z';
+  const diff = new Date(ts).getTime() - Date.now();
+  const absDiff = Math.abs(diff);
+  const min = Math.floor(absDiff / 60000);
+  const sec = Math.floor((absDiff % 60000) / 1000);
+  const timeStr = min + ':' + String(sec).padStart(2, '0');
+  return diff < 0 ? '逾時 ' + timeStr : '剩餘 ' + timeStr;
+}
+
+function showEventProcessModal(zone) {
+  // 找對應事件：優先用 event_id，其次用 location_zone_id 比對
+  const allEvts = _data?.events || [];
+  const ev = zone.event_id
+    ? allEvts.find(e => e.id === zone.event_id)
+    : allEvts.find(e => e.location_zone_id === zone.id);
+  if (!ev) {
+    // 找不到事件，用一般 zone modal
+    showZoneDetail(zone);
+    return;
+  }
+
+  const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
+  const statusLabel = {open:'未結',in_progress:'處理中',resolved:'已結案',closed:'已關閉'}[ev.status] || ev.status;
+  const statusC = (ev.status === 'resolved' || ev.status === 'closed') ? 'var(--green)' : 'var(--yellow)';
+  const notes = _parseNotes(ev.notes);
+  const isOpen = ev.status === 'open' || ev.status === 'in_progress';
+  const countdown = ev.response_deadline ? _countdownStr(ev.response_deadline) : '';
+  const countdownColor = countdown.startsWith('逾時') ? 'var(--red)' : 'var(--yellow)';
+
+  let html = '';
+  // 標題區
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">`;
+  html += `<div>`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:3px;background:${sevColor}33;color:${sevColor};font-size:10px;font-weight:700;">${ev.severity}</span>`;
+  html += `<span style="font-size:10px;color:${statusC};font-weight:600;margin-left:6px;">${statusLabel}</span>`;
+  html += `</div>`;
+  if (countdown) {
+    html += `<div style="font-size:12px;font-weight:700;color:${countdownColor};">⏱ ${countdown}</div>`;
+  }
+  html += `</div>`;
+
+  // 事件資訊
+  html += `<div style="font-size:14px;font-weight:700;margin-bottom:6px;">${ev.description || ev.event_type}</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:4px;">`;
+  html += `回報：${ev.operator_name}　組別：${ev.reported_by_unit}`;
+  if (ev.location_desc) html += `　📍 ${ev.location_desc}`;
+  html += `</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:10px;">`;
+  html += `發生：${(ev.occurred_at||'').slice(11,16)}　期限：${(ev.response_deadline||'').slice(11,16)}`;
+  html += `</div>`;
+
+  // 處置紀錄
+  html += `<div style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">`;
+  html += `<div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px;">處置紀錄</div>`;
+  if (notes.length > 0) {
+    notes.forEach(n => {
+      html += `<div style="font-size:11px;padding:3px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
+      html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
+      html += n.by ? ` <span style="color:var(--green);font-weight:600;">${n.by}</span>` : '';
+      html += ` — ${n.text}`;
+      html += `</div>`;
+    });
+  } else {
+    html += `<div style="font-size:10px;color:var(--text3);">無處置紀錄</div>`;
+  }
+  html += `</div>`;
+
+  // 操作區（未結案）
+  if (isOpen) {
+    html += `<div style="border-top:1px solid var(--border);padding-top:8px;">`;
+    html += `<div style="display:flex;gap:4px;margin-bottom:6px;">`;
+    html += `<input id="ev-proc-note" placeholder="追加處置紀錄..." style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);">`;
+    html += `<button onclick="_addEventNoteFromModal('${ev.id}')" style="padding:6px 12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);">追加</button>`;
+    html += `</div>`;
+    html += `<div style="display:flex;gap:6px;">`;
+    if (ev.status === 'open') {
+      html += `<button onclick="_updateEvFromModal('${ev.id}','in_progress')" style="flex:1;padding:6px;background:var(--yellow);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">處理中</button>`;
+    }
+    if (notes.length > 0) {
+      html += `<button onclick="_updateEvFromModal('${ev.id}','resolved')" style="flex:1;padding:6px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">結案</button>`;
+    } else {
+      html += `<button disabled style="flex:1;padding:6px;background:var(--border);color:var(--text3);border:none;border-radius:4px;font-size:11px;cursor:not-allowed;font-family:var(--mono);" title="請先追加處置紀錄">結案</button>`;
+    }
+    html += `</div>`;
+    html += `</div>`;
+  }
+
+  const iconHtml = `<span style="display:inline-flex;vertical-align:middle;margin-right:4px;">${renderIcon(zone.icon)}</span>`;
+  el('modal-title').innerHTML = `${iconHtml} ${ev.event_code || ''}　${zone.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _addEventNoteFromModal(eventId) {
+  const input = document.getElementById('ev-proc-note');
+  const text = input?.value?.trim();
+  if (!text) { input?.focus(); return; }
+  try {
+    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ text, operator: '指揮部' })
+    });
+    if (resp.ok) {
+      await poll();
+      // 重新開啟 modal
+      const zone = _findZoneByEventId(eventId);
+      if (zone) showEventProcessModal(zone);
+    }
+  } catch(e) { alert('追加失敗：' + e.message); }
+}
+
+async function _updateEvFromModal(eventId, status) {
+  try {
+    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=指揮部', {
+      method: 'PATCH',
+    });
+    if (resp.ok) {
+      closeModal();
+      await poll();
+    }
+  } catch(e) { alert('更新失敗：' + e.message); }
+}
+
+function _findZoneByEventId(eventId) {
+  if (!_mapConfig) return null;
+  for (const mapKey of Object.keys(_mapConfig.maps)) {
+    const z = _mapConfig.maps[mapKey].zones.find(z => z.event_id === eventId);
+    if (z) return z;
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════
 // 地圖編輯模式
 // ══════════════════════════════════════════════════════════════
 
@@ -940,7 +1101,7 @@ function updateSelectedZone() {
   renderMapOverlay();
 }
 
-function addMarkerAtCenter() {
+async function addMarkerAtCenter() {
   if (!_mapConfig || !_currentMap) return;
   const m = _mapConfig.maps[_currentMap];
   const label = el('ed-label').value.trim();
@@ -948,9 +1109,38 @@ function addMarkerAtCenter() {
   const icon = el('ed-icon').value;
   const nodeType = el('ed-type').value || null;
   const id = 'custom_' + Date.now();
-  m.zones.push({ id, label, sub: '', x_pct: 50, y_pct: 50, node_type: nodeType, icon });
+  const zone = { id, label, sub: '', x_pct: 50, y_pct: 50, node_type: nodeType, icon };
+
+  // 非收容/醫療 → 自動建事件
+  if (nodeType !== 'shelter' && nodeType !== 'medical') {
+    const severity = nodeType === 'urgent' ? 'critical' : 'warning';
+    try {
+      const resp = await fetch(API_BASE + '/api/events', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          reported_by_unit: nodeType || 'command',
+          event_type: label,
+          severity: severity,
+          description: label,
+          operator_name: '指揮部',
+          location_zone_id: id,
+          location_desc: label,
+        })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        zone.event_id = data.id;
+        zone.event_code = data.event_code;
+      }
+    } catch(e) { console.warn('自動建事件失敗', e); }
+  }
+
+  m.zones.push(zone);
   el('ed-label').value = '';
   renderMapOverlay();
+  // 自動儲存 map config（含事件 zone）
+  saveMapConfig();
 }
 
 function deleteSelectedMarker() {
@@ -1881,6 +2071,47 @@ function renderZoneC(d) {
       });
       el('zc-dec-list').innerHTML = dhtml;
     }
+  }
+
+  // 事件追蹤
+  const openEvents = (_data?.events || []).filter(e => e.status === 'open' || e.status === 'in_progress');
+  el('evt-count').textContent = openEvents.length;
+  if (openEvents.length === 0) {
+    el('zc-evt-list').innerHTML = '<div style="color:var(--green);font-size:11px;">無開放事件</div>';
+  } else {
+    // 逾時排前面
+    const now = Date.now();
+    const sorted = openEvents.sort((a, b) => {
+      const aOverdue = a.response_deadline && new Date(a.response_deadline.endsWith('Z') ? a.response_deadline : a.response_deadline + 'Z').getTime() < now;
+      const bOverdue = b.response_deadline && new Date(b.response_deadline.endsWith('Z') ? b.response_deadline : b.response_deadline + 'Z').getTime() < now;
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+      return 0;
+    });
+    let evtHtml = '';
+    sorted.forEach(ev => {
+      const cd = ev.response_deadline ? _countdownStr(ev.response_deadline) : '';
+      const isOverdue = cd.startsWith('逾時');
+      const cdColor = isOverdue ? 'var(--red)' : 'var(--text3)';
+      const sevCls = ev.severity === 'critical' ? 'crit' : 'warn';
+      evtHtml += `<div class="zc-esc-item" style="cursor:pointer;padding:2px 0;" onclick="_openEventByCode('${ev.id}')">`;
+      evtHtml += `<span class="tag ${sevCls}">${ev.event_code || '—'}</span>`;
+      evtHtml += `<span style="font-size:10px;">${_truncate(ev.event_type, 12)}</span>`;
+      evtHtml += `<span style="font-size:9px;color:${cdColor};margin-left:auto;font-weight:${isOverdue?'700':'400'};">${cd}</span>`;
+      evtHtml += `</div>`;
+    });
+    el('zc-evt-list').innerHTML = evtHtml;
+  }
+}
+
+function _openEventByCode(eventId) {
+  const zone = _findZoneByEventId(eventId);
+  if (zone) {
+    showEventProcessModal(zone);
+  } else {
+    // 沒有地圖據點的事件，用簡易 modal
+    const ev = (_data?.events || []).find(e => e.id === eventId);
+    if (ev) showEventDetail(ev);
   }
 }
 

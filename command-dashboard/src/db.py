@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 -- 事件記錄
 CREATE TABLE IF NOT EXISTS events (
     id                      TEXT PRIMARY KEY,  -- UUID
+    event_code              TEXT,              -- 可讀編號 EV-MMDD-NNN
     reported_by_unit        TEXT NOT NULL,
     location_desc           TEXT,
     location_zone_id        TEXT,              -- 對應 map_config zone.id（地圖據點）
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS events (
     severity                TEXT NOT NULL DEFAULT 'info',  -- critical/warning/info
     status                  TEXT NOT NULL DEFAULT 'open',  -- open/in_progress/resolved/closed
     response_type           TEXT,
+    response_deadline       TEXT,              -- ISO UTC，依嚴重度自動計算的處置期限
     needs_commander_decision INTEGER NOT NULL DEFAULT 0,   -- 0/1
     description             TEXT NOT NULL,
     related_person_name     TEXT,
@@ -264,33 +266,69 @@ def get_latest_snapshot(node_type: str) -> dict | None:
 def create_event(data: dict) -> dict:
     eid = str(uuid.uuid4())
     now = _now()
+    severity = data.get("severity", "info")
+
+    # 產生可讀事件編號 EV-MMDD-NNN
+    event_code = _generate_event_code(now)
+
+    # 依嚴重度計算處置期限（critical=10分/warning=30分/info=60分）
+    deadline_min = {"critical": 10, "warning": 30, "info": 60}.get(severity, 60)
+    occurred = data.get("occurred_at") or now
+    response_deadline = _add_minutes(occurred, deadline_min)
+
     sql = """
         INSERT INTO events
-            (id, reported_by_unit, location_desc, location_zone_id, event_type, severity,
-             status, response_type, needs_commander_decision, description,
+            (id, event_code, reported_by_unit, location_desc, location_zone_id,
+             event_type, severity, status, response_type, response_deadline,
+             needs_commander_decision, description,
              related_person_name, occurred_at, operator_name, created_at)
-        VALUES (?,?,?,?,?,?, ?,?,?,?, ?,?,?,?)
+        VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?, ?,?,?,?)
     """
     with get_conn() as conn:
         conn.execute(sql, (
             eid,
+            event_code,
             data["reported_by_unit"],
             data.get("location_desc"),
             data.get("location_zone_id"),
             data["event_type"],
-            data.get("severity", "info"),
+            severity,
             "open",
             data.get("response_type"),
+            response_deadline,
             1 if data.get("needs_commander_decision") else 0,
             data["description"],
             data.get("related_person_name"),
-            data.get("occurred_at") or now,
+            occurred,
             data["operator_name"],
             now,
         ))
     _audit(data["operator_name"], None, "event_created",
-           "events", eid, {"event_type": data["event_type"], "severity": data.get("severity","info")})
-    return {"id": eid}
+           "events", eid, {"event_code": event_code, "event_type": data["event_type"], "severity": severity})
+    return {"id": eid, "event_code": event_code, "response_deadline": response_deadline}
+
+
+def _generate_event_code(now_str: str) -> str:
+    """產生可讀事件編號 EV-MMDD-NNN（當天流水號）"""
+    # 取日期部分 MMDD
+    mmdd = now_str[5:7] + now_str[8:10]
+    prefix = f"EV-{mmdd}-"
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM events WHERE event_code LIKE ?",
+            (prefix + "%",)
+        ).fetchone()
+        seq = (row["cnt"] or 0) + 1
+    return f"{prefix}{seq:03d}"
+
+
+def _add_minutes(iso_str: str, minutes: int) -> str:
+    """ISO UTC 字串加 N 分鐘"""
+    from datetime import timedelta
+    dt_str = iso_str.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(dt_str)
+    result = dt + timedelta(minutes=minutes)
+    return result.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def get_events(status: str | None = None, limit: int = 50) -> list[dict]:
