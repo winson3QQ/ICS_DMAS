@@ -307,11 +307,11 @@ def get_dashboard():
         audit_summary: { total_today: int }
       }
     """
-    # 取各組最近快照
-    medical_snaps  = db.get_snapshots("medical",  20)
-    shelter_snaps  = db.get_snapshots("shelter",  20)
-    forward_snaps  = db.get_snapshots("forward",  20)
-    security_snaps = db.get_snapshots("security", 20)
+    # 取各組最近快照（40 筆供 burn_rate / comm_health 分析）
+    medical_snaps  = db.get_snapshots("medical",  40)
+    shelter_snaps  = db.get_snapshots("shelter",  40)
+    forward_snaps  = db.get_snapshots("forward",  40)
+    security_snaps = db.get_snapshots("security", 40)
 
     # 計算引擎
     calc = calc_engine.dashboard_calc(
@@ -352,6 +352,19 @@ def get_dashboard():
 # API：系統狀態
 # ──────────────────────────────────────────
 
+# ──────────────────────────────────────────
+# API：地圖設定
+# ──────────────────────────────────────────
+
+@app.post("/api/map_config", tags=["系統"])
+async def save_map_config(request: Request):
+    """儲存地圖據點配置（由前端編輯模式呼叫）"""
+    body = await request.json()
+    config_path = static_path / "map_config.json"
+    config_path.write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "path": str(config_path)}
+
+
 @app.get("/api/health", tags=["系統"])
 def health():
     """各組 Pi 可 ping 此端點確認指揮部後端存活"""
@@ -371,9 +384,10 @@ def index():
     return """
     <html><head><meta charset="UTF-8"><title>ICS 指揮部</title></head>
     <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
-    <h2 style="color:#fff">ICS 指揮部 command-v0.1.0</h2>
+    <h2 style="color:#fff">ICS 指揮部 command-v0.2.0</h2>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">儀表板</p>
-    <p><a href="/static/staff_v12.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.1.0</a></p>
+    <p><a href="/static/staff_v13.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.2.0（地圖投影）</a></p>
+    <p><a href="/static/staff_v12.html" style="color:#6e7b96">▶ 舊版儀表板 v0.1.0</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">工具</p>
     <p><a href="/static/qr_scanner.html" style="color:#90b8e8">▶ QR 快照掃描</a></p>
     <p><a href="/static/manual_input.html" style="color:#90b8e8">▶ 手動輸入</a></p>

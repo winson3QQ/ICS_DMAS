@@ -21,6 +21,18 @@ API = "http://127.0.0.1:8000"
 SNAP_INTERVAL_MIN = 2  # 每筆快照間隔（模擬分鐘）
 
 
+def _snap_time(i: int, total: int) -> dt.datetime:
+    """
+    計算第 i 筆快照的時間戳。
+    在 ~50% 進度處插入 15 分鐘空洞（觸發 comm_health gap 偵測）。
+    """
+    base = dt.datetime(2026, 4, 5, 8, 0, 0) + dt.timedelta(minutes=i * SNAP_INTERVAL_MIN)
+    gap_idx = total // 2
+    if i >= gap_idx:
+        base += dt.timedelta(minutes=15)  # 所有 50% 之後的快照往後推 15 分鐘
+    return base
+
+
 def gen_shelter(i: int, total: int) -> dict:
     """產生一筆收容組快照"""
     # 基礎：50 床，逐漸收人
@@ -40,7 +52,7 @@ def gen_shelter(i: int, total: int) -> dict:
     pending_intake = max(0, random.randint(0, 4) + (2 if phase > 0.3 else 0))
     staff = random.choice([4, 5, 5, 6])
 
-    ts = dt.datetime(2026, 4, 5, 8, 0, 0) + dt.timedelta(minutes=i * SNAP_INTERVAL_MIN)
+    ts = _snap_time(i, total)
 
     return {
         "v": 3,
@@ -56,6 +68,12 @@ def gen_shelter(i: int, total: int) -> dict:
         "staff_on_duty": staff,
         "extra": {
             "staff_ratio": round(bed_used / max(staff, 1), 1),
+            "exited_total": max(0, int(5 * phase + random.randint(-1, 1))),
+            "supplies": {
+                "blanket": max(10, int(200 - 80 * phase + random.randint(-5, 5))),
+                "water_bottle": max(20, int(500 - 150 * phase + random.randint(-10, 10))),
+            },
+            "supplies_max": {"blanket": 200, "water_bottle": 500},
             "incident_pressure": {
                 "high": random.choice([0, 0, 0, 1]) if phase > 0.4 else 0,
                 "medium": random.randint(0, 2),
@@ -89,15 +107,24 @@ def gen_medical(i: int, total: int, shelter_srt_history: list) -> dict:
     src_b = int(1 + 5 * phase + random.randint(-1, 1))   # 收容轉送→醫療
     src_c = int(2 + 3 * phase + random.randint(0, 1))    # 自行抵達→醫療
 
-    pending_evac = max(0, random.randint(0, 3) + (2 if cas_red > 1 else 0))
+    # 60~80% 進度時 pending_evac 持續上升（觸發 output_monitor backlog）
+    if 0.60 <= phase <= 0.80:
+        pending_evac = max(0, int(3 + 5 * (phase - 0.60) / 0.20 + random.randint(0, 2)))
+    else:
+        pending_evac = max(0, random.randint(0, 3) + (2 if cas_red > 1 else 0))
     staff = random.choice([3, 3, 4, 4, 5])
 
     # 物資消耗（百分比遞減）
-    iv_remain = max(5, int(100 - 40 * phase + random.randint(-5, 5)))
+    # 70~85% 進度時 IV 消耗加速 3 倍（觸發 burn_rate crit）
+    if 0.70 <= phase <= 0.85:
+        iv_decay = 40 + 80 * (phase - 0.70) / 0.15  # 加速消耗
+    else:
+        iv_decay = 40 * phase
+    iv_remain = max(5, int(100 - iv_decay + random.randint(-3, 3)))
     ox_remain = max(10, int(100 - 30 * phase + random.randint(-5, 5)))
     tq_remain = max(15, int(100 - 25 * phase + random.randint(-3, 3)))
 
-    ts = dt.datetime(2026, 4, 5, 8, 0, 0) + dt.timedelta(minutes=i * SNAP_INTERVAL_MIN)
+    ts = _snap_time(i, total)
 
     return {
         "v": 3,
@@ -110,6 +137,7 @@ def gen_medical(i: int, total: int, shelter_srt_history: list) -> dict:
         "bed_total": bed_total,
         "casualties": {"red": cas_red, "yellow": cas_yellow, "green": cas_green, "black": cas_black},
         "pending_evac": pending_evac,
+        "evacuated_total": max(0, int(8 * phase + random.randint(-1, 1))),
         "staff_on_duty": staff,
         "extra": {
             "src_a": src_a,

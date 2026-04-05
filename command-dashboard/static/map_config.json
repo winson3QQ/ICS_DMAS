@@ -1,0 +1,44 @@
+{
+  "maps": {
+    "indoor": {
+      "image": "ICS_Campus_map.jpg",
+      "label": "站內",
+      "zones": [
+        {
+          "id": "custom_1775360699714",
+          "label": "人多",
+          "sub": "",
+          "x_pct": 58.1,
+          "y_pct": 72.7,
+          "node_type": "shelter",
+          "icon": "⚠️"
+        },
+        {
+          "id": "custom_1775360727119",
+          "label": "收容組",
+          "sub": "",
+          "x_pct": 52.4,
+          "y_pct": 48,
+          "node_type": "shelter",
+          "icon": "📌"
+        },
+        {
+          "id": "custom_1775360743164",
+          "label": "五縱",
+          "sub": "",
+          "x_pct": 62.1,
+          "y_pct": 88.8,
+          "node_type": "security",
+          "icon": "👤"
+        }
+      ],
+      "flows": []
+    },
+    "outdoor": {
+      "image": "Satellite_map.png",
+      "label": "站外",
+      "zones": [],
+      "flows": []
+    }
+  }
+}

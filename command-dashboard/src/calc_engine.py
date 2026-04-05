@@ -382,6 +382,36 @@ def dashboard_calc(
         med_bed_trend, med_waiting_trend, shel_bed_trend
     ] if t["confidence"] in ("low", "insufficient"))
 
+    # ── Wave 1.3 新增：三項智慧 ──
+
+    # 物資消耗速率（醫療 + 收容各自的物資）
+    burn_rates = {}
+    # 醫療物資 keys
+    med_supply_keys = set()
+    for s in medical_snaps:
+        extra = s.get("extra") or {}
+        med_supply_keys.update((extra.get("supplies") or {}).keys())
+    for key in med_supply_keys:
+        burn_rates[f"medical_{key}"] = burn_rate(medical_snaps, key)
+    # 收容物資 keys
+    shel_supply_keys = set()
+    for s in shelter_snaps:
+        extra = s.get("extra") or {}
+        shel_supply_keys.update((extra.get("supplies") or {}).keys())
+    for key in shel_supply_keys:
+        burn_rates[f"shelter_{key}"] = burn_rate(shelter_snaps, key)
+
+    # 通訊健康度
+    comm = {
+        "medical":  comm_health(medical_snaps,  "medical",  th),
+        "shelter":  comm_health(shelter_snaps,  "shelter",  th),
+        "forward":  comm_health(forward_snaps,  "forward",  th),
+        "security": comm_health(security_snaps, "security", th),
+    }
+
+    # 產出監控
+    output = output_monitor(medical_snaps, shelter_snaps)
+
     return {
         "computed_at": _now_utc().strftime("%Y-%m-%dT%H:%M:%SZ"),
 
@@ -415,6 +445,9 @@ def dashboard_calc(
         },
         "medical_pressure": mpi,
         "low_confidence_count": low_conf_count,
+        "burn_rates": burn_rates,
+        "comm_health": comm,
+        "output_monitor": output,
     }
 
 
@@ -487,6 +520,288 @@ def _extract_ops_metrics(snap: dict | None) -> dict:
 
 def _stale() -> dict:
     return {"level": "lkp", "minutes": 999, "label": "無資料"}
+
+
+# ──────────────────────────────────────────
+# 物資消耗速率（Resource Burn Rate）
+# ──────────────────────────────────────────
+
+def burn_rate(snapshots: list[dict], supply_key: str) -> dict:
+    """
+    從最近 N 筆快照計算物資消耗速率。
+    supply_key: extra.supplies 中的 key（如 "iv_fluid", "bandage"）
+
+    回傳：
+      {
+        rate_per_min: float | None,   # 每分鐘消耗量（正數=消耗中）
+        current: int | None,          # 目前存量
+        max_val: int | None,          # 最大存量
+        pct_remaining: float | None,  # 剩餘百分比 0~1
+        time_to_zero_min: float | None,  # 預估歸零時間（分鐘）
+        level: str,                   # ok / warn / crit
+        note: str
+      }
+    """
+    no_data = {
+        "rate_per_min": None, "current": None, "max_val": None,
+        "pct_remaining": None, "time_to_zero_min": None,
+        "level": "ok", "note": "無物資資料"
+    }
+
+    # 收集有效資料點：(snapshot_time, supply_value)
+    points = []
+    max_val = None
+    for s in snapshots:
+        extra = s.get("extra") or {}
+        supplies = extra.get("supplies") or {}
+        val = supplies.get(supply_key)
+        if val is not None:
+            points.append((s.get("snapshot_time", ""), val))
+        # 取 max 值（取最大的那個）
+        supplies_max = extra.get("supplies_max") or {}
+        m = supplies_max.get(supply_key)
+        if m is not None:
+            max_val = m
+
+    if not points:
+        return no_data
+
+    current = points[0][1]  # 最新值（snapshots 倒序）
+
+    # 計算剩餘百分比
+    pct = None
+    if max_val and max_val > 0:
+        pct = round(current / max_val, 3)
+
+    if len(points) < 2:
+        level = "ok"
+        if pct is not None and pct < 0.10:
+            level = "crit"
+        elif pct is not None and pct < 0.30:
+            level = "warn"
+        return {
+            "rate_per_min": None, "current": current, "max_val": max_val,
+            "pct_remaining": pct, "time_to_zero_min": None,
+            "level": level, "note": "僅一筆資料，無法計算消耗速率"
+        }
+
+    # 用最新和最舊有效點計算速率
+    newest_t, newest_v = points[0]
+    oldest_t, oldest_v = points[-1]
+    span = _span_minutes(oldest_t, newest_t)
+
+    if span < 1:
+        return {
+            "rate_per_min": None, "current": current, "max_val": max_val,
+            "pct_remaining": pct, "time_to_zero_min": None,
+            "level": "ok", "note": "時間跨度不足"
+        }
+
+    # rate > 0 表示在消耗（值在減少）
+    rate = (oldest_v - newest_v) / span
+    time_to_zero = None
+    if rate > 0 and current > 0:
+        time_to_zero = round(current / rate, 1)
+
+    # 判斷等級
+    if time_to_zero is not None and time_to_zero < 120:  # < 2h
+        level = "crit"
+    elif time_to_zero is not None and time_to_zero < 240:  # < 4h
+        level = "warn"
+    elif pct is not None and pct < 0.10:
+        level = "crit"
+    elif pct is not None and pct < 0.30:
+        level = "warn"
+    else:
+        level = "ok"
+
+    return {
+        "rate_per_min": round(rate, 3),
+        "current": current,
+        "max_val": max_val,
+        "pct_remaining": pct,
+        "time_to_zero_min": time_to_zero,
+        "level": level,
+        "note": (f"消耗 {round(rate,2)}/min，"
+                 f"剩餘 {current}"
+                 + (f"（{round(pct*100)}%）" if pct is not None else "")
+                 + (f"，預估 {int(time_to_zero)} 分鐘歸零" if time_to_zero else ""))
+    }
+
+
+# ──────────────────────────────────────────
+# 通訊健康度（Communication Health）
+# ──────────────────────────────────────────
+
+def comm_health(snapshots: list[dict], node_type: str,
+                thresholds: dict = None) -> dict:
+    """
+    綜合評估某節點的通訊健康：
+    1. freshness — 最新快照新鮮度
+    2. gap_detected — 快照間隔是否有異常大的空洞
+    3. zero_anomaly — 關鍵欄位是否突然歸零
+
+    回傳：
+      {
+        freshness: dict,       # freshness() 結果
+        gap_detected: bool,    # 是否偵測到通訊空洞
+        gap_max_min: float,    # 最大間隔（分鐘）
+        zero_anomaly: bool,    # 關鍵欄位歸零異常
+        zero_fields: list,     # 歸零的欄位名
+        health_level: str,     # ok / warn / crit / lkp
+        note: str
+      }
+    """
+    th = (thresholds or DEFAULT_THRESHOLDS).get(node_type,
+          DEFAULT_THRESHOLDS.get("medical", {}))
+
+    if not snapshots:
+        return {
+            "freshness": _stale(),
+            "gap_detected": False, "gap_max_min": 0,
+            "zero_anomaly": False, "zero_fields": [],
+            "health_level": "lkp", "note": "無快照"
+        }
+
+    # 1. 新鮮度
+    fresh = freshness(snapshots[0].get("snapshot_time", ""), node_type, thresholds)
+
+    # 2. 間隔空洞偵測
+    gap_max = 0.0
+    gap_detected = False
+    expected_interval = th.get("freshness_crit_min", 5) * 2  # 超過 2 倍正常間隔視為空洞
+    if len(snapshots) >= 2:
+        for i in range(len(snapshots) - 1):
+            t1 = snapshots[i].get("snapshot_time", "")
+            t2 = snapshots[i + 1].get("snapshot_time", "")
+            gap = _span_minutes(t2, t1)
+            if gap > gap_max:
+                gap_max = gap
+        if gap_max > expected_interval:
+            gap_detected = True
+
+    # 3. 欄位歸零偵測（前一筆 > 0，本筆突然 = 0）
+    zero_fields = []
+    check_fields = {
+        "medical": ["bed_used", "waiting_count"],
+        "shelter": ["bed_used"],
+        "forward": [],
+        "security": [],
+    }.get(node_type, [])
+
+    if len(snapshots) >= 2:
+        curr = snapshots[0]
+        prev = snapshots[1]
+        for f in check_fields:
+            curr_val = curr.get(f)
+            prev_val = prev.get(f)
+            if prev_val and prev_val > 0 and (curr_val == 0 or curr_val is None):
+                zero_fields.append(f)
+
+    zero_anomaly = len(zero_fields) > 0
+
+    # 綜合等級
+    if fresh["level"] == "lkp":
+        health_level = "lkp"
+    elif fresh["level"] == "crit" or (gap_detected and gap_max > expected_interval * 2):
+        health_level = "crit"
+    elif fresh["level"] == "warn" or gap_detected or zero_anomaly:
+        health_level = "warn"
+    else:
+        health_level = "ok"
+
+    notes = []
+    if gap_detected:
+        notes.append(f"偵測到通訊空洞（最大間隔 {int(gap_max)} 分鐘）")
+    if zero_anomaly:
+        notes.append(f"欄位歸零異常：{', '.join(zero_fields)}")
+
+    return {
+        "freshness": fresh,
+        "gap_detected": gap_detected,
+        "gap_max_min": round(gap_max, 1),
+        "zero_anomaly": zero_anomaly,
+        "zero_fields": zero_fields,
+        "health_level": health_level,
+        "note": "；".join(notes) if notes else "通訊正常"
+    }
+
+
+# ──────────────────────────────────────────
+# 產出監控（Output Monitor）
+# ──────────────────────────────────────────
+
+def output_monitor(medical_snaps: list[dict],
+                   shelter_snaps: list[dict]) -> dict:
+    """
+    監控系統的「產出」端：後送效率、離站效率、積壓狀況。
+
+    回傳：
+      {
+        evac_backlog: int | None,       # 待後送積壓人數
+        evac_trend: str | None,         # up / down / flat
+        discharge_rate: float | None,   # 離站速率（人/分鐘）
+        shelter_exit_rate: float | None,  # 收容離站速率
+        level: str,                     # ok / warn / crit
+        note: str
+      }
+    """
+    result = {
+        "evac_backlog": None, "evac_trend": None,
+        "discharge_rate": None, "shelter_exit_rate": None,
+        "level": "ok", "note": "產出正常"
+    }
+
+    notes = []
+
+    # 醫療後送積壓
+    if medical_snaps:
+        med = medical_snaps[0]
+        pending = med.get("pending_evac")
+        result["evac_backlog"] = pending
+
+        # 趨勢
+        evac_t = trend(medical_snaps, "pending_evac")
+        result["evac_trend"] = evac_t.get("direction")
+
+        # discharge rate（evacuated_total 的增長速率）
+        if len(medical_snaps) >= 2:
+            valid = [s for s in medical_snaps
+                     if s.get("evacuated_total") is not None]
+            if len(valid) >= 2:
+                span = _span_minutes(
+                    valid[-1].get("snapshot_time", ""),
+                    valid[0].get("snapshot_time", ""))
+                if span > 0:
+                    diff = (valid[0].get("evacuated_total", 0) -
+                            valid[-1].get("evacuated_total", 0))
+                    result["discharge_rate"] = round(diff / span, 3)
+
+        # 判斷：pending_evac 持續上升 = 積壓
+        if pending is not None and pending >= 5:
+            notes.append(f"後送積壓 {pending} 人")
+            result["level"] = "crit"
+        elif pending is not None and pending >= 3:
+            notes.append(f"後送待撤 {pending} 人")
+            result["level"] = "warn"
+
+    # 收容離站速率
+    if shelter_snaps and len(shelter_snaps) >= 2:
+        extra_newest = (shelter_snaps[0].get("extra") or {})
+        extra_oldest = (shelter_snaps[-1].get("extra") or {})
+        exit_newest = extra_newest.get("exited_total", 0) or 0
+        exit_oldest = extra_oldest.get("exited_total", 0) or 0
+        span = _span_minutes(
+            shelter_snaps[-1].get("snapshot_time", ""),
+            shelter_snaps[0].get("snapshot_time", ""))
+        if span > 0 and exit_newest >= exit_oldest:
+            result["shelter_exit_rate"] = round(
+                (exit_newest - exit_oldest) / span, 3)
+
+    if notes:
+        result["note"] = "；".join(notes)
+
+    return result
 
 
 def _parse_forward_units(fwd_snap: dict | None) -> list[dict]:
