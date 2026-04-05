@@ -1028,7 +1028,7 @@ function showEventProcessModal(zone) {
     notes.forEach(n => {
       html += `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
       html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
-      html += n.by ? ` <span style="color:var(--green);font-weight:600;">${n.by}</span>` : '';
+      html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
     });
@@ -1045,6 +1045,7 @@ function showEventProcessModal(zone) {
     html += `<button onclick="_addEventNoteFromModal('${ev.id}')" style="padding:6px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);white-space:nowrap;">追加</button>`;
     html += `</div>`;
     html += `<div style="display:flex;gap:6px;">`;
+    html += `<button onclick="closeModal()" style="flex:1;padding:7px;background:transparent;color:var(--text3);border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">關閉</button>`;
     if (ev.status === 'open') {
       html += `<button onclick="_updateEvFromModal('${ev.id}','in_progress')" style="flex:1;padding:7px;background:var(--yellow);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">處理中</button>`;
     }
@@ -1053,7 +1054,6 @@ function showEventProcessModal(zone) {
     } else {
       html += `<button disabled style="flex:1;padding:7px;background:var(--border);color:var(--text3);border:none;border-radius:4px;font-size:11px;cursor:not-allowed;font-family:var(--mono);" title="須先追加處置紀錄才能結案">結案</button>`;
     }
-    html += `<button onclick="closeModal()" style="flex:1;padding:7px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">關閉</button>`;
     html += `</div>`;
     html += `</div>`;
   }
@@ -1530,7 +1530,7 @@ function _eventCardHTML(ev, dimmed) {
     notes.forEach(n => {
       html += `<div style="font-size:10px;padding:2px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
       html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
-      html += n.by ? ` <span style="color:var(--green);font-weight:600;">${n.by}</span>` : '';
+      html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
     });
@@ -2342,7 +2342,7 @@ function renderZoneC(d) {
       evtHtml += `<span style="font-size:10px;font-weight:700;color:${tagColor};">${cd}</span>`;
       evtHtml += `</div>`;
       evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">`;
-      evtHtml += `<span style="font-size:9px;color:${uColor};font-weight:600;">${uName}</span>`;
+      evtHtml += `<span style="font-size:9px;color:var(--text3);font-weight:600;">${uName}</span>`;
       evtHtml += `<span style="font-size:9px;color:var(--text3);">${ev.event_code||''}</span>`;
       evtHtml += `</div>`;
       evtHtml += `</div>`;
@@ -2356,10 +2356,10 @@ function renderZoneC(d) {
         evtHtml += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor}55;opacity:.55;" onclick="_openEventByCode('${ev.id}')">`;
         evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
         evtHtml += `<span style="font-size:10px;font-weight:600;">${ev.description||ev.event_type}</span>`;
-        evtHtml += `<span style="font-size:9px;color:var(--green);">已結案</span>`;
+        evtHtml += `<span style="font-size:9px;color:var(--text3);">已結案</span>`;
         evtHtml += `</div>`;
         evtHtml += `<div style="display:flex;justify-content:space-between;margin-top:1px;">`;
-        evtHtml += `<span style="font-size:9px;color:${uColor};">${uName}</span>`;
+        evtHtml += `<span style="font-size:9px;color:var(--text3);">${uName}</span>`;
         evtHtml += `<span style="font-size:8px;color:var(--text3);">${ev.event_code||''}</span>`;
         evtHtml += `</div>`;
         evtHtml += `</div>`;
