@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.4.9';</script>
+<script>const CMD_VERSION='v0.5.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -205,11 +205,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
 .zc-esc-item .tag.crit{background:rgba(204,42,42,.2);color:var(--red);}
 .zc-esc-item .tag.ok{background:rgba(26,158,82,.2);color:var(--green);}
 
-/* 待裁示區塊（與升降級相同樣式） */
-.zc-dec{
-  flex:1.5;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
-  padding:6px 10px;overflow-y:auto;
-}
+/* （已移至右側面板，保留 CSS 供相容） */
 
 /* ═══ OVERLAY MODAL ═══ */
 #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
@@ -293,6 +289,19 @@ canvas{display:block;width:100%!important;height:100%!important;}
 .dec-tab{cursor:pointer;font-size:9px;color:var(--text3);padding:1px 4px;border-radius:3px;}
 .dec-tab.active{color:var(--text);background:rgba(255,255,255,.1);}
 
+/* 左側面板切換頁籤 */
+#panel-left-tabs{margin-bottom:3px;}
+.panel-tab{
+  flex:1;padding:3px 0;text-align:center;font-size:9px;font-weight:600;
+  color:var(--text3);background:var(--surface);border:1px solid var(--border);
+  cursor:pointer;transition:all .2s;
+}
+.panel-tab:first-child{border-radius:4px 0 0 4px;}
+.panel-tab:last-child{border-radius:0 4px 4px 0;}
+.panel-tab.active{background:rgba(26,158,82,.2);color:#fff;border-color:var(--green);}
+.spark-group{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;}
+.spark-group[style*="display:none"]{display:none !important;}
+
 /* 事件地圖標記 */
 .event-marker{z-index:8;}
 .event-marker .zone-info{display:flex !important;}
@@ -330,44 +339,79 @@ canvas{display:block;width:100%!important;height:100%!important;}
 
 <!-- ═══════ ZONE B — 態勢 + 地圖 + 資源 ═══════ -->
 <div id="zone-b">
-  <!-- 左：態勢（現場怎麼了） -->
+  <!-- 左：態勢 + 資源（3+2 切換） -->
   <div class="side-panel" id="panel-left">
-    <div class="spark-card" id="sp-cap" onclick="expandSpark('sp-cap')">
-      <div class="spark-hdr">
-        <span class="spark-title">量能</span>
-        <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-cap-v">—</span><span class="spark-rag ok" id="sp-cap-rag"></span></span>
-      </div>
-      <div class="spark-detail" id="sp-cap-detail">
-        <div class="li"><div class="ld" style="background:#E67E22"></div>收容床位%</div>
-        <div class="li"><div class="ld" style="background:#C0392B"></div>醫療床位%</div>
-        <div class="li"><div class="ld dash" style="border-color:rgba(212,144,0,.6)"></div>警戒70%</div>
-        <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>危急90%</div>
-      </div>
-      <div class="spark-body"><canvas id="sc1"></canvas></div>
+    <div id="panel-left-tabs" style="display:flex;gap:0;flex-shrink:0;">
+      <div class="panel-tab active" data-group="situation" onclick="switchLeftPanel('situation')">態勢</div>
+      <div class="panel-tab" data-group="resource" onclick="switchLeftPanel('resource')">資源</div>
     </div>
-    <div class="spark-card" id="sp-flow" onclick="expandSpark('sp-flow')">
-      <div class="spark-hdr">
-        <span class="spark-title">流向</span>
-        <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-flow-v">—</span><span class="spark-rag ok" id="sp-flow-rag"></span></span>
+    <!-- 態勢組（3格） -->
+    <div class="spark-group" id="sg-situation">
+      <div class="spark-card" id="sp-cap" onclick="expandSpark('sp-cap')">
+        <div class="spark-hdr">
+          <span class="spark-title">量能</span>
+          <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-cap-v">—</span><span class="spark-rag ok" id="sp-cap-rag"></span></span>
+        </div>
+        <div class="spark-detail" id="sp-cap-detail">
+          <div class="li"><div class="ld" style="background:#E67E22"></div>收容床位%</div>
+          <div class="li"><div class="ld" style="background:#C0392B"></div>醫療床位%</div>
+          <div class="li"><div class="ld dash" style="border-color:rgba(212,144,0,.6)"></div>警戒70%</div>
+          <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>危急90%</div>
+        </div>
+        <div class="spark-body"><canvas id="sc1"></canvas></div>
       </div>
-      <div class="spark-detail" id="sp-flow-detail">
-        <div class="li"><div class="ld" style="background:#E74C3C"></div>SRT Red+</div>
-        <div class="li"><div class="ld" style="background:#FF8F00"></div>醫療紅傷</div>
+      <div class="spark-card" id="sp-flow" onclick="expandSpark('sp-flow')">
+        <div class="spark-hdr">
+          <span class="spark-title">流向</span>
+          <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-flow-v">—</span><span class="spark-rag ok" id="sp-flow-rag"></span></span>
+        </div>
+        <div class="spark-detail" id="sp-flow-detail">
+          <div class="li"><div class="ld" style="background:#E74C3C"></div>SRT Red+</div>
+          <div class="li"><div class="ld" style="background:#FF8F00"></div>醫療紅傷</div>
+        </div>
+        <div class="spark-body"><canvas id="sc2"></canvas></div>
       </div>
-      <div class="spark-body"><canvas id="sc2"></canvas></div>
+      <div class="spark-card" id="sp-inc" onclick="expandSpark('sp-inc')">
+        <div class="spark-hdr">
+          <span class="spark-title">事件</span>
+          <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-inc-v">—</span><span class="spark-rag ok" id="sp-inc-rag"></span></span>
+        </div>
+        <div class="spark-detail" id="sp-inc-detail">
+          <div class="li"><div class="ld" style="background:#e6edf3;height:4px"></div>未結累計</div>
+          <div class="li"><div class="ld" style="background:var(--red)"></div>高</div>
+          <div class="li"><div class="ld" style="background:var(--yellow)"></div>中</div>
+          <div class="li"><div class="ld" style="background:var(--green)"></div>低</div>
+        </div>
+        <div class="spark-body"><canvas id="sc3"></canvas></div>
+      </div>
     </div>
-    <div class="spark-card" id="sp-inc" onclick="expandSpark('sp-inc')">
-      <div class="spark-hdr">
-        <span class="spark-title">事件</span>
-        <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-inc-v">—</span><span class="spark-rag ok" id="sp-inc-rag"></span></span>
+    <!-- 資源組（2格，從右側移入） -->
+    <div class="spark-group" id="sg-resource" style="display:none;">
+      <div class="spark-card" id="sp-res" onclick="expandSpark('sp-res')">
+        <div class="spark-hdr">
+          <span class="spark-title">物資</span>
+          <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-res-v">—</span><span class="spark-rag ok" id="sp-res-rag"></span></span>
+        </div>
+        <div class="spark-detail" id="sp-res-detail">
+          <div class="li"><div class="ld dash" style="border-color:#D32F2F"></div>IV%</div>
+          <div class="li"><div class="ld dash" style="border-color:#F57F17"></div>氧氣%</div>
+          <div class="li"><div class="ld dash" style="border-color:#388E3C"></div>止血帶%</div>
+          <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>警戒20%</div>
+        </div>
+        <div class="spark-body"><canvas id="sc4"></canvas></div>
       </div>
-      <div class="spark-detail" id="sp-inc-detail">
-        <div class="li"><div class="ld" style="background:#e6edf3;height:4px"></div>未結累計</div>
-        <div class="li"><div class="ld" style="background:var(--red)"></div>高</div>
-        <div class="li"><div class="ld" style="background:var(--yellow)"></div>中</div>
-        <div class="li"><div class="ld" style="background:var(--green)"></div>低</div>
+      <div class="spark-card" id="sp-staff" onclick="expandSpark('sp-staff')">
+        <div class="spark-hdr">
+          <span class="spark-title">人力</span>
+          <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-staff-v">—</span><span class="spark-rag ok" id="sp-staff-rag"></span></span>
+        </div>
+        <div class="spark-detail" id="sp-staff-detail">
+          <div class="li"><div class="ld" style="background:#1976D2"></div>收容人均</div>
+          <div class="li"><div class="ld" style="background:#7B1FA2"></div>醫療人均</div>
+          <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>超載 8</div>
+        </div>
+        <div class="spark-body"><canvas id="sc5"></canvas></div>
       </div>
-      <div class="spark-body"><canvas id="sc3"></canvas></div>
     </div>
   </div>
 
@@ -405,37 +449,33 @@ canvas{display:block;width:100%!important;height:100%!important;}
     </div>
   </div>
 
-  <!-- 右：資源（我們有什麼） -->
+  <!-- 右：事件追蹤 + 待裁示 -->
   <div class="side-panel right" id="panel-right">
-    <div class="spark-card" id="sp-res" onclick="expandSpark('sp-res')">
-      <div class="spark-hdr">
-        <span class="spark-title">物資</span>
-        <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-res-v">—</span><span class="spark-rag ok" id="sp-res-rag"></span></span>
+    <!-- 上：事件追蹤 60% -->
+    <div id="right-events" style="flex:6;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;flex-shrink:0;">
+        <span style="font-size:10px;font-weight:600;color:var(--text3);">📋 事件追蹤 <span id="evt-count" style="color:var(--yellow);">0</span></span>
       </div>
-      <div class="spark-detail" id="sp-res-detail">
-        <div class="li"><div class="ld dash" style="border-color:#D32F2F"></div>IV%</div>
-        <div class="li"><div class="ld dash" style="border-color:#F57F17"></div>氧氣%</div>
-        <div class="li"><div class="ld dash" style="border-color:#388E3C"></div>止血帶%</div>
-        <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>警戒20%</div>
+      <div id="right-evt-list" style="flex:1;overflow-y:auto;padding:0 4px;font-size:10px;">
+        <div style="color:var(--green);font-size:11px;">無開放事件</div>
       </div>
-      <div class="spark-body"><canvas id="sc4"></canvas></div>
     </div>
-    <div class="spark-card" id="sp-staff" onclick="expandSpark('sp-staff')">
-      <div class="spark-hdr">
-        <span class="spark-title">人力</span>
-        <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-staff-v">—</span><span class="spark-rag ok" id="sp-staff-rag"></span></span>
+    <!-- 分隔線 -->
+    <div style="height:1px;background:var(--border);flex-shrink:0;margin:2px 0;"></div>
+    <!-- 下：待裁示 40% -->
+    <div id="right-decisions" style="flex:4;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;flex-shrink:0;">
+        <span id="dec-tab-pending" class="dec-tab active" onclick="switchDecTab('pending')" style="font-size:10px;font-weight:600;">⚖ 待裁示 <span id="dec-count" style="color:var(--yellow)">0</span></span>
+        <span id="dec-tab-decided" class="dec-tab" onclick="switchDecTab('decided')" style="font-size:10px;">已裁示</span>
       </div>
-      <div class="spark-detail" id="sp-staff-detail">
-        <div class="li"><div class="ld" style="background:#1976D2"></div>收容人均</div>
-        <div class="li"><div class="ld" style="background:#7B1FA2"></div>醫療人均</div>
-        <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>超載 8</div>
+      <div id="right-dec-list" style="flex:1;overflow-y:auto;padding:0 4px;font-size:10px;">
+        無待裁示事項
       </div>
-      <div class="spark-body"><canvas id="sc5"></canvas></div>
     </div>
   </div>
 </div>
 
-<!-- ═══════ ZONE C — 決策倒數 + 升降級 + 待裁示 ═══════ -->
+<!-- ═══════ ZONE C — 決策倒數 + 升降級 ═══════ -->
 <div id="zone-c">
   <div class="zc-pill" id="zc-supply">
     <div class="zc-icon">💉</div>
@@ -455,17 +495,6 @@ canvas{display:block;width:100%!important;height:100%!important;}
   <div class="zc-esc" id="zc-esc">
     <div class="zc-esc-title">📋 升降級觸發</div>
     <div id="zc-esc-list" style="font-size:11px;color:var(--text3);">等待資料⋯</div>
-  </div>
-  <div class="zc-dec" id="zc-evt">
-    <div class="zc-esc-title">📋 事件追蹤 <span id="evt-count" style="color:var(--yellow)">0</span></div>
-    <div id="zc-evt-list" style="font-size:11px;color:var(--text3);">無開放事件</div>
-  </div>
-  <div class="zc-dec" id="zc-dec">
-    <div class="zc-esc-title" style="display:flex;gap:8px;align-items:center;">
-      <span id="dec-tab-pending" class="dec-tab active" onclick="switchDecTab('pending')">⚖ 待裁示 <span id="dec-count" style="color:var(--yellow)">0</span></span>
-      <span id="dec-tab-decided" class="dec-tab" onclick="switchDecTab('decided')">已裁示</span>
-    </div>
-    <div id="zc-dec-list" style="font-size:11px;color:var(--text3);">無待裁示事項</div>
   </div>
 </div>
 
@@ -1983,6 +2012,15 @@ function setRag(cardId, lvl) {
   if (rag) { rag.className = 'spark-rag ' + lvl; }
 }
 
+function switchLeftPanel(group) {
+  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.panel-tab[data-group="' + group + '"]').classList.add('active');
+  el('sg-situation').style.display = group === 'situation' ? 'flex' : 'none';
+  el('sg-resource').style.display = group === 'resource' ? 'flex' : 'none';
+  // 重繪 sparkline（尺寸改變）
+  setTimeout(() => { const d = getSeries(); if (d) renderSparklines(d); }, 50);
+}
+
 function switchDecTab(tab) {
   _decTab = tab;
   document.querySelectorAll('.dec-tab').forEach(t => t.classList.remove('active'));
@@ -2041,7 +2079,7 @@ function renderZoneC(d) {
 
   if (_decTab === 'pending') {
     if (pendingDecs.length === 0) {
-      el('zc-dec-list').innerHTML = '<div style="color:var(--green);font-size:11px;">無待裁示事項</div>';
+      el('right-dec-list').innerHTML = '<div style="color:var(--green);font-size:11px;">無待裁示事項</div>';
     } else {
       let dhtml = '';
       pendingDecs.forEach(dec => {
@@ -2053,12 +2091,12 @@ function renderZoneC(d) {
         dhtml += `<span style="font-size:9px;color:var(--text3);margin-left:auto;"> ${age}</span>`;
         dhtml += `</div>`;
       });
-      el('zc-dec-list').innerHTML = dhtml;
+      el('right-dec-list').innerHTML = dhtml;
     }
   } else {
     // 已裁示頁籤
     if (decidedDecs.length === 0) {
-      el('zc-dec-list').innerHTML = '<div style="color:var(--text3);font-size:11px;">無已裁示紀錄</div>';
+      el('right-dec-list').innerHTML = '<div style="color:var(--text3);font-size:11px;">無已裁示紀錄</div>';
     } else {
       let dhtml = '';
       decidedDecs.forEach(dec => {
@@ -2069,7 +2107,7 @@ function renderZoneC(d) {
         dhtml += `<span style="font-size:9px;color:var(--text3);margin-left:auto;"> ${age}</span>`;
         dhtml += `</div>`;
       });
-      el('zc-dec-list').innerHTML = dhtml;
+      el('right-dec-list').innerHTML = dhtml;
     }
   }
 
@@ -2077,7 +2115,7 @@ function renderZoneC(d) {
   const openEvents = (_data?.events || []).filter(e => e.status === 'open' || e.status === 'in_progress');
   el('evt-count').textContent = openEvents.length;
   if (openEvents.length === 0) {
-    el('zc-evt-list').innerHTML = '<div style="color:var(--green);font-size:11px;">無開放事件</div>';
+    el('right-evt-list').innerHTML = '<div style="color:var(--green);font-size:11px;">無開放事件</div>';
   } else {
     // 逾時排前面
     const now = Date.now();
@@ -2100,7 +2138,7 @@ function renderZoneC(d) {
       evtHtml += `<span style="font-size:9px;color:${cdColor};margin-left:auto;font-weight:${isOverdue?'700':'400'};">${cd}</span>`;
       evtHtml += `</div>`;
     });
-    el('zc-evt-list').innerHTML = evtHtml;
+    el('right-evt-list').innerHTML = evtHtml;
   }
 }
 
