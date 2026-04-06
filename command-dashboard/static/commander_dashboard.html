@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.6.7';</script>
+<script>const CMD_VERSION='v0.6.8';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -464,7 +464,6 @@ canvas{display:block;width:100%!important;height:100%!important;}
     <img id="map-img" src="" alt="地圖載入中">
     <div id="map-overlay"></div>
     <div id="edit-bar">
-      <button id="btn-delete-marker" class="del" onclick="deleteSelectedMarker()" style="display:none;position:absolute;right:10px;">✕ 刪除</button>
       <div style="display:flex;gap:0;align-items:center;margin:0 auto;">
         <button class="place-grp" data-grp="forward" onclick="selectPlaceGroup('forward')">前進</button>
         <button class="place-grp" data-grp="security" onclick="selectPlaceGroup('security')">安全</button>
@@ -1114,6 +1113,18 @@ async function _autoSaveAndAction(eventId, action) {
       method: 'PATCH',
     });
     if (resp.ok) {
+      // 結案時從地圖移除對應 marker
+      if (action === 'resolved' && _mapConfig) {
+        for (const m of Object.values(_mapConfig.maps)) {
+          const idx = m.zones.findIndex(z => z.event_id === eventId);
+          if (idx !== -1) {
+            m.zones.splice(idx, 1);
+            m.flows = (m.flows || []).filter(f => f.from !== eventId && f.to !== eventId);
+            saveMapConfig();
+            break;
+          }
+        }
+      }
       closeModal();
       await poll();
     }
@@ -1190,13 +1201,11 @@ function _confirmResolve(val) {
 
 function _selectMarker(zoneId, skipRender) {
   _selectedZoneId = zoneId;
-  el('btn-delete-marker').style.display = 'inline-block';
   if (!skipRender) renderMapOverlay();
 }
 
 function _deselectMarker() {
   _selectedZoneId = null;
-  el('btn-delete-marker').style.display = 'none';
   el('edit-coords').classList.remove('show');
   renderMapOverlay();
 }
@@ -1244,34 +1253,6 @@ function _startDrag(marker, zone, e) {
   document.addEventListener('mouseup', onUp);
   document.addEventListener('touchmove', onMove, {passive:false});
   document.addEventListener('touchend', onUp);
-}
-
-async function deleteSelectedMarker() {
-  if (!_selectedZoneId || !_mapConfig) return;
-  const m = _mapConfig.maps[_currentMap];
-  const idx = m.zones.findIndex(z => z.id === _selectedZoneId);
-  if (idx === -1) return;
-  const zone = m.zones[idx];
-  const ok = await appConfirm('刪除確認', '確定刪除「' + zone.label + '」？');
-  if (!ok) return;
-  // 事件 marker：記錄刪除 + 結案
-  if (zone.event_id) {
-    try {
-      await fetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ text: '地圖 marker 已移除', operator: '指揮部' })
-      });
-      await fetch(API_BASE + '/api/events/' + zone.event_id + '/status?status=resolved&operator=指揮部', { method: 'PATCH' });
-    } catch(e) {}
-  }
-  m.zones.splice(idx, 1);
-  m.flows = (m.flows || []).filter(f => f.from !== _selectedZoneId && f.to !== _selectedZoneId);
-  _pinnedZones.delete(_selectedZoneId);
-  _selectedZoneId = null;
-  el('btn-delete-marker').style.display = 'none';
-  el('edit-coords').classList.remove('show');
-  saveMapConfig();
-  await poll();
 }
 
 async function saveMapConfig() {

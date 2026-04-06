@@ -355,12 +355,27 @@ def get_events(status: str | None = None, limit: int = 50) -> list[dict]:
 
 
 def update_event_status(event_id: str, status: str, operator: str):
-    """更新事件狀態，使用 json_insert 原子追加 notes 避免併發覆蓋"""
+    """更新事件狀態，含狀態機防護 + json_insert 原子追加 notes"""
+    valid_transitions = {
+        "open":        {"in_progress", "resolved", "closed"},
+        "in_progress": {"resolved", "closed"},
+        "resolved":    set(),
+        "closed":      set(),
+    }
+
     now = _now()
     status_label = {"open":"未結","in_progress":"處理中","resolved":"已結案","closed":"已關閉"}.get(status, status)
     note_json = json.dumps({"time": now, "text": f"狀態變更為「{status_label}」", "by": operator}, ensure_ascii=False)
 
     with get_conn() as conn:
+        row = conn.execute("SELECT status FROM events WHERE id=?", (event_id,)).fetchone()
+        if not row:
+            raise ValueError(f"事件 {event_id} 不存在")
+        current = row["status"]
+        allowed = valid_transitions.get(current, set())
+        if status not in allowed:
+            raise ValueError(f"不允許從「{current}」轉換到「{status}」")
+
         if status in ("resolved", "closed"):
             conn.execute(
                 """UPDATE events SET status=?, resolved_at=?,
