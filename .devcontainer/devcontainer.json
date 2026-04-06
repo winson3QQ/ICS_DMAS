@@ -1,0 +1,22 @@
+{
+  "name": "ICS DMAS — 全系統測試",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "postCreateCommand": "pip install -r command-dashboard/requirements.txt && npm install",
+  "forwardPorts": [8000, 8765, 8775],
+  "portsAttributes": {
+    "8000": { "label": "指揮部", "onAutoForward": "openBrowser", "visibility": "public" },
+    "8765": { "label": "收容組 Pi", "onAutoForward": "silent", "visibility": "public" },
+    "8775": { "label": "醫療組 Pi", "onAutoForward": "silent", "visibility": "public" }
+  },
+  "postStartCommand": "cd command-dashboard && PYTHONPATH=src nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 &>/tmp/cmd.log & cd /workspaces/ICS_DMAS && nohup npm run shelter &>/tmp/shelter.log & nohup npm run medical &>/tmp/medical.log &",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
