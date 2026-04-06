@@ -5,22 +5,92 @@
       "label": "站內",
       "zones": [
         {
-          "id": "custom_1775360727119",
-          "label": "收容組",
+          "id": "evt_1775458093970",
+          "label": "可疑人員",
           "sub": "",
-          "x_pct": 52.4,
-          "y_pct": 48,
-          "node_type": "shelter",
-          "icon": "📌"
+          "x_pct": 48.3,
+          "y_pct": 47.9,
+          "node_type": "security",
+          "icon": "threat",
+          "event_id": "91cce305-1855-4ff1-bd7e-ecd4ecb2be9f",
+          "event_code": "EV-0406-012"
         },
         {
-          "id": "custom_1775360743164",
-          "label": "五縱",
+          "id": "evt_1775458097215",
+          "label": "危害回報",
           "sub": "",
-          "x_pct": 62.1,
-          "y_pct": 88.8,
+          "x_pct": 68,
+          "y_pct": 69.2,
+          "node_type": "forward",
+          "icon": "event",
+          "event_id": "e11e6d78-5bd5-4cb8-a60a-82bec385a9f3",
+          "event_code": "EV-0406-013"
+        },
+        {
+          "id": "evt_1775458100262",
+          "label": "車輛需求",
+          "sub": "",
+          "x_pct": 63.3,
+          "y_pct": 88.9,
+          "node_type": "forward",
+          "icon": "event",
+          "event_id": "4fbecdc6-111a-4273-b4f3-c5cc831ff0c6",
+          "event_code": "EV-0406-014"
+        },
+        {
+          "id": "evt_1775458103098",
+          "label": "管制區異常",
+          "sub": "",
+          "x_pct": 61.7,
+          "y_pct": 44.9,
           "node_type": "security",
-          "icon": "👤"
+          "icon": "threat",
+          "event_id": "8d8a758f-88ec-4050-820f-918a68635d34",
+          "event_code": "EV-0406-015"
+        },
+        {
+          "id": "evt_1775458105475",
+          "label": "設施異常",
+          "sub": "",
+          "x_pct": 54.3,
+          "y_pct": 52.8,
+          "node_type": "shelter",
+          "icon": "event",
+          "event_id": "aaf9a171-dbea-43ee-a0b5-f4e289796270",
+          "event_code": "EV-0406-016"
+        },
+        {
+          "id": "evt_1775458107779",
+          "label": "傳染疑慮",
+          "sub": "",
+          "x_pct": 55.9,
+          "y_pct": 32.9,
+          "node_type": "shelter",
+          "icon": "event",
+          "event_id": "2bbd4d5f-36d2-49ae-a13a-ee7cdbaf99e6",
+          "event_code": "EV-0406-017"
+        },
+        {
+          "id": "evt_1775458111066",
+          "label": "設備故障",
+          "sub": "",
+          "x_pct": 48.7,
+          "y_pct": 32.9,
+          "node_type": "medical",
+          "icon": "event",
+          "event_id": "82fdee6a-f911-4e7d-b42c-3f4d3de8df12",
+          "event_code": "EV-0406-018"
+        },
+        {
+          "id": "evt_1775458113855",
+          "label": "通訊異常",
+          "sub": "",
+          "x_pct": 65.1,
+          "y_pct": 25.5,
+          "node_type": "command",
+          "icon": "event",
+          "event_id": "72b4d2ba-936d-41ad-ae49-6de4a1b2e6a0",
+          "event_code": "EV-0406-019"
         }
       ],
       "flows": []
@@ -30,37 +100,15 @@
       "label": "站外",
       "zones": [
         {
-          "id": "custom_1775388807444",
-          "label": "救人",
+          "id": "evt_1775458146026",
+          "label": "QRF 出動",
           "sub": "",
-          "x_pct": 50,
-          "y_pct": 50,
-          "node_type": "forward",
-          "icon": "alert",
-          "event_id": "c1e66423-0a63-43c0-86ff-6f067e17277f",
-          "event_code": "EV-0405-012"
-        },
-        {
-          "id": "custom_1775389171887",
-          "label": "救人",
-          "sub": "",
-          "x_pct": 50,
-          "y_pct": 50,
-          "node_type": "forward",
-          "icon": "warning",
-          "event_id": "36b538f2-065e-4f1e-9be2-3eb52798d359",
-          "event_code": "EV-0405-014"
-        },
-        {
-          "id": "custom_1775389180365",
-          "label": "救人",
-          "sub": "",
-          "x_pct": 50,
-          "y_pct": 50,
-          "node_type": "forward",
-          "icon": "warning",
-          "event_id": "b4d58d49-7865-4c55-9f7d-0b8d9ccfd123",
-          "event_code": "EV-0405-015"
+          "x_pct": 50.1,
+          "y_pct": 67.8,
+          "node_type": "security",
+          "icon": "event",
+          "event_id": "479b48f3-e356-42ca-8c90-6883ef4407da",
+          "event_code": "EV-0406-021"
         }
       ],
       "flows": []

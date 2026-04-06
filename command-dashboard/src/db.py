@@ -11,6 +11,8 @@ SQLite schema 定義 + CRUD 函式
 import sqlite3
 import json
 import uuid
+import hashlib
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -162,6 +164,25 @@ CREATE TABLE IF NOT EXISTS sync_log (
     detail              TEXT               -- JSON，完整對齊摘要
 );
 
+-- 帳號管理
+CREATE TABLE IF NOT EXISTS accounts (
+    username      TEXT PRIMARY KEY,
+    pin_hash      TEXT NOT NULL,
+    pin_salt      TEXT NOT NULL,
+    role          TEXT NOT NULL DEFAULT '操作員',   -- 指揮官 / 操作員
+    display_name  TEXT,
+    status        TEXT NOT NULL DEFAULT 'active',  -- active / suspended
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT
+);
+
+-- 系統設定（admin_pin、指揮部名稱等）
+CREATE TABLE IF NOT EXISTS config (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_snapshots_node_time
     ON snapshots(node_type, snapshot_time DESC);
@@ -183,10 +204,38 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_events_code_unique
 
 
 def init_db():
-    """建立所有資料表（idempotent）"""
+    """建立所有資料表（idempotent）+ seed 預設管理員帳號"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+
+    # Seed：若 accounts 空，建立預設 admin/1234（指揮官）
+    with get_conn() as conn:
+        cnt = conn.execute("SELECT COUNT(*) as c FROM accounts").fetchone()["c"]
+        if cnt == 0:
+            pin_hash, pin_salt = _hash_pin("1234")
+            now = _now()
+            conn.execute(
+                """INSERT INTO accounts
+                   (username, pin_hash, pin_salt, role, display_name, status, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                ("admin", pin_hash, pin_salt, "指揮官", "系統管理員", "active", now)
+            )
+            # 同時設定 admin_pin（預設也是 1234）
+            adm_hash, adm_salt = _hash_pin("1234")
+            conn.execute(
+                "INSERT OR IGNORE INTO config (key, value, updated_at) VALUES (?,?,?)",
+                ("admin_pin", json.dumps({"hash": adm_hash, "salt": adm_salt}), now)
+            )
+            # audit 寫在同一 connection 內避免 DB locked
+            conn.execute(
+                """INSERT INTO audit_log
+                   (operator, device_id, action_type, target_table, target_id, detail, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                ("system", None, "account_created", "accounts", "admin",
+                 json.dumps({"role": "指揮官", "note": "首次啟動自動建立預設帳號 admin/1234"}, ensure_ascii=False),
+                 now)
+            )
 
 
 # ──────────────────────────────────────────
@@ -358,7 +407,7 @@ def update_event_status(event_id: str, status: str, operator: str):
     """更新事件狀態，含狀態機防護 + json_insert 原子追加 notes"""
     valid_transitions = {
         "open":        {"in_progress", "resolved", "closed"},
-        "in_progress": {"resolved", "closed"},
+        "in_progress": {"in_progress", "resolved", "closed"},
         "resolved":    set(),
         "closed":      set(),
     }
@@ -969,3 +1018,171 @@ def _unit_to_node(unit: str) -> str:
         "forward":  "forward",
         "security": "security",
     }.get(unit, unit)
+
+
+# ──────────────────────────────────────────
+# PIN hashing（PBKDF2-SHA256, 100k iterations）
+# ──────────────────────────────────────────
+
+def _hash_pin(pin: str, salt_hex: str | None = None) -> tuple[str, str]:
+    """雜湊 PIN，回傳 (hash_hex, salt_hex)"""
+    if salt_hex is None:
+        salt = os.urandom(16)
+        salt_hex = salt.hex()
+    else:
+        salt = bytes.fromhex(salt_hex)
+    h = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, 100_000)
+    return h.hex(), salt_hex
+
+
+def _verify_pin(pin: str, stored_hash: str, stored_salt: str) -> bool:
+    """驗證 PIN 是否正確"""
+    h, _ = _hash_pin(pin, stored_salt)
+    return h == stored_hash
+
+
+# ──────────────────────────────────────────
+# ACCOUNTS CRUD
+# ──────────────────────────────────────────
+
+def create_account(username: str, pin: str, role: str = "操作員",
+                   display_name: str | None = None) -> dict:
+    pin_hash, pin_salt = _hash_pin(pin)
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO accounts
+               (username, pin_hash, pin_salt, role, display_name, status, created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (username, pin_hash, pin_salt, role, display_name, "active", now)
+        )
+    _audit("admin", None, "account_created", "accounts", username,
+           {"role": role})
+    return {"username": username, "role": role, "status": "active", "created_at": now}
+
+
+def get_all_accounts() -> list[dict]:
+    """列出所有帳號（不含 pin_hash/pin_salt）"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT username, role, display_name, status, created_at, updated_at "
+            "FROM accounts ORDER BY created_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_account_status(username: str, status: str, operator: str) -> bool:
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE accounts SET status=?, updated_at=? WHERE username=?",
+            (status, now, username)
+        )
+    if cur.rowcount:
+        _audit(operator, None, "account_status_updated", "accounts", username,
+               {"status": status})
+    return cur.rowcount > 0
+
+
+def update_account_pin(username: str, new_pin: str, operator: str) -> bool:
+    pin_hash, pin_salt = _hash_pin(new_pin)
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE accounts SET pin_hash=?, pin_salt=?, updated_at=? WHERE username=?",
+            (pin_hash, pin_salt, now, username)
+        )
+    if cur.rowcount:
+        _audit(operator, None, "account_pin_reset", "accounts", username, {})
+    return cur.rowcount > 0
+
+
+def update_account_role(username: str, role: str, operator: str) -> bool:
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE accounts SET role=?, updated_at=? WHERE username=?",
+            (role, now, username)
+        )
+    if cur.rowcount:
+        _audit(operator, None, "account_role_updated", "accounts", username,
+               {"role": role})
+    return cur.rowcount > 0
+
+
+def delete_account(username: str, operator: str) -> bool:
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM accounts WHERE username=?", (username,))
+    if cur.rowcount:
+        _audit(operator, None, "account_deleted", "accounts", username, {})
+    return cur.rowcount > 0
+
+
+def suspend_all_accounts(operator: str) -> int:
+    """緊急：停用所有帳號"""
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE accounts SET status='suspended', updated_at=? WHERE status='active'",
+            (now,)
+        )
+    if cur.rowcount:
+        _audit(operator, None, "all_accounts_suspended", "accounts", "*",
+               {"count": cur.rowcount})
+    return cur.rowcount
+
+
+def verify_login(username: str, pin: str) -> dict | None:
+    """驗證帳密，成功回傳帳號資訊（不含 hash/salt），失敗回傳 None"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM accounts WHERE username=?", (username,)
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    if d["status"] != "active":
+        return None
+    if not _verify_pin(pin, d["pin_hash"], d["pin_salt"]):
+        return None
+    # 回傳時移除敏感欄位
+    d.pop("pin_hash", None)
+    d.pop("pin_salt", None)
+    return d
+
+
+# ──────────────────────────────────────────
+# CONFIG CRUD
+# ──────────────────────────────────────────
+
+def get_config(key: str) -> str | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT value FROM config WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_config(key: str, value: str, operator: str | None = None):
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO config (key, value, updated_at) VALUES (?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (key, value, now)
+        )
+    if operator:
+        _audit(operator, None, "config_updated", "config", key, {"value": value})
+
+
+def verify_admin_pin(pin: str) -> bool:
+    """驗證 Admin PIN"""
+    raw = get_config("admin_pin")
+    if not raw:
+        return False
+    data = json.loads(raw)
+    return _verify_pin(pin, data["hash"], data["salt"])
+
+
+def set_admin_pin(new_pin: str, operator: str):
+    """設定 Admin PIN"""
+    h, s = _hash_pin(new_pin)
+    set_config("admin_pin", json.dumps({"hash": h, "salt": s}), operator)

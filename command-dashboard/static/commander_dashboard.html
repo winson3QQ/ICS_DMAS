@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.6.10';</script>
+<script>const CMD_VERSION='v0.7.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -343,9 +343,262 @@ canvas{display:block;width:100%!important;height:100%!important;}
 /* 放置模式 cursor */
 #map-panel.placing{cursor:crosshair;}
 #map-panel.placing .zone-marker{cursor:crosshair;}
+
+/* ═══ 登入畫面 ═══ */
+#login-screen{
+  position:fixed;inset:0;z-index:9999;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+}
+.login-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;width:320px;}
+.login-icon-wrap{width:96px;height:96px;border-radius:50%;overflow:hidden;border:2px solid var(--border);}
+.login-icon-wrap img{width:100%;height:100%;}
+.login-title{font-size:20px;font-weight:700;color:var(--text);}
+.login-sub{font-size:11px;color:var(--text3);}
+.login-card{
+  width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:20px;display:flex;flex-direction:column;gap:12px;
+}
+.login-input{
+  width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;
+  background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;
+  outline:none;
+}
+.login-input:focus{border-color:var(--yellow);}
+.login-btn{
+  width:100%;padding:10px;border:none;border-radius:6px;cursor:pointer;
+  background:var(--yellow);color:#000;font-weight:700;font-size:14px;font-family:var(--mono);
+  transition:opacity .2s;
+}
+.login-btn:hover{opacity:.85;}
+.login-btn:disabled{opacity:.4;cursor:not-allowed;}
+#cmd-login-warn{font-size:11px;color:var(--red);min-height:16px;text-align:center;}
+.login-version{font-size:9px;color:var(--text3);margin-top:4px;}
+
+/* ═══ PinLock 鎖定 ═══ */
+#pin-lock-overlay{
+  position:fixed;inset:0;z-index:9998;background:var(--bg);
+  display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;
+}
+#pin-lock-overlay.show{display:flex;}
+.pinlock-card{
+  width:280px;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px;
+}
+.pinlock-title{font-size:16px;font-weight:700;color:var(--yellow);}
+.pinlock-sub{font-size:11px;color:var(--text2);text-align:center;}
+#pinlock-warn{font-size:11px;color:var(--red);min-height:16px;}
+#idle-countdown{font-size:10px;color:var(--yellow);margin-left:4px;display:none;}
+
+/* ═══ Settings 面板 ═══ */
+#settings-overlay{
+  position:fixed;inset:0;z-index:190;background:rgba(0,0,0,.5);display:none;
+}
+#settings-overlay.show{display:block;}
+#settings-panel{
+  position:fixed;top:0;right:-360px;bottom:0;width:340px;z-index:200;
+  background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;transition:right .25s;
+}
+#settings-panel.show{right:0;}
+.stg-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-bottom:1px solid var(--border);
+}
+.stg-header span{font-size:15px;font-weight:700;}
+.stg-close{background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;}
+.stg-body{flex:1;overflow-y:auto;padding:8px 0;}
+.stg-section{padding:4px 16px;}
+.stg-section-title{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin:8px 0 4px;}
+.stg-item{
+  display:flex;align-items:center;gap:10px;padding:10px 8px;cursor:pointer;
+  border-radius:6px;transition:background .15s;
+}
+.stg-item:hover{background:var(--surface2);}
+.si-icon{font-size:16px;flex-shrink:0;width:24px;text-align:center;}
+.si-text{flex:1;min-width:0;}
+.si-title{font-size:13px;font-weight:600;color:var(--text);}
+.si-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.si-arrow{color:var(--text3);font-size:14px;}
+.stg-footer{
+  padding:12px 16px;border-top:1px solid var(--border);
+  font-size:10px;color:var(--text3);display:flex;flex-direction:column;gap:6px;
+}
+.stg-logout-btn{
+  width:100%;padding:8px;border:1px solid var(--red);border-radius:6px;
+  background:transparent;color:var(--red);font-weight:600;font-size:12px;
+  cursor:pointer;font-family:var(--mono);transition:all .2s;
+}
+.stg-logout-btn:hover{background:var(--red);color:#fff;}
+
+/* ═══ Admin 底部面板 ═══ */
+#admin-overlay{position:fixed;inset:0;z-index:290;background:rgba(0,0,0,.55);display:none;}
+#admin-overlay.show{display:block;}
+#admin-panel{
+  position:fixed;left:0;right:0;bottom:-100%;max-height:85vh;z-index:300;
+  background:var(--surface);border-top:1px solid var(--border);border-radius:12px 12px 0 0;
+  display:flex;flex-direction:column;transition:bottom .3s;
+}
+#admin-panel.show{bottom:0;}
+.adm-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.adm-header span{font-size:14px;font-weight:700;}
+.adm-close{background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;}
+#adm-pin-screen{padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px;}
+#adm-pin-screen .pinlock-title{font-size:14px;}
+#adm-main{display:none;flex:1;overflow:hidden;flex-direction:column;}
+.adm-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.adm-tab{
+  flex:1;padding:8px;text-align:center;font-size:11px;font-weight:600;
+  cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s;
+}
+.adm-tab.active{color:var(--yellow);border-bottom-color:var(--yellow);}
+.adm-panel-body{flex:1;overflow-y:auto;padding:12px 16px;}
+.adm-account-card{
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  padding:10px 12px;margin-bottom:8px;
+}
+.adm-account-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.adm-account-name{font-size:13px;font-weight:600;}
+.adm-badge{
+  font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;
+}
+.adm-badge.active{background:rgba(26,158,82,.2);color:var(--green);}
+.adm-badge.suspended{background:rgba(204,42,42,.2);color:var(--red);}
+.adm-badge.role{background:rgba(212,144,0,.15);color:var(--yellow);}
+.adm-btns{display:flex;gap:4px;margin-top:6px;}
+.adm-btn{
+  padding:4px 8px;font-size:10px;border:1px solid var(--border);border-radius:4px;
+  background:transparent;color:var(--text2);cursor:pointer;font-family:var(--mono);
+  transition:all .15s;
+}
+.adm-btn:hover{background:var(--border);color:var(--text);}
+.adm-btn.danger{border-color:var(--red);color:var(--red);}
+.adm-btn.danger:hover{background:var(--red);color:#fff;}
+.adm-edit-form{
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:8px;
+}
+.adm-edit-form label{font-size:10px;color:var(--text3);}
+.adm-edit-form input,.adm-edit-form select{
+  padding:6px 8px;border:1px solid var(--border);border-radius:4px;
+  background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;
+}
+.adm-add-form{display:flex;flex-direction:column;gap:10px;}
+.adm-add-form label{font-size:11px;color:var(--text2);}
+.adm-add-form input,.adm-add-form select{
+  padding:8px;border:1px solid var(--border);border-radius:4px;
+  background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;
+}
+.adm-add-btn{
+  padding:8px;border:none;border-radius:6px;background:var(--green);
+  color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:var(--mono);
+}
+.adm-log-entry{
+  padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;
+}
+.adm-log-time{color:var(--text3);font-size:10px;}
+.adm-log-action{color:var(--yellow);}
+/* 操作員 badge（Zone A） */
+#cmd-user-badge{
+  font-size:10px;color:var(--yellow);font-weight:600;
+  background:rgba(212,144,0,.12);padding:2px 6px;border-radius:3px;
+}
 </style>
 </head>
 <body>
+
+<!-- ═══════ 登入畫面 ═══════ -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-icon-wrap"><img src="/static/badge.png" alt="ICS"></div>
+    <div class="login-title">ICS 指揮部</div>
+    <div class="login-sub" id="login-sub">command dashboard</div>
+    <div class="login-card">
+      <input class="login-input" id="cmd-username" type="text" placeholder="帳號" autocomplete="username" autofocus>
+      <input class="login-input" id="cmd-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN（4-6 位數字）" autocomplete="current-password">
+      <button class="login-btn" id="cmd-login-btn" onclick="handleCmdLogin()">登入</button>
+      <div id="cmd-login-warn"></div>
+    </div>
+    <div class="login-version">cmd-<script>document.currentScript.parentNode.textContent='cmd-'+CMD_VERSION;</script></div>
+  </div>
+</div>
+
+<!-- ═══════ PinLock 鎖定畫面 ═══════ -->
+<div id="pin-lock-overlay">
+  <div class="pinlock-card">
+    <div class="pinlock-title">已鎖定</div>
+    <div class="pinlock-sub" id="pinlock-user"></div>
+    <input class="login-input" id="pinlock-pin" type="password" inputmode="numeric" maxlength="6" placeholder="輸入 PIN 解鎖">
+    <button class="login-btn" onclick="PinLock.unlock()">解鎖</button>
+    <div id="pinlock-warn"></div>
+  </div>
+</div>
+
+<!-- ═══════ Settings 面板 ═══════ -->
+<div id="settings-overlay" onclick="closeSettings()"></div>
+<div id="settings-panel">
+  <div class="stg-header"><span>設定</span><button class="stg-close" onclick="closeSettings()">&times;</button></div>
+  <div class="stg-body">
+    <div class="stg-section">
+      <div class="stg-section-title">指揮部</div>
+      <div class="stg-item" onclick="openConfigModal()">
+        <span class="si-icon">&#9881;</span>
+        <div class="si-text"><div class="si-title">指揮部設定</div><div class="si-sub">名稱、位置</div></div>
+        <span class="si-arrow">&#x203A;</span>
+      </div>
+    </div>
+    <div class="stg-section">
+      <div class="stg-section-title">資料</div>
+      <div class="stg-item" onclick="exportDashboardJSON()">
+        <span class="si-icon">&#128196;</span>
+        <div class="si-text"><div class="si-title">資料匯出</div><div class="si-sub">匯出儀表板 JSON 快照</div></div>
+        <span class="si-arrow">&#x203A;</span>
+      </div>
+      <div class="stg-item" onclick="showAuditLog()">
+        <span class="si-icon">&#128203;</span>
+        <div class="si-text"><div class="si-title">稽核日誌</div><div class="si-sub">查看操作紀錄</div></div>
+        <span class="si-arrow">&#x203A;</span>
+      </div>
+    </div>
+    <div class="stg-section" id="stg-admin-section">
+      <div class="stg-section-title">管理（僅指揮官）</div>
+      <div class="stg-item" onclick="openAdminPanel()">
+        <span class="si-icon">&#128100;</span>
+        <div class="si-text"><div class="si-title">帳號管理</div><div class="si-sub">新增、編輯、停用帳號</div></div>
+        <span class="si-arrow">&#x203A;</span>
+      </div>
+    </div>
+  </div>
+  <div class="stg-footer">
+    <div id="stg-user-info"></div>
+    <button class="stg-logout-btn" onclick="cmdLogout()">登出</button>
+  </div>
+</div>
+
+<!-- ═══════ Admin 底部面板 ═══════ -->
+<div id="admin-overlay" onclick="closeAdminPanel()"></div>
+<div id="admin-panel">
+  <div class="adm-header"><span>帳號管理</span><button class="adm-close" onclick="closeAdminPanel()">&times;</button></div>
+  <div id="adm-pin-screen">
+    <div class="pinlock-title">管理員驗證</div>
+    <div class="pinlock-sub">輸入管理員 PIN 以繼續</div>
+    <input class="login-input" id="adm-pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="Admin PIN">
+    <button class="login-btn" onclick="adminLogin()">驗證</button>
+    <div id="adm-pin-warn" style="font-size:11px;color:var(--red);min-height:16px;"></div>
+  </div>
+  <div id="adm-main">
+    <div class="adm-tabs">
+      <div class="adm-tab active" onclick="admShowTab('list')">帳號列表</div>
+      <div class="adm-tab" onclick="admShowTab('add')">新增</div>
+      <div class="adm-tab" onclick="admShowTab('log')">日誌</div>
+    </div>
+    <div class="adm-panel-body" id="adm-panel-list"></div>
+    <div class="adm-panel-body" id="adm-panel-add" style="display:none;"></div>
+    <div class="adm-panel-body" id="adm-panel-log" style="display:none;"></div>
+  </div>
+</div>
 
 <!-- ═══════ ZONE A — 態勢速讀 ═══════ -->
 <div id="zone-a">
@@ -377,7 +630,9 @@ canvas{display:block;width:100%!important;height:100%!important;}
         <div class="conn-item"><span class="conn-dot ok" id="cd-server"></span><span class="conn-label" id="cl-server">指揮部</span></div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;">
-        <span onclick="openSettings()" style="font-size:14px;cursor:pointer;color:var(--text3);" title="設定">⚙</span>
+        <span id="cmd-user-badge"></span>
+        <span id="idle-countdown"></span>
+        <span onclick="openSettings()" style="font-size:14px;cursor:pointer;color:var(--text3);" title="設定">&#9881;</span>
         <span class="h-ver" id="h-ver"></span>
       </div>
     </div>
@@ -641,6 +896,445 @@ let _currentDecisionId = null;
 let _decTab = 'pending';
 
 const el = id => document.getElementById(id);
+
+// ══════════════════════════════════════════════════════════════
+// 認證：authFetch + login/logout + PinLock + Settings + Admin
+// ══════════════════════════════════════════════════════════════
+
+/* --- authFetch：所有 API 呼叫統一加 session token --- */
+async function authFetch(url, opts = {}) {
+  const token = sessionStorage.getItem('cmd_session_id');
+  if (token) {
+    opts.headers = Object.assign({}, opts.headers || {}, {'X-Session-Token': token});
+  }
+  const resp = await fetch(url, opts);
+  if (resp.status === 401) {
+    // session 過期，跳回登入
+    _clearSession();
+    el('login-screen').style.display = '';
+    return resp;
+  }
+  return resp;
+}
+
+function _currentOperator() {
+  return sessionStorage.getItem('cmd_username') || '指揮部';
+}
+
+function _clearSession() {
+  sessionStorage.removeItem('cmd_session_id');
+  sessionStorage.removeItem('cmd_username');
+  sessionStorage.removeItem('cmd_role');
+  sessionStorage.removeItem('cmd_display_name');
+  sessionStorage.removeItem('cmd_login_time');
+  PinLock.clear();
+  _pollActive = false;
+}
+let _pollActive = false;
+
+/* --- 登入 --- */
+async function handleCmdLogin() {
+  const btn = el('cmd-login-btn');
+  const warn = el('cmd-login-warn');
+  const username = el('cmd-username').value.trim();
+  const pin = el('cmd-pin').value.trim();
+  warn.textContent = '';
+
+  if (!username) { warn.textContent = '請輸入帳號'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { warn.textContent = 'PIN 須為 4-6 位數字'; return; }
+
+  btn.disabled = true;
+  try {
+    const resp = await fetch(API_BASE + '/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username, pin}),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      warn.textContent = err.detail || '登入失敗';
+      return;
+    }
+    const data = await resp.json();
+    sessionStorage.setItem('cmd_session_id', data.session_id);
+    sessionStorage.setItem('cmd_username', data.username);
+    sessionStorage.setItem('cmd_role', data.role);
+    sessionStorage.setItem('cmd_display_name', data.display_name);
+    sessionStorage.setItem('cmd_login_time', new Date().toISOString());
+    // 儲存 PIN hash 供 PinLock 客戶端解鎖用
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'}, key, 256);
+    sessionStorage.setItem('cmd_pin_hash', Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join(''));
+    sessionStorage.setItem('cmd_pin_salt', Array.from(salt).map(b=>b.toString(16).padStart(2,'0')).join(''));
+
+    _enterDashboard();
+  } catch(e) {
+    warn.textContent = '連線失敗';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _enterDashboard() {
+  el('login-screen').style.display = 'none';
+  el('cmd-user-badge').textContent = sessionStorage.getItem('cmd_display_name') || sessionStorage.getItem('cmd_username');
+  // 角色限制
+  const isCommander = sessionStorage.getItem('cmd_role') === '指揮官';
+  el('stg-admin-section').style.display = isCommander ? '' : 'none';
+  // 更新 settings footer
+  el('stg-user-info').textContent = (sessionStorage.getItem('cmd_display_name') || '') + ' (' + sessionStorage.getItem('cmd_role') + ')　' + (sessionStorage.getItem('cmd_login_time') || '').slice(11,19);
+  PinLock.start();
+  _pollActive = true;
+  poll();
+}
+
+/* --- 登出 --- */
+async function cmdLogout() {
+  closeSettings();
+  try {
+    await authFetch(API_BASE + '/api/auth/logout', {method:'POST'});
+  } catch(e) {}
+  _clearSession();
+  el('login-screen').style.display = '';
+  el('cmd-username').value = '';
+  el('cmd-pin').value = '';
+  el('cmd-login-warn').textContent = '';
+  el('cmd-user-badge').textContent = '';
+}
+
+/* --- PinLock（閒置鎖定）--- */
+const PinLock = (() => {
+  const IDLE_MS = 90000;  // 90 秒
+  const WARN_S = 30;
+  let _timer = null, _warnTimer = null, _countdown = 0;
+
+  function _reset() {
+    clearTimeout(_timer);
+    clearTimeout(_warnTimer);
+    _countdown = 0;
+    el('idle-countdown').style.display = 'none';
+    el('idle-countdown').textContent = '';
+    _timer = setTimeout(_warn, IDLE_MS);
+  }
+
+  function _warn() {
+    _countdown = WARN_S;
+    el('idle-countdown').style.display = '';
+    _tick();
+  }
+
+  function _tick() {
+    if (_countdown <= 0) { _lock(); return; }
+    el('idle-countdown').textContent = _countdown + 's';
+    _countdown--;
+    _warnTimer = setTimeout(_tick, 1000);
+  }
+
+  function _lock() {
+    el('pin-lock-overlay').classList.add('show');
+    el('pinlock-user').textContent = sessionStorage.getItem('cmd_display_name') || sessionStorage.getItem('cmd_username') || '';
+    el('pinlock-pin').value = '';
+    el('pinlock-warn').textContent = '';
+    _pollActive = false;
+  }
+
+  async function unlock() {
+    const pin = el('pinlock-pin').value.trim();
+    if (!pin) { el('pinlock-warn').textContent = '請輸入 PIN'; return; }
+    // 客戶端驗證
+    const stored = sessionStorage.getItem('cmd_pin_hash');
+    const saltHex = sessionStorage.getItem('cmd_pin_salt');
+    if (!stored || !saltHex) { cmdLogout(); return; }
+    const enc = new TextEncoder();
+    const salt = new Uint8Array(saltHex.match(/.{2}/g).map(h => parseInt(h, 16)));
+    const key = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'}, key, 256);
+    const hash = Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    if (hash !== stored) { el('pinlock-warn').textContent = 'PIN 錯誤'; return; }
+    el('pin-lock-overlay').classList.remove('show');
+    // 觸碰 heartbeat 延長 server session
+    try { await authFetch(API_BASE + '/api/auth/heartbeat'); } catch(e) {}
+    _pollActive = true;
+    poll();
+    _reset();
+  }
+
+  function start() {
+    ['click','keydown','touchstart','scroll'].forEach(evt =>
+      document.addEventListener(evt, _reset, {passive:true})
+    );
+    _reset();
+  }
+
+  function clear() {
+    clearTimeout(_timer);
+    clearTimeout(_warnTimer);
+    el('idle-countdown').style.display = 'none';
+  }
+
+  return { start, clear, unlock, resetIdle: _reset };
+})();
+
+// Enter 鍵觸發登入 / 解鎖
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (el('login-screen').style.display !== 'none' && document.activeElement &&
+        (document.activeElement.id === 'cmd-username' || document.activeElement.id === 'cmd-pin')) {
+      handleCmdLogin();
+    }
+    if (el('pin-lock-overlay').classList.contains('show') && document.activeElement?.id === 'pinlock-pin') {
+      PinLock.unlock();
+    }
+    if (document.activeElement?.id === 'adm-pin-input') {
+      adminLogin();
+    }
+  }
+});
+
+/* --- Settings --- */
+function openSettings() {
+  el('settings-overlay').classList.add('show');
+  el('settings-panel').classList.add('show');
+}
+function closeSettings() {
+  el('settings-overlay').classList.remove('show');
+  el('settings-panel').classList.remove('show');
+}
+
+function openConfigModal() {
+  closeSettings();
+  // 讀取目前設定
+  Promise.all([
+    authFetch(API_BASE + '/api/config/command_post_name').then(r => r.ok ? r.json() : {value:null}),
+    authFetch(API_BASE + '/api/config/command_post_location').then(r => r.ok ? r.json() : {value:null}),
+  ]).then(([nameRes, locRes]) => {
+    openModal('指揮部設定',
+      '<div style="display:flex;flex-direction:column;gap:12px;">' +
+        '<label style="font-size:11px;color:var(--text2);">指揮部名稱</label>' +
+        '<input id="cfg-name" class="login-input" value="' + (nameRes.value || '') + '" placeholder="例：校園災害應變指揮部">' +
+        '<label style="font-size:11px;color:var(--text2);">位置</label>' +
+        '<input id="cfg-location" class="login-input" value="' + (locRes.value || '') + '" placeholder="例：行政大樓 1F">' +
+      '</div>',
+      '<button class="adm-btn" onclick="closeModal()">取消</button>' +
+      '<button class="login-btn" style="width:auto;padding:6px 16px;" onclick="_saveConfig()">儲存</button>'
+    );
+  });
+}
+async function _saveConfig() {
+  const name = el('cfg-name').value.trim();
+  const loc = el('cfg-location').value.trim();
+  if (name) await authFetch(API_BASE + '/api/config/command_post_name', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({value:name})});
+  if (loc) await authFetch(API_BASE + '/api/config/command_post_location', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({value:loc})});
+  closeModal();
+}
+
+function exportDashboardJSON() {
+  if (!_data) return;
+  const blob = new Blob([JSON.stringify(_data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dashboard_' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function showAuditLog() {
+  closeSettings();
+  const resp = await authFetch(API_BASE + '/api/audit_log?limit=100');
+  if (!resp.ok) return;
+  const logs = await resp.json();
+  let html = '<div style="max-height:60vh;overflow-y:auto;">';
+  for (const log of logs) {
+    html += '<div class="adm-log-entry">' +
+      '<span class="adm-log-time">' + (log.created_at || '').replace('T',' ').slice(0,19) + '</span> ' +
+      '<span class="adm-log-action">' + (log.action_type || '') + '</span> ' +
+      '<span style="color:var(--text2);">' + (log.operator || '') + '</span> ' +
+      '<span style="color:var(--text3);font-size:10px;">' + (log.target_table || '') + '/' + (log.target_id || '').slice(0,8) + '</span>' +
+    '</div>';
+  }
+  html += '</div>';
+  openModal('稽核日誌', html, '<button class="adm-btn" onclick="closeModal()">關閉</button>');
+}
+
+/* --- Admin 面板 --- */
+let _admPin = '';
+
+function openAdminPanel() {
+  closeSettings();
+  el('admin-overlay').classList.add('show');
+  el('admin-panel').classList.add('show');
+  el('adm-pin-screen').style.display = '';
+  el('adm-main').style.display = 'none';
+  el('adm-pin-input').value = '';
+  el('adm-pin-warn').textContent = '';
+  setTimeout(() => el('adm-pin-input').focus(), 100);
+}
+
+function closeAdminPanel() {
+  el('admin-overlay').classList.remove('show');
+  el('admin-panel').classList.remove('show');
+  _admPin = '';
+}
+
+async function adminLogin() {
+  const pin = el('adm-pin-input').value.trim();
+  if (!pin) { el('adm-pin-warn').textContent = '請輸入 PIN'; return; }
+  // 嘗試取帳號列表來驗證 PIN
+  const resp = await authFetch(API_BASE + '/api/admin/accounts', {
+    headers: {'X-Admin-PIN': pin},
+  });
+  if (!resp.ok) {
+    el('adm-pin-warn').textContent = '管理員 PIN 錯誤';
+    return;
+  }
+  _admPin = pin;
+  el('adm-pin-screen').style.display = 'none';
+  el('adm-main').style.display = 'flex';
+  admShowTab('list');
+}
+
+function admShowTab(tab) {
+  document.querySelectorAll('.adm-tab').forEach((t, i) => {
+    t.classList.toggle('active', ['list','add','log'][i] === tab);
+  });
+  el('adm-panel-list').style.display = tab === 'list' ? '' : 'none';
+  el('adm-panel-add').style.display = tab === 'add' ? '' : 'none';
+  el('adm-panel-log').style.display = tab === 'log' ? '' : 'none';
+  if (tab === 'list') admLoadAccounts();
+  if (tab === 'add') admShowAddForm();
+  if (tab === 'log') admLoadLog();
+}
+
+async function admLoadAccounts() {
+  const resp = await authFetch(API_BASE + '/api/admin/accounts', {headers:{'X-Admin-PIN':_admPin}});
+  if (!resp.ok) return;
+  const accounts = await resp.json();
+  let html = '';
+  for (const a of accounts) {
+    const statusCls = a.status === 'active' ? 'active' : 'suspended';
+    const statusLabel = a.status === 'active' ? '啟用' : '停用';
+    html += '<div class="adm-account-card" id="adm-card-' + a.username + '">' +
+      '<div class="adm-account-row">' +
+        '<div><span class="adm-account-name">' + a.username + '</span>' +
+          (a.display_name ? ' <span style="color:var(--text3);font-size:11px;">' + a.display_name + '</span>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:4px;">' +
+          '<span class="adm-badge role">' + a.role + '</span>' +
+          '<span class="adm-badge ' + statusCls + '">' + statusLabel + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="adm-btns">' +
+        '<button class="adm-btn" onclick="admToggleEdit(\'' + a.username + '\')">編輯</button>' +
+        '<button class="adm-btn" onclick="admToggleStatus(\'' + a.username + '\',\'' + a.status + '\')">' + (a.status === 'active' ? '停用' : '啟用') + '</button>' +
+        '<button class="adm-btn danger" onclick="admDelete(\'' + a.username + '\')">刪除</button>' +
+      '</div>' +
+      '<div class="adm-edit-form" id="adm-edit-' + a.username + '" style="display:none;">' +
+        '<label>新 PIN（4-6 位數字，留空不改）</label>' +
+        '<input id="adm-newpin-' + a.username + '" type="password" inputmode="numeric" maxlength="6" placeholder="新 PIN">' +
+        '<label>角色</label>' +
+        '<select id="adm-role-' + a.username + '">' +
+          '<option value="操作員"' + (a.role==='操作員'?' selected':'') + '>操作員</option>' +
+          '<option value="指揮官"' + (a.role==='指揮官'?' selected':'') + '>指揮官</option>' +
+        '</select>' +
+        '<label>顯示名稱</label>' +
+        '<input id="adm-dname-' + a.username + '" value="' + (a.display_name || '') + '">' +
+        '<div style="display:flex;gap:6px;">' +
+          '<button class="adm-btn" onclick="admSaveEdit(\'' + a.username + '\')">儲存</button>' +
+          '<button class="adm-btn" onclick="admToggleEdit(\'' + a.username + '\')">取消</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+  if (!accounts.length) html = '<div style="color:var(--text3);text-align:center;padding:20px;">無帳號</div>';
+  el('adm-panel-list').innerHTML = html;
+}
+
+function admToggleEdit(username) {
+  const form = el('adm-edit-' + username);
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+}
+
+async function admSaveEdit(username) {
+  const newPin = el('adm-newpin-' + username).value.trim();
+  const newRole = el('adm-role-' + username).value;
+  const headers = {'X-Admin-PIN': _admPin, 'Content-Type': 'application/json'};
+  if (newPin) {
+    if (!/^\d{4,6}$/.test(newPin)) { alert('PIN 須為 4-6 位數字'); return; }
+    await authFetch(API_BASE + '/api/admin/accounts/' + username + '/pin', {method:'PUT', headers, body:JSON.stringify({new_pin:newPin})});
+  }
+  await authFetch(API_BASE + '/api/admin/accounts/' + username + '/role?role=' + encodeURIComponent(newRole), {method:'PUT', headers});
+  admLoadAccounts();
+}
+
+async function admToggleStatus(username, current) {
+  const newStatus = current === 'active' ? 'suspended' : 'active';
+  await authFetch(API_BASE + '/api/admin/accounts/' + username + '/status', {
+    method:'PUT',
+    headers:{'X-Admin-PIN':_admPin,'Content-Type':'application/json'},
+    body: JSON.stringify({status: newStatus}),
+  });
+  admLoadAccounts();
+}
+
+async function admDelete(username) {
+  if (!confirm('確定刪除帳號 ' + username + '？')) return;
+  await authFetch(API_BASE + '/api/admin/accounts/' + username, {
+    method:'DELETE', headers:{'X-Admin-PIN':_admPin},
+  });
+  admLoadAccounts();
+}
+
+function admShowAddForm() {
+  el('adm-panel-add').innerHTML =
+    '<div class="adm-add-form">' +
+      '<label>帳號</label><input id="adm-add-user" placeholder="帳號">' +
+      '<label>PIN（4-6 位數字）</label><input id="adm-add-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">' +
+      '<label>角色</label><select id="adm-add-role"><option value="操作員">操作員</option><option value="指揮官">指揮官</option></select>' +
+      '<label>顯示名稱（選填）</label><input id="adm-add-dname" placeholder="顯示名稱">' +
+      '<button class="adm-add-btn" onclick="admAddAccount()">新增帳號</button>' +
+      '<div id="adm-add-warn" style="font-size:11px;color:var(--red);min-height:16px;"></div>' +
+    '</div>';
+}
+
+async function admAddAccount() {
+  const username = el('adm-add-user').value.trim();
+  const pin = el('adm-add-pin').value.trim();
+  const role = el('adm-add-role').value;
+  const displayName = el('adm-add-dname').value.trim();
+  const warn = el('adm-add-warn');
+  warn.textContent = '';
+  if (!username) { warn.textContent = '請輸入帳號'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { warn.textContent = 'PIN 須為 4-6 位數字'; return; }
+  const resp = await authFetch(API_BASE + '/api/admin/accounts', {
+    method:'POST',
+    headers:{'X-Admin-PIN':_admPin,'Content-Type':'application/json'},
+    body: JSON.stringify({username, pin, role, display_name: displayName || null}),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    warn.textContent = err.detail || '新增失敗';
+    return;
+  }
+  admShowTab('list');
+}
+
+async function admLoadLog() {
+  const resp = await authFetch(API_BASE + '/api/admin/audit-log?limit=50', {headers:{'X-Admin-PIN':_admPin}});
+  if (!resp.ok) return;
+  const logs = await resp.json();
+  let html = '';
+  for (const log of logs) {
+    html += '<div class="adm-log-entry">' +
+      '<span class="adm-log-time">' + (log.created_at || '').replace('T',' ').slice(0,19) + '</span> ' +
+      '<span class="adm-log-action">' + (log.action_type || '') + '</span> ' +
+      '<span style="color:var(--text2);">' + (log.operator || '') + '</span> ' +
+      '<span style="color:var(--text3);font-size:10px;">' + (log.target_table || '') + '/' + (log.target_id || '').slice(0,8) + '</span>' +
+    '</div>';
+  }
+  el('adm-panel-log').innerHTML = html || '<div style="color:var(--text3);text-align:center;padding:20px;">無日誌</div>';
+}
 
 // ══════════════════════════════════════════════════════════════
 // SVG Icon 定義（取代 emoji，確保跨平台一致）
@@ -978,7 +1672,7 @@ async function updateEventStatus(eventId, status) {
     if (notes.length === 0) return;
   }
   try {
-    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=指揮官', {
+    const resp = await authFetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=' + encodeURIComponent(_currentOperator()) + '', {
       method: 'PATCH',
     });
     if (resp.ok) { closeModal(); await poll(); }
@@ -1088,10 +1782,10 @@ async function _autoSaveAndAction(eventId, action) {
   const text = input?.value?.trim();
   if (text) {
     try {
-      await fetch(API_BASE + '/api/events/' + eventId + '/notes', {
+      await authFetch(API_BASE + '/api/events/' + eventId + '/notes', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ text, operator: '指揮部' })
+        body: JSON.stringify({ text, operator: _currentOperator() })
       });
     } catch(e) {}
   }
@@ -1118,7 +1812,7 @@ async function _autoSaveAndAction(eventId, action) {
 
   // 改狀態
   try {
-    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + action + '&operator=指揮部', {
+    const resp = await authFetch(API_BASE + '/api/events/' + eventId + '/status?status=' + action + '&operator=' + encodeURIComponent(_currentOperator()) + '', {
       method: 'PATCH',
     });
     if (resp.ok) {
@@ -1164,10 +1858,10 @@ async function _resetDeadline(eventId, minutes) {
   const newDeadline = new Date(Date.now() + minutes * 60000).toISOString().replace(/\.\d+Z/, 'Z');
   try {
     // 用追加紀錄 API 記錄重設，同時後端更新 deadline
-    await fetch(API_BASE + '/api/events/' + eventId + '/notes', {
+    await authFetch(API_BASE + '/api/events/' + eventId + '/notes', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ text: '期限重設 +' + minutes + '分鐘', operator: '指揮部' })
+      body: JSON.stringify({ text: '期限重設 +' + minutes + '分鐘', operator: _currentOperator() })
     });
     // 直接更新 DB 的 response_deadline（用 PATCH status 保持現狀 + 觸發 notes）
     // 簡化做法：透過前端記錄新 deadline 到 _data 中，下次 poll 會刷新
@@ -1252,9 +1946,9 @@ function _startDrag(marker, zone, e) {
     saveMapConfig();
     // 事件 marker 移動記錄到處置紀錄
     if (zone.event_id) {
-      fetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
+      authFetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ text: '地圖位置已移動', operator: '指揮部' })
+        body: JSON.stringify({ text: '地圖位置已移動', operator: _currentOperator() })
       }).then(() => poll()).catch(() => {});
     }
   };
@@ -1267,7 +1961,7 @@ function _startDrag(marker, zone, e) {
 async function saveMapConfig() {
   if (!_mapConfig) return;
   try {
-    const resp = await fetch(API_BASE + '/api/map_config', {
+    const resp = await authFetch(API_BASE + '/api/map_config', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(_mapConfig)
@@ -1404,7 +2098,7 @@ el('map-panel').addEventListener('click', async function(e) {
   // 建立事件
   const severity = (EVENT_ICON_MAP[_placeMode.type] === 'threat') ? 'critical' : 'warning';
   try {
-    const resp = await fetch(API_BASE + '/api/events', {
+    const resp = await authFetch(API_BASE + '/api/events', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -1412,7 +2106,7 @@ el('map-panel').addEventListener('click', async function(e) {
         event_type: _placeMode.type,
         severity: severity,
         description: _placeMode.label,
-        operator_name: '指揮部',
+        operator_name: _currentOperator(),
         location_zone_id: id,
         location_desc: _placeMode.label,
       })
@@ -1626,10 +2320,10 @@ async function _addEventNote(eventId) {
   const text = input?.value?.trim();
   if (!text) { input?.focus(); return; }
   try {
-    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/notes', {
+    const resp = await authFetch(API_BASE + '/api/events/' + eventId + '/notes', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ text, operator: '指揮部' })
+      body: JSON.stringify({ text, operator: _currentOperator() })
     });
     if (resp.ok) { await poll(); _renderZoneModal(); }
     else alert('追加失敗：' + resp.status);
@@ -1638,7 +2332,7 @@ async function _addEventNote(eventId) {
 
 async function _updateEvAndRefresh(eventId, status) {
   try {
-    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=指揮部', {
+    const resp = await authFetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=' + encodeURIComponent(_currentOperator()) + '', {
       method: 'PATCH',
     });
     if (resp.ok) { await poll(); _renderZoneModal(); }
@@ -1691,6 +2385,8 @@ function openEventForm(prefilledUnit, prefilledLocation, zoneId) {
   if (prefilledUnit) el('ev-unit').value = prefilledUnit;
   if (prefilledLocation) el('ev-location').value = prefilledLocation;
   if (zoneId) el('ev-zone-id').value = zoneId;
+  // 操作員預填登入帳號
+  if (!el('ev-operator').value) el('ev-operator').value = _currentOperator();
   // 用新的 EVENT_CATEGORIES 更新類型下拉
   _updateEvTypeFromCategories();
   el('event-overlay').className = 'show';
@@ -1724,14 +2420,14 @@ async function submitEvent() {
     event_type: el('ev-type').value,
     severity: severity,
     description: el('ev-desc').value,
-    operator_name: el('ev-operator').value || '指揮部',
+    operator_name: el('ev-operator').value || _currentOperator(),
     location_desc: el('ev-location').value || null,
     needs_commander_decision: el('ev-decision').checked,
     location_zone_id: el('ev-zone-id').value || null,
   };
   if (!body.description) { el('ev-desc').focus(); return; }
   try {
-    const resp = await fetch(API_BASE + '/api/events', {
+    const resp = await authFetch(API_BASE + '/api/events', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
@@ -1817,10 +2513,10 @@ async function submitDecision(action) {
   if (!_currentDecisionId) return;
   const note = document.getElementById('dec-note')?.value || '';
   try {
-    const resp = await fetch(API_BASE + '/api/decisions/' + _currentDecisionId + '/decide', {
+    const resp = await authFetch(API_BASE + '/api/decisions/' + _currentDecisionId + '/decide', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ action, decided_by: '指揮官', execution_note: note })
+      body: JSON.stringify({ action, decided_by: _currentOperator(), execution_note: note })
     });
     if (resp.ok) {
       closeModal();
@@ -1840,7 +2536,7 @@ async function escalateDecision(decId) {
   const dec = decisions.find(d => d.id === decId);
   if (!dec) return;
   try {
-    const resp = await fetch(API_BASE + '/api/decisions', {
+    const resp = await authFetch(API_BASE + '/api/decisions', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -1860,10 +2556,10 @@ async function escalateDecision(decId) {
 
 async function closeDecision(decId) {
   try {
-    const resp = await fetch(API_BASE + '/api/decisions/' + decId + '/decide', {
+    const resp = await authFetch(API_BASE + '/api/decisions/' + decId + '/decide', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ action: 'completed', decided_by: '指揮官', execution_note: '結案' })
+      body: JSON.stringify({ action: 'completed', decided_by: _currentOperator(), execution_note: '結案' })
     });
     if (resp.ok) { closeModal(); poll(); }
   } catch(e) { alert('結案失敗：' + e.message); }
@@ -1951,8 +2647,9 @@ function sliceSeries(d, s, e) {
 
 // ── API polling ──
 async function poll() {
+  if (!_pollActive) return;
   try {
-    const resp = await fetch(API_BASE + '/api/dashboard', { signal: AbortSignal.timeout(5000) });
+    const resp = await authFetch(API_BASE + '/api/dashboard', { signal: AbortSignal.timeout(5000) });
     if (!resp.ok) throw new Error(resp.status);
     _data = await resp.json();
     el('cd-server').className = 'conn-dot ok';
@@ -2810,16 +3507,36 @@ document.querySelector('.h-ver').textContent = 'cmd-' + CMD_VERSION;
 initMap();
 // 恢復展開狀態
 if (_expandedSection) _applyRightExpand(_expandedSection);
-setTimeout(async () => {
-  await poll();
-  // 重刷後恢復上次開啟的事件 modal
-  const savedEvId = sessionStorage.getItem('_openEventId');
-  if (savedEvId) {
-    const zone = _findZoneByEventId(savedEvId);
-    if (zone) showEventProcessModal(zone);
-    else { const ev = (_data?.events||[]).find(e=>e.id===savedEvId); if(ev) showEventDetail(ev); }
+
+// 認證 init：檢查是否有 session，有則驗證 heartbeat
+(async function _authInit() {
+  const token = sessionStorage.getItem('cmd_session_id');
+  if (token) {
+    try {
+      const resp = await fetch(API_BASE + '/api/auth/heartbeat', {
+        headers: {'X-Session-Token': token}
+      });
+      if (resp.ok) {
+        _enterDashboard();
+        // 重刷後恢復上次開啟的事件 modal
+        setTimeout(() => {
+          const savedEvId = sessionStorage.getItem('_openEventId');
+          if (savedEvId) {
+            const zone = _findZoneByEventId(savedEvId);
+            if (zone) showEventProcessModal(zone);
+            else { const ev = (_data?.events||[]).find(e=>e.id===savedEvId); if(ev) showEventDetail(ev); }
+          }
+        }, 500);
+        return;
+      }
+    } catch(e) {}
+    // heartbeat 失敗，清除 session
+    _clearSession();
   }
-}, 300);
+  // 顯示登入畫面
+  el('login-screen').style.display = '';
+})();
+
 setInterval(poll, POLL_INTERVAL);
 window.addEventListener('resize', () => { const d = getSeries(); if (d) renderSparklines(d); _resizeEvtList(); });
 </script>

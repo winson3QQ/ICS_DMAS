@@ -19,7 +19,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 import json
+import uuid
 from pathlib import Path
+from datetime import datetime, timezone
 
 import asyncio
 import db
@@ -61,6 +63,87 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ──────────────────────────────────────────
+# Session 管理（記憶體，重啟後清空）
+# ──────────────────────────────────────────
+
+SESSION_TIMEOUT = 90  # 秒（與 PWA PinLock 一致）
+_sessions: dict[str, dict] = {}
+
+# 不需要認證的路徑（精確比對 method + path）
+_AUTH_EXEMPT = {
+    ("POST", "/api/auth/login"),
+    ("GET",  "/api/admin/status"),
+    ("GET",  "/api/health"),
+    ("POST", "/api/snapshots"),     # 機對機：各組 Pi 推送
+    ("POST", "/api/sync/push"),     # 機對機：網路恢復同步
+}
+
+# 不需要認證的路徑前綴
+_AUTH_EXEMPT_PREFIXES = (
+    "/docs", "/openapi.json", "/redoc",   # Swagger UI
+    "/static/",                            # 靜態檔案
+)
+
+
+def _validate_session(request: Request) -> dict:
+    """驗證 X-Session-Token，回傳 session dict 或拋 401"""
+    token = request.headers.get("X-Session-Token")
+    if not token or token not in _sessions:
+        raise HTTPException(401, "未登入或 session 已過期")
+    sess = _sessions[token]
+    now = datetime.now(timezone.utc).timestamp()
+    if now - sess["last_active"] > SESSION_TIMEOUT:
+        _sessions.pop(token, None)
+        raise HTTPException(401, "閒置超時，請重新登入")
+    sess["last_active"] = now
+    return sess
+
+
+def _validate_admin_pin(request: Request):
+    """驗證 X-Admin-PIN header"""
+    pin = request.headers.get("X-Admin-PIN")
+    if not pin or not db.verify_admin_pin(pin):
+        raise HTTPException(403, "管理員 PIN 驗證失敗")
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """全域認證中介層"""
+    path = request.url.path
+    method = request.method
+
+    # 豁免：精確比對
+    if (method, path) in _AUTH_EXEMPT:
+        return await call_next(request)
+    # 豁免：前綴比對
+    if any(path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES):
+        return await call_next(request)
+    # 豁免：首頁
+    if path == "/":
+        return await call_next(request)
+    # 豁免：GET /api/snapshots/{node_type}
+    if method == "GET" and path.startswith("/api/snapshots/"):
+        return await call_next(request)
+    # 豁免：admin 端點（用 X-Admin-PIN 驗證，不用 session）
+    if path.startswith("/api/admin/"):
+        return await call_next(request)
+
+    # 其他 /api/ 端點需要 session
+    if path.startswith("/api/"):
+        token = request.headers.get("X-Session-Token")
+        if not token or token not in _sessions:
+            return JSONResponse({"detail": "未登入或 session 已過期"}, status_code=401)
+        sess = _sessions[token]
+        now = datetime.now(timezone.utc).timestamp()
+        if now - sess["last_active"] > SESSION_TIMEOUT:
+            _sessions.pop(token, None)
+            return JSONResponse({"detail": "閒置超時，請重新登入"}, status_code=401)
+        sess["last_active"] = now
+
+    return await call_next(request)
+
 
 # 靜態檔案（前端 HTML）
 static_path = Path(__file__).parent.parent / "static"
@@ -448,6 +531,221 @@ def health():
 
 
 # ──────────────────────────────────────────
+# API：認證
+# ──────────────────────────────────────────
+
+class LoginIn(BaseModel):
+    username: str
+    pin: str
+
+
+@app.post("/api/auth/login", tags=["認證"])
+def auth_login(body: LoginIn):
+    """驗證帳密，建立 session"""
+    acct = db.verify_login(body.username, body.pin)
+    if not acct:
+        raise HTTPException(401, "帳號或 PIN 錯誤")
+    session_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).timestamp()
+    _sessions[session_id] = {
+        "username": acct["username"],
+        "role": acct["role"],
+        "display_name": acct.get("display_name") or acct["username"],
+        "login_time": now,
+        "last_active": now,
+    }
+    db._audit(acct["username"], None, "login", "accounts", acct["username"],
+              {"role": acct["role"]})
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "username": acct["username"],
+        "role": acct["role"],
+        "display_name": acct.get("display_name") or acct["username"],
+    }
+
+
+@app.post("/api/auth/logout", tags=["認證"])
+def auth_logout(request: Request):
+    """銷毀 session"""
+    token = request.headers.get("X-Session-Token")
+    sess = _sessions.pop(token, None)
+    if sess:
+        db._audit(sess["username"], None, "logout", "accounts", sess["username"], {})
+    return {"ok": True}
+
+
+@app.get("/api/auth/heartbeat", tags=["認證"])
+def auth_heartbeat(request: Request):
+    """觸碰 session，回傳剩餘秒數"""
+    sess = _validate_session(request)
+    now = datetime.now(timezone.utc).timestamp()
+    remaining = max(0, SESSION_TIMEOUT - (now - sess["last_active"]))
+    return {"ok": True, "remaining": remaining, "username": sess["username"], "role": sess["role"]}
+
+
+@app.get("/api/auth/me", tags=["認證"])
+def auth_me(request: Request):
+    """取得目前登入者資訊"""
+    sess = _validate_session(request)
+    return {
+        "username": sess["username"],
+        "role": sess["role"],
+        "display_name": sess["display_name"],
+    }
+
+
+# ──────────────────────────────────────────
+# API：帳號管理（Admin PIN 驗證）
+# ──────────────────────────────────────────
+
+class AccountCreateIn(BaseModel):
+    username: str
+    pin: str
+    role: str = "操作員"
+    display_name: Optional[str] = None
+
+
+class AccountStatusIn(BaseModel):
+    status: str  # active / suspended
+
+
+class PinResetIn(BaseModel):
+    new_pin: str
+
+
+class AdminPinIn(BaseModel):
+    new_pin: str
+
+
+@app.get("/api/admin/status", tags=["帳號管理"])
+def admin_status():
+    """檢查 admin PIN 是否已設定（首次啟動引導用）"""
+    raw = db.get_config("admin_pin")
+    with db.get_conn() as conn:
+        cnt = conn.execute("SELECT COUNT(*) as c FROM accounts").fetchone()["c"]
+    return {"admin_pin_setup": raw is not None, "active_accounts": cnt}
+
+
+@app.get("/api/admin/accounts", tags=["帳號管理"])
+def admin_list_accounts(request: Request):
+    """列出所有帳號"""
+    _validate_admin_pin(request)
+    return db.get_all_accounts()
+
+
+@app.post("/api/admin/accounts", tags=["帳號管理"])
+def admin_create_account(body: AccountCreateIn, request: Request):
+    """新增帳號"""
+    _validate_admin_pin(request)
+    if body.role not in ("指揮官", "操作員"):
+        raise HTTPException(422, "role 必須是 指揮官 或 操作員")
+    if len(body.pin) < 4 or len(body.pin) > 6 or not body.pin.isdigit():
+        raise HTTPException(422, "PIN 必須是 4-6 位數字")
+    try:
+        return db.create_account(body.username, body.pin, body.role, body.display_name)
+    except Exception as e:
+        raise HTTPException(409, f"帳號建立失敗：{e}")
+
+
+@app.delete("/api/admin/accounts/{username}", tags=["帳號管理"])
+def admin_delete_account(username: str, request: Request):
+    """刪除帳號"""
+    _validate_admin_pin(request)
+    if not db.delete_account(username, "admin"):
+        raise HTTPException(404, "帳號不存在")
+    return {"ok": True}
+
+
+@app.put("/api/admin/accounts/{username}/status", tags=["帳號管理"])
+def admin_update_status(username: str, body: AccountStatusIn, request: Request):
+    """停用/啟用帳號"""
+    _validate_admin_pin(request)
+    if body.status not in ("active", "suspended"):
+        raise HTTPException(422, "status 必須是 active 或 suspended")
+    if not db.update_account_status(username, body.status, "admin"):
+        raise HTTPException(404, "帳號不存在")
+    return {"ok": True}
+
+
+@app.put("/api/admin/accounts/{username}/pin", tags=["帳號管理"])
+def admin_reset_pin(username: str, body: PinResetIn, request: Request):
+    """重設 PIN"""
+    _validate_admin_pin(request)
+    if len(body.new_pin) < 4 or len(body.new_pin) > 6 or not body.new_pin.isdigit():
+        raise HTTPException(422, "PIN 必須是 4-6 位數字")
+    if not db.update_account_pin(username, body.new_pin, "admin"):
+        raise HTTPException(404, "帳號不存在")
+    return {"ok": True}
+
+
+@app.put("/api/admin/accounts/{username}/role", tags=["帳號管理"])
+def admin_update_role(username: str, role: str, request: Request):
+    """變更角色"""
+    _validate_admin_pin(request)
+    if role not in ("指揮官", "操作員"):
+        raise HTTPException(422, "role 必須是 指揮官 或 操作員")
+    if not db.update_account_role(username, role, "admin"):
+        raise HTTPException(404, "帳號不存在")
+    return {"ok": True}
+
+
+@app.post("/api/admin/suspend-all", tags=["帳號管理"])
+def admin_suspend_all(request: Request):
+    """緊急停用所有帳號"""
+    _validate_admin_pin(request)
+    count = db.suspend_all_accounts("admin")
+    return {"ok": True, "suspended_count": count}
+
+
+@app.get("/api/admin/audit-log", tags=["帳號管理"])
+def admin_audit_log(request: Request, limit: int = 100):
+    """稽核日誌（Admin PIN 驗證）"""
+    _validate_admin_pin(request)
+    return db.get_audit_log(limit)
+
+
+@app.put("/api/admin/pin", tags=["帳號管理"])
+def admin_change_pin(body: AdminPinIn, request: Request):
+    """變更 Admin PIN"""
+    _validate_admin_pin(request)
+    if len(body.new_pin) < 4 or len(body.new_pin) > 6 or not body.new_pin.isdigit():
+        raise HTTPException(422, "PIN 必須是 4-6 位數字")
+    db.set_admin_pin(body.new_pin, "admin")
+    return {"ok": True}
+
+
+# ──────────────────────────────────────────
+# API：系統設定（指揮官限定）
+# ──────────────────────────────────────────
+
+class ConfigIn(BaseModel):
+    value: str
+
+
+@app.get("/api/config/{key}", tags=["系統設定"])
+def get_config(key: str, request: Request):
+    """取得設定值"""
+    sess = _validate_session(request)
+    if key == "admin_pin":
+        raise HTTPException(403, "不可讀取 admin_pin")
+    val = db.get_config(key)
+    return {"key": key, "value": val}
+
+
+@app.post("/api/config/{key}", tags=["系統設定"])
+def set_config(key: str, body: ConfigIn, request: Request):
+    """設定值（僅指揮官）"""
+    sess = _validate_session(request)
+    if sess["role"] != "指揮官":
+        raise HTTPException(403, "僅指揮官可修改設定")
+    if key == "admin_pin":
+        raise HTTPException(403, "請使用 /api/admin/pin 變更管理員 PIN")
+    db.set_config(key, body.value, sess["username"])
+    return {"ok": True}
+
+
+# ──────────────────────────────────────────
 # 首頁（開發用）
 # ──────────────────────────────────────────
 
@@ -456,19 +754,14 @@ def index():
     return """
     <html><head><meta charset="UTF-8"><title>ICS 指揮部</title></head>
     <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
-    <h2 style="color:#fff">ICS 指揮部 command-v0.4.1</h2>
+    <h2 style="color:#fff">ICS 指揮部 command-v0.7.0</h2>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">儀表板</p>
-    <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.4.1（升降級 + 流向箭頭）</a></p>
-    <p><a href="/static/staff_v13.html" style="color:#6e7b96">▶ 舊版儀表板 v0.2.0</a></p>
-    <p><a href="/static/staff_v12.html" style="color:#6e7b96">▶ 舊版儀表板 v0.1.0</a></p>
+    <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.7.0</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">工具</p>
     <p><a href="/static/qr_scanner.html" style="color:#90b8e8">▶ QR 快照掃描</a></p>
-    <p><a href="/static/manual_input.html" style="color:#90b8e8">▶ 手動輸入</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">API</p>
     <p><a href="/docs" style="color:#90b8e8">/docs — Swagger UI</a></p>
-    <p><a href="/api/dashboard" style="color:#90b8e8">/api/dashboard — 儀表板資料</a></p>
     <p><a href="/api/health" style="color:#90b8e8">/api/health — 系統狀態</a></p>
-    <p><a href="/api/sync/log" style="color:#90b8e8">/api/sync/log — 三 Pass 同步記錄</a></p>
     </body></html>
     """
 
