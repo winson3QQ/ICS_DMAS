@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.6.4';</script>
+<script>const CMD_VERSION='v0.6.5';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -163,6 +163,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #edit-bar button.del{background:var(--red);}
 .zone-marker.selected{z-index:20;outline:2px solid var(--green);outline-offset:2px;}
 .zone-marker.selected .zone-info{display:flex;}
+.zone-marker.dimmed{opacity:0.15;pointer-events:none;}
+.zone-marker.highlighted{z-index:20;outline:2px solid var(--green);outline-offset:2px;transform:translate(-50%,-50%) scale(1.2);}
+.zone-marker.highlighted .zone-info{display:flex;}
 .zone-marker.dragging{cursor:grabbing;z-index:25;}
 #edit-coords{
   position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:10;
@@ -479,10 +482,14 @@ canvas{display:block;width:100%!important;height:100%!important;}
   <div class="side-panel right" id="panel-right">
     <!-- 上：事件追蹤 60% -->
     <div id="right-events" style="flex:6;display:flex;flex-direction:column;overflow:hidden;min-height:0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;flex-shrink:0;cursor:pointer;border-bottom:1px solid var(--border);" onclick="toggleRightExpand('events')">
-        <span style="font-size:10px;font-weight:600;color:var(--text3);">事件追蹤</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;flex-shrink:0;border-bottom:1px solid var(--border);">
+        <span style="display:flex;align-items:center;gap:4px;">
+          <span id="evt-expand-arrow" style="font-size:8px;color:var(--text3);cursor:pointer;padding:2px;" onclick="toggleRightExpand('events')">▶</span>
+          <span style="font-size:10px;font-weight:600;color:var(--text3);cursor:pointer;" onclick="_toggleEvtGroup()">事件追蹤 <span id="evt-overdue" style="font-size:9px;"></span></span>
+        </span>
         <span id="evt-stats" style="font-size:9px;color:var(--text3);"></span>
       </div>
+      <div id="evt-filter-bar" style="display:none;padding:3px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:9px;color:var(--text2);flex-shrink:0;"></div>
       <div id="right-evt-list" style="flex:1;overflow-y:auto;padding:0 4px;font-size:10px;min-height:0;">
         <div style="color:var(--green);font-size:11px;">無開放事件</div>
       </div>
@@ -846,6 +853,14 @@ function renderMapOverlay() {
 
     // 選取狀態
     if (z.id === _selectedZoneId) marker.classList.add('selected');
+    // 長按 highlight 模式
+    if (_highlightedEventId) {
+      if (z.event_id === _highlightedEventId) {
+        marker.classList.add('highlighted');
+      } else {
+        marker.classList.add('dimmed');
+      }
+    }
 
     // — 長按 >200ms 啟動拖曳，短按 = 單擊選取 —
     let _pressTimer = null, _didDrag = false;
@@ -1003,7 +1018,7 @@ function showEventProcessModal(zone) {
 
   // — 標題列（header 區）—
   const iconHtml = `<span style="display:inline-flex;vertical-align:middle;margin-right:4px;">${renderIcon(zone.icon)}</span>`;
-  el('modal-title').innerHTML = `${iconHtml} ${ev.event_code || ''}　${ev.description || ev.event_type}`;
+  el('modal-title').innerHTML = `${iconHtml} ${(ev.event_code||'').replace(/-\d{4}-/, '-')}　${ev.description || ev.event_type}`;
 
   let html = '';
   // 狀態 + 倒數
@@ -1277,6 +1292,50 @@ async function saveMapConfig() {
   } catch(e) {
     alert('儲存失敗：' + e.message);
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 事件 highlight（長按事件卡片 → 地圖定位）
+// ══════════════════════════════════════════════════════════════
+let _highlightedEventId = null;
+
+function _highlightEvent(eventId) {
+  // 找事件對應的 zone 和所在地圖
+  if (!_mapConfig) return;
+  for (const [mapKey, m] of Object.entries(_mapConfig.maps)) {
+    const zone = m.zones.find(z => z.event_id === eventId);
+    if (zone) {
+      // 切換到該地圖
+      if (_currentMap !== mapKey) switchMap(mapKey);
+      _highlightedEventId = eventId;
+      renderMapOverlay();
+      return;
+    }
+  }
+}
+
+function _unhighlightEvent() {
+  if (!_highlightedEventId) return;
+  _highlightedEventId = null;
+  renderMapOverlay();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 事件篩選 + 組別分類
+// ══════════════════════════════════════════════════════════════
+let _evtFilter = null;      // null / 'overdue' / 'pending' / 'progress'
+let _evtGroupByUnit = false;
+
+function _toggleEvtFilter(filter) {
+  _evtFilter = (_evtFilter === filter) ? null : filter;
+  const d = getSeries();
+  renderZoneC(d);
+}
+
+function _toggleEvtGroup() {
+  _evtGroupByUnit = !_evtGroupByUnit;
+  const d = getSeries();
+  renderZoneC(d);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2318,30 +2377,69 @@ function renderZoneC(d) {
   const pendingCount = openEvents.filter(e => e.status === 'open').length;
   const progCount = openEvents.filter(e => e.status === 'in_progress').length;
   // evt-count 已移除，統計改由 evt-stats 顯示
-  // 統計列
+  // 逾時（左側，事件追蹤旁）
+  el('evt-overdue').innerHTML = overdueCount > 0 ? `<span style="color:var(--red);font-weight:700;cursor:pointer;" onclick="_toggleEvtFilter('overdue')">逾${overdueCount}</span>` : '';
+  // 統計列（右側）— 可點擊篩選
+  const _af = _evtFilter; // active filter
   let statsHtml = '';
-  if (overdueCount > 0) statsHtml += `<span style="color:var(--red);font-weight:700;">逾${overdueCount}</span> `;
-  if (pendingCount > 0) statsHtml += `<span style="color:#e67e22;font-weight:700;">待處理${pendingCount}</span> `;
-  if (progCount > 0) statsHtml += `<span style="color:var(--yellow);">處理${progCount}</span> `;
-  if (resolvedEvents.length > 0) statsHtml += `<span style="opacity:.5;">結案${resolvedEvents.length}</span>`;
+  if (pendingCount > 0) statsHtml += `<span style="color:#e67e22;font-weight:700;cursor:pointer;${_af==='pending'?'text-decoration:underline;':''}" onclick="_toggleEvtFilter('pending')">待處理${pendingCount}</span> `;
+  if (progCount > 0) statsHtml += `<span style="color:var(--yellow);cursor:pointer;${_af==='progress'?'text-decoration:underline;':''}" onclick="_toggleEvtFilter('progress')">處理${progCount}</span> `;
+  if (resolvedEvents.length > 0) statsHtml += `<span style="opacity:.5;cursor:pointer;" onclick="_toggleEvtFilter('resolved')">結案${resolvedEvents.length}</span>`;
   el('evt-stats').innerHTML = statsHtml;
+
+  // 篩選/分組提示列
+  const filterBar = el('evt-filter-bar');
+  const filterLabels = {overdue:'逾時', pending:'待處理', progress:'處理中', resolved:'已結案'};
+  let barParts = [];
+  if (_evtFilter) barParts.push('篩選：' + filterLabels[_evtFilter]);
+  if (_evtGroupByUnit) barParts.push('按組別分類');
+  if (barParts.length > 0) {
+    filterBar.innerHTML = `<span>${barParts.join(' · ')}</span><span style="cursor:pointer;margin-left:auto;color:var(--text3);" onclick="_evtFilter=null;_evtGroupByUnit=false;renderZoneC(getSeries());">✕ 清除</span>`;
+    filterBar.style.display = 'flex';
+    filterBar.style.justifyContent = 'space-between';
+    filterBar.style.alignItems = 'center';
+  } else {
+    filterBar.style.display = 'none';
+  }
 
   const unitColors = {forward:'#e68c1e',security:'#3366e6',shelter:'#d4b200',medical:'#e03030',command:'#22b05a'};
   const unitNames = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
 
+  // 篩選
+  let filteredOpen = openEvents;
+  let filteredResolved = resolvedEvents;
+  if (_evtFilter === 'overdue') {
+    filteredOpen = openEvents.filter(e => {
+      if (!e.response_deadline) return false;
+      const ts = e.response_deadline.endsWith('Z') ? e.response_deadline : e.response_deadline+'Z';
+      return new Date(ts).getTime() < now0;
+    });
+    filteredResolved = [];
+  } else if (_evtFilter === 'pending') {
+    filteredOpen = openEvents.filter(e => e.status === 'open');
+    filteredResolved = [];
+  } else if (_evtFilter === 'progress') {
+    filteredOpen = openEvents.filter(e => e.status === 'in_progress');
+    filteredResolved = [];
+  } else if (_evtFilter === 'resolved') {
+    filteredOpen = [];
+  }
+
   let evtHtml = '';
-  if (openEvents.length === 0 && resolvedEvents.length === 0) {
-    evtHtml = '<div style="color:var(--green);font-size:12px;padding:8px;">無事件</div>';
+  if (filteredOpen.length === 0 && filteredResolved.length === 0) {
+    evtHtml = _evtFilter ? '<div style="color:var(--text3);font-size:11px;padding:8px;">無符合篩選的事件</div>'
+                         : '<div style="color:var(--green);font-size:12px;padding:8px;">無事件</div>';
   } else {
     const now = Date.now();
-    openEvents.sort((a, b) => {
+    filteredOpen.sort((a, b) => {
       const aOd = a.response_deadline && new Date(a.response_deadline.endsWith('Z') ? a.response_deadline : a.response_deadline+'Z').getTime() < now;
       const bOd = b.response_deadline && new Date(b.response_deadline.endsWith('Z') ? b.response_deadline : b.response_deadline+'Z').getTime() < now;
       return (aOd === bOd) ? 0 : aOd ? -1 : 1;
     });
-    openEvents.forEach(ev => {
+
+    // 事件卡片 HTML 產生函式
+    const _evtCardHtml = (ev) => {
       const cd = ev.response_deadline ? _countdownStr(ev.response_deadline) : '';
-      const isOverdue = cd.startsWith('逾時');
       let tagColor = 'var(--yellow)';
       if (ev.response_deadline) {
         const ts = ev.response_deadline.endsWith('Z') ? ev.response_deadline : ev.response_deadline+'Z';
@@ -2354,21 +2452,43 @@ function renderZoneC(d) {
       }
       const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
       const uName = unitNames[ev.reported_by_unit] || '';
-      evtHtml += `<div style="cursor:pointer;padding:6px 8px;margin-bottom:3px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor};" onclick="_openEventByCode('${ev.id}')">`;
-      evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-      evtHtml += `<span style="font-size:11px;font-weight:700;">${ev.description||ev.event_type}</span>`;
-      evtHtml += `<span style="font-size:10px;font-weight:700;color:${tagColor};">${cd}</span>`;
-      evtHtml += `</div>`;
-      evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">`;
-      evtHtml += `<span style="font-size:9px;color:var(--text3);font-weight:600;">${uName}</span>`;
-      evtHtml += `<span style="font-size:9px;color:var(--text3);">${ev.event_code||''}</span>`;
-      evtHtml += `</div>`;
-      evtHtml += `</div>`;
-    });
+      let h = '';
+      h += `<div style="cursor:pointer;padding:6px 8px;margin-bottom:3px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor};" onclick="_openEventByCode('${ev.id}')" onmousedown="_evtCardDown('${ev.id}')" onmouseup="_evtCardUp()" onmouseleave="_evtCardUp()" ontouchstart="_evtCardDown('${ev.id}')" ontouchend="_evtCardUp()">`;
+      h += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
+      h += `<span style="font-size:11px;font-weight:700;">${ev.description||ev.event_type}</span>`;
+      h += `<span style="font-size:10px;font-weight:700;color:${tagColor};">${cd}</span>`;
+      h += `</div>`;
+      h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">`;
+      h += `<span style="font-size:9px;color:var(--text3);font-weight:600;">${uName}</span>`;
+      h += `<span style="font-size:9px;color:var(--text3);">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
+      h += `</div>`;
+      h += `</div>`;
+      return h;
+    };
+
+    // 組別分類 or 時間序
+    if (_evtGroupByUnit) {
+      const groups = {};
+      const unitOrder = ['forward','security','shelter','medical','command'];
+      filteredOpen.forEach(ev => {
+        const u = ev.reported_by_unit || 'command';
+        if (!groups[u]) groups[u] = [];
+        groups[u].push(ev);
+      });
+      unitOrder.forEach(u => {
+        if (!groups[u] || groups[u].length === 0) return;
+        const uColor = unitColors[u] || 'var(--text3)';
+        const uName = unitNames[u] || u;
+        evtHtml += `<div style="font-size:9px;color:${uColor};padding:6px 0 2px;font-weight:700;border-bottom:1px solid ${uColor}33;">── ${uName} ──</div>`;
+        groups[u].forEach(ev => { evtHtml += _evtCardHtml(ev); });
+      });
+    } else {
+      filteredOpen.forEach(ev => { evtHtml += _evtCardHtml(ev); });
+    }
     // 已結案
-    if (resolvedEvents.length > 0) {
+    if (filteredResolved.length > 0) {
       evtHtml += `<div style="font-size:9px;color:var(--text3);padding:5px 0 2px;font-weight:600;">已結案</div>`;
-      resolvedEvents.forEach(ev => {
+      filteredResolved.forEach(ev => {
         const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
         const uName = unitNames[ev.reported_by_unit] || '';
         evtHtml += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor}55;opacity:.55;" onclick="_openEventByCode('${ev.id}')">`;
@@ -2378,7 +2498,7 @@ function renderZoneC(d) {
         evtHtml += `</div>`;
         evtHtml += `<div style="display:flex;justify-content:space-between;margin-top:1px;">`;
         evtHtml += `<span style="font-size:9px;color:var(--text3);">${uName}</span>`;
-        evtHtml += `<span style="font-size:8px;color:var(--text3);">${ev.event_code||''}</span>`;
+        evtHtml += `<span style="font-size:8px;color:var(--text3);">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
         evtHtml += `</div>`;
         evtHtml += `</div>`;
       });
@@ -2411,6 +2531,7 @@ function _applyRightExpand(section) {
     el('right-decisions').style.display = '';
     el('right-decisions').style.flex = '4';
     divider.style.display = '';
+    el('evt-expand-arrow').textContent = '▶';
   } else {
     // 展開
     panel.classList.add('expanded');
@@ -2420,6 +2541,7 @@ function _applyRightExpand(section) {
       el('right-events').style.display = '';
       el('right-events').style.flex = '1';
       el('right-decisions').style.display = 'none';
+      el('evt-expand-arrow').textContent = '◀';
     } else {
       el('right-decisions').style.display = '';
       el('right-decisions').style.flex = '1';
@@ -2428,7 +2550,29 @@ function _applyRightExpand(section) {
   }
 }
 
+// 長按事件卡片 → 地圖 highlight
+let _evtCardTimer = null;
+let _evtCardDidHighlight = false;
+function _evtCardDown(eventId) {
+  _evtCardDidHighlight = false;
+  _evtCardTimer = setTimeout(() => {
+    _evtCardTimer = null;
+    _evtCardDidHighlight = true;
+    _highlightEvent(eventId);
+  }, 600);
+}
+function _evtCardUp() {
+  if (_evtCardTimer) { clearTimeout(_evtCardTimer); _evtCardTimer = null; }
+  if (_evtCardDidHighlight) {
+    _unhighlightEvent();
+    // 延遲重設，防止 mouseup 後的 click 觸發 modal
+    setTimeout(() => { _evtCardDidHighlight = false; }, 100);
+  }
+}
+
 function _openEventByCode(eventId) {
+  // 長按觸發了 highlight，不要開 modal
+  if (_evtCardDidHighlight) return;
   const zone = _findZoneByEventId(eventId);
   if (zone) {
     showEventProcessModal(zone);
