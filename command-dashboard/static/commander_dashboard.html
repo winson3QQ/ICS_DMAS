@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.6.2';</script>
+<script>const CMD_VERSION='v0.6.3';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -60,7 +60,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 /* 側欄面板 */
 .side-panel{
-  flex:0 0 18%;display:flex;flex-direction:column;padding:4px 5px;gap:3px;overflow:hidden;
+  flex:0 0 18%;display:flex;flex-direction:column;padding:4px 5px;gap:3px;overflow:hidden;min-height:0;
   border-right:1px solid var(--border);
 }
 .side-panel.right{border-right:none;border-left:1px solid var(--border);transition:flex-basis .25s;}
@@ -478,11 +478,12 @@ canvas{display:block;width:100%!important;height:100%!important;}
   <!-- 右：事件追蹤 + 待裁示 -->
   <div class="side-panel right" id="panel-right">
     <!-- 上：事件追蹤 60% -->
-    <div id="right-events" style="flex:6;display:flex;flex-direction:column;overflow:hidden;">
+    <div id="right-events" style="flex:6;display:flex;flex-direction:column;overflow:hidden;min-height:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;flex-shrink:0;cursor:pointer;border-bottom:1px solid var(--border);" onclick="toggleRightExpand('events')">
-        <span style="font-size:10px;font-weight:600;color:var(--text3);">📋 事件追蹤 <span id="evt-count" style="color:var(--yellow);">0</span></span>
+        <span style="font-size:10px;font-weight:600;color:var(--text3);">事件追蹤</span>
+        <span id="evt-stats" style="font-size:9px;color:var(--text3);"></span>
       </div>
-      <div id="right-evt-list" style="flex:1;overflow-y:auto;padding:0 4px;font-size:10px;">
+      <div id="right-evt-list" style="flex:1;overflow-y:auto;padding:0 4px;font-size:10px;min-height:0;">
         <div style="color:var(--green);font-size:11px;">無開放事件</div>
       </div>
     </div>
@@ -1339,19 +1340,9 @@ el('map-panel').addEventListener('click', async function(e) {
     return;
   }
 
-  // --- DEBUG: 座標計算 ---
-  const panelRect = el('map-panel').getBoundingClientRect();
-  const imgEl = el('map-img');
-  const imgRect = imgEl.getBoundingClientRect();
-  console.log('[PLACE] panel:', JSON.stringify({w:panelRect.width, h:panelRect.height, t:panelRect.top, l:panelRect.left}));
-  console.log('[PLACE] img:', JSON.stringify({w:imgRect.width, h:imgRect.height, t:imgRect.top, l:imgRect.left, natW:imgEl.naturalWidth, natH:imgEl.naturalHeight}));
-  console.log('[PLACE] click:', JSON.stringify({clientX:e.clientX, clientY:e.clientY}));
-
-  // 用圖片的 rect 而非 panel 的 rect 計算百分比
-  const rect = imgRect;
+  const rect = el('map-panel').getBoundingClientRect();
   const x_pct = Math.round((e.clientX - rect.left) / rect.width * 1000) / 10;
   const y_pct = Math.round((e.clientY - rect.top) / rect.height * 1000) / 10;
-  console.log('[PLACE] pct:', JSON.stringify({x_pct, y_pct}));
 
   const id = 'evt_' + Date.now();
   const zone = {
@@ -1364,7 +1355,6 @@ el('map-panel').addEventListener('click', async function(e) {
   // 建立事件
   const severity = (EVENT_ICON_MAP[_placeMode.type] === 'threat') ? 'critical' : 'warning';
   try {
-    console.log('[PLACE] POST /api/events...', JSON.stringify({unit:_placeMode.group, type:_placeMode.type, severity}));
     const resp = await fetch(API_BASE + '/api/events', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -1378,25 +1368,18 @@ el('map-panel').addEventListener('click', async function(e) {
         location_desc: _placeMode.label,
       })
     });
-    console.log('[PLACE] resp status:', resp.status);
     if (resp.ok) {
       const data = await resp.json();
       zone.event_id = data.id;
       zone.event_code = data.event_code;
-      console.log('[PLACE] event created:', data.event_code);
-    } else {
-      console.error('[PLACE] event create failed:', resp.status, await resp.text());
     }
   } catch(e) { console.error('[PLACE] fetch error:', e); }
 
   // 加入地圖
   if (_mapConfig && _mapConfig.maps[_currentMap]) {
-    console.log('[PLACE] saving to map:', _currentMap, 'zone count before:', _mapConfig.maps[_currentMap].zones.length);
     _mapConfig.maps[_currentMap].zones.push(zone);
     saveMapConfig();
     renderMapOverlay();
-  } else {
-    console.error('[PLACE] no _mapConfig or map!', {_mapConfig: !!_mapConfig, _currentMap});
   }
 
   // 放完自動退出放置模式
@@ -2326,7 +2309,22 @@ function renderZoneC(d) {
   const allEvents = _data?.events || [];
   const openEvents = allEvents.filter(e => e.status === 'open' || e.status === 'in_progress');
   const resolvedEvents = allEvents.filter(e => e.status === 'resolved' || e.status === 'closed');
-  el('evt-count').textContent = openEvents.length;
+  const now0 = Date.now();
+  const overdueCount = openEvents.filter(e => {
+    if (!e.response_deadline) return false;
+    const ts = e.response_deadline.endsWith('Z') ? e.response_deadline : e.response_deadline+'Z';
+    return new Date(ts).getTime() < now0;
+  }).length;
+  const pendingCount = openEvents.filter(e => e.status === 'open').length;
+  const progCount = openEvents.filter(e => e.status === 'in_progress').length;
+  // evt-count 已移除，統計改由 evt-stats 顯示
+  // 統計列
+  let statsHtml = '';
+  if (overdueCount > 0) statsHtml += `<span style="color:var(--red);font-weight:700;">逾${overdueCount}</span> `;
+  if (pendingCount > 0) statsHtml += `<span style="color:#e67e22;font-weight:700;">待處理${pendingCount}</span> `;
+  if (progCount > 0) statsHtml += `<span style="color:var(--yellow);">處理${progCount}</span> `;
+  if (resolvedEvents.length > 0) statsHtml += `<span style="opacity:.5;">結案${resolvedEvents.length}</span>`;
+  el('evt-stats').innerHTML = statsHtml;
 
   const unitColors = {forward:'#e68c1e',security:'#3366e6',shelter:'#d4b200',medical:'#e03030',command:'#22b05a'};
   const unitNames = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
