@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.6.8';</script>
+<script>const CMD_VERSION='v0.6.9';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -27,8 +27,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   background:linear-gradient(180deg,#161b22,#0d1117);border-bottom:1px solid var(--border);
 }
 #status-lamp{
-  width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-size:20px;font-weight:700;color:#fff;flex-shrink:0;
+  width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;flex-shrink:0;
   transition:background .5s,box-shadow .5s;
 }
 #status-lamp.ok{background:var(--green);box-shadow:0 0 16px rgba(26,158,82,.5);}
@@ -37,21 +37,25 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
 
 #zone-a-mid{flex:1;min-width:0;}
-#zone-a-top{display:flex;align-items:baseline;gap:12px;font-size:14px;color:var(--text);}
-#zone-a-top .clock{font-size:22px;font-weight:700;}
-#zone-a-top .runtime{font-size:13px;color:var(--text2);}
-#zone-a-top .counts{font-size:14px;font-weight:600;}
-#zone-a-summary{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#zone-a-top{display:flex;align-items:baseline;justify-content:center;gap:24px;}
+.za-col{display:flex;flex-direction:column;}
+.za-col-l{align-items:flex-end;}
+.za-col-r{align-items:flex-start;}
+.za-clock{font-size:22px;font-weight:700;color:var(--text);}
+.za-counts{font-size:16px;font-weight:600;color:var(--text);}
 
 #zone-a-right{display:flex;align-items:center;gap:14px;flex-shrink:0;}
 #dci{text-align:center;}
 #dci-val{font-size:28px;font-weight:700;line-height:1;}
 #dci-label{font-size:8px;color:var(--text3);letter-spacing:.1em;}
-#conn{display:flex;align-items:center;gap:4px;font-size:10px;color:#00d466;}
-#conn .dot{width:7px;height:7px;border-radius:50%;background:#00d466;box-shadow:0 0 6px #00d466;}
-#conn.off .dot{background:var(--red);box-shadow:0 0 6px var(--red);}
-#conn.off{color:var(--red);}
-.h-ver{font-size:9px;color:var(--text3);border:1px solid var(--border);padding:1px 6px;border-radius:3px;}
+.conn-item{display:flex;align-items:center;gap:3px;}
+.conn-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.conn-dot.ok{background:#00d466;box-shadow:0 0 6px #00d466;}
+.conn-dot.warn{background:var(--yellow);box-shadow:0 0 6px var(--yellow);animation:blink 1s infinite;}
+.conn-dot.crit{background:var(--red);box-shadow:0 0 6px var(--red);animation:blink .6s infinite;}
+.conn-dot.lkp{background:#555;}
+.conn-label{font-size:9px;color:var(--text3);}
+.h-ver{font-size:9px;color:var(--text3);}
 
 /* ═══ ZONE B ═══ */
 #zone-b{
@@ -300,14 +304,6 @@ canvas{display:block;width:100%!important;height:100%!important;}
 .zone-fresh.lkp{background:#555;}
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
 
-/* 通訊健康圓點 */
-.comm-dot{width:14px;height:14px;border-radius:50%;background:#555;position:relative;cursor:help;box-shadow:0 0 4px rgba(0,0,0,.4);}
-.comm-dot.ok{background:var(--green);}
-.comm-dot.warn{background:var(--yellow);animation:blink 1s infinite;}
-.comm-dot.crit{background:var(--red);animation:blink .6s infinite;}
-.comm-dot.lkp{background:#555;}
-.comm-dot::after{content:attr(title);position:absolute;top:10px;left:50%;transform:translateX(-50%);font-size:7px;color:var(--text3);white-space:nowrap;display:none;}
-.comm-dot:hover::after{display:block;}
 
 /* 地圖流向箭頭動畫 */
 .flow-line{animation:flowDash 1.5s linear infinite;}
@@ -353,25 +349,38 @@ canvas{display:block;width:100%!important;height:100%!important;}
 
 <!-- ═══════ ZONE A — 態勢速讀 ═══════ -->
 <div id="zone-a">
-  <img src="/static/badge.png" alt="ICS" style="height:40px;width:40px;border-radius:50%;flex-shrink:0;">
-  <div id="status-lamp" class="ok">正常</div>
+  <!-- 左：badge + 狀態燈 + DCI -->
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <img src="/static/badge.png" alt="ICS" style="height:52px;width:52px;border-radius:50%;">
+    <div id="status-lamp" class="ok">正常</div>
+    <div id="dci"><div id="dci-val" style="color:var(--text3)">—</div><div id="dci-label">DCI</div></div>
+  </div>
+  <!-- 中：左半時鐘 / 右半人數+摘要 -->
   <div id="zone-a-mid">
     <div id="zone-a-top">
-      <span class="clock" id="clock">--:--:--</span>
-      <span class="runtime" id="runtime"></span>
-      <span class="counts" id="counts">—</span>
-      <div id="comm-dots" style="display:flex;gap:6px;align-items:center;margin-left:10px;">
-        <div style="display:flex;align-items:center;gap:3px;"><span class="comm-dot" id="cd-shelter"></span><span style="font-size:9px;color:var(--text3);">收容</span></div>
-        <div style="display:flex;align-items:center;gap:3px;"><span class="comm-dot" id="cd-medical"></span><span style="font-size:9px;color:var(--text3);">醫療</span></div>
+      <div class="za-col" style="align-items:center;">
+        <span class="za-clock" id="clock">--:--:--</span>
+        <span id="date-label" style="font-size:12px;color:var(--text3);"></span>
+      </div>
+      <div class="za-col za-col-r">
+        <span class="za-counts" id="counts-shelter"></span>
+        <span class="za-counts" id="counts-medical"></span>
       </div>
     </div>
-    <div id="zone-a-summary">系統啟動中⋯</div>
   </div>
+  <!-- 右：連線燈號 + 齒輪/版號 -->
   <div id="zone-a-right">
-    <button id="btn-event" onclick="openEventForm()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">📝 事件</button>
-    <div id="dci"><div id="dci-val" style="color:var(--text3)">—</div><div id="dci-label">DCI</div></div>
-    <div class="h-ver">cmd-v0.4.1</div>
-    <div id="conn"><div class="dot"></div><span id="conn-label">待連線</span></div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="conn-item"><span class="conn-dot lkp" id="cd-shelter"></span><span class="conn-label" id="cl-shelter">收容</span></div>
+        <div class="conn-item"><span class="conn-dot lkp" id="cd-medical"></span><span class="conn-label" id="cl-medical">醫療</span></div>
+        <div class="conn-item"><span class="conn-dot ok" id="cd-server"></span><span class="conn-label" id="cl-server">指揮部</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span onclick="openSettings()" style="font-size:14px;cursor:pointer;color:var(--text3);" title="設定">⚙</span>
+        <span class="h-ver" id="h-ver"></span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1946,11 +1955,11 @@ async function poll() {
     const resp = await fetch(API_BASE + '/api/dashboard', { signal: AbortSignal.timeout(5000) });
     if (!resp.ok) throw new Error(resp.status);
     _data = await resp.json();
-    el('conn').className = '';
-    el('conn-label').textContent = '即時';
+    el('cd-server').className = 'conn-dot ok';
+    el('cl-server').textContent = '指揮部';
   } catch(e) {
-    el('conn').className = 'off';
-    el('conn-label').textContent = _data ? '離線' : '待連線';
+    el('cd-server').className = 'conn-dot crit';
+    el('cl-server').textContent = _data ? '指揮部 離線' : '指揮部 待連線';
   }
   refresh();
 }
@@ -2089,14 +2098,52 @@ function _autoGridSteps(yMin, yMax) {
 function refresh() {
   const d = getSeries();
   if (!d) {
-    el('zone-a-summary').textContent = '等待資料中⋯ 尚未收到任何快照';
+    _renderZoneANoSnap();
   } else {
     renderZoneA(d);
     renderSparklines(d);
   }
-  // 事件欄 + 地圖不依賴快照，無快照時也要渲染
+  _renderConnDots();
   renderZoneC(d);
   renderMapOverlay();
+}
+
+function _renderZoneANoSnap() {
+  const allEvts = _data?.events || [];
+  const openEvts = allEvts.filter(e => e.status === 'open' || e.status === 'in_progress');
+  const hasCrit = openEvts.some(e => e.severity === 'critical');
+  const hasWarn = openEvts.some(e => e.severity === 'warning');
+  const overall = hasCrit ? 'crit' : hasWarn ? 'warn' : 'ok';
+  const lamp = el('status-lamp');
+  lamp.className = overall;
+  lamp.textContent = overall === 'crit' ? '警報' : overall === 'warn' ? '注意' : '正常';
+  const critEvts = openEvts.filter(e => e.severity === 'critical').length;
+  const warnEvts = openEvts.filter(e => e.severity === 'warning').length;
+  lamp.title = '未結事件 ' + openEvts.length + ' 件\n緊急 ' + critEvts + ' / 警告 ' + warnEvts;
+  el('counts-shelter').textContent = openEvts.length > 0 ? '未結事件 ' + openEvts.length + ' 件' : '等待資料中⋯';
+  el('counts-medical').textContent = '';
+  const evtCount = allEvts.length;
+  if (evtCount > 0) {
+    el('dci-val').textContent = Math.min(evtCount * 5, 50);
+    el('dci-val').style.color = 'var(--yellow)';
+  } else {
+    el('dci-val').textContent = '—';
+    el('dci-val').style.color = 'var(--text3)';
+  }
+  el('dci').title = '資料信心指數 (DCI)\n尚未收到快照\n事件記錄：' + allEvts.length + ' 筆';
+}
+
+function _renderConnDots() {
+  const ch = _data?.calc?.comm_health || {};
+  const map = {shelter:'cl-shelter', medical:'cl-medical'};
+  const labels = {shelter:'收容', medical:'醫療'};
+  ['shelter','medical'].forEach(k => {
+    const dot = el('cd-' + k);
+    const lbl = el(map[k]);
+    const level = ch[k]?.health_level || 'lkp';
+    if (dot) dot.className = 'conn-dot ' + level;
+    if (lbl) lbl.textContent = level === 'lkp' ? labels[k] + ' 未連線' : labels[k];
+  });
 }
 
 function renderZoneA(d) {
@@ -2121,36 +2168,19 @@ function renderZoneA(d) {
   const lamp = el('status-lamp');
   lamp.className = overall;
   lamp.textContent = overall === 'crit' ? '警報' : overall === 'warn' ? '注意' : '正常';
+  // tooltip 顯示原因
+  const reasons = [];
+  const lvlLabel = {ok:'正常', warn:'注意', crit:'警報'};
+  reasons.push('量能：' + lvlLabel[capLvl] + '（收容' + sp + '% 醫療' + mp + '%）');
+  reasons.push('事件：' + lvlLabel[incLvl] + '（IPI ' + totalIPI + '）');
+  reasons.push('資源：' + lvlLabel[resLvl] + '（最低' + Math.round(minSupply) + '%）');
+  lamp.title = reasons.join('\n');
 
   // 計數
   const sBu = d.sBu[N-1], mBu = d.mBu[N-1];
-  el('counts').textContent = '收容' + sBu + '人 / 醫療' + mBu + '人';
+  el('counts-shelter').textContent = '收容 ' + sBu + ' 人';
+  el('counts-medical').textContent = '醫療 ' + mBu + ' 人';
 
-  // 運作時間
-  const elapsed = Math.floor((Date.now() - _startTime) / 60000);
-  const h = Math.floor(elapsed/60), m = elapsed%60;
-  el('runtime').textContent = '運作 ' + h + 'h' + String(m).padStart(2,'0') + 'm';
-
-  // 分析摘要
-  const parts = [];
-  const mSl = slope(d.mPct);
-  if (mSl > 15) parts.push('醫療量能加速上升');
-  const srcBR = rate(d.srcB);
-  if (srcBR > 0.3) parts.push('收容轉送壓力轉移中');
-  const srtSl = slope(d.srtR);
-  if (srtSl > 0 && d.srtR[N-1] > d.medCR[N-1]) parts.push('SRT橋接預警：~15分後到醫療');
-  if (totalIPI >= 6) parts.push('現場高壓 IPI ' + totalIPI);
-  const ivR = rate(d.ivPct);
-  if (ivR < 0) {
-    const mins = minsUntil(ivLast, 20, Math.abs(ivR), 5);
-    if (mins !== null && mins < 60) parts.push('IV ' + mins + 'm 見底');
-  }
-  const mRatio = d.opsM[N-1];
-  if (mRatio > 5) parts.push('醫療人力負擔危險');
-
-  el('zone-a-summary').textContent = parts.length === 0
-    ? '各組運作正常，無異常趨勢。'
-    : parts.join(' │ ');
 
   // DCI（暫用簡易版，Wave 2 用 calc_engine）
   const calc = _data?.calc || {};
@@ -2159,13 +2189,18 @@ function renderZoneA(d) {
     el('dci-val').textContent = Math.round(dci);
     el('dci-val').style.color = dci >= 80 ? 'var(--green)' : dci >= 50 ? 'var(--yellow)' : 'var(--red)';
   }
-
-  // 通訊健康圓點（只顯示收容 + 醫療）
-  const ch = _data?.calc?.comm_health || {};
-  ['shelter','medical'].forEach(k => {
-    const dot = el('cd-' + k);
-    if (dot) dot.className = 'comm-dot ' + (ch[k]?.health_level || 'lkp');
+  // DCI tooltip
+  const freshLabels = {ok:'即時', warn:'稍舊', crit:'過時', lkp:'未連線'};
+  const chh = calc.comm_health || {};
+  const dciParts = ['資料信心指數 (DCI)'];
+  ['shelter','medical','forward','security'].forEach(k => {
+    const name = {shelter:'收容',medical:'醫療',forward:'前進',security:'安全'}[k];
+    const fl = chh[k]?.health_level || 'lkp';
+    dciParts.push(name + '：' + freshLabels[fl]);
   });
+  dciParts.push('事件記錄：' + (_data?.events?.length || 0) + ' 筆');
+  el('dci').title = dciParts.join('\n');
+
 }
 
 function renderSparklines(d) {
@@ -2757,8 +2792,16 @@ document.addEventListener('keydown', e => {
 // ══════════════════════════════════════════════════════════════
 el('overlay').addEventListener('click', function(e) { if(e.target===this) closeModal(); });
 el('event-overlay').addEventListener('click', function(e) { if(e.target===this) closeEventForm(); });
-setInterval(() => { el('clock').textContent = new Date().toTimeString().slice(0,8); }, 1000);
-el('clock').textContent = new Date().toTimeString().slice(0,8);
+function _updateClock() {
+  const now = new Date();
+  el('clock').textContent = now.toTimeString().slice(0,8);
+  const mm = String(now.getMonth()+1).padStart(2,'0');
+  const dd = String(now.getDate()).padStart(2,'0');
+  const dayName = ['日','一','二','三','四','五','六'][now.getDay()];
+  el('date-label').textContent = mm + '/' + dd + ' (' + dayName + ')';
+}
+setInterval(_updateClock, 1000);
+_updateClock();
 
 // 版號統一設定（對齊 shelter/medical PWA 的 PWA_VERSION 做法）
 document.title = 'ICS 指揮部 ' + CMD_VERSION;
