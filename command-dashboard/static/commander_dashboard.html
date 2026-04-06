@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.6.6';</script>
+<script>const CMD_VERSION='v0.6.7';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -485,7 +485,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;flex-shrink:0;border-bottom:1px solid var(--border);">
         <span style="display:flex;align-items:center;gap:4px;">
           <span id="evt-expand-arrow" style="font-size:8px;color:var(--text3);cursor:pointer;padding:2px;" onclick="toggleRightExpand('events')">▶</span>
-          <span style="font-size:10px;font-weight:600;color:var(--text3);cursor:pointer;" onclick="_toggleEvtGroup()">事件追蹤 <span id="evt-overdue" style="font-size:9px;"></span></span>
+          <span style="font-size:10px;font-weight:600;color:var(--text3);cursor:pointer;" onclick="_toggleEvtGroup()">事件追蹤 <span id="evt-open-total" style="font-size:9px;color:var(--yellow);"></span> <span id="evt-overdue" style="font-size:9px;"></span></span>
         </span>
         <span id="evt-stats" style="font-size:9px;color:var(--text3);"></span>
       </div>
@@ -2377,6 +2377,8 @@ function renderZoneC(d) {
   const pendingCount = openEvents.filter(e => e.status === 'open').length;
   const progCount = openEvents.filter(e => e.status === 'in_progress').length;
   // evt-count 已移除，統計改由 evt-stats 顯示
+  // 總數（不含已結案）
+  el('evt-open-total').textContent = openEvents.length > 0 ? openEvents.length : '';
   // 逾時（左側，事件追蹤旁）
   el('evt-overdue').innerHTML = overdueCount > 0 ? `<span style="color:var(--red);font-weight:700;cursor:pointer;animation:pulse 1s infinite;" onclick="_toggleEvtFilter('overdue')">逾${overdueCount}</span>` : '';
   // 統計列（右側）— 可點擊篩選

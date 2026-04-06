@@ -177,6 +177,8 @@ CREATE INDEX IF NOT EXISTS idx_predictions_node_status
     ON predictions(node_type, status, predicted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sync_log_unit
     ON sync_log(source_unit, sync_started_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_code_unique
+    ON events(event_code);
 """
 
 
@@ -268,58 +270,66 @@ def create_event(data: dict) -> dict:
     now = _now()
     severity = data.get("severity", "info")
 
-    # 產生可讀事件編號 EV-MMDD-NNN
-    event_code = _generate_event_code(now)
-
     # 依嚴重度計算處置期限（critical=10分/warning=30分/info=60分）
     deadline_min = {"critical": 10, "warning": 30, "info": 60}.get(severity, 60)
     occurred = data.get("occurred_at") or now
     response_deadline = _add_minutes(occurred, deadline_min)
 
+    mmdd = now[5:7] + now[8:10]
+    prefix = f"EV-{mmdd}-"
+
+    # event_code 用 subquery 在 INSERT 內原子產生，
+    # 搭配 UNIQUE INDEX + retry 防止併發重號。
     sql = """
         INSERT INTO events
             (id, event_code, reported_by_unit, location_desc, location_zone_id,
              event_type, severity, status, response_type, response_deadline,
              needs_commander_decision, description,
              related_person_name, occurred_at, operator_name, created_at)
-        VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?, ?,?,?,?)
+        VALUES (?,
+            (SELECT ? || printf('%03d',
+                COALESCE(MAX(CAST(SUBSTR(event_code, -3) AS INTEGER)), 0) + 1)
+             FROM events WHERE event_code LIKE ?),
+            ?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?)
     """
-    with get_conn() as conn:
-        conn.execute(sql, (
-            eid,
-            event_code,
-            data["reported_by_unit"],
-            data.get("location_desc"),
-            data.get("location_zone_id"),
-            data["event_type"],
-            severity,
-            "open",
-            data.get("response_type"),
-            response_deadline,
-            1 if data.get("needs_commander_decision") else 0,
-            data["description"],
-            data.get("related_person_name"),
-            occurred,
-            data["operator_name"],
-            now,
-        ))
+
+    max_retries = 10
+    for attempt in range(max_retries):
+        try:
+            with get_conn() as conn:
+                conn.execute(sql, (
+                    eid,
+                    prefix, prefix + "%",
+                    data["reported_by_unit"],
+                    data.get("location_desc"),
+                    data.get("location_zone_id"),
+                    data["event_type"],
+                    severity,
+                    "open",
+                    data.get("response_type"),
+                    response_deadline,
+                    1 if data.get("needs_commander_decision") else 0,
+                    data["description"],
+                    data.get("related_person_name"),
+                    occurred,
+                    data["operator_name"],
+                    now,
+                ))
+                # 取回實際產生的 event_code
+                row = conn.execute("SELECT event_code FROM events WHERE id=?", (eid,)).fetchone()
+                event_code = row["event_code"]
+            break
+        except sqlite3.IntegrityError as e:
+            if "UNIQUE" in str(e) and attempt < max_retries - 1:
+                import time as _t
+                _t.sleep(0.01 * (attempt + 1))
+                eid = str(uuid.uuid4())
+                continue
+            raise
+
     _audit(data["operator_name"], None, "event_created",
            "events", eid, {"event_code": event_code, "event_type": data["event_type"], "severity": severity})
     return {"id": eid, "event_code": event_code, "response_deadline": response_deadline}
-
-
-def _generate_event_code(now_str: str) -> str:
-    """產生可讀事件編號 EV-MMDD-NNN（當天流水號）"""
-    # 取日期部分 MMDD
-    mmdd = now_str[5:7] + now_str[8:10]
-    prefix = f"EV-{mmdd}-"
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) as cnt FROM events WHERE event_code LIKE ?",
-            (prefix + "%",)
-        ).fetchone()
-        seq = (row["cnt"] or 0) + 1
-    return f"{prefix}{seq:03d}"
 
 
 def _add_minutes(iso_str: str, minutes: int) -> str:
@@ -345,44 +355,53 @@ def get_events(status: str | None = None, limit: int = 50) -> list[dict]:
 
 
 def update_event_status(event_id: str, status: str, operator: str):
+    """更新事件狀態，使用 json_insert 原子追加 notes 避免併發覆蓋"""
     now = _now()
+    status_label = {"open":"未結","in_progress":"處理中","resolved":"已結案","closed":"已關閉"}.get(status, status)
+    note_json = json.dumps({"time": now, "text": f"狀態變更為「{status_label}」", "by": operator}, ensure_ascii=False)
+
     with get_conn() as conn:
-        upd = "UPDATE events SET status=?"
-        params = [status]
         if status in ("resolved", "closed"):
-            upd += ", resolved_at=?"
-            params.append(now)
-        # 自動追加狀態變更紀錄到 notes
-        row = conn.execute("SELECT notes FROM events WHERE id=?", (event_id,)).fetchone()
-        notes = json.loads(row["notes"]) if row and row["notes"] else []
-        status_label = {"open":"未結","in_progress":"處理中","resolved":"已結案","closed":"已關閉"}.get(status, status)
-        notes.append({"time": now, "text": f"狀態變更為「{status_label}」", "by": operator})
-        upd += ", notes=?"
-        params.append(json.dumps(notes, ensure_ascii=False))
-        upd += " WHERE id=?"
-        params.append(event_id)
-        conn.execute(upd, params)
+            conn.execute(
+                """UPDATE events SET status=?, resolved_at=?,
+                   notes = json_insert(COALESCE(notes, '[]'), '$[#]', json(?))
+                   WHERE id=?""",
+                (status, now, note_json, event_id)
+            )
+        else:
+            conn.execute(
+                """UPDATE events SET status=?,
+                   notes = json_insert(COALESCE(notes, '[]'), '$[#]', json(?))
+                   WHERE id=?""",
+                (status, note_json, event_id)
+            )
     _audit(operator, None, "event_status_updated", "events", event_id, {"status": status})
 
 
 def add_event_note(event_id: str, text: str, operator: str) -> dict:
-    """追加處置紀錄到事件的 notes JSON 陣列"""
+    """追加處置紀錄，使用 json_insert 原子操作避免併發覆蓋"""
     now = _now()
+    note_json = json.dumps({"time": now, "text": text, "by": operator}, ensure_ascii=False)
     with get_conn() as conn:
-        row = conn.execute("SELECT notes, status FROM events WHERE id=?", (event_id,)).fetchone()
+        row = conn.execute("SELECT status FROM events WHERE id=?", (event_id,)).fetchone()
         if not row:
             raise ValueError(f"Event {event_id} not found")
-        notes = json.loads(row["notes"]) if row["notes"] else []
-        notes.append({"time": now, "text": text, "by": operator})
         # 追加紀錄時自動改為「處理中」
         new_status = "in_progress" if row["status"] == "open" else row["status"]
         conn.execute(
-            "UPDATE events SET notes=?, status=? WHERE id=?",
-            (json.dumps(notes, ensure_ascii=False), new_status, event_id)
+            """UPDATE events SET
+               notes = json_insert(COALESCE(notes, '[]'), '$[#]', json(?)),
+               status = ?
+               WHERE id = ?""",
+            (note_json, new_status, event_id)
         )
+        cnt_row = conn.execute(
+            "SELECT json_array_length(COALESCE(notes, '[]')) as cnt FROM events WHERE id=?",
+            (event_id,)
+        ).fetchone()
     _audit(operator, None, "event_note_added", "events", event_id,
            {"text": text[:50]})
-    return {"ok": True, "notes_count": len(notes)}
+    return {"ok": True, "notes_count": cnt_row["cnt"] if cnt_row else 0}
 
 
 # ──────────────────────────────────────────

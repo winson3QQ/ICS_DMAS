@@ -124,6 +124,9 @@ class SnapshotIn(BaseModel):
         extra = "allow"   # 允許額外欄位，向下相容
 
 
+VALID_SEVERITIES = {"info", "warning", "critical"}
+VALID_UNITS = {"shelter", "medical", "forward", "security", "command"}
+
 class EventIn(BaseModel):
     reported_by_unit:         str
     event_type:               str
@@ -223,7 +226,11 @@ def get_snapshots(node_type: str, limit: int = 20):
 
 @app.post("/api/events", tags=["事件"])
 def post_event(ev: EventIn):
-    """建立事件記錄（manual_input.html 呼叫此端點）"""
+    """建立事件記錄"""
+    if ev.severity not in VALID_SEVERITIES:
+        raise HTTPException(422, f"severity 必須是 {VALID_SEVERITIES} 之一，收到: {ev.severity}")
+    if ev.reported_by_unit not in VALID_UNITS:
+        raise HTTPException(422, f"reported_by_unit 必須是 {VALID_UNITS} 之一，收到: {ev.reported_by_unit}")
     result = db.create_event(ev.model_dump())
 
     # 若需要指揮官裁示，自動建立待裁示事項（decision_type=initial）
@@ -248,7 +255,10 @@ def get_events(status: Optional[str] = None, limit: int = 50):
 
 @app.patch("/api/events/{event_id}/status", tags=["事件"])
 def update_event_status(event_id: str, status: str, operator: str):
-    db.update_event_status(event_id, status, operator)
+    try:
+        db.update_event_status(event_id, status, operator)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"ok": True}
 
 
@@ -260,7 +270,10 @@ class EventNoteIn(BaseModel):
 @app.post("/api/events/{event_id}/notes", tags=["事件"])
 def add_event_note(event_id: str, body: EventNoteIn):
     """追加處置紀錄（對齊 shelter/medical PWA 的 notes 陣列）"""
-    result = db.add_event_note(event_id, body.text, body.operator)
+    try:
+        result = db.add_event_note(event_id, body.text, body.operator)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
     return result
 
 
