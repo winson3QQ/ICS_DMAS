@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.6.0';</script>
+<script>const CMD_VERSION='v0.6.1';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -796,7 +796,10 @@ function renderMapOverlay() {
         ? allEvts.find(e => e.id === z.event_id)
         : allEvts.find(e => e.location_zone_id === z.id);
 
-      if (!ev || ev.status === 'resolved' || ev.status === 'closed') {
+      if (!ev) {
+        // 事件不在 dashboard 回傳列表中（limit 截斷或 DB 已清）→ 灰色顯示
+        evtColorClass = 'evt-resolved';
+      } else if (ev.status === 'resolved' || ev.status === 'closed') {
         // 已結案 → 不渲染 marker
         return;
       } else {
@@ -1028,7 +1031,7 @@ function showEventProcessModal(zone) {
     notes.forEach(n => {
       html += `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
       html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
-      html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
+      html += n.by ? ` <span style="color:var(--green);font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
     });
@@ -1040,20 +1043,13 @@ function showEventProcessModal(zone) {
   // 操作區（未結案）
   if (isOpen) {
     html += `<div style="border-top:1px solid var(--border);padding-top:8px;">`;
-    html += `<div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">`;
-    html += `<input id="ev-proc-note" placeholder="輸入處置紀錄..." style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);">`;
-    html += `<button onclick="_addEventNoteFromModal('${ev.id}')" style="padding:6px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);white-space:nowrap;">追加</button>`;
-    html += `</div>`;
+    html += `<input id="ev-proc-note" placeholder="輸入處置紀錄..." autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);margin-bottom:6px;">`;
     html += `<div style="display:flex;gap:6px;">`;
-    html += `<button onclick="closeModal()" style="flex:1;padding:7px;background:transparent;color:var(--text3);border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">關閉</button>`;
     if (ev.status === 'open') {
-      html += `<button onclick="_updateEvFromModal('${ev.id}','in_progress')" style="flex:1;padding:7px;background:var(--yellow);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">處理中</button>`;
+      html += `<button onclick="_autoSaveAndAction('${ev.id}','in_progress')" style="flex:1;padding:7px;background:var(--yellow);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">處理中</button>`;
     }
-    if (notes.length > 0) {
-      html += `<button onclick="_updateEvFromModal('${ev.id}','resolved')" style="flex:1;padding:7px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">結案</button>`;
-    } else {
-      html += `<button disabled style="flex:1;padding:7px;background:var(--border);color:var(--text3);border:none;border-radius:4px;font-size:11px;cursor:not-allowed;font-family:var(--mono);" title="須先追加處置紀錄才能結案">結案</button>`;
-    }
+    html += `<button onclick="_autoSaveAndAction('${ev.id}','resolved')" style="flex:1;padding:7px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">結案</button>`;
+    html += `<button onclick="_autoSaveAndAction('${ev.id}','close')" style="flex:1;padding:7px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">關閉</button>`;
     html += `</div>`;
     html += `</div>`;
   }
@@ -1062,38 +1058,43 @@ function showEventProcessModal(zone) {
   el('overlay').className = 'show';
 }
 
-async function _addEventNoteFromModal(eventId) {
+async function _autoSaveAndAction(eventId, action) {
+  // 先儲存輸入框的文字（如果有）
   const input = document.getElementById('ev-proc-note');
   const text = input?.value?.trim();
-  if (!text) { input?.focus(); return; }
-  try {
-    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/notes', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ text, operator: '指揮部' })
-    });
-    if (resp.ok) {
-      await poll();
-      // 重新開啟 modal
-      const zone = _findZoneByEventId(eventId);
-      if (zone) showEventProcessModal(zone);
-    }
-  } catch(e) { alert('追加失敗：' + e.message); }
-}
+  if (text) {
+    try {
+      await fetch(API_BASE + '/api/events/' + eventId + '/notes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text, operator: '指揮部' })
+      });
+    } catch(e) {}
+  }
 
-async function _updateEvFromModal(eventId, status) {
-  // 結案前必須有處置紀錄
-  if (status === 'resolved') {
+  // 關閉 = 只儲存文字，不改狀態
+  if (action === 'close') {
+    closeModal();
+    await poll();
+    return;
+  }
+
+  // 結案前確認
+  if (action === 'resolved') {
+    await poll();
     const ev = (_data?.events||[]).find(e => e.id === eventId);
     const notes = ev ? _parseNotes(ev.notes) : [];
     if (notes.length === 0) {
-      const input = document.getElementById('ev-proc-note');
       if (input) { input.focus(); input.style.borderColor = 'var(--red)'; setTimeout(() => input.style.borderColor = '', 2000); }
       return;
     }
+    const ok = await appConfirm('結案確認', '確定將此事件結案？');
+    if (!ok) return;
   }
+
+  // 改狀態
   try {
-    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=指揮部', {
+    const resp = await fetch(API_BASE + '/api/events/' + eventId + '/status?status=' + action + '&operator=指揮部', {
       method: 'PATCH',
     });
     if (resp.ok) {
@@ -1220,7 +1221,7 @@ function _startDrag(marker, zone, e) {
       fetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ text: '地圖位置已移動', operator: '指揮部' })
-      }).catch(() => {});
+      }).then(() => poll()).catch(() => {});
     }
   };
   document.addEventListener('mousemove', onMove);
@@ -1338,9 +1339,19 @@ el('map-panel').addEventListener('click', async function(e) {
     return;
   }
 
-  const rect = el('map-panel').getBoundingClientRect();
+  // --- DEBUG: 座標計算 ---
+  const panelRect = el('map-panel').getBoundingClientRect();
+  const imgEl = el('map-img');
+  const imgRect = imgEl.getBoundingClientRect();
+  console.log('[PLACE] panel:', JSON.stringify({w:panelRect.width, h:panelRect.height, t:panelRect.top, l:panelRect.left}));
+  console.log('[PLACE] img:', JSON.stringify({w:imgRect.width, h:imgRect.height, t:imgRect.top, l:imgRect.left, natW:imgEl.naturalWidth, natH:imgEl.naturalHeight}));
+  console.log('[PLACE] click:', JSON.stringify({clientX:e.clientX, clientY:e.clientY}));
+
+  // 用圖片的 rect 而非 panel 的 rect 計算百分比
+  const rect = imgRect;
   const x_pct = Math.round((e.clientX - rect.left) / rect.width * 1000) / 10;
   const y_pct = Math.round((e.clientY - rect.top) / rect.height * 1000) / 10;
+  console.log('[PLACE] pct:', JSON.stringify({x_pct, y_pct}));
 
   const id = 'evt_' + Date.now();
   const zone = {
@@ -1353,6 +1364,7 @@ el('map-panel').addEventListener('click', async function(e) {
   // 建立事件
   const severity = (EVENT_ICON_MAP[_placeMode.type] === 'threat') ? 'critical' : 'warning';
   try {
+    console.log('[PLACE] POST /api/events...', JSON.stringify({unit:_placeMode.group, type:_placeMode.type, severity}));
     const resp = await fetch(API_BASE + '/api/events', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -1366,18 +1378,25 @@ el('map-panel').addEventListener('click', async function(e) {
         location_desc: _placeMode.label,
       })
     });
+    console.log('[PLACE] resp status:', resp.status);
     if (resp.ok) {
       const data = await resp.json();
       zone.event_id = data.id;
       zone.event_code = data.event_code;
+      console.log('[PLACE] event created:', data.event_code);
+    } else {
+      console.error('[PLACE] event create failed:', resp.status, await resp.text());
     }
-  } catch(e) { console.warn('建事件失敗', e); }
+  } catch(e) { console.error('[PLACE] fetch error:', e); }
 
   // 加入地圖
   if (_mapConfig && _mapConfig.maps[_currentMap]) {
+    console.log('[PLACE] saving to map:', _currentMap, 'zone count before:', _mapConfig.maps[_currentMap].zones.length);
     _mapConfig.maps[_currentMap].zones.push(zone);
     saveMapConfig();
     renderMapOverlay();
+  } else {
+    console.error('[PLACE] no _mapConfig or map!', {_mapConfig: !!_mapConfig, _currentMap});
   }
 
   // 放完自動退出放置模式
@@ -1530,7 +1549,7 @@ function _eventCardHTML(ev, dimmed) {
     notes.forEach(n => {
       html += `<div style="font-size:10px;padding:2px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
       html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
-      html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
+      html += n.by ? ` <span style="color:var(--green);font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
     });
@@ -2048,10 +2067,11 @@ function refresh() {
   const d = getSeries();
   if (!d) {
     el('zone-a-summary').textContent = '等待資料中⋯ 尚未收到任何快照';
-    return;
+  } else {
+    renderZoneA(d);
+    renderSparklines(d);
   }
-  renderZoneA(d);
-  renderSparklines(d);
+  // 事件欄 + 地圖不依賴快照，無快照時也要渲染
   renderZoneC(d);
   renderMapOverlay();
 }
@@ -2221,7 +2241,7 @@ function switchDecTab(tab) {
 }
 
 function renderZoneC(d) {
-  const N = d.N;
+  const N = d ? d.N : 0;
   const calc = _data?.calc || {};
 
   // 物資倒數（從 calc_engine burn_rates 或前端估算）
@@ -2237,15 +2257,15 @@ function renderZoneC(d) {
   // 容量倒數 — 優先用 server countdown，fallback 前端估算
   const medCountdown = calc.medical?.countdown_to_red;
   let capMins = medCountdown?.minutes_to_threshold;
-  if (capMins == null) {
+  if (capMins == null && d) {
     const capR = rate(d.mPct);
     capMins = capR > 0 ? minsUntil(d.mPct[N-1], 90, capR, 5) : null;
   }
   setPill('zc-cap', 'zc-cap-t', capMins, 60, 120);
 
   // 人力倒數
-  const staffR = rate(d.opsM);
-  const staffMins = staffR > 0 ? minsUntil(d.opsM[N-1], 8, staffR, 5) : null;
+  const staffR = d ? rate(d.opsM) : 0;
+  const staffMins = (staffR > 0 && d) ? minsUntil(d.opsM[N-1], 8, staffR, 5) : null;
   setPill('zc-staff', 'zc-staff-t', staffMins, 30, 60);
 
   // 升降級（從 calc_engine 或 Wave 3 填入）
@@ -2342,7 +2362,7 @@ function renderZoneC(d) {
       evtHtml += `<span style="font-size:10px;font-weight:700;color:${tagColor};">${cd}</span>`;
       evtHtml += `</div>`;
       evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">`;
-      evtHtml += `<span style="font-size:9px;color:var(--text3);font-weight:600;">${uName}</span>`;
+      evtHtml += `<span style="font-size:9px;color:${uColor};font-weight:600;">${uName}</span>`;
       evtHtml += `<span style="font-size:9px;color:var(--text3);">${ev.event_code||''}</span>`;
       evtHtml += `</div>`;
       evtHtml += `</div>`;
@@ -2356,10 +2376,10 @@ function renderZoneC(d) {
         evtHtml += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor}55;opacity:.55;" onclick="_openEventByCode('${ev.id}')">`;
         evtHtml += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
         evtHtml += `<span style="font-size:10px;font-weight:600;">${ev.description||ev.event_type}</span>`;
-        evtHtml += `<span style="font-size:9px;color:var(--text3);">已結案</span>`;
+        evtHtml += `<span style="font-size:9px;color:var(--green);">已結案</span>`;
         evtHtml += `</div>`;
         evtHtml += `<div style="display:flex;justify-content:space-between;margin-top:1px;">`;
-        evtHtml += `<span style="font-size:9px;color:var(--text3);">${uName}</span>`;
+        evtHtml += `<span style="font-size:9px;color:${uColor};">${uName}</span>`;
         evtHtml += `<span style="font-size:8px;color:var(--text3);">${ev.event_code||''}</span>`;
         evtHtml += `</div>`;
         evtHtml += `</div>`;

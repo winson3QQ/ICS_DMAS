@@ -355,7 +355,8 @@ def update_event_status(event_id: str, status: str, operator: str):
         # 自動追加狀態變更紀錄到 notes
         row = conn.execute("SELECT notes FROM events WHERE id=?", (event_id,)).fetchone()
         notes = json.loads(row["notes"]) if row and row["notes"] else []
-        notes.append({"time": now, "text": f"狀態變更為「{status}」", "by": operator})
+        status_label = {"open":"未結","in_progress":"處理中","resolved":"已結案","closed":"已關閉"}.get(status, status)
+        notes.append({"time": now, "text": f"狀態變更為「{status_label}」", "by": operator})
         upd += ", notes=?"
         params.append(json.dumps(notes, ensure_ascii=False))
         upd += " WHERE id=?"
