@@ -1,0 +1,23 @@
+[Unit]
+Description=ICS_DMAS 收容組 Pi 伺服器 (WS :8765 / Admin :8766)
+After=network-online.target ics-command.service
+Wants=network-online.target
+Requires=ics-command.service
+
+[Service]
+Type=simple
+User=ics
+WorkingDirectory=/home/ics/ics-dmas
+ExecStart=/usr/bin/node ics_ws_server.js --unit shelter
+Environment=COMMAND_URL=https://127.0.0.1:8000
+Environment=LOG_LEVEL=info
+Environment=CERT_PATH=/home/ics/ics-dmas/certs/192.168.100.10+2.pem
+Environment=KEY_PATH=/home/ics/ics-dmas/certs/192.168.100.10+2-key.pem
+Environment=CA_CERT_PATH=/home/ics/ics-dmas/certs/rootCA.pem
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
