@@ -94,13 +94,38 @@ type: project
 
 ### Wave 4 實作項目（依順序，共 5 項）
 
+**架構決策（2026-04-07 討論定案）**：
+- Pi 主動 push current_state 至 Command（Pi 在小網 NAT 後，Command 無法主動連 Pi）
+- Command 自行從收到的記錄衍生 aggregate counts，不依賴 Pi 端的 snapshot 計算
+- Pi 本地維護 push_queue，斷線期間緩衝，復線後補送，Command 以 pushed_at 寫入歷史
+- 移除 Pi 端 snapshot push 及 Command Proxy pull 兩個機制
+
 | 順序 | 項目 | 類別 | 說明 |
 |------|------|------|------|
-| 1 | Pi URL 設定 | 後端 DB + 設定 UI | `pi_nodes` 表（unit_id / label / base_url / last_ping_at / last_ping_ok）+ `/api/pi-nodes` CRUD + ping 端點 + 設定面板 UI |
-| 2 | Pi Read-Only API | `ics_ws_server.js` | `GET /api/data/summary`、`/api/data/list/:table`、`/api/data/record/:table/:id`（從 delta_log 重建，不需 auth，admin port 8766/8776） |
-| 3 | 指揮部 Proxy API | 後端 | `GET /api/proxy/{unit_id}/summary\|list/{table}\|record/{table}/{id}`，httpx async 轉發，Pi 離線回 `{"ok":false,"pi_offline":true}` |
-| 4 | L3 補充個別記錄列表 | 前端 | 數據 tab 加傷患（patients）/住民（persons）列表，點「載入」才 fetch，Pi 離線顯示提示不 crash |
-| 5 | L4 完整資料 Modal | 前端 | 從 L3 列表點單筆，fetch `/api/proxy/{unit_id}/record/{table}/{id}`，失敗 fallback 顯示快取記錄 |
+| 1 | Pi 節點管理 | 後端 DB + 設定 UI | `pi_nodes` 表（unit_id / label / api_key / last_seen_at）+ `/api/pi-nodes` CRUD + 設定面板 UI；api_key 用於驗證 Pi push |
+| 2 | Pi current_state push | `ics_ws_server.js` | 加 `push_queue` 表（pushed_at / records_json / sent）；每 60s UPSERT current_state → enqueue → push `POST /api/pi-push/{unit_id}`；失敗留 sent=0；復線後補送所有 sent=0（按 pushed_at 順序）；push_queue 保留 MAX_QUEUE_AGE=24hr |
+| 3 | Command 接收端 | 後端 | `POST /api/pi-push/{unit_id}`（Bearer API key 驗證）→ INSERT `pi_received_batches(unit_id, pushed_at, received_at, records_json)`；驗證失敗回 401；unit_id 不符回 403 |
+| 4 | L3 個別記錄列表 | 前端 | 數據 tab 讀 `pi_received_batches` 最新一筆的 records_json，展示傷患/住民列表；Pi 離線（無最新批次）顯示提示，不 crash；顯示 pushed_at 作為資料新鮮度 |
+| 5 | L4 單筆資料 Modal | 前端 | 從 L3 列表點單筆，從 records_json 取對應 record 展開顯示；無須額外 API call |
+
+### Wave 4 安全 TODO（尚未決定優先序）
+
+| 威脅 | 對策 | 狀態 |
+|------|------|------|
+| 傳輸明文 | Command 強制 HTTPS（TLS），Pi push 用 `https://` | 必須，Wave 4 同步處理 |
+| Pi 偽冒 | `pi_nodes.api_key` Bearer token + unit_id 配對驗證 | 必須，Wave 4 Item 1/3 |
+| Pi 被奪取 | Command 支援 per-unit key revocation（`DELETE /api/pi-nodes/{id}/key`） | 必須，Wave 4 Item 1 |
+| push_queue 撐爆磁碟 | MAX_QUEUE_AGE=24hr，定期清除 | 必須，Wave 4 Item 2 |
+| Pi 本地資料外洩 | SQLite 加密（SQLCipher） | defer，Wave 6 或另排 |
+
+### Recovery 機制（各情境）
+
+| 情境 | Pi → Command | Recovery |
+|------|-------------|---------|
+| 1A WiFi + 大網 | 穩定推送 | 短暫中斷 → buffer → 自動補送 |
+| 1B 行動網路 + WireGuard | VPN 掉線時中斷 | VPN 重連後補送 |
+| 2 自建 AP，無大網 | push 永遠失敗，buffer 累積 | 復線後補送；Command 端顯示「Pi 離線」；QR fallback |
+| 3 完全離線 | 同情境 2 | QR code 唯一出口 |
 
 ### Wave 5 待做項目（UI 收尾，共 4 項）
 
@@ -111,19 +136,24 @@ type: project
 | 物資 burn rate 預測線 | `drawSparkline()` 加 `projectToZero` dataset 屬性，虛線延伸到 Y=0 |
 | 地圖流向箭頭 | `renderFlows()` 讀實際 flows 資料，`data_source` 欄位對應 calc 數值，動態粗度 |
 
-### Pi Read-Only API 技術細節
+### Pi Push 技術細節
 
-Pi 無 materialized table，所有 PWA 寫入都在 delta_log。重建現態的 SQL：
-```sql
-SELECT record_json FROM delta_log
-WHERE table_name = ? AND record_id IN (
-  SELECT record_id FROM delta_log
-  WHERE table_name = ?
-  GROUP BY record_id HAVING ts = MAX(ts)
-)
-```
-- shelter syncTables：`persons, beds, resources, incidents, shifts`
-- medical syncTables：`patients, triages, incidents, shifts`
+**Pi 端新增**：
+- `push_queue` 表：`(id, pushed_at TEXT, records_json TEXT, sent INTEGER DEFAULT 0)`
+- `current_state` 表：`(table_name, record_id, record_json, updated_at) PRIMARY KEY (table_name, record_id)`，在 `appendDelta()` 中 UPSERT
+- 每 60s：讀 current_state → 寫入 push_queue → 嘗試 push → 成功則 `UPDATE push_queue SET sent=1`
+- 復線偵測：push 成功後，查 `sent=0` 的舊 queue，按 pushed_at 順序補送
+- 定期清理：`DELETE FROM push_queue WHERE pushed_at < datetime('now', '-24 hours')`
+
+**Command 端新增**：
+- `pi_received_batches` 表：`(id, unit_id, pushed_at, received_at, records_json)`
+- `pi_nodes.api_key` 欄位，驗證 Bearer token
+- calc_engine 讀 `pi_received_batches`，GROUP BY time window，COUNT by status 衍生趨勢資料
+- L3/L4 讀最新一筆（`ORDER BY pushed_at DESC LIMIT 1`）
+
+**syncTables 參考**：
+- shelter：`persons, beds, resources, incidents, shifts`
+- medical：`patients, triages, incidents, shifts`
 
 ### 技術備忘
 
