@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.6.1-alpha';</script>
+<script>const PWA_VERSION='v0.6.2-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -3910,10 +3910,23 @@ async function saveEditResource(id) {
 async function confirmDeleteResource(id) {
   const r = await db.resources.get(id);
   if (!r) return;
+  window._pendingDeleteResourceId = id;
   _confirmInModal(
+    '刪除物資',
     `確定刪除「${r.name}」？此操作無法復原。`,
-    async () => { await db.resources.delete(id); showToast('已刪除'); renderCurrentTab(); }
+    'doDeleteResource()',
+    'closeModal()'
   );
+}
+
+async function doDeleteResource() {
+  const id = window._pendingDeleteResourceId;
+  if (!id) return;
+  window._pendingDeleteResourceId = null;
+  await db.resources.delete(id);
+  closeModal();
+  showToast('已刪除');
+  renderCurrentTab();
 }
 
 function openImportResourceModal() {
