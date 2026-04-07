@@ -573,7 +573,6 @@ canvas{display:block;width:100%!important;height:100%!important;}
   </div>
   <div class="stg-footer">
     <div id="stg-user-info"></div>
-    <button class="stg-logout-btn" onclick="cmdLogout()">登出</button>
   </div>
 </div>
 
@@ -634,6 +633,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
         <span id="idle-countdown"></span>
         <span onclick="openSettings()" style="font-size:14px;cursor:pointer;color:var(--text3);" title="設定">&#9881;</span>
         <span class="h-ver" id="h-ver"></span>
+        <button onclick="cmdLogout()" style="padding:2px 8px;border:1px solid var(--red);border-radius:4px;background:transparent;color:var(--red);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--mono);transition:all .2s;" onmouseenter="this.style.background='var(--red)';this.style.color='#fff'" onmouseleave="this.style.background='transparent';this.style.color='var(--red)'">登出</button>
       </div>
     </div>
   </div>
@@ -2335,7 +2335,21 @@ async function _updateEvAndRefresh(eventId, status) {
     const resp = await authFetch(API_BASE + '/api/events/' + eventId + '/status?status=' + status + '&operator=' + encodeURIComponent(_currentOperator()) + '', {
       method: 'PATCH',
     });
-    if (resp.ok) { await poll(); _renderZoneModal(); }
+    if (resp.ok) {
+      // 結案時從地圖移除對應 marker
+      if (status === 'resolved' && _mapConfig) {
+        for (const m of Object.values(_mapConfig.maps)) {
+          const idx = m.zones.findIndex(z => z.event_id === eventId);
+          if (idx !== -1) {
+            m.zones.splice(idx, 1);
+            m.flows = (m.flows || []).filter(f => f.from !== eventId && f.to !== eventId);
+            saveMapConfig();
+            break;
+          }
+        }
+      }
+      await poll(); _renderZoneModal();
+    }
   } catch(e) { alert('更新失敗：' + e.message); }
 }
 
