@@ -156,86 +156,131 @@ async function pushToCommand(snapshotPayload) {
   }
 }
 
-/* ─── 定時推快照至指揮部（聯網情境自動同步）────────────────────────
-   每 AUTO_PUSH_INTERVAL_MS 毫秒推最新快照至指揮部 /api/snapshots。
-   環境變數 AUTO_PUSH_INTERVAL_MS 可覆寫，預設 5 分鐘。
-── */
-const AUTO_PUSH_INTERVAL_MS = parseInt(process.env.AUTO_PUSH_INTERVAL_MS || '') || 2 * 60 * 1000;
+/* ─── [DEPRECATED] 舊 snapshot 定時推送（Wave 4 已由 piPush 取代）── */
+// autoPushLatestSnapshot / startAutoPush / pushThreePassToCommand
+// 已不再使用，保留供參考。
 
-async function autoPushLatestSnapshot() {
+/* ═══════════════════════════════════════════════════════════════
+   Wave 4：Pi current_state push（取代舊 snapshot 定時推送）
+   每 PI_PUSH_INTERVAL_MS 毫秒讀 current_state → push_queue → POST 指揮部。
+   斷線期間 buffer，復線後依序補送。
+═══════════════════════════════════════════════════════════════ */
+const PI_PUSH_INTERVAL_MS = parseInt(process.env.PI_PUSH_INTERVAL_MS || '') || 60_000;
+const MAX_QUEUE_AGE_MS = 24 * 60 * 60 * 1000; // 24hr
+
+function postJSONWithBearer(urlStr, body, bearerToken, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    const url   = new URL(urlStr);
+    const data  = JSON.stringify(body);
+    const isHttps = url.protocol === 'https:';
+    const mod   = isHttps ? require('https') : require('http');
+    const opts  = {
+      hostname: url.hostname,
+      port:     url.port || (isHttps ? 443 : 80),
+      path:     url.pathname + url.search,
+      method:   'POST',
+      headers:  {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+        'Authorization': `Bearer ${bearerToken}`,
+      },
+    };
+    if (isHttps && CA_CERT) opts.ca = CA_CERT;
+    const req = mod.request(opts, (res) => {
+      let buf = '';
+      res.on('data', c => buf += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: buf }));
+    });
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+function getPiApiKey() {
+  const row = db.prepare("SELECT value FROM config WHERE key='pi_api_key'").get();
+  return row ? row.value : null;
+}
+
+async function piPushOnce() {
   const target = _commandUrl || COMMAND_URL;
-  if (!target) return;
-  let row;
+  const apiKey = getPiApiKey();
+  if (!target || !apiKey) return;
+
+  // 1. 讀 current_state 全表
+  const rows = db.prepare('SELECT table_name, record_id, record_json, updated_at FROM current_state').all();
+  if (rows.length === 0) { log.debug('[PiPush] current_state 為空，略過'); return; }
+
+  const records = rows.map(r => ({
+    table_name: r.table_name,
+    record_id: r.record_id,
+    record: JSON.parse(r.record_json),
+    updated_at: r.updated_at,
+  }));
+
+  // 2. 寫入 push_queue
+  const now = nowISO();
+  const info = db.prepare('INSERT INTO push_queue(records_json, pushed_at) VALUES(?,?)').run(JSON.stringify(records), now);
+  const queueId = info.lastInsertRowid;
+
+  // 3. POST 至指揮部
   try {
-    row = db.prepare(
-      "SELECT payload_json FROM snapshots ORDER BY recv_at DESC LIMIT 1"
-    ).get();
-  } catch { return; }
-  if (!row) return;
-  let payload;
-  try { payload = JSON.parse(row.payload_json); } catch { return; }
-  // 驗證必填欄位（SnapshotIn 格式）：格式不對就跳過，避免 FastAPI 422
-  const required = ['v', 'type', 'snapshot_id', 't', 'src'];
-  if (required.some(k => !(k in payload))) {
-    log.debug('[AutoPush] 快照格式不符 SnapshotIn，略過（等待新格式快照）');
+    const res = await postJSONWithBearer(
+      `${target}/api/pi-push/${cfg.unitId}`, { records, pushed_at: now }, apiKey
+    );
+    if (res.status >= 200 && res.status < 300) {
+      db.prepare('UPDATE push_queue SET sent=1, sent_at=? WHERE id=?').run(nowISO(), queueId);
+      log.info(`[PiPush] OK: ${records.length} records, queue#${queueId}`);
+      // 補送舊的未送出項目
+      await replayUnsentQueue(target, apiKey);
+    } else {
+      log.warn(`[PiPush] Failed ${res.status}: ${res.body}`);
+    }
+  } catch (err) {
+    log.warn(`[PiPush] Error: ${err.message} (queued #${queueId}, will retry)`);
+  }
+
+  // 4. 清理過期 queue
+  const cutoff = new Date(Date.now() - MAX_QUEUE_AGE_MS).toISOString();
+  db.prepare('DELETE FROM push_queue WHERE sent=1 AND pushed_at < ?').run(cutoff);
+  db.prepare('DELETE FROM push_queue WHERE pushed_at < ?').run(cutoff);
+}
+
+async function replayUnsentQueue(target, apiKey) {
+  const unsent = db.prepare('SELECT id, records_json, pushed_at FROM push_queue WHERE sent=0 ORDER BY id ASC LIMIT 50').all();
+  if (unsent.length <= 1) return; // 只有剛才那筆（已處理過），略過
+  // 跳過第一筆（最新的，剛剛已送）
+  for (const row of unsent.slice(0, -1)) {
+    try {
+      const records = JSON.parse(row.records_json);
+      const res = await postJSONWithBearer(
+        `${target}/api/pi-push/${cfg.unitId}`, { records, pushed_at: row.pushed_at }, apiKey
+      );
+      if (res.status >= 200 && res.status < 300) {
+        db.prepare('UPDATE push_queue SET sent=1, sent_at=? WHERE id=?').run(nowISO(), row.id);
+        log.info(`[PiPush] Replayed queue#${row.id} OK`);
+      } else {
+        log.warn(`[PiPush] Replay queue#${row.id} failed: ${res.status}`);
+        break;
+      }
+    } catch (err) {
+      log.warn(`[PiPush] Replay error: ${err.message}`);
+      break;
+    }
+  }
+}
+
+function startPiPush() {
+  const target = _commandUrl || COMMAND_URL;
+  const apiKey = getPiApiKey();
+  if (!target || !apiKey) {
+    log.info('[PiPush] 未設定 command_url 或 pi_api_key，跳過定時推送');
     return;
   }
-  payload.source = 'auto';
-  await pushToCommand(payload);
-}
-
-function startAutoPush() {
-  if (!(_commandUrl || COMMAND_URL)) return;
-  setTimeout(() => autoPushLatestSnapshot(), 10_000);      // 啟動 10 秒後先推一次
-  setInterval(() => autoPushLatestSnapshot(), AUTO_PUSH_INTERVAL_MS);
-  log.info(`[AutoPush] 定時推快照至指揮部，間隔 ${AUTO_PUSH_INTERVAL_MS / 1000}s`);
-}
-
-/* ─── 三 Pass 完整同步至指揮部（網路恢復後）──────────────────────
-   呼叫指揮部 POST /api/sync/push，傳入：
-     - snapshots：Pi 快照表中 recv_at >= last_sync_to_command 的所有快照
-     - events：delta_log 中 incidents 記錄 ts >= last_sync_to_command
-   指揮部執行三 Pass 後回傳結果，Pi 更新 last_sync_to_command。
-   若 /api/sync/push 不可用，fallback 至 /api/snapshots 推最新快照。
-── */
-async function pushThreePassToCommand(lastSyncTs) {
-  const target = _commandUrl || COMMAND_URL;
-  if (!target) return;
-  const since = lastSyncTs || '1970-01-01T00:00:00.000Z';
-
-  let snapshots = [];
-  try {
-    const rows = db.prepare(
-      "SELECT payload_json FROM snapshots WHERE recv_at >= ? ORDER BY recv_at ASC"
-    ).all(since);
-    snapshots = rows.map(r => { try { return JSON.parse(r.payload_json); } catch { return null; } }).filter(Boolean);
-  } catch { /* snapshots 表空 */ }
-
-  let events = [];
-  try {
-    const rows = db.prepare(
-      "SELECT record_json FROM delta_log WHERE table_name='incidents' AND ts >= ? ORDER BY ts ASC LIMIT 200"
-    ).all(since);
-    events = rows.map(r => { try { return JSON.parse(r.record_json); } catch { return null; } }).filter(Boolean);
-  } catch { /* delta_log 空 */ }
-
-  try {
-    const res = await postJSON(`${target}/api/sync/push`, {
-      source_unit: cfg.unitId, sync_start_ts: since,
-      device_id: cfg.deviceId, snapshots, events, manual_records: [],
-    }, 15_000);
-    if (res.status >= 200 && res.status < 300) {
-      const result = JSON.parse(res.body);
-      updateLastSyncToCommand(nowISO());
-      log.info(`[ThreePass] OK → P1 merged:${result.pass1_merged} added:${result.pass1_added} P2 conflicts:${result.pass2_conflicts} P3:${result.pass3_added}`);
-      return result;
-    }
-    log.warn(`[ThreePass] /api/sync/push 回應 ${res.status}，fallback`);
-  } catch (err) {
-    log.warn(`[ThreePass] 失敗: ${err.message}，fallback`);
-  }
-  // fallback：推最新快照
-  if (snapshots.length > 0) await pushToCommand(snapshots[snapshots.length - 1]);
+  setTimeout(() => piPushOnce(), 10_000);
+  setInterval(() => piPushOnce(), PI_PUSH_INTERVAL_MS);
+  log.info(`[PiPush] 定時推送 current_state 至指揮部，間隔 ${PI_PUSH_INTERVAL_MS / 1000}s`);
 }
 
 /* ─── SQLite 初始化 ──────────────────────────────────────────── */
@@ -298,6 +343,24 @@ db.exec(`
     payload_json   TEXT NOT NULL,
     recv_at        TEXT NOT NULL,
     merged         INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Wave 4：current_state 即時狀態鏡像
+  CREATE TABLE IF NOT EXISTS current_state (
+    table_name  TEXT NOT NULL,
+    record_id   TEXT NOT NULL,
+    record_json TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (table_name, record_id)
+  );
+
+  -- Wave 4：推送佇列
+  CREATE TABLE IF NOT EXISTS push_queue (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    records_json TEXT NOT NULL,
+    pushed_at    TEXT NOT NULL,
+    sent         INTEGER NOT NULL DEFAULT 0,
+    sent_at      TEXT
   );
 `);
 
@@ -407,6 +470,19 @@ function appendDelta(msg) {
       SELECT id FROM delta_log ORDER BY id DESC LIMIT ?
     )`).run(DELTA_LOG_MAX);
   } catch(e) { /* non-critical */ }
+
+  // Wave 4：UPSERT current_state（維持各 record 最新版本）
+  const _tbl = msg.table || '';
+  const _rid = msg.record?._id ? String(msg.record._id) : '';
+  if (_tbl && _rid) {
+    try {
+      db.prepare(`INSERT INTO current_state(table_name, record_id, record_json, updated_at)
+                  VALUES(?,?,?,?)
+                  ON CONFLICT(table_name, record_id) DO UPDATE SET
+                    record_json=excluded.record_json, updated_at=excluded.updated_at`)
+        .run(_tbl, _rid, JSON.stringify(msg.record || {}), nowISO());
+    } catch(e) { log.warn('[current_state] UPSERT error:', e.message); }
+  }
 }
 
 function getRecentDeltas(sinceISO) {
@@ -627,10 +703,9 @@ wss.on('connection', (ws, req) => {
         }));
         log.info(`[WS] sync_push: applied ${recordsApplied} records, merged ${snapshotsMerged} snapshots`);
 
-        // §10.4：網路恢復後執行三 Pass 完整同步至指揮部（非同步，不阻塞回應）
-        // 使用 pushThreePassToCommand 取代 pushToCommand，帶入所有斷線期間的快照與事件
-        pushThreePassToCommand(sync_start_ts).catch(err =>
-          log.warn('[ThreePass] async error:', err.message)
+        // Wave 4：sync_push 後立即觸發一次 piPush（加速資料同步至指揮部）
+        piPushOnce().catch(err =>
+          log.warn('[PiPush] sync_push trigger error:', err.message)
         );
         break;
       }
@@ -956,6 +1031,22 @@ app.post('/admin/command-url', adminAuth, async (req, res) => {
   }
 });
 
+/* ─── Wave 4：Pi API Key 管理端點 ─────────────────────────────── */
+app.get('/admin/pi-api-key', adminAuth, (req, res) => {
+  const key = getPiApiKey();
+  res.json({ ok: true, has_key: !!key, key_suffix: key ? key.slice(-8) : null });
+});
+
+app.post('/admin/pi-api-key', adminAuth, (req, res) => {
+  const { api_key } = req.body || {};
+  if (!api_key || api_key.length < 16) {
+    return res.status(400).json({ ok: false, error: 'api_key 至少 16 字元' });
+  }
+  db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('pi_api_key',?)").run(api_key);
+  log.info('[Config] pi_api_key 已設定');
+  res.json({ ok: true });
+});
+
 const adminServer = tlsOpts
   ? https.createServer(tlsOpts, app)
   : http.createServer(app);
@@ -965,7 +1056,7 @@ adminServer.listen(ADMIN_PORT, () => {
   if (!getAdminPinHash()) {
     log.warn('[Admin] ⚠️  管理員 PIN 尚未設定，請 POST /admin/setup {"admin_pin":"XXXX"}');
   }
-  startAutoPush();
+  startPiPush();
 });
 
 process.on('SIGTERM', () => { wss.close(); db.close(); process.exit(0); });

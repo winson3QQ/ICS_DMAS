@@ -129,6 +129,9 @@ async def auth_middleware(request: Request, call_next):
     # 豁免：admin 端點（用 X-Admin-PIN 驗證，不用 session）
     if path.startswith("/api/admin/"):
         return await call_next(request)
+    # 豁免：Pi push（用 Bearer token 驗證，不用 session）
+    if path.startswith("/api/pi-push/"):
+        return await call_next(request)
 
     # 其他 /api/ 端點需要 session
     if path.startswith("/api/"):
@@ -507,6 +510,7 @@ def get_dashboard():
         },
         "shelter_history": shelter_history,
         "medical_history": medical_history,
+        "pi_nodes": db.list_pi_nodes(),
     }
 
 
@@ -747,6 +751,116 @@ def admin_change_pin(body: AdminPinIn, request: Request):
         raise HTTPException(422, "PIN 必須是 4-6 位數字")
     db.set_admin_pin(body.new_pin, "admin")
     return {"ok": True}
+
+
+# ──────────────────────────────────────────
+# Wave 4：Pi 節點管理（Admin PIN 驗證）
+# ──────────────────────────────────────────
+
+class PiNodeCreateIn(BaseModel):
+    unit_id: str
+    label: str
+
+
+@app.get("/api/admin/pi-nodes", tags=["Pi 節點"])
+def admin_list_pi_nodes(request: Request):
+    """列出所有 Pi 節點"""
+    _validate_admin_pin(request)
+    return db.list_pi_nodes()
+
+
+@app.post("/api/admin/pi-nodes", tags=["Pi 節點"])
+def admin_create_pi_node(body: PiNodeCreateIn, request: Request):
+    """註冊新 Pi 節點，回傳完整 API key（僅此一次）"""
+    _validate_admin_pin(request)
+    allowed = ("shelter", "medical", "forward", "security")
+    if body.unit_id not in allowed:
+        raise HTTPException(422, f"unit_id 必須是 {allowed} 之一")
+    try:
+        return db.create_pi_node(body.unit_id, body.label)
+    except Exception as e:
+        if "UNIQUE" in str(e) or "PRIMARY" in str(e):
+            raise HTTPException(409, f"unit_id '{body.unit_id}' 已存在")
+        raise
+
+
+@app.delete("/api/admin/pi-nodes/{unit_id}", tags=["Pi 節點"])
+def admin_delete_pi_node(unit_id: str, request: Request):
+    """刪除 Pi 節點"""
+    _validate_admin_pin(request)
+    if not db.delete_pi_node(unit_id):
+        raise HTTPException(404, "Pi 節點不存在")
+    return {"ok": True}
+
+
+@app.post("/api/admin/pi-nodes/{unit_id}/rekey", tags=["Pi 節點"])
+def admin_rekey_pi_node(unit_id: str, request: Request):
+    """重新產生 API key（舊 key 立即失效）"""
+    _validate_admin_pin(request)
+    result = db.revoke_pi_node_key(unit_id)
+    if not result:
+        raise HTTPException(404, "Pi 節點不存在")
+    return result
+
+
+# ──────────────────────────────────────────
+# Wave 4：Pi Push 接收端（Bearer token 驗證）
+# ──────────────────────────────────────────
+
+@app.post("/api/pi-push/{unit_id}", tags=["Pi 推送"])
+async def receive_pi_push(unit_id: str, request: Request):
+    """各組 Pi 定時推送 current_state"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(401, "缺少 Bearer token")
+    token = auth_header[7:]
+    if not db.validate_pi_push(unit_id, token):
+        raise HTTPException(403, "API 金鑰驗證失敗或 unit_id 不符")
+
+    body = await request.json()
+    records = body.get("records", [])
+    pushed_at = body.get("pushed_at", "")
+    if not pushed_at:
+        from datetime import datetime, timezone
+        pushed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    batch_id = db.insert_pi_batch(
+        unit_id=unit_id,
+        pushed_at=pushed_at,
+        records_json=json.dumps(records, ensure_ascii=False),
+    )
+    return {"ok": True, "batch_id": batch_id, "records_count": len(records)}
+
+
+# ──────────────────────────────────────────
+# Wave 4：Pi 資料查詢（L3，Session 驗證）
+# ──────────────────────────────────────────
+
+@app.get("/api/pi-data/{unit_id}/list", tags=["Pi 資料"])
+def get_pi_data_list(unit_id: str, request: Request):
+    """取得某組最新 Pi 推送的記錄列表（L3 層級）"""
+    _validate_session(request)
+    batch = db.get_latest_pi_batch(unit_id)
+    if not batch:
+        return {"records": [], "grouped": {}, "pushed_at": None, "received_at": None, "offline": True}
+
+    records = json.loads(batch["records_json"]) if isinstance(batch["records_json"], str) else batch["records_json"]
+
+    # 按 table_name 分組
+    grouped = {}
+    for r in records:
+        tbl = r.get("table_name", "unknown")
+        if tbl not in grouped:
+            grouped[tbl] = []
+        grouped[tbl].append(r)
+
+    return {
+        "records": records,
+        "grouped": grouped,
+        "pushed_at": batch["pushed_at"],
+        "received_at": batch["received_at"],
+        "offline": False,
+    }
 
 
 # ──────────────────────────────────────────

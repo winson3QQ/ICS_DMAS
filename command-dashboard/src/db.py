@@ -183,7 +183,30 @@ CREATE TABLE IF NOT EXISTS config (
     updated_at TEXT NOT NULL
 );
 
+-- Wave 4：Pi 節點管理
+CREATE TABLE IF NOT EXISTS pi_nodes (
+    unit_id      TEXT PRIMARY KEY,           -- 'shelter' / 'medical' / ...
+    label        TEXT NOT NULL,              -- 顯示名稱
+    api_key      TEXT NOT NULL UNIQUE,       -- Bearer token (hex, 32 bytes)
+    last_seen_at TEXT,                       -- 最後一次成功推送時間
+    created_at   TEXT NOT NULL,
+    revoked_at   TEXT                        -- 非 NULL 代表已撤銷
+);
+
+-- Wave 4：Pi 推送接收批次
+CREATE TABLE IF NOT EXISTS pi_received_batches (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_id      TEXT NOT NULL,
+    pushed_at    TEXT NOT NULL,              -- Pi 端產生時間
+    received_at  TEXT NOT NULL,              -- 指揮部收到時間
+    records_json TEXT NOT NULL               -- JSON array of records
+);
+
 -- 索引
+CREATE INDEX IF NOT EXISTS idx_pi_nodes_api_key
+    ON pi_nodes(api_key);
+CREATE INDEX IF NOT EXISTS idx_pi_received_unit
+    ON pi_received_batches(unit_id, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_snapshots_node_time
     ON snapshots(node_type, snapshot_time DESC);
 CREATE INDEX IF NOT EXISTS idx_events_status
@@ -1186,3 +1209,113 @@ def set_admin_pin(new_pin: str, operator: str):
     """設定 Admin PIN"""
     h, s = _hash_pin(new_pin)
     set_config("admin_pin", json.dumps({"hash": h, "salt": s}), operator)
+
+
+# ──────────────────────────────────────────
+# Wave 4：PI NODES CRUD
+# ──────────────────────────────────────────
+
+import secrets
+
+
+def create_pi_node(unit_id: str, label: str) -> dict:
+    """註冊 Pi 節點，產生 API key。unit_id 重複會拋 IntegrityError。"""
+    api_key = secrets.token_hex(32)
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO pi_nodes (unit_id, label, api_key, created_at)
+               VALUES (?,?,?,?)""",
+            (unit_id, label, api_key, now)
+        )
+    _audit("admin", None, "pi_node_created", "pi_nodes", unit_id,
+           {"label": label})
+    return {"unit_id": unit_id, "label": label, "api_key": api_key, "created_at": now}
+
+
+def list_pi_nodes() -> list[dict]:
+    """列出所有 Pi 節點（api_key 只回傳末 8 碼）"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT unit_id, label, api_key, last_seen_at, created_at, revoked_at FROM pi_nodes"
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["api_key_suffix"] = d.pop("api_key")[-8:]
+        result.append(d)
+    return result
+
+
+def delete_pi_node(unit_id: str) -> bool:
+    """刪除 Pi 節點"""
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM pi_nodes WHERE unit_id=?", (unit_id,))
+    if cur.rowcount:
+        _audit("admin", None, "pi_node_deleted", "pi_nodes", unit_id, {})
+    return cur.rowcount > 0
+
+
+def revoke_pi_node_key(unit_id: str) -> dict | None:
+    """重新產生 API key（舊 key 立即失效）"""
+    new_key = secrets.token_hex(32)
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE pi_nodes SET api_key=?, revoked_at=NULL, last_seen_at=NULL WHERE unit_id=?",
+            (new_key, unit_id)
+        )
+    if cur.rowcount == 0:
+        return None
+    _audit("admin", None, "pi_node_rekeyed", "pi_nodes", unit_id, {})
+    return {"unit_id": unit_id, "api_key": new_key}
+
+
+def validate_pi_push(unit_id: str, bearer_token: str) -> bool:
+    """驗證 Pi push 的 Bearer token 是否匹配且未撤銷"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM pi_nodes WHERE unit_id=? AND api_key=? AND revoked_at IS NULL",
+            (unit_id, bearer_token)
+        ).fetchone()
+    return row is not None
+
+
+def touch_pi_node(unit_id: str):
+    """更新 Pi 節點的 last_seen_at"""
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE pi_nodes SET last_seen_at=? WHERE unit_id=?",
+            (now, unit_id)
+        )
+
+
+# ──────────────────────────────────────────
+# Wave 4：PI RECEIVED BATCHES
+# ──────────────────────────────────────────
+
+def insert_pi_batch(unit_id: str, pushed_at: str, records_json: str) -> int:
+    """寫入一筆 Pi 推送批次，回傳 batch id"""
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO pi_received_batches (unit_id, pushed_at, received_at, records_json)
+               VALUES (?,?,?,?)""",
+            (unit_id, pushed_at, now, records_json)
+        )
+    touch_pi_node(unit_id)
+    return cur.lastrowid
+
+
+def get_latest_pi_batch(unit_id: str) -> dict | None:
+    """取得某組最新一筆推送批次"""
+    with get_conn() as conn:
+        row = conn.execute(
+            """SELECT id, unit_id, pushed_at, received_at, records_json
+               FROM pi_received_batches
+               WHERE unit_id=?
+               ORDER BY received_at DESC LIMIT 1""",
+            (unit_id,)
+        ).fetchone()
+    return dict(row) if row else None
