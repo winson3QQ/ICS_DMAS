@@ -3,7 +3,74 @@
     "indoor": {
       "image": "ICS_Campus_map.jpg",
       "label": "站內",
-      "zones": [],
+      "zones": [
+        {
+          "id": "evt_1775531701515",
+          "label": "傳染疑慮",
+          "sub": "",
+          "x_pct": 64.8,
+          "y_pct": 42.3,
+          "node_type": "shelter",
+          "icon": "event",
+          "event_id": "80b1cd19-0c91-4486-8f73-e74369a95eef",
+          "event_code": "EV-0407-003"
+        },
+        {
+          "id": "evt_1775531708310",
+          "label": "通訊異常",
+          "sub": "",
+          "x_pct": 65.3,
+          "y_pct": 28.3,
+          "node_type": "command",
+          "icon": "event",
+          "event_id": "b6b5719b-f0d9-4f84-b3ad-a74ba7983f87",
+          "event_code": "EV-0407-005"
+        },
+        {
+          "id": "evt_1775531713635",
+          "label": "危害回報",
+          "sub": "",
+          "x_pct": 75.5,
+          "y_pct": 54,
+          "node_type": "forward",
+          "icon": "event",
+          "event_id": "13070140-2c8e-43c7-b1e6-40df0eacf424",
+          "event_code": "EV-0407-006"
+        },
+        {
+          "id": "evt_1775531717234",
+          "label": "QRF 出動",
+          "sub": "",
+          "x_pct": 47,
+          "y_pct": 41.9,
+          "node_type": "security",
+          "icon": "event",
+          "event_id": "d862ff47-8b81-4875-a1d0-fa48e8f874f0",
+          "event_code": "EV-0407-007"
+        },
+        {
+          "id": "evt_1775531721167",
+          "label": "暴力傷患",
+          "sub": "",
+          "x_pct": 59.8,
+          "y_pct": 57.6,
+          "node_type": "medical",
+          "icon": "threat",
+          "event_id": "1019a839-9aad-4ba7-9d75-7e35abd73760",
+          "event_code": "EV-0407-008"
+        },
+        {
+          "id": "evt_1775531724944",
+          "label": "資源調度",
+          "sub": "",
+          "x_pct": 69.7,
+          "y_pct": 29,
+          "node_type": "command",
+          "icon": "event",
+          "event_id": "07d91fcb-5cc5-4b86-9834-4965e84c87f0",
+          "event_code": "EV-0407-009"
+        }
+      ],
       "flows": []
     },
     "outdoor": {

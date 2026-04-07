@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.8.3-alpha';</script>
+<script>const PWA_VERSION='v0.6.0-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -634,9 +634,10 @@ let _state = {
   intakeStart: { walk:'', breathing:'', circ:'', mental:'' },
   intakeSecurity: 'incomplete',  // 'incomplete' | 'yes' | 'pending'
   intakeSex: '',   // 'M' | 'F' | 'U'
-  intakeAge: '',   // 'C' | 'J' | 'A' | 'E'
+  intakeAge: '',   // 數字字串，如 '35'
   intakeDraftId: '',
   intakeShelterNumber: '',  // 收容編號（source B）
+  intakeName: '',           // 姓名（選填）
   intakeAppearance: '',     // 外觀特徵描述（選填）
   qrScanMode: 'mist',       // 'mist' | 'shelter'
   morePage: null,       // null | 'resources' | 'incidents' | 'shift'
@@ -714,6 +715,7 @@ async function enterDemoMode(role) {
   _state.currentAccountId = 'demo';
   _state.role = role;
   _state.operatorName = name;
+  localStorage.setItem('med_session', JSON.stringify({ username: name, role: role, display_name: name }));
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -801,6 +803,7 @@ async function handleLogin() {
   AuditManager.setOperator(name + '【降級】');
   await AuditLogManager.write('login_degraded', { name, role: cachedRole });
   sessionStorage.setItem('med_login_time', new Date().toISOString());
+  localStorage.setItem('med_session', JSON.stringify({ username: name, role: cachedRole, display_name: name }));
   showApp({ username: name, role: cachedRole, display_name: name });
 }
 
@@ -1545,6 +1548,7 @@ function setIntakeSource(s) {
   _state.intakeSex = '';
   _state.intakeAge = '';
   _state.intakeDraftId = '';
+  _state.intakeName = '';
   _state.intakeAppearance = '';
   _state.intakeTriageColor = null;
   _state.intakeStart = { walk:'', breathing:'', circ:'', mental:'' };
@@ -1687,15 +1691,17 @@ function renderIntakeForm() {
         </select>
       </div>
       <div style="flex:1;">
-        <div class="form-label">年齡段</div>
-        <select class="form-select" id="intake-age" onchange="onPersonChanged()">
-          <option value="" ${!_state.intakeAge?'selected':''}>—</option>
-          <option value="C" ${_state.intakeAge==='C'?'selected':''}>幼童 (&lt;12)</option>
-          <option value="J" ${_state.intakeAge==='J'?'selected':''}>青少年 (12–17)</option>
-          <option value="A" ${_state.intakeAge==='A'?'selected':''}>成人 (18–64)</option>
-          <option value="E" ${_state.intakeAge==='E'?'selected':''}>老年 (65+)</option>
-        </select>
+        <div class="form-label">年齡（歲）</div>
+        <input class="form-input" type="number" id="intake-age" min="0" max="120"
+          placeholder="— 歲" value="${_state.intakeAge}"
+          oninput="_state.intakeAge=this.value;onPersonChanged()">
       </div>
+    </div>
+    <div style="padding:0 14px 10px;">
+      <div class="form-label">姓名 <span style="font-size:11px;color:var(--text3);font-weight:400;">選填</span></div>
+      <input class="form-input" id="intake-name" placeholder="—"
+        value="${_state.intakeName || ''}"
+        oninput="_state.intakeName=this.value">
     </div>
     <div style="padding:0 14px 10px;">
       <div class="form-label">外觀特徵描述 <span style="font-size:11px;color:var(--text3);font-weight:400;">選填 — 衣著顏色、明顯特徵，供事後身份比對</span></div>
@@ -1753,6 +1759,48 @@ function renderXABCDE() {
         <div><label><input type="checkbox" id="tq-lower-l"> 下肢左</label> <input class="form-input" id="tq-lower-l-time" placeholder="上緊時間" style="font-size:12px;padding:4px 6px;margin-top:2px;"></div>
         <div><label><input type="checkbox" id="tq-lower-r"> 下肢右</label> <input class="form-input" id="tq-lower-r-time" placeholder="上緊時間" style="font-size:12px;padding:4px 6px;margin-top:2px;"></div>
       </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">受傷機轉（MOI）</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="tr-moi-sel" onchange="mistFill('tr-moi','tr-moi-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>高速碰撞（車禍）</option>
+          <option>墜落（高度 ___ 公尺）</option>
+          <option>穿刺 / 刺傷</option>
+          <option>鈍傷 / 撞擊</option>
+          <option>爆炸 / 衝擊波</option>
+          <option>輾壓 / 擠壓</option>
+          <option>燒燙傷（熱源）</option>
+          <option>電擊</option>
+          <option>生物咬噬</option>
+          <option>不明</option>
+        </select>
+        <input class="form-input" id="tr-moi" placeholder="補充細節…">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">M — 用藥史</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="tr-sample-m-sel" onchange="mistAppend('tr-sample-m','tr-sample-m-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option value="無長期用藥">無長期用藥</option>
+          <option>降壓藥</option><option>血糖藥 / 胰島素</option>
+          <option>抗凝血藥（warfarin / aspirin）</option>
+          <option>心臟藥</option><option>多種長期用藥（詳見補充）</option>
+        </select>
+        <input class="form-input" id="tr-sample-m" placeholder="補充藥名">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">A — 過敏史</div>
+      <div style="display:flex;gap:8px;font-size:13px;margin-bottom:6px;">
+        <label><input type="checkbox" id="tr-allergy-none" onchange="if(this.checked){document.getElementById('tr-allergy-drug').checked=false;document.getElementById('tr-allergy-food').checked=false;document.getElementById('tr-allergy-other').checked=false;}"> 無已知過敏</label>
+        <label><input type="checkbox" id="tr-allergy-drug" onchange="if(this.checked)document.getElementById('tr-allergy-none').checked=false;"> 藥物</label>
+        <label><input type="checkbox" id="tr-allergy-food" onchange="if(this.checked)document.getElementById('tr-allergy-none').checked=false;"> 食物</label>
+        <label><input type="checkbox" id="tr-allergy-other" onchange="if(this.checked)document.getElementById('tr-allergy-none').checked=false;"> 其他</label>
+      </div>
+      <input class="form-input" id="tr-sample-a" placeholder="過敏原（如：盤尼西林、海鮮、乳膠…）">
     </div>
     <div class="section-hdr">XABCDE 評估（創傷）</div>
 
@@ -1908,19 +1956,6 @@ function renderSampleOpqrst() {
     </div>
     <div class="section-hdr">SAMPLE</div>
     <div class="form-group">
-      <div class="form-label">S — 主訴 / 症狀</div>
-      <div class="mist-combo">
-        <select class="mist-select" id="sample-s-sel" onchange="mistAppend('sample-s','sample-s-sel')">
-          <option value="">— 快速選擇 —</option>
-          <option>胸痛</option><option>呼吸困難</option><option>心悸</option>
-          <option>腹痛</option><option>頭痛</option><option>頭暈 / 暈厥</option>
-          <option>噁心 / 嘔吐</option><option>肢體無力 / 麻木</option>
-          <option>意識改變</option><option>發燒</option>
-        </select>
-        <textarea class="form-input form-textarea" id="sample-s" placeholder="或自行描述主訴…" style="min-height:60px;"></textarea>
-      </div>
-    </div>
-    <div class="form-group">
       <div class="form-label">A — 過敏史</div>
       <div style="display:flex;gap:8px;font-size:13px;margin-bottom:6px;">
         <label><input type="checkbox" id="allergy-none" onchange="if(this.checked){document.getElementById('allergy-drug').checked=false;document.getElementById('allergy-food').checked=false;document.getElementById('allergy-other').checked=false;}"> 無已知過敏</label>
@@ -1941,6 +1976,19 @@ function renderSampleOpqrst() {
           <option>心臟藥</option><option>多種長期用藥（詳見補充）</option>
         </select>
         <input class="form-input" id="sample-m" placeholder="補充藥名">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">S — 主訴 / 症狀</div>
+      <div class="mist-combo">
+        <select class="mist-select" id="sample-s-sel" onchange="mistAppend('sample-s','sample-s-sel')">
+          <option value="">— 快速選擇 —</option>
+          <option>胸痛</option><option>呼吸困難</option><option>心悸</option>
+          <option>腹痛</option><option>頭痛</option><option>頭暈 / 暈厥</option>
+          <option>噁心 / 嘔吐</option><option>肢體無力 / 麻木</option>
+          <option>意識改變</option><option>發燒</option>
+        </select>
+        <textarea class="form-input form-textarea" id="sample-s" placeholder="或自行描述主訴…" style="min-height:60px;"></textarea>
       </div>
     </div>
     <div class="form-group">
@@ -2058,7 +2106,7 @@ function renderTriageColorPicker() {
   const lockReason = _state.intakeSecurity === 'incomplete'
     ? '⛔ 請先完成安檢（將安檢狀態改為已完成或同步處理中）'
     : (!_state.intakeSex || !_state.intakeAge)
-      ? '請先填寫個人特徵（性別及年齡段均須選擇）'
+      ? '請先填寫個人特徵（性別及年齡均須填寫）'
       : '請先完成 START 評估第一項（可自行行走）';
   return `
     <div class="section-hdr">檢傷分色</div>
@@ -2090,7 +2138,7 @@ function setInjury(type) {
 
 function setTriageColor(c) {
   if (!canPickTriageColor()) {
-    showToast(_state.intakeSecurity === 'incomplete' ? '⛔ 請先完成安檢' : (!_state.intakeSex || !_state.intakeAge) ? '請先填寫性別及年齡段' : '請先完成 START 評估');
+    showToast(_state.intakeSecurity === 'incomplete' ? '⛔ 請先完成安檢' : (!_state.intakeSex || !_state.intakeAge) ? '請先填寫性別及年齡' : '請先完成 START 評估');
     return;
   }
   console.log('[triage] setTriageColor called:', c);
@@ -2277,9 +2325,10 @@ async function onPersonChanged() {
 
   const preview = document.getElementById('patient-id-preview');
   const valEl = document.getElementById('patient-id-val');
+  const ageCode = _ageToCode(age);
 
-  if (sex && age) {
-    _state.intakeDraftId = await generateDraftId(sex, age);
+  if (sex && ageCode) {
+    _state.intakeDraftId = await generateDraftId(sex, ageCode);
     if (valEl) valEl.textContent = _state.intakeDraftId;
     if (preview) preview.style.display = '';
   } else {
@@ -2292,6 +2341,14 @@ async function onPersonChanged() {
   if (sec) sec.innerHTML = renderTriageColorPicker();
 }
 
+function _ageToCode(n) {
+  if (n === '' || n === null || n === undefined || isNaN(n)) return '';
+  const v = parseInt(n);
+  if (v < 12) return 'C';
+  if (v <= 17) return 'J';
+  if (v <= 64) return 'A';
+  return 'E';
+}
 async function generateDraftId(sexCode, ageCode) {
   const last = await db.patients.orderBy('id').last();
   const seq = last ? last.id + 1 : 1;
@@ -2337,7 +2394,7 @@ async function doSubmitIntake() {
   };
 
   const sexCode = _state.intakeSex || 'U';
-  const ageCode = _state.intakeAge || 'A';
+  const ageCode = _ageToCode(_state.intakeAge) || 'A';
   const displayId = _state.intakeDraftId || await generateDraftId(sexCode, ageCode);
 
   const patientData = {
@@ -2347,12 +2404,13 @@ async function doSubmitIntake() {
     current_zone: zoneMap[_state.intakeTriageColor],
     source_type: _state.intakeSource,
     source_sex: sexCode,
-    source_age: ageCode,
+    source_age: _state.intakeAge,
     chief_issue: getMist('mist-i-sel','mist-i') || '',
     vitals_summary: getMist('mist-s-sel','mist-s') || '',
     security_cleared: _state.intakeSecurity,
     registered_with_shelter: _state.intakeSource === 'B' ? 'registered' : (gv('intake-shelter') || 'not_registered'),
     shelter_number: _state.intakeSource === 'B' ? _state.intakeShelterNumber : '',
+    name: _state.intakeName || '',
     appearance_notes: _state.intakeAppearance || '',
     disposition: '留觀',
     reassess_due_at: localISO(new Date(Date.now() + (_state.intakeTriageColor==='red'?5:15)*60000)),
@@ -2377,6 +2435,7 @@ async function doSubmitIntake() {
   _state.intakeSex = '';
   _state.intakeAge = '';
   _state.intakeDraftId = '';
+  _state.intakeName = '';
   _state.intakeAppearance = '';
   showToast(`✅ ${patientData.display_id} 已建檔，分至${patientData.current_zone}`);
   switchTab('dashboard');
@@ -2408,11 +2467,10 @@ function renderZones(el) {
     ? `<div style="padding:32px;text-align:center;color:var(--text3);">本區目前無傷患</div>`
     : patients.map(p=>renderPatientCard(p)).join('');
 
-  // 待評估佇列：care_status==='triaged' 尚未評估的傷患
-  const colorPriority = { red:0, yellow:1, green:2, black:3 };
+  // 待評估佇列：care_status==='triaged' 尚未評估的傷患，依編號排序
   const pendingAssess = _state.patients
     .filter(p => (p.care_status||'triaged') === 'triaged' && p.disposition !== '後送' && p.disposition !== '離開' && p.current_zone !== '已離區')
-    .sort((a,b) => (colorPriority[a.triage_color]??9) - (colorPriority[b.triage_color]??9));
+    .sort((a,b) => (a.display_id||'').localeCompare(b.display_id||'', undefined, {numeric:true}));
   const pendingCards = pendingAssess.length === 0
     ? `<div style="padding:16px;text-align:center;color:var(--text3);font-size:14px;">目前無待評估傷患 ✓</div>`
     : pendingAssess.map(p=>renderPatientCard(p)).join('');
@@ -2490,6 +2548,7 @@ function renderPatientCard(p) {
         <span style="background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;font-weight:700;font-size:11px;">#${tfOrder}</span>
         ${tfDir?`<span>📍 ${tfDir}</span>`:''}
         ${tfHosp?`<span>🏥 ${tfHosp}</span>`:''}
+        ${!tfDir&&!tfHosp?`<span style="color:var(--text3);font-size:11px;">目的地待後送區填寫</span>`:''}
         <button class="pc-btn" style="font-size:11px;padding:2px 8px;${tfCalled?'background:var(--green);color:#fff;border-color:var(--green);':''}" onclick="event.stopPropagation();toggleTransferCalled(${p.id})">${tfCalled?'✅ 已call':'☎ call'}</button>
       </div>
       <div class="pc-actions mt-1">
@@ -2521,7 +2580,7 @@ function renderPatientCard(p) {
   return `
     <div class="patient-card ${cls} ${overdue?'overdue':''}">
       <div class="pc-top" onclick="openPatientDetail(${p.id})" style="cursor:pointer;">
-        <span class="pc-id">${p.display_id}</span>
+        <span class="pc-id">${p.display_id}${p.name ? ` <span style="font-size:12px;font-weight:400;color:var(--text2);">${p.name}</span>` : ''}</span>
         <span class="pc-timer ${timerCls}" ${due ? `data-due="${p.reassess_due_at}"` : ''}>${timerStr}</span>
       </div>
       ${progressStrip}
@@ -2545,65 +2604,30 @@ async function resetReassess(id) {
 async function markTransfer(id) {
   const p = await db.patients.get(id);
   if (!p) { showToast('找不到該傷患'); return; }
-  if (p.care_status !== 'assessed') { showToast('請先完成治療評估才可後送'); return; }
+  if (p.care_status !== 'assessed' && p.care_status !== 'monitoring') { showToast('請先完成治療評估才可後送'); return; }
   if (p.disposition === '後送') { showToast('此傷患已在後送佇列中'); return; }
-  // 自動計算緊急順位：紅 > 黃 > 綠，同色依進站時間
+  // 計算排序：同色已排人數 + 比我優先的人數
   const pending = _state.patients.filter(q => q.disposition === '後送');
-  const colorPri = {red:1, yellow:2, green:3, black:4};
-  const myPri = colorPri[p.triage_color] || 3;
-  const order = pending.filter(q => (colorPri[q.triage_color]||3) < myPri).length + 1;
-  // 醫院選項 HTML
-  const hospOpts = HOSPITAL_LIST.map(h =>
-    `<option value="${h.name}">${h.priority?'⭐ ':''}${h.name}（${h.level}，${h.min}分）</option>`
-  ).join('');
-  openModal('後送登記 — ' + p.display_id,
-    `<div class="flex flex-col gap-2">
-      <div class="info-box info text-sm">建議緊急順位：<strong>#${order}</strong>（${p.triage_color==='red'?'🔴 紅':p.triage_color==='yellow'?'🟡 黃':'🟢 綠'}）</div>
-      <div class="form-group">
-        <div class="form-label">離站動向 <span class="req">*</span></div>
-        <select class="form-select" id="tf-direction" onchange="_onTfDirectionChange()">
-          <option value="">— 請選擇 —</option>
-          <option value="119">119 救護車</option>
-          <option value="車">車輛（自填車號）</option>
-          <option value="自容">自行返回收容區</option>
-          <option value="容帶回">收容組帶回</option>
-          <option value="自行離開">自行離開</option>
-        </select>
-      </div>
-      <div class="form-group" id="tf-vehicle-group" style="display:none;">
-        <div class="form-label">車牌號碼</div>
-        <input class="form-input" id="tf-vehicle" placeholder="例：ABC-0123">
-      </div>
-      <div class="form-group">
-        <div class="form-label">後送醫院</div>
-        <select class="form-select" id="tf-hospital">
-          <option value="">— 尚未決定 —</option>
-          ${hospOpts}
-        </select>
-      </div>
-    </div>`,
-    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
-     <button class="btn btn-primary flex-1" onclick="doMarkTransfer(${id},${order})">確認加入後送佇列</button>`
+  const colorPri = {red:0, yellow:1, green:2, black:3};
+  const myPri = colorPri[p.triage_color] ?? 2;
+  const order = pending.filter(q => (colorPri[q.triage_color] ?? 2) <= myPri).length + 1;
+  const colorLabel = { red:'🔴 紅（危急）', yellow:'🟡 黃', green:'🟢 綠', black:'⚫ 黑' };
+  _confirmInModal(
+    '加入後送佇列 — ' + p.display_id,
+    `傷患 <b>${p.display_id}</b>（${colorLabel[p.triage_color]||p.triage_color}）<br>加入後送佇列，預計排序 <b>#${order}</b>。<br><br>後送動向與醫院由後送區登記。`,
+    `doMarkTransfer(${id},${order})`,
+    'closeModal()'
   );
 }
-function _onTfDirectionChange() {
-  const v = document.getElementById('tf-direction')?.value;
-  const g = document.getElementById('tf-vehicle-group');
-  if (g) g.style.display = v === '車' ? 'block' : 'none';
-}
 async function doMarkTransfer(id, order) {
-  const dir = document.getElementById('tf-direction')?.value;
-  if (!dir) { showToast('請選擇離站動向'); return; }
-  const vehicle = document.getElementById('tf-vehicle')?.value?.trim() || '';
-  const hospital = document.getElementById('tf-hospital')?.value || '';
-  const direction = dir === '車' ? `車 ${vehicle}` : dir;
   const now = localISO();
   await db.patients.update(id, {
     disposition:'後送', transferred_by: _state.operatorName, transferred_at: now, updated_at: now,
-    transfer_direction: direction, transfer_hospital: hospital, transfer_order: order, transfer_called: false,
+    transfer_order: order, transfer_called: false,
+    // transfer_direction / transfer_hospital 由後送區 ISBAR 交接時填入
   });
   closeModal();
-  showToast(`${direction}${hospital ? ' → '+hospital : ''}`);
+  showToast('已加入後送佇列');
   renderCurrentTab();
 }
 
@@ -2760,6 +2784,8 @@ async function openPatientDetail(id) {
       <div class="dash-row"><span class="dash-row-label">來源</span><span class="dash-row-val">${p.source_type==='A'?'🚒 前進 MIST':p.source_type==='B'?'🏠 收容轉送':p.source_type==='C'?'🚶 自行抵達':'—'}</span></div>
       ${p.source_type==='B'&&p.shelter_number?`<div class="dash-row"><span class="dash-row-label">收容編號</span><span class="dash-row-val">${p.shelter_number}</span></div>`:''}
       <div class="dash-row"><span class="dash-row-label">安檢狀態</span><span class="dash-row-val">${p.security_cleared==='yes'?'✅ 已完成':p.security_cleared==='pending'?'⚡ 同步處理中':'⛔ 未完成'}</span></div>
+      ${p.name ? `<div class="dash-row"><span class="dash-row-label">姓名</span><span class="dash-row-val">${p.name}</span></div>` : ''}
+      ${(p.source_sex || p.source_age) ? `<div class="dash-row"><span class="dash-row-label">性別／年齡</span><span class="dash-row-val">${({'M':'男','F':'女','U':'不明'}[p.source_sex]||'—')}${p.source_age ? ' · ' + p.source_age + ' 歲' : ''}</span></div>` : ''}
       ${p.appearance_notes ? `<div class="dash-row"><span class="dash-row-label">外觀特徵</span><span class="dash-row-val text-sm" style="text-align:right;max-width:65%">${p.appearance_notes}</span></div>` : ''}
       <div class="dash-row"><span class="dash-row-label">建檔者</span><span class="dash-row-val text-sm">${p.operator_name}</span></div>
       <div class="dash-row"><span class="dash-row-label">傷型</span><span class="dash-row-val">${injuryLabel}</span></div>
@@ -2929,7 +2955,15 @@ function refreshZoneCountdowns() {
    TRANSFER PAGE
 ════════════════════════════════════════════════════════════════ */
 async function renderTransfer(el) {
-  const pending = _state.patients.filter(p => p.disposition === '後送');
+  const colorPri = {red:0, yellow:1, green:2, black:3};
+  const pending = _state.patients
+    .filter(p => p.disposition === '後送')
+    .sort((a, b) => {
+      const pa = colorPri[a.triage_color] ?? 2;
+      const pb = colorPri[b.triage_color] ?? 2;
+      if (pa !== pb) return pa - pb;
+      return (a.transferred_at || '') < (b.transferred_at || '') ? -1 : 1;
+    });
   const doneList = await db.transfers.toArray();
 
   const pendingHtml = pending.length === 0
@@ -2961,14 +2995,16 @@ function renderTransferCard(p) {
 }
 
 /* ─── 治療評估（治療官從分區看板開啟，繼續填傷型+XABCDE/SAMPLE） ─── */
-const _treatState = { patientId: null, injuryType: null, newColor: null };
+const _treatState = { patientId: null, injuryType: null, newColor: null, prevVitals: null, prevChief: '' };
 
 async function openTreatmentAssessment(id) {
   _treatState.patientId = id;
-  // 複評時預填上次的傷型
   const p = await db.patients.get(id);
   _treatState.injuryType = p?.injury_type || null;
   _treatState.newColor = null;
+  // 複評帶入前次數值
+  _treatState.prevVitals = p?.vitals_structured || null;
+  _treatState.prevChief = p?.chief_issue || '';
   renderTreatmentModal();
 }
 
@@ -3065,6 +3101,22 @@ function renderTreatmentModal() {
   } else {
     openModal('治療評估', body, `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>`);
   }
+  _fillPrevVitals();
+}
+
+function _fillPrevVitals() {
+  const v = _treatState.prevVitals;
+  const c = _treatState.prevChief;
+  if (c) { const el = document.getElementById('ta-chief'); if (el && !el.value) el.value = c; }
+  if (!v) return;
+  const map = { hr:'v-hr', sbp:'v-sbp', dbp:'v-dbp', rr:'v-rr', temp:'v-temp', spo2:'v-spo2', glucose:'v-glucose',
+    gcs_e:'v-gcs-e', gcs_v:'v-gcs-v', gcs_m:'v-gcs-m', pupil_r:'v-pupil-r', pupil_l:'v-pupil-l' };
+  Object.entries(map).forEach(([key, elId]) => {
+    if (v[key] != null && v[key] !== '') {
+      const el = document.getElementById(elId);
+      if (el && !el.value) el.value = v[key];
+    }
+  });
 }
 
 function selectTreatType(type) {
@@ -3130,12 +3182,13 @@ async function saveTreatmentAssessment(id) {
   });
   // 過去病史 multi-check
   const pmh = _collectChecked('pmh-chk');
-  // 過敏史
+  // 過敏史（創傷用 tr- 前綴，非創用原始 ID）
+  const _allergyPrefix = injType === 'trauma' ? 'tr-' : '';
   const allergyFlags = [];
-  if(document.getElementById('allergy-none')?.checked) allergyFlags.push('無已知過敏');
-  if(document.getElementById('allergy-drug')?.checked) allergyFlags.push('藥物');
-  if(document.getElementById('allergy-food')?.checked) allergyFlags.push('食物');
-  if(document.getElementById('allergy-other')?.checked) allergyFlags.push('其他');
+  if(document.getElementById(_allergyPrefix+'allergy-none')?.checked) allergyFlags.push('無已知過敏');
+  if(document.getElementById(_allergyPrefix+'allergy-drug')?.checked) allergyFlags.push('藥物');
+  if(document.getElementById(_allergyPrefix+'allergy-food')?.checked) allergyFlags.push('食物');
+  if(document.getElementById(_allergyPrefix+'allergy-other')?.checked) allergyFlags.push('其他');
   // 管路
   const airwayDevices = _collectChecked('airway-chk');
   const o2Devices = _collectChecked('o2-chk');
@@ -3157,10 +3210,11 @@ async function saveTreatmentAssessment(id) {
     tourniquets: tourniquets.length ? tourniquets : null,
     past_medical_history: pmh,
     allergy_flags: allergyFlags,
-    allergy_detail: gv('sample-a') || '',
+    allergy_detail: injType === 'trauma' ? gv('tr-sample-a') || '' : gv('sample-a') || '',
     routes,
     treatment,
     // XABCDE
+    moi: getMist('tr-moi-sel','tr-moi'),
     x_hemorrhage_controlled: getMist('x-hemorrhage','x-hemorrhage-notes'),
     a_airway_patent: getMist('a-airway','a-airway-notes'),
     b_breathing_status: getMist('b-breathing','b-interventions'),
@@ -3170,7 +3224,9 @@ async function saveTreatmentAssessment(id) {
     // SAMPLE/OPQRST
     abc_airway: gv('abc-airway'), abc_breathing: gv('abc-breathing'), abc_circulation: gv('abc-circulation'),
     blood_glucose: gv('blood-glucose'),
-    sample_s: gv('sample-s'), sample_a: gv('sample-a'), sample_m: gv('sample-m'),
+    sample_s: gv('sample-s'),
+    sample_a: injType === 'trauma' ? gv('tr-sample-a') || '' : gv('sample-a') || '',
+    sample_m: injType === 'trauma' ? gv('tr-sample-m') || '' : gv('sample-m') || '',
     sample_p: gv('sample-p'), sample_l: gv('sample-l'), sample_e: gv('sample-e'),
     opqrst_onset: gv('opqrst-o'), opqrst_provoke: gv('opqrst-p'), opqrst_quality: gv('opqrst-q'),
     opqrst_radiation: gv('opqrst-r'), opqrst_severity: gv('opqrst-s'), opqrst_time: gv('opqrst-t'),
@@ -3311,27 +3367,105 @@ async function saveCareRecord(id) {
   renderCurrentTab();
 }
 
+async function _buildTreatmentSummary(patientId) {
+  const records = await db.triages.where('patient_id').equals(patientId).toArray();
+  if (!records || records.length === 0) return '（無治療紀錄）';
+  const fmt = iso => iso ? iso.slice(0, 16).replace('T', ' ') : '—';
+  records.sort((a, b) => (a.triage_at || '') < (b.triage_at || '') ? -1 : 1);
+  const sections = [];
+  for (const t of records) {
+    const parts = [];
+    const hdr = `[${fmt(t.triage_at)}] ${t.triage_by || '—'}`;
+    if (t.trauma_or_medical) {
+      const lbl = t.trauma_or_medical === 'trauma' ? '治療評估（創傷）' : '治療評估（非創）';
+      parts.push(`${hdr} — ${lbl}`);
+      if (t.chief_issue)      parts.push(`主訴：${t.chief_issue}`);
+      if (t.vitals_summary)   parts.push(`徵象：${t.vitals_summary}`);
+      if (t.trauma_or_medical === 'trauma') {
+        if (t.x_hemorrhage_controlled) parts.push(`X 止血：${t.x_hemorrhage_controlled}`);
+        if (t.a_airway_patent)          parts.push(`A 呼吸道：${t.a_airway_patent}`);
+        if (t.b_breathing_status)       parts.push(`B 呼吸：${t.b_breathing_status}`);
+        if (t.c_pulse_quality)          parts.push(`C 循環：${t.c_pulse_quality}`);
+        if (t.d_gcs)                    parts.push(`D 意識：${t.d_gcs}`);
+        if (t.e_exposed)                parts.push(`E 暴露：${t.e_exposed}`);
+        if (t.tourniquets?.length)      parts.push(`止血帶：${t.tourniquets.map(q=>`${q.site}${q.time?' '+q.time:''}`).join('、')}`);
+      } else {
+        if (t.abc_airway)      parts.push(`A 呼吸道：${t.abc_airway}`);
+        if (t.abc_breathing)   parts.push(`B 呼吸：${t.abc_breathing}`);
+        if (t.abc_circulation) parts.push(`C 循環：${t.abc_circulation}`);
+        if (t.sample_m)        parts.push(`用藥：${t.sample_m}`);
+        if (t.sample_p)        parts.push(`病史：${t.sample_p}`);
+        if (t.sample_a)        parts.push(`過敏：${t.sample_a}`);
+      }
+      const rts = [];
+      if (t.routes?.airway?.length) rts.push(`呼吸道：${t.routes.airway.join('、')}${t.routes.airway_detail?' '+t.routes.airway_detail:''}`);
+      if (t.routes?.o2?.length)     rts.push(`給氧：${t.routes.o2.join('、')}${t.routes.o2_flow?' '+t.routes.o2_flow+'L/min':''}`);
+      if (t.routes?.iv)             rts.push(`靜脈通路：已建立${t.routes.iv_detail?' — '+t.routes.iv_detail:''}`);
+      if (rts.length) parts.push(`處置：${rts.join('；')}`);
+      if (t.treatment) parts.push(`給藥治療：${t.treatment}`);
+      if (t.condition_types?.length) parts.push(`狀況：${t.condition_types.join('、')}`);
+    } else if (t.record_type === 'care') {
+      parts.push(`${hdr} — 照護紀錄`);
+      if (t.vitals_summary) parts.push(`徵象：${t.vitals_summary}`);
+      if (t.consciousness)  parts.push(`意識：${t.consciousness}`);
+      if (t.treatment)      parts.push(`處置：${t.treatment}`);
+      if (t.care_notes)     parts.push(`備註：${t.care_notes}`);
+    } else if (t.retriage_to) {
+      const dot = {red:'🔴', yellow:'🟡', green:'🟢', black:'⚫'};
+      parts.push(`${hdr} — 轉色 ${dot[t.retriage_from]||t.retriage_from||'?'} → ${dot[t.retriage_to]||t.retriage_to}`);
+    } else if (t.vitals_summary) {
+      parts.push(`${hdr} — 初始檢傷`);
+      parts.push(`徵象：${t.vitals_summary}`);
+    }
+    if (parts.length) sections.push(parts.join('\n'));
+  }
+  return sections.length ? sections.join('\n\n') : '（無治療紀錄）';
+}
+
 async function openIsbar(patientId) {
   const p = await db.patients.get(patientId);
   if (!p) return;
+  const bText = await _buildTreatmentSummary(patientId);
   const colorLabel = { red:'紅（危急）', yellow:'黃（需觀察）', green:'綠（輕傷）', black:'黑（死亡/無法救治）' };
   const iText = `${p.display_id}，${colorLabel[p.triage_color]||p.triage_color}，${p.injury_type==='trauma'?'創傷':'非創'}`;
   const sText = `${p.chief_issue||'—'}，目前位於 ${p.current_zone}`;
   const aText = `生命徵象：${p.vitals_summary||'—'}`;
-
-  const needAppearance = !p.appearance_notes;
+  const hospOpts = HOSPITAL_LIST.map(h =>
+    `<option value="${h.name}"${p.transfer_hospital===h.name?' selected':''}>${h.name}（${h.level}，${h.min}分）</option>`
+  ).join('');
   openModal('ISBAR 後送交接',
     `<div class="flex flex-col gap-2">
-      ${needAppearance ? `<div class="info-box warning text-sm" style="border-color:var(--orange);background:#fff8f0;">
-        <b>⚠ 外觀特徵尚未填寫</b>　<span style="font-size:11px;color:var(--text3);">供事後身份比對</span>
-        <input class="form-input" id="isbar-appearance" placeholder="例：藍色上衣、右手紋身、黑框眼鏡…" style="margin-top:6px;">
-      </div>` : ''}
+      <div style="background:rgba(230,126,34,.08);border:1px solid rgba(230,126,34,.3);border-radius:var(--r-sm);padding:10px 12px;">
+        <div style="font-size:12px;font-weight:700;color:#E67E22;margin-bottom:8px;">後送登記（後送官填寫）</div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <div class="form-label">離站動向 <span class="req">*</span></div>
+          <select class="form-select" id="isbar-direction" onchange="_onIsbarDirectionChange()">
+            <option value="">— 請選擇 —</option>
+            <option value="119"${p.transfer_direction==='119'?' selected':''}>119 救護車</option>
+            <option value="車">車輛（自填車號）</option>
+            <option value="自容">自行返回收容區</option>
+            <option value="容帶回">收容組帶回</option>
+            <option value="自行離開">自行離開</option>
+          </select>
+        </div>
+        <div class="form-group" id="isbar-vehicle-group" style="display:none;margin-bottom:8px;">
+          <div class="form-label">車牌號碼</div>
+          <input class="form-input" id="isbar-vehicle" placeholder="例：ABC-0123" oninput="_syncIsbarR()">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <div class="form-label">後送醫院</div>
+          <select class="form-select" id="isbar-hospital" onchange="_syncIsbarR()">
+            <option value="">— 尚未決定 —</option>
+            ${hospOpts}
+          </select>
+        </div>
+      </div>
       <div class="info-box info text-sm"><b>I — Identify（識別）</b><br>${iText}</div>
       <div class="info-box info text-sm"><b>S — Situation（情況）</b><br>${sText}</div>
       <div class="info-box info text-sm"><b>A — Assessment（評估）</b><br>${aText}</div>
       <div class="form-group">
         <div class="form-label">B — Background（病史 / 已完成處置）</div>
-        <textarea class="form-input form-textarea" id="isbar-b" placeholder="既往病史、已完成的處置…"></textarea>
+        <textarea class="form-input form-textarea" id="isbar-b" style="min-height:120px;">${bText}</textarea>
       </div>
       <div class="form-group">
         <div class="form-label">R — Recommendation（建議 / 目的地）</div>
@@ -3350,32 +3484,58 @@ async function openIsbar(patientId) {
      <button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>`
   );
 }
+function _onIsbarDirectionChange() {
+  const v = document.getElementById('isbar-direction')?.value;
+  const g = document.getElementById('isbar-vehicle-group');
+  if (g) g.style.display = v === '車' ? 'block' : 'none';
+  // 返回收容區類選項不需選醫院
+  const noHosp = v === '自容' || v === '容帶回' || v === '自行離開';
+  const hospEl = document.getElementById('isbar-hospital');
+  if (hospEl) {
+    hospEl.disabled = noHosp;
+    hospEl.style.opacity = noHosp ? '0.4' : '';
+    if (noHosp) hospEl.value = '';
+  }
+  _syncIsbarR();
+}
+function _syncIsbarR() {
+  const dirRaw = document.getElementById('isbar-direction')?.value || '';
+  const vehicle = document.getElementById('isbar-vehicle')?.value?.trim() || '';
+  const dir = dirRaw === '車' ? `車 ${vehicle}`.trim() : dirRaw;
+  const hosp = document.getElementById('isbar-hospital')?.value || '';
+  const rEl = document.getElementById('isbar-r');
+  if (!rEl) return;
+  if (hosp && dir) rEl.value = `後送至 ${hosp}（${dir}）`;
+  else if (hosp)   rEl.value = `後送至 ${hosp}`;
+  else if (dir)    rEl.value = dir;
+}
 
 let _pendingHandoff = null;
 
 async function completeHandoff(patientId) {
   const p = await db.patients.get(patientId);
   if (!p) return;
+  const dirRaw = document.getElementById('isbar-direction')?.value || '';
+  if (!dirRaw) { showToast('請選擇離站動向'); return; }
+  const vehicle = document.getElementById('isbar-vehicle')?.value?.trim() || '';
+  const direction = dirRaw === '車' ? `車 ${vehicle}` : dirRaw;
+  const hospital = document.getElementById('isbar-hospital')?.value || '';
   const b = document.getElementById('isbar-b')?.value || '';
   const r = document.getElementById('isbar-r')?.value || '';
   if (!r.trim()) { showToast('請填寫 R — 後送目的地與建議'); return; }
   const checklist = ['止血','呼吸道','給氧','靜脈通路','保暖','固定']
     .filter(item => document.getElementById('chk-'+item)?.checked).join('、');
-  const appearanceFill = document.getElementById('isbar-appearance')?.value || '';
-  // 外觀特徵必填：原本沒有且補填欄也空白，擋住
-  const p0 = await db.patients.get(patientId);
-  if (!p0?.appearance_notes && !appearanceFill.trim()) { showToast('請填寫外觀特徵（供事後身份比對）'); return; }
-  _pendingHandoff = { patientId, b, r, checklist, appearanceFill };
+  _pendingHandoff = { patientId, b, r, checklist, direction, hospital };
   _confirmInModal(
     '確認後送交接',
-    `<strong>${p.display_id}</strong> 交接至「<strong>${r}</strong>」後無法修改，確認繼續？`,
+    `<strong>${p.display_id}</strong> 後送至「<strong>${hospital||direction}</strong>」後無法修改，確認繼續？`,
     'doCompleteHandoff()',
     `openIsbar(${patientId})`
   );
 }
 
 async function doCompleteHandoff() {
-  const { patientId, b, r, checklist, appearanceFill } = _pendingHandoff;
+  const { patientId, b, r, checklist, direction, hospital } = _pendingHandoff;
   _pendingHandoff = null;
   const p = await db.patients.get(patientId);
   if (!p) return;
@@ -3386,9 +3546,11 @@ async function doCompleteHandoff() {
     isbar_text: `B: ${b}\nR: ${r}\n已完成: ${checklist||'（未勾選）'}`,
     departed_at: now, handoff_done_at: now, created_at: now,
   });
-  const patientUpdate = { disposition:'離開', current_zone:'已離區', handoff_by: _state.operatorName, handoff_at: now, updated_at: now };
-  if (appearanceFill) patientUpdate.appearance_notes = appearanceFill;
-  await db.patients.update(patientId, patientUpdate);
+  await db.patients.update(patientId, {
+    disposition:'離開', current_zone:'已離區',
+    handoff_by: _state.operatorName, handoff_at: now, updated_at: now,
+    transfer_direction: direction, transfer_hospital: hospital,
+  });
   closeModal();
   showToast(`${p.display_id} 後送交接完成`);
   // 查所有關聯的未結事件（不限類型）
@@ -4151,6 +4313,7 @@ function _confirmInModal(title, msg, confirmFnStr, cancelFnStr) {
   document.getElementById('modal-footer').innerHTML = `
     <button class="btn btn-ghost flex-1" onclick="${cancelFnStr||'closeModal()'}">取消</button>
     <button class="btn btn-danger flex-1" onclick="${confirmFnStr}">確認</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 let _toastTimer;
