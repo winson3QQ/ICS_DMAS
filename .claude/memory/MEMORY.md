@@ -1,12 +1,19 @@
 # ICS_DMAS 專案記憶索引
 
-- [跨平台不要提醒](feedback_no_crossplatform_reminder.md) — 切換 Mac/Windows 時不要主動提醒同步或路徑差異
-- [不要用 worktree 分支 commit](feedback_no_worktree_branch.md) — 直接在 main commit，不要 worktree merge
+## 行為規則（永遠適用）
+
+1. **跨平台不要提醒**：Mac ↔ Windows 開發時，不要主動提「記得同步 memory」或「注意路徑差異」，只在使用者主動問或遇到實際錯誤時才提。
+
+2. **不要用 worktree 分支 commit**：commit 直接在 main 分支上做，不要用 worktree 分支再 fast-forward merge。GitHub UI 要保持 `main ← main` 的乾淨歷史。
+
+3. **HTML 不開新檔，原地改版**：HTML 不要每次開新檔案（v13→v14→v15），直接在原檔改版，用 JS 常數（如 `PWA_VERSION`、`CMD_VERSION`）和 git commit 區分版本。
+
+4. **缺欄位要從源頭修**：server 缺欄位先判斷是源頭該送還是本來就不適用，不要只在 server 容錯。
+
+## 參考文件
+
 - [iOS WSS zombie 參考](reference_ios_wss_zombie.md) — Happy Eyeballs 根因、已排除假設、設計決策，避免重複踩坑
-- [Medical PWA 對齊 shelter](project_medical_pwa_alignment.md) — ✅ 已完成（v0.5.0-alpha），server+client 全部對齊
-- [Medical PWA 功能進度](project_medical_pwa_progress.md) — P0~P3 各項完成狀態、目前版號、待辦清單
-- [缺欄位要從源頭修](feedback_fix_at_source.md) — server 缺欄位先判斷是源頭該送還是本來就不適用，不要只在 server 容錯
-- [指揮部儀表板 Wave 路線圖](project_command_dashboard_waves.md) — 5 Wave 路線圖 + 版號對應 + Wave 3 追加項目
-- [HTML 不開新檔](feedback_no_new_html_files.md) — 儀表板 HTML 原地改版，不要每次生新檔案
-- [目前開發重心與硬體](project_current_focus.md) — 專注指揮部整備，Pi5 取代 Pi4B，民防感知暫不處理
-- [Pi 500 到貨待辦](project_pi500_setup.md) — SSD 開機、scp 憑證、靜態 IP、setup_pi.sh 初始化步驟
+
+## 專案狀態
+
+- [專案狀態總覽](project_status.md) — 醫療 PWA 進度、指揮部路線圖、硬體資訊、Pi 設定步驟

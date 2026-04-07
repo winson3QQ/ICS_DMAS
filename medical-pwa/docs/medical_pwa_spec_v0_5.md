@@ -960,3 +960,25 @@ Admin： https://192.168.100.30:8776
 ---
 
 *文件版本：v0.5 | 對應程式版本：v0.8.3-alpha | 整合來源：醫療組SOP_20260323.md、shelter_pwa_spec_v2_3.md、security_network_spec_v1.2.md*
+
+## 附錄 D：待辦項目（截至 v0.6.3-alpha）
+
+醫療組傷患來源分三種：
+
+| 來源代碼 | 說明 | 資料狀況 |
+|----------|------|----------|
+| A | 前進組送入 | 有 MIST（QR 掃描或手動輸入） |
+| B | 收容組轉介 | 已有登記資料 |
+| C | 非前進組送入 | 可能有（自行走入）或完全沒有（他人抬入）資料 |
+
+| 優先 | 項目 | 說明 |
+|------|------|------|
+| ⏸ | P0-3 簡化登入 | 帳號快選晶片，保留完整 PIN 驗證不動，方案確認中 |
+| 🔴 | P3 紅區容量 | `getRedSlotsFree()` 永遠回傳 999；從 config 讀 `red_capacity`，預設 5，管理員可調整 |
+| 🟡 | P4 生命徵象分開 | 現場 MIST-S vs 到院 START 數值混用；DB 加 `arrival_vitals` 欄位分開顯示 |
+| 🟡 | Badge 定義 | 分區 tab badge 建議改為「待評估 + 逾時合計」，待決定 |
+| 🟢 | P5 Pi URL config | IP hardcode `192.168.100.30`，改為 admin 介面設定，換場地不需改程式碼 |
+| 🟢 | P6 WS 多裝置同步 | `handleWsMsg()` 目前空函式，最小實作：收 `patient_updated` 後 `loadPatients()` 再重繪 |
+| 🟢 | P7 腕帶 QR | 演習不需要（display_id 手寫），熱感應印表機到位後再做 |
+| 🟢 | P8 全域掃碼 | 同 P7，演習後 |
+| 🟢 | P9 語音建檔 | Pi 5 離線辨識（faster-whisper），P3–P6 完成後再做 |
