@@ -65,11 +65,11 @@ type: project
 |------|------|------|------|
 | 1 | 三區佈局 + 雙地圖 + calc_engine 基礎智慧 | cmd-v0.2.0 | ✅ 完成 |
 | 2 | 互動地圖事件輸入 + Decision Countdown + DCI + staff API | cmd-v0.3.0 | ✅ 完成 |
-| 3 | Escalation/De-escalation + 地圖流向箭頭 + 規格缺口補齊 + 佈局重構 + 登入認證 | cmd-v0.4.0～v0.7.0 | ✅ 完成 |
-| 4 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v0.8.0 | 待做 |
-| 5 | Pi Read-Only API + L3/L4 地圖鑽探 | cmd-v0.9.0 | 待做 |
+| 3 | Escalation/De-escalation + 佈局重構 + 全中文化 + 登入認證 | cmd-v0.4.0～v0.7.0+ | ✅ 完成 |
+| 4 | Pi Read-Only API + L3/L4 地圖鑽探 + Wave 3 收尾 | cmd-v0.8.0 | 🔲 進行中 |
+| 5 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v0.9.0 | 待做 |
 
-### 版本歷史摘要
+### Wave 3 版本歷史摘要
 
 **v0.4.0～v0.4.9**（commit 5d084f8 / b8566ad）
 - `escalation_check()` 5升5降規則、新鮮度圓點、Decision 完整生命週期
@@ -91,15 +91,33 @@ type: project
 - Zone A 登出按鈕 + 地圖 marker 清除機制
 - CA 憑證下載頁 + Pi 程式碼更新腳本
 
-### 待做項目（Wave 3 收尾 + Wave 4）
+### Wave 4 待做項目（依實作順序）
 
-| 優先 | 項目 | 說明 |
-|------|------|------|
-| 🟡 | 重設 deadline 後端 API | 目前只追加 notes，DB 的 `response_deadline` 沒有實際更新 |
-| 🟡 | 決策主題合併卡片 | 同 `primary_event_id` 的裁示合併顯示 |
-| 🟢 | 物資 burn rate 預測線 | sparkline 展開後疊加虛線延伸到 Y=0 |
-| 🟢 | 地圖流向箭頭 | 填入實際 flows 資料，動態粗度 |
-| ⬜ | Operator Fatigue（Wave 4） | 操作者疲勞偵測，需同步修改 PWA |
+| 順序 | 項目 | 類別 | 說明 |
+|------|------|------|------|
+| 1 | Pi URL 設定 | 後端 DB + 設定 UI | `pi_nodes` 表（node_type / url / updated_at）+ 設定頁 UI + `/api/pi-nodes` CRUD + ping 端點 |
+| 2 | Pi Read-Only API | `ics_ws_server.js` | `GET /api/data/summary`、`/api/data/list/:table`、`/api/data/record/:table/:id`（從 delta_log 重建，不需 auth） |
+| 3 | 指揮部 Proxy API | 後端 | `GET /api/proxy/:node/summary|list/:table|record/:table/:id`，用 httpx 轉發，Pi 離線回 `pi_offline` |
+| 4 | 重設 deadline 後端 API | 後端 | 目前只追加 notes，實際更新 DB 的 `response_deadline` |
+| 5 | 決策主題合併卡片 | 前端 | 同 `primary_event_id` 的裁示合併顯示 |
+| 6 | L3 補充個別記錄列表 | 前端 | 數據 tab 下方加傷患/住民列表（走 Proxy），Pi 離線時顯示「快照模式」 |
+| 7 | L4 完整資料 Modal | 前端 | 從 L3 列表點進去，展開單筆完整記錄（評估歷史、生命徵象、CMIST 摘要） |
+| 8 | 物資 burn rate 預測線 | 前端 | sparkline 展開後疊加虛線延伸到 Y=0 |
+| 9 | 地圖流向箭頭 | 前端 | 填入實際 flows 資料，動態粗度 |
+
+### Pi Read-Only API 技術細節
+
+Pi 無 materialized table，所有 PWA 寫入都在 delta_log。重建現態的 SQL：
+```sql
+SELECT record_json FROM delta_log
+WHERE table_name = ? AND record_id IN (
+  SELECT record_id FROM delta_log
+  WHERE table_name = ?
+  GROUP BY record_id HAVING ts = MAX(ts)
+)
+```
+- shelter syncTables：`persons, beds, resources, incidents, shifts`
+- medical syncTables：`patients, triages, incidents, shifts`
 
 ### 技術備忘
 
@@ -107,7 +125,7 @@ type: project
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
 - DB schema 變更需刪除 `data/ics.db`
-- UI/UX 規格：`command-dashboard/static/指揮部儀表板設計規格_v1_1.md`
+- UI/UX 規格：`command-dashboard/docs/指揮部儀表板設計規格_v1_1.md`
 
 ---
 
