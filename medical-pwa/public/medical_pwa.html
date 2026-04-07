@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.6.0-alpha';</script>
+<script>const PWA_VERSION='v0.6.1-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -3430,8 +3430,13 @@ async function openIsbar(patientId) {
   const iText = `${p.display_id}，${colorLabel[p.triage_color]||p.triage_color}，${p.injury_type==='trauma'?'創傷':'非創'}`;
   const sText = `${p.chief_issue||'—'}，目前位於 ${p.current_zone}`;
   const aText = `生命徵象：${p.vitals_summary||'—'}`;
-  const hospOpts = HOSPITAL_LIST.map(h =>
-    `<option value="${h.name}"${p.transfer_hospital===h.name?' selected':''}>${h.name}（${h.level}，${h.min}分）</option>`
+  const hospSorted = [...HOSPITAL_LIST].sort((a,b) => {
+    if (a.priority !== b.priority) return a.priority ? -1 : 1;
+    return a.min - b.min;
+  });
+  const hospOpts = hospSorted.map(h =>
+    `<option value="${h.name}"${p.transfer_hospital===h.name?' selected':''}>` +
+    `${h.priority?'★ ':''}${h.name}（${h.level}，${h.min}分）</option>`
   ).join('');
   openModal('ISBAR 後送交接',
     `<div class="flex flex-col gap-2">
@@ -3671,6 +3676,7 @@ async function renderResources(el) {
     ${listHtml}
     <div style="padding:14px;display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-primary btn-full btn-sm" onclick="openAddResourceModal()">＋ 新增物資</button>
+      <button class="btn btn-outline btn-full btn-sm" onclick="openImportResourceModal()">📥 匯入清單</button>
       <button class="btn btn-outline btn-full btn-sm" onclick="markResourceCheck()">✓ 標記盤點完成（${lastCheckText}）</button>
       <button class="btn btn-ghost btn-full btn-sm" onclick="resetInventory()">重置盤點</button>
     </div>
@@ -3858,9 +3864,90 @@ async function openResourceDetail(id) {
     <div class="section-hdr">異動紀錄（${txList.length} 筆）</div>
     <div style="max-height:200px;overflow-y:auto;">${txHtml}</div>`,
     `<button class="btn btn-ghost flex-1" onclick="closeModal()">關閉</button>
+     <button class="btn btn-outline flex-1" onclick="closeModal();openEditResourceModal(${id})">編輯</button>
      <button class="btn btn-outline flex-1" onclick="closeModal();openResourceUse(${id})">取用</button>
-     <button class="btn btn-primary flex-1" onclick="closeModal();openResourceAdd(${id})">補充</button>`
+     <button class="btn btn-primary flex-1" onclick="closeModal();openResourceAdd(${id})">補充</button>
+     <button class="btn btn-outline flex-1" style="color:var(--red);border-color:var(--red);" onclick="confirmDeleteResource(${id})">刪除</button>`
   );
+}
+
+async function openEditResourceModal(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  openModal(`編輯：${r.name}`,
+    `<div class="form-group">
+      <div class="form-label">物資名稱 <span class="req">*</span></div>
+      <input class="form-input" id="edit-res-name" value="${r.name}">
+    </div>
+    <div class="form-group">
+      <div class="form-label">類別</div>
+      <select class="form-select" id="edit-res-cat">
+        ${['止血類','呼吸道類','循環類','藥品','固定類','保暖類','監測器材','其他'].map(c=>`<option${r.category===c?' selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <div class="form-label">低量警戒線</div>
+      <input class="form-input" id="edit-res-thresh" type="number" min="0" value="${r.qty_low_threshold}">
+    </div>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="saveEditResource(${id})">儲存</button>`
+  );
+}
+
+async function saveEditResource(id) {
+  const name = document.getElementById('edit-res-name')?.value?.trim();
+  if (!name) { showToast('請填寫物資名稱'); return; }
+  await db.resources.update(id, {
+    name,
+    category: document.getElementById('edit-res-cat')?.value || '其他',
+    qty_low_threshold: parseInt(document.getElementById('edit-res-thresh')?.value) || 2,
+  });
+  closeModal();
+  showToast('已更新');
+  renderCurrentTab();
+}
+
+async function confirmDeleteResource(id) {
+  const r = await db.resources.get(id);
+  if (!r) return;
+  _confirmInModal(
+    `確定刪除「${r.name}」？此操作無法復原。`,
+    async () => { await db.resources.delete(id); showToast('已刪除'); renderCurrentTab(); }
+  );
+}
+
+function openImportResourceModal() {
+  const presetJson = JSON.stringify(DEFAULT_RESOURCES.map(r=>({name:r.name,category:r.category,qty:r.qty_initial,threshold:r.qty_low_threshold})), null, 2);
+  openModal('匯入物資清單',
+    `<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">貼入 JSON 陣列，或點「載入預設」再修改數量後匯入。格式：<code>[{"name":"…","category":"…","qty":0,"threshold":2}]</code></div>
+    <textarea class="form-input form-textarea" id="import-res-json" style="min-height:180px;font-size:11px;font-family:monospace;">${presetJson}</textarea>`,
+    `<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button>
+     <button class="btn btn-primary flex-1" onclick="doImportResources()">匯入（附加）</button>`
+  );
+}
+
+async function doImportResources() {
+  let items;
+  try { items = JSON.parse(document.getElementById('import-res-json')?.value || '[]'); }
+  catch(e) { showToast('JSON 格式錯誤'); return; }
+  if (!Array.isArray(items) || items.length === 0) { showToast('清單為空'); return; }
+  const existing = await db.resources.toArray();
+  const existingNames = new Set(existing.map(r => r.name));
+  const toAdd = items
+    .filter(i => i.name && !existingNames.has(i.name))
+    .map(i => ({
+      name: String(i.name),
+      category: i.category || '其他',
+      qty_initial: parseInt(i.qty) || 0,
+      qty_current: parseInt(i.qty) || 0,
+      qty_low_threshold: parseInt(i.threshold) || 2,
+      transactions: [],
+    }));
+  if (toAdd.length === 0) { showToast('無新項目可匯入（名稱重複皆略過）'); return; }
+  await db.resources.bulkAdd(toAdd);
+  closeModal();
+  showToast(`已匯入 ${toAdd.length} 項物資`);
+  renderCurrentTab();
 }
 
 async function resetInventory() {
