@@ -161,7 +161,7 @@ type: project
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
 - DB schema 變更需刪除 `data/ics.db`
-- UI/UX 規格：`command-dashboard/docs/指揮部儀表板設計規格_v1_1.md`
+- UI/UX 規格：`command-dashboard/docs/指揮部儀表板設計規格_v1_3.md`
 
 ---
 
