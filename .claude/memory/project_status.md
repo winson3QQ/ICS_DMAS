@@ -65,48 +65,49 @@ type: project
 |------|------|------|------|
 | 1 | 三區佈局 + 雙地圖 + calc_engine 基礎智慧 | cmd-v0.2.0 | ✅ 完成 |
 | 2 | 互動地圖事件輸入 + Decision Countdown + DCI + staff API | cmd-v0.3.0 | ✅ 完成 |
-| 3 | Escalation/De-escalation + 地圖流向箭頭 + 規格缺口補齊 + 佈局重構 | cmd-v0.4.0～v0.6.0 | ✅ 完成 |
-| 4 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v0.7.0 | 待做 |
-| 5 | Pi Read-Only API + L3/L4 地圖鑽探 | cmd-v0.8.0 | 待做 |
+| 3 | Escalation/De-escalation + 地圖流向箭頭 + 規格缺口補齊 + 佈局重構 + 登入認證 | cmd-v0.4.0～v0.7.0 | ✅ 完成 |
+| 4 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v0.8.0 | 待做 |
+| 5 | Pi Read-Only API + L3/L4 地圖鑽探 | cmd-v0.9.0 | 待做 |
 
-### Wave 3 完整版本歷史
+### 版本歷史摘要
 
-**v0.4.0～v0.4.2**（commit 5d084f8）
+**v0.4.0～v0.4.9**（commit 5d084f8 / b8566ad）
 - `escalation_check()` 5升5降規則、新鮮度圓點、Decision 完整生命週期
-- 事件類型對齊 PWA、events 表加 location_zone_id
-- 版號統一 CMD_VERSION、HTML rename → commander_dashboard.html
+- 事件 marker 自動建 DB、事件編號 EV-MMDD-NNN、response_deadline 依嚴重度
 
-**v0.4.3～v0.4.9**（commit b8566ad）
-- 事件 marker 自動建 DB、事件編號 EV-MMDD-NNN
-- response_deadline 依嚴重度分鐘設定、處置 modal 完整流程
-- 結案 marker 灰色半透明
-
-**v0.5.0**（commit 8d7da77）
+**v0.5.0～v0.5.7**（commit 8d7da77 / 01d7bbf）
 - 佈局重構：左側 3+2 切換（態勢/資源）+ 右側事件追蹤 60% + 待裁示 40%
+- edit-bar 重設計、放置流程（3 click 零打字）、SVG icon 重繪、事件 marker 顏色動態
 
-**v0.5.1～v0.5.7**（commit 01d7bbf）
-- edit-bar 重設計、放置流程（3 click 零打字）、SVG icon 重繪
-- 事件 marker 顏色動態、各組按鈕專屬色
+**v0.6.0～v0.6.10**（commit 7a2a2b5 / 68660c7）
+- 齒輪移除、全中文化、確認 modal、結案驗證
+- UI/UX 規格對齊、操作員金色、事件篩選、長按地圖定位
+- 頂部狀態列重設計、地圖 tab/側欄版面調整
 
-**v0.6.0**（未 commit）
-- 齒輪移除、按鈕顏色修復、全中文化
-- 展開/收合、結案驗證、確認 modal
-- 後端 `/api/dashboard` 加回傳 resolved 事件
+**v0.7.0**（commit 2209b3a）
+- 登入頁 + 帳號管理 + 設定面板 + 認證中介層（FastAPI 端）
 
-### Wave 3 v0.6.x 待做
+**v0.7.0 之後**（commit 551de99、202a83e）
+- Zone A 登出按鈕 + 地圖 marker 清除機制
+- CA 憑證下載頁 + Pi 程式碼更新腳本
 
-- 地圖流向箭頭填入實際 flows 資料 + 動態粗度
-- 物資 burn rate 預測線（展開 sparkline 疊加虛線到 Y=0）
-- 決策主題合併卡片（同 primary_event_id 合併）
-- ⏱ 重設 deadline 後端 API（目前只追加 notes）
+### 待做項目（Wave 3 收尾 + Wave 4）
+
+| 優先 | 項目 | 說明 |
+|------|------|------|
+| 🟡 | 重設 deadline 後端 API | 目前只追加 notes，DB 的 `response_deadline` 沒有實際更新 |
+| 🟡 | 決策主題合併卡片 | 同 `primary_event_id` 的裁示合併顯示 |
+| 🟢 | 物資 burn rate 預測線 | sparkline 展開後疊加虛線延伸到 Y=0 |
+| 🟢 | 地圖流向箭頭 | 填入實際 flows 資料，動態粗度 |
+| ⬜ | Operator Fatigue（Wave 4） | 操作者疲勞偵測，需同步修改 PWA |
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制
-- 啟動：`cd command-dashboard && set PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.7.0`）
+- 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
-- DB schema 變更需 `del data/ics.db`
-- UI/UX 規格：`command-dashboard/static/指揮部儀表板設計規格_v1_1.md`（舊路徑 command_dashboard_spec_v1_0.md）
+- DB schema 變更需刪除 `data/ics.db`
+- UI/UX 規格：`command-dashboard/static/指揮部儀表板設計規格_v1_1.md`
 
 ---
 
