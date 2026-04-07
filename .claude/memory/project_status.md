@@ -66,8 +66,9 @@ type: project
 | 1 | 三區佈局 + 雙地圖 + calc_engine 基礎智慧 | cmd-v0.2.0 | ✅ 完成 |
 | 2 | 互動地圖事件輸入 + Decision Countdown + DCI + staff API | cmd-v0.3.0 | ✅ 完成 |
 | 3 | Escalation/De-escalation + 佈局重構 + 全中文化 + 登入認證 | cmd-v0.4.0～v0.7.0+ | ✅ 完成 |
-| 4 | Pi Read-Only API + L3/L4 地圖鑽探 + Wave 3 收尾 | cmd-v0.8.0 | 🔲 進行中 |
-| 5 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v0.9.0 | 待做 |
+| 4 | Pi Read-Only API + L3/L4 地圖鑽探 | cmd-v0.8.0 | 🔲 進行中 |
+| 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.9.0 | 待做 |
+| 6 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v1.0.0 | 待做 |
 
 ### Wave 3 版本歷史摘要
 
@@ -91,19 +92,24 @@ type: project
 - Zone A 登出按鈕 + 地圖 marker 清除機制
 - CA 憑證下載頁 + Pi 程式碼更新腳本
 
-### Wave 4 待做項目（依實作順序）
+### Wave 4 實作項目（依順序，共 5 項）
 
 | 順序 | 項目 | 類別 | 說明 |
 |------|------|------|------|
-| 1 | Pi URL 設定 | 後端 DB + 設定 UI | `pi_nodes` 表（node_type / url / updated_at）+ 設定頁 UI + `/api/pi-nodes` CRUD + ping 端點 |
-| 2 | Pi Read-Only API | `ics_ws_server.js` | `GET /api/data/summary`、`/api/data/list/:table`、`/api/data/record/:table/:id`（從 delta_log 重建，不需 auth） |
-| 3 | 指揮部 Proxy API | 後端 | `GET /api/proxy/:node/summary|list/:table|record/:table/:id`，用 httpx 轉發，Pi 離線回 `pi_offline` |
-| 4 | 重設 deadline 後端 API | 後端 | 目前只追加 notes，實際更新 DB 的 `response_deadline` |
-| 5 | 決策主題合併卡片 | 前端 | 同 `primary_event_id` 的裁示合併顯示 |
-| 6 | L3 補充個別記錄列表 | 前端 | 數據 tab 下方加傷患/住民列表（走 Proxy），Pi 離線時顯示「快照模式」 |
-| 7 | L4 完整資料 Modal | 前端 | 從 L3 列表點進去，展開單筆完整記錄（評估歷史、生命徵象、CMIST 摘要） |
-| 8 | 物資 burn rate 預測線 | 前端 | sparkline 展開後疊加虛線延伸到 Y=0 |
-| 9 | 地圖流向箭頭 | 前端 | 填入實際 flows 資料，動態粗度 |
+| 1 | Pi URL 設定 | 後端 DB + 設定 UI | `pi_nodes` 表（unit_id / label / base_url / last_ping_at / last_ping_ok）+ `/api/pi-nodes` CRUD + ping 端點 + 設定面板 UI |
+| 2 | Pi Read-Only API | `ics_ws_server.js` | `GET /api/data/summary`、`/api/data/list/:table`、`/api/data/record/:table/:id`（從 delta_log 重建，不需 auth，admin port 8766/8776） |
+| 3 | 指揮部 Proxy API | 後端 | `GET /api/proxy/{unit_id}/summary\|list/{table}\|record/{table}/{id}`，httpx async 轉發，Pi 離線回 `{"ok":false,"pi_offline":true}` |
+| 4 | L3 補充個別記錄列表 | 前端 | 數據 tab 加傷患（patients）/住民（persons）列表，點「載入」才 fetch，Pi 離線顯示提示不 crash |
+| 5 | L4 完整資料 Modal | 前端 | 從 L3 列表點單筆，fetch `/api/proxy/{unit_id}/record/{table}/{id}`，失敗 fallback 顯示快取記錄 |
+
+### Wave 5 待做項目（UI 收尾，共 4 項）
+
+| 項目 | 說明 |
+|------|------|
+| 重設 deadline 後端 API | `PATCH /api/events/{id}/deadline`，同時更新 DB 欄位 + 追加 note（目前只有 note） |
+| 決策主題合併卡片 | `_zoneDecisionsTab()` group by `primary_event_id`，多筆顯示「鏈 N 筆」 |
+| 物資 burn rate 預測線 | `drawSparkline()` 加 `projectToZero` dataset 屬性，虛線延伸到 Y=0 |
+| 地圖流向箭頭 | `renderFlows()` 讀實際 flows 資料，`data_source` 欄位對應 calc 數值，動態粗度 |
 
 ### Pi Read-Only API 技術細節
 
