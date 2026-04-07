@@ -15,7 +15,7 @@ FastAPI + SQLite，跑在指揮部 Pi
 from fastapi import FastAPI, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 import json
@@ -149,6 +149,40 @@ async def auth_middleware(request: Request, call_next):
 static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
+# CA 根憑證下載（供手機/平板安裝）
+cert_path = Path(__file__).parent.parent.parent / "certs" / "rootCA.pem"
+
+@app.get("/cert")
+def download_cert():
+    if not cert_path.exists():
+        raise HTTPException(status_code=404, detail="rootCA.pem 未找到")
+    return FileResponse(str(cert_path), filename="rootCA.pem")
+
+@app.get("/cert/install", response_class=HTMLResponse)
+def cert_install_page():
+    return """<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>安裝 CA 憑證</title>
+<style>
+  body{font-family:-apple-system,sans-serif;max-width:600px;margin:40px auto;padding:0 20px;line-height:1.6}
+  h1{font-size:1.4em}
+  .btn{display:inline-block;padding:14px 28px;background:#c0392b;color:#fff;text-decoration:none;border-radius:8px;font-size:1.1em;margin:20px 0}
+  .step{background:#f5f5f5;padding:12px 16px;margin:8px 0;border-radius:6px}
+  .num{font-weight:bold;color:#c0392b}
+</style></head><body>
+<h1>ICS_DMAS CA 憑證安裝</h1>
+<p>安裝此憑證後，裝置才能信任本系統的 HTTPS/WSS 連線。</p>
+<a class="btn" href="/cert">下載 CA 憑證</a>
+<h2>iOS 安裝步驟</h2>
+<div class="step"><span class="num">1.</span> 點擊上方按鈕下載</div>
+<div class="step"><span class="num">2.</span> 設定 → 已下載描述檔 → 安裝</div>
+<div class="step"><span class="num">3.</span> 設定 → 一般 → 關於本機 → 憑證信任設定 → 開啟信任</div>
+<h2>Android 安裝步驟</h2>
+<div class="step"><span class="num">1.</span> 點擊上方按鈕下載</div>
+<div class="step"><span class="num">2.</span> 設定 → 安全性 → 加密與憑證 → 安裝憑證 → CA 憑證</div>
+<div class="step"><span class="num">3.</span> 選擇下載的 rootCA.pem</div>
+</body></html>"""
 
 # 啟動時建立 DB
 @app.on_event("startup")
