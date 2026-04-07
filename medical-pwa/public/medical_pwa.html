@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.6.2-alpha';</script>
+<script>const PWA_VERSION='v0.6.3-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -3634,34 +3634,47 @@ async function renderResources(el) {
     return;
   }
 
-  const lowItems = items.filter(r => r.qty_current <= r.qty_low_threshold);
+  const activeItems = items.filter(r => !r.disabled);
+  const disabledItems = items.filter(r => r.disabled);
+  const lowItems = activeItems.filter(r => r.qty_current <= r.qty_low_threshold);
   const byCategory = {};
-  items.forEach(r => { if (!byCategory[r.category]) byCategory[r.category] = []; byCategory[r.category].push(r); });
+  activeItems.forEach(r => { if (!byCategory[r.category]) byCategory[r.category] = []; byCategory[r.category].push(r); });
+
+  const _renderResCard = (r, gray=false) => {
+    const low = !gray && r.qty_current <= r.qty_low_threshold;
+    const pct = r.qty_initial > 0 ? Math.min(100, Math.round((r.qty_current / r.qty_initial) * 100)) : 0;
+    const barColor = low ? 'var(--orange)' : 'var(--green)';
+    return `
+      <div class="card mb-1" style="opacity:${gray?.4:1};${low?'border-left:3px solid var(--orange)':''};cursor:pointer;" onclick="openResourceDetail(${r.id})">
+        <div class="flex justify-between items-center">
+          <span class="font-semibold text-sm" style="${gray?'color:var(--text3);text-decoration:line-through;':''}">${r.name}</span>
+          ${gray
+            ? `<span style="font-size:12px;color:var(--text3);">已停用</span>`
+            : `<span class="${low?'text-red font-bold':''}" style="font-size:15px;">${r.qty_current} <span style="font-size:11px;color:var(--text3);">/ ${r.qty_initial}</span></span>`}
+        </div>
+        ${!gray ? `
+        <div style="height:4px;background:var(--border);border-radius:2px;margin:6px 0 4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px;transition:width .3s;"></div>
+        </div>
+        ${low ? `<div class="text-xs" style="color:var(--orange);margin-bottom:4px;">⚠️ 低量（門檻 ${r.qty_low_threshold}）</div>` : ''}
+        <div class="flex gap-1">
+          <button class="pc-btn" onclick="event.stopPropagation();openResourceUse(${r.id})">取用</button>
+          <button class="pc-btn" onclick="event.stopPropagation();openResourceAdd(${r.id})">補充</button>
+          ${low ? `<button class="pc-btn" style="color:var(--red);border-color:var(--red);" onclick="event.stopPropagation();reportResourceShortage(${r.id})">缺料通報</button>` : ''}
+        </div>` : `
+        <div class="flex gap-1" style="margin-top:4px;">
+          <button class="pc-btn" onclick="event.stopPropagation();restoreResource(${r.id})">恢復</button>
+        </div>`}
+      </div>`;
+  };
 
   const listHtml = Object.entries(byCategory).map(([cat, catItems]) => `
     <div class="section-hdr">${cat}</div>
-    ${catItems.map(r => {
-      const low = r.qty_current <= r.qty_low_threshold;
-      const pct = r.qty_initial > 0 ? Math.min(100, Math.round((r.qty_current / r.qty_initial) * 100)) : 0;
-      const barColor = low ? 'var(--orange)' : 'var(--green)';
-      return `
-        <div class="card mb-1" style="${low ? 'border-left:3px solid var(--orange)' : ''};cursor:pointer;" onclick="openResourceDetail(${r.id})">
-          <div class="flex justify-between items-center">
-            <span class="font-semibold text-sm">${r.name}</span>
-            <span class="${low ? 'text-red font-bold' : ''}" style="font-size:15px;">${r.qty_current} <span style="font-size:11px;color:var(--text3);">/ ${r.qty_initial}</span></span>
-          </div>
-          <div style="height:4px;background:var(--border);border-radius:2px;margin:6px 0 4px;overflow:hidden;">
-            <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px;transition:width .3s;"></div>
-          </div>
-          ${low ? `<div class="text-xs" style="color:var(--orange);margin-bottom:4px;">⚠️ 低量（門檻 ${r.qty_low_threshold}）</div>` : ''}
-          <div class="flex gap-1">
-            <button class="pc-btn" onclick="event.stopPropagation();openResourceUse(${r.id})">取用</button>
-            <button class="pc-btn" onclick="event.stopPropagation();openResourceAdd(${r.id})">補充</button>
-            ${low ? `<button class="pc-btn" style="color:var(--red);border-color:var(--red);" onclick="event.stopPropagation();reportResourceShortage(${r.id})">缺料通報</button>` : ''}
-          </div>
-        </div>`;
-    }).join('')}
-  `).join('');
+    ${catItems.map(r => _renderResCard(r)).join('')}
+  `).join('') + (disabledItems.length ? `
+    <div class="section-hdr" style="color:var(--text3);">已停用</div>
+    ${disabledItems.map(r => _renderResCard(r, true)).join('')}
+  ` : '');
 
   const lastResCheck = parseInt(localStorage.getItem('med_last_res_check') || '0', 10);
   const resCheckOverdue = lastResCheck > 0 && (Date.now() - lastResCheck) > 30 * 60 * 1000;
@@ -3867,7 +3880,7 @@ async function openResourceDetail(id) {
      <button class="btn btn-outline flex-1" onclick="closeModal();openEditResourceModal(${id})">編輯</button>
      <button class="btn btn-outline flex-1" onclick="closeModal();openResourceUse(${id})">取用</button>
      <button class="btn btn-primary flex-1" onclick="closeModal();openResourceAdd(${id})">補充</button>
-     <button class="btn btn-outline flex-1" style="color:var(--red);border-color:var(--red);" onclick="confirmDeleteResource(${id})">刪除</button>`
+     <button class="btn btn-outline flex-1" style="color:var(--red);border-color:var(--red);" onclick="${r.disabled?`restoreResource(${id})`:`confirmDeleteResource(${id})`}">${r.disabled?'恢復':'停用'}</button>`
   );
 }
 
@@ -3912,8 +3925,8 @@ async function confirmDeleteResource(id) {
   if (!r) return;
   window._pendingDeleteResourceId = id;
   _confirmInModal(
-    '刪除物資',
-    `確定刪除「${r.name}」？此操作無法復原。`,
+    '停用物資',
+    `確定停用「${r.name}」？項目將變灰顯示，可隨時恢復。`,
     'doDeleteResource()',
     'closeModal()'
   );
@@ -3923,9 +3936,16 @@ async function doDeleteResource() {
   const id = window._pendingDeleteResourceId;
   if (!id) return;
   window._pendingDeleteResourceId = null;
-  await db.resources.delete(id);
+  await db.resources.update(id, { disabled: true });
   closeModal();
-  showToast('已刪除');
+  showToast('已停用');
+  renderCurrentTab();
+}
+
+async function restoreResource(id) {
+  await db.resources.update(id, { disabled: false });
+  closeModal();
+  showToast('已恢復');
   renderCurrentTab();
 }
 
