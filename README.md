@@ -2,7 +2,7 @@
 
 **Incident Command System — Disaster Management & Assistance System**
 
-鄉鎮層災害應變指揮系統。設計給民防 / 災防演訓使用，可不依賴外網、不依賴雲端，所有運算在本地局域網完成**。
+鄉鎮層災害應變指揮系統。設計給民防 / 災防演訓使用，可不依賴外網、不依賴雲端，所有運算在本地局域網完成。
 
 ---
 
@@ -20,7 +20,7 @@
 
 ```
 前進組 / 安全組          收容組              醫療組
-Pi Zero 2W x N        Pi 4B              Pi 4B
+Pi Zero 2W x N        Pi 500             Pi 500
 PTT 錄音 → STT        WebSocket          WebSocket
 心跳上傳              :8765/8766         :8775/8776
 .40 / .50             .20                .30
@@ -116,7 +116,7 @@ PTT 錄音 → STT        WebSocket          WebSocket
 | Phase 2 | HTTPS/WSS（mkcert），LUKS 部署至各 Pi，WireGuard |
 | Phase 3 | 演訓正式環境，YubiKey + 全加密 + WireGuard 全部到位 |
 
-目前程式版本：**v0.1.0**（收容組 PWA + 指揮部後端基礎功能完成）
+目前開發階段：**Phase 1**（醫療 PWA medical-v0.6.3-alpha、指揮部 cmd-v0.6.0、收容組 PWA shelter-v2.3）
 
 ---
 
@@ -124,14 +124,20 @@ PTT 錄音 → STT        WebSocket          WebSocket
 
 ```
 ICS_DMAS/
-├── command-dashboard/       # 指揮部後端（FastAPI + SQLite）
-│   └── docs/                # 指揮部儀表板設計規格 v1.1
+├── command-dashboard/       # 指揮部後端（FastAPI + SQLite）+ 前端儀表板
+│   ├── src/                 # main.py / db.py / calc_engine.py
+│   ├── static/              # commander_dashboard.html、qr_scanner.html、地圖底圖
+│   ├── docs/                # 指揮部儀表板設計規格 v1.1
+│   └── tests/               # gen_test_snapshots.py
 ├── shelter-pwa/             # 收容組 PWA + WebSocket Pi 伺服器
-│   └── docs/                # 收容組規格 v2.3、SOP
-├── medical-pwa/             # 醫療組 PWA（規格先行，實作未開始）
-│   └── docs/                # 醫療組規格 v0.3、SOP
-└── security & forward/      # 民防輔助感知系統（前進/安全組）
-    └── docs/                # 規格書、開發計畫、測試計畫 v1.4
+│   └── docs/                # 收容組規格 v2.3、SOP、DB schema
+├── medical-pwa/             # 醫療組 PWA + WebSocket Pi 伺服器
+│   └── docs/                # 醫療組規格 v0.6、SOP
+├── security & forward/      # 民防輔助感知系統（前進/安全組，規格先行）
+│   └── docs/                # 規格書、開發計畫、測試計畫 v1.4
+└── docs/                    # 跨組共用規格
+    ├── security_network_spec_v1.2.md
+    └── ui_ux_design_guide.md
 ```
 
 ---
@@ -140,11 +146,13 @@ ICS_DMAS/
 
 | 文件 | 版本 | 對應程式 |
 |------|------|---------|
-| [指揮部儀表板設計規格](command-dashboard/docs/指揮部儀表板設計規格_v1_1.md) | v1.1 | v0.1.0 |
-| [收容組 PWA 規格](shelter-pwa/docs/shelter_pwa_spec_v2_3.md) | v2.3 | v0.1.0 |
-| [收容組 SOP](shelter-pwa/docs/收容組_SOP_彙整_20260330.md) | 2026-03-30 | — |
-| [醫療組 PWA 規格](medical-pwa/docs/medical_pwa_spec_v0_3.md) | v0.3 | 規格先行 |
+| [指揮部儀表板設計規格](command-dashboard/static/指揮部儀表板設計規格_v1_1.md) | v1.1 | cmd-v0.6.0 |
+| [安全與網路架構規格](docs/security_network_spec_v1.2.md) | v1.2 | — |
+| [PWA UI/UX 設計規範](docs/ui_ux_design_guide.md) | — | 醫療 + 收容共用 |
+| [醫療組 PWA 規格](medical-pwa/docs/medical_pwa_spec_v0_5.md) | v0.6 | medical-v0.6.3-alpha |
 | [醫療組 SOP](medical-pwa/docs/醫療組SOP_20260323.md) | 2026-03-23 | — |
+| [收容組 PWA 規格](shelter-pwa/docs/shelter_pwa_spec_v2_3.md) | v2.3 | shelter-v2.3 |
+| [收容組 SOP](shelter-pwa/docs/收容組_SOP_彙整_20260330.md) | 2026-03-30 | — |
 | [民防感知系統規格書](security%20&%20forward/docs/民防輔助感知系統_規格書_v1_4.md) | v1.4 | 規格先行 |
 | [民防感知開發計畫](security%20&%20forward/docs/民防輔助感知系統_開發計畫_v1_4.md) | v1.4 | 規格先行 |
 | [民防感知測試計畫](security%20&%20forward/docs/民防輔助感知系統_測試計畫_v1_4.md) | v1.4 | 規格先行 |
