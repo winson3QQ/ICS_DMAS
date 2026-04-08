@@ -437,6 +437,114 @@ def get_audit_log(limit: int = 100):
 
 
 # ──────────────────────────────────────────
+# Wave 4：Pi push records → snapshot 轉換
+# ──────────────────────────────────────────
+
+def _pi_batch_to_snapshot(unit_id: str, pushed_at: str, records: list) -> dict | None:
+    """從 pi_received_batches 的 records 衍生出 calc_engine 期望的 snapshot dict"""
+    if not records:
+        return None
+
+    # 按 table_name 分組
+    by_table = {}
+    for r in records:
+        tbl = r.get("table_name", "")
+        rec = r.get("record", {})
+        if tbl and rec:
+            by_table.setdefault(tbl, []).append(rec)
+
+    snap = {
+        "snapshot_id": f"pi_derived_{unit_id}_{pushed_at}",
+        "snapshot_time": pushed_at,
+        "node_type": unit_id,
+        "source": "pi_push",
+    }
+
+    if unit_id == "medical":
+        patients = by_table.get("patients", [])
+        # 在場傷患（排除已離區）
+        active = [p for p in patients if p.get("current_zone") != "已離區"]
+        # 按檢傷燈號計數
+        colors = {"red": 0, "yellow": 0, "green": 0, "black": 0}
+        for p in active:
+            c = p.get("triage_color", "")
+            if c in colors:
+                colors[c] += 1
+        snap["casualties_red"] = colors["red"]
+        snap["casualties_yellow"] = colors["yellow"]
+        snap["casualties_green"] = colors["green"]
+        snap["casualties_black"] = colors["black"]
+        snap["bed_used"] = len(active)
+        snap["bed_total"] = max(len(active) + 5, 20)  # 預設容量，可從 config 調整
+        snap["waiting_count"] = len([p for p in active
+                                     if p.get("care_status") == "triaged"
+                                     and p.get("disposition", "在場") == "在場"])
+        snap["pending_evac"] = len([p for p in active
+                                    if p.get("disposition") == "後送"])
+        snap["staff_on_duty"] = None
+
+    elif unit_id == "shelter":
+        persons = by_table.get("persons", [])
+        beds = by_table.get("beds", [])
+        # 在站人員
+        placed = [p for p in persons if p.get("status") == "已安置"]
+        waiting = [p for p in persons if p.get("status") == "等候中"]
+        # 床位統計
+        total_beds = len(beds) if beds else max(len(placed) + 5, 12)
+        snap["bed_used"] = len(placed)
+        snap["bed_total"] = total_beds
+        snap["pending_intake"] = len(waiting)
+        snap["staff_on_duty"] = None
+        # SRT 統計
+        srt = {"red": 0, "yellow": 0, "green": 0}
+        for p in placed:
+            c = p.get("srt_color", "")
+            if c in srt:
+                srt[c] += 1
+        snap["extra"] = {"srt": srt}
+
+    # 共用：物資統計
+    resources = by_table.get("resources", [])
+    if resources:
+        supplies = {}
+        supplies_max = {}
+        for r in resources:
+            if r.get("disabled"):
+                continue
+            name = r.get("name", "")
+            # 簡化 key（取前幾個中文字或英文）
+            key = name.lower().replace(" ", "_")[:20]
+            supplies[key] = r.get("qty_current", 0)
+            supplies_max[key] = r.get("qty_initial", 0) or r.get("qty_current", 0)
+        extra = snap.get("extra", {}) if isinstance(snap.get("extra"), dict) else {}
+        extra["supplies"] = supplies
+        extra["supplies_max"] = supplies_max
+        snap["extra"] = extra
+
+    # 共用：事件壓力
+    incidents = by_table.get("incidents", [])
+    if incidents:
+        open_incs = [i for i in incidents if i.get("status") not in ("已結案", "closed")]
+        sev_count = {"高": 0, "中": 0, "低": 0}
+        for i in open_incs:
+            s = i.get("severity", "中")
+            if s in sev_count:
+                sev_count[s] += 1
+        ip = {
+            "high": sev_count["高"],
+            "medium": sev_count["中"],
+            "low": sev_count["低"],
+            "open_total": len(open_incs),
+            "resolved_30min": len([i for i in incidents if i.get("status") in ("已結案", "closed")]),
+        }
+        extra = snap.get("extra", {}) if isinstance(snap.get("extra"), dict) else {}
+        extra["incident_pressure"] = ip
+        snap["extra"] = extra
+
+    return snap
+
+
+# ──────────────────────────────────────────
 # API：儀表板整包資料（前端主要 polling 端點）
 # ──────────────────────────────────────────
 
@@ -459,6 +567,18 @@ def get_dashboard():
     forward_snaps  = db.get_snapshots("forward",  40)
     security_snaps = db.get_snapshots("security", 40)
 
+    # Wave 4：從 pi_received_batches 衍生 snapshot 注入
+    for _unit in ('shelter', 'medical'):
+        _batch = db.get_latest_pi_batch(_unit)
+        if _batch:
+            _recs = json.loads(_batch['records_json']) if isinstance(_batch['records_json'], str) else _batch['records_json']
+            _snap = _pi_batch_to_snapshot(_unit, _batch['pushed_at'], _recs)
+            if _snap:
+                if _unit == 'shelter':
+                    shelter_snaps.insert(0, _snap)
+                elif _unit == 'medical':
+                    medical_snaps.insert(0, _snap)
+
     # 事件（先取，供升降級引擎使用）
     open_events     = db.get_events("open",        limit=20)
     progress_events = db.get_events("in_progress", limit=20)
@@ -480,9 +600,19 @@ def get_dashboard():
     pending_decisions = db.get_decisions("pending")
     decided_decisions = db.get_decisions("approved") + db.get_decisions("completed")
 
-    # 歷史快照（供趨勢圖用）
+    # 歷史快照（供趨勢圖用）+ Wave 4 Pi push 衍生 snapshot 注入
     shelter_history = db.get_snapshots("shelter", 100)
     medical_history = db.get_snapshots("medical", 100)
+    for _unit2 in ('shelter', 'medical'):
+        _batch2 = db.get_latest_pi_batch(_unit2)
+        if _batch2:
+            _recs2 = json.loads(_batch2['records_json']) if isinstance(_batch2['records_json'], str) else _batch2['records_json']
+            _snap2 = _pi_batch_to_snapshot(_unit2, _batch2['pushed_at'], _recs2)
+            if _snap2:
+                if _unit2 == 'shelter':
+                    shelter_history.insert(0, _snap2)
+                elif _unit2 == 'medical':
+                    medical_history.insert(0, _snap2)
 
     # 地圖事件（有 location_zone_id 且未結案）
     open_events_on_map = [

@@ -28,7 +28,19 @@
     "outdoor": {
       "image": "Satellite_map.png",
       "label": "站外",
-      "zones": [],
+      "zones": [
+        {
+          "id": "evt_1775624343553",
+          "label": "傷患發現",
+          "sub": "",
+          "x_pct": 68.6,
+          "y_pct": 53.8,
+          "node_type": "forward",
+          "icon": "event",
+          "event_id": "d259c266-763a-4659-a7ce-4534cd1c1d46",
+          "event_code": "EV-0408-001"
+        }
+      ],
       "flows": []
     }
   }
