@@ -624,8 +624,8 @@ canvas{display:block;width:100%!important;height:100%!important;}
         <span id="date-label" style="font-size:12px;color:var(--text3);"></span>
       </div>
       <div class="za-col za-col-r">
-        <span class="za-counts" id="counts-shelter"></span>
-        <span class="za-counts" id="counts-medical"></span>
+        <span class="za-counts" id="counts-shelter" style="cursor:pointer;" onclick="_openZoneByType('shelter')"></span>
+        <span class="za-counts" id="counts-medical" style="cursor:pointer;" onclick="_openZoneByType('medical')"></span>
       </div>
     </div>
   </div>
@@ -2432,6 +2432,19 @@ el('map-panel').addEventListener('click', async function(e) {
 // ══════════════════════════════════════════════════════════════
 let _zoneModalTab = 'data';
 let _zoneModalZone = null;
+
+function _openZoneByType(nodeType) {
+  // 從 map_config 找對應的 zone，或建立虛擬 zone
+  let zone = null;
+  if (_mapConfig) {
+    for (const mapKey of Object.keys(_mapConfig.maps || {})) {
+      const found = (_mapConfig.maps[mapKey].zones || []).find(z => z.node_type === nodeType && !z.event_id);
+      if (found) { zone = found; break; }
+    }
+  }
+  if (!zone) zone = { id: 'virtual_' + nodeType, label: nodeType === 'shelter' ? '收容組' : '醫療組', node_type: nodeType, icon: 'pin' };
+  showZoneDetail(zone);
+}
 
 function showZoneDetail(zone) {
   if (!_data) return;
