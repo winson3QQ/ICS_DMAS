@@ -165,6 +165,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);
 }
 #edit-bar button.del{background:var(--red);}
+/* Wave 4：收容/醫療據點固定高亮 */
+.zone-marker.node-shelter .zone-dot{color:#f0883e;filter:drop-shadow(0 0 6px rgba(240,136,62,.6));}
+.zone-marker.node-shelter .zone-label{background:rgba(240,136,62,.85);font-weight:700;}
+.zone-marker.node-shelter .zone-info{display:flex;}
+.zone-marker.node-medical .zone-dot{color:#e05555;filter:drop-shadow(0 0 6px rgba(224,85,85,.6));}
+.zone-marker.node-medical .zone-label{background:rgba(224,85,85,.85);font-weight:700;}
+.zone-marker.node-medical .zone-info{display:flex;}
 .zone-marker.selected{z-index:20;outline:2px solid var(--green);outline-offset:2px;}
 .zone-marker.selected .zone-info{display:flex;}
 .zone-marker.dimmed{opacity:0.15;pointer-events:none;}
@@ -1486,22 +1493,65 @@ async function loadL3Records(unitId) {
       return;
     }
 
-    const tableLabels = {persons:'收容人員',beds:'床位',resources:'物資',incidents:'事件',shifts:'值班',patients:'傷患',triages:'檢傷'};
+    // L3 顯示順序與隱藏規則
+    const showTables = ['patients','persons','incidents','resources','shifts'];
+    const hideTables = ['triages','transfers','beds','snapshots','audit_log','config','accounts','time_sync'];
+    const tableLabels = {persons:'收容人員',resources:'物資',incidents:'組內事件',shifts:'值班',patients:'傷患'};
+    const triageColorDot = {red:'🔴',yellow:'🟡',green:'🟢',black:'⚫'};
+
     let html = `<div style="font-size:9px;color:var(--text3);margin-bottom:6px;">Pi 資料時間：${(data.pushed_at||'?').replace('T',' ').slice(0,19)}</div>`;
     const grouped = data.grouped || {};
 
-    for (const [tableName, records] of Object.entries(grouped)) {
+    for (const tableName of showTables) {
+      const records = grouped[tableName];
+      if (!records || records.length === 0) continue;
+      if (hideTables.includes(tableName)) continue;
       const label = tableLabels[tableName] || tableName;
       html += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:8px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">${label}（${records.length}）</div>`;
       records.forEach((r, i) => {
         const rec = r.record || {};
-        const name = rec.display_id || rec.name || rec.patient_name || rec._id || '?';
-        const status = rec.status || rec.triage_level || '';
-        const sc = {'已安置':'var(--green)','已離站':'var(--text3)','待處理':'var(--yellow)','red':'var(--red)','yellow':'var(--yellow)','green':'var(--green)','occupied':'var(--green)','empty':'var(--text3)','suspended':'var(--red)'}[status] || 'var(--text2)';
-        html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:5px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
-        html += `<span>${name}</span>`;
-        html += `<span style="font-size:10px;color:${sc};font-weight:600;">${status}</span>`;
-        html += `</div>`;
+
+        if (tableName === 'patients') {
+          // 傷患：顯示燈號 + ID + 主訴 + 處置狀態
+          const dot = triageColorDot[rec.triage_color] || '';
+          const did = rec.display_id || rec.id || '?';
+          const chief = rec.chief_issue ? ` — ${rec.chief_issue.slice(0,20)}` : '';
+          const disp = rec.disposition || rec.care_status || '';
+          const dispColor = {'後送':'var(--yellow)','離開':'var(--text3)','死亡':'var(--red)','在場':'var(--green)','assessed':'var(--green)','monitoring':'var(--blue)','triaged':'var(--yellow)'}[disp] || 'var(--text2)';
+          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          html += `<span>${dot} <b>${did}</b>${chief}</span>`;
+          html += `<span style="font-size:10px;color:${dispColor};font-weight:600;">${disp}</span>`;
+          html += `</div>`;
+        } else if (tableName === 'persons') {
+          // 收容人員：ID + 狀態
+          const did = rec.display_id || rec._id || '?';
+          const st = rec.status || '';
+          const stColor = {'已安置':'var(--green)','已離站':'var(--text3)','等候中':'var(--yellow)','已隔離':'var(--red)'}[st] || 'var(--text2)';
+          const hf = rec.health_flag === '需關注' ? ' ⚠' : rec.health_flag === '已隔離' ? ' 🚨' : '';
+          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          html += `<span><b>${did}</b>${hf}</span>`;
+          html += `<span style="font-size:10px;color:${stColor};font-weight:600;">${st}</span>`;
+          html += `</div>`;
+        } else if (tableName === 'incidents') {
+          // 事件：類型 + 嚴重度 + 狀態
+          const incLabels = {security_threat:'安全威脅',infectious_risk:'傳染疑慮',resource_shortage:'物資短缺',capacity_overload:'量能超載',medication_mgmt:'藥品管理',language_assist:'語言協助',other:'其他'};
+          const typeLabel = incLabels[rec.type] || rec.type || '?';
+          const st = rec.status || '';
+          const stColor = {'已結案':'var(--text3)','已通報':'var(--red)','待處理':'var(--yellow)','處理中':'var(--yellow)'}[st] || 'var(--text2)';
+          const sevDot = rec.severity === '高' ? '🔴' : rec.severity === '中' ? '🟡' : '🟢';
+          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          html += `<span>${sevDot} ${typeLabel}</span>`;
+          html += `<span style="font-size:10px;color:${stColor};font-weight:600;">${st}</span>`;
+          html += `</div>`;
+        } else {
+          // 其他 table：通用顯示
+          const name = rec.display_id || rec.name || rec._id || rec.id || r.record_id || '?';
+          const status = rec.status || '';
+          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:5px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          html += `<span>${name}</span>`;
+          html += `<span style="font-size:10px;color:var(--text2);font-weight:600;">${status}</span>`;
+          html += `</div>`;
+        }
       });
     }
     container.innerHTML = html;
@@ -1522,7 +1572,7 @@ function openL4Detail(unitId, tableName, index) {
 
   const tableLabels = {persons:'收容人員',beds:'床位',resources:'物資',incidents:'事件',patients:'傷患'};
   const label = tableLabels[tableName] || tableName;
-  const name = rec.display_id || rec.name || rec.patient_name || rec._id || '?';
+  const name = rec.display_id || rec.patient_display_id || rec.name || rec.patient_name || rec.type || rec._id || rec.id || r.record_id || '?';
 
   let fields = '';
   // 依 table 類型顯示重要欄位
@@ -1583,6 +1633,10 @@ const SVG_ICONS = {
   threat: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="5.5" r="3" fill="currentColor"/><path d="M4.5 18v-3.5a5.5 5.5 0 0 1 11 0V18" fill="currentColor"/></svg>`,
   // 保留的舊 icon（據點用）
   pin: `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M10 1C6.7 1 4 3.7 4 7c0 5 6 12 6 12s6-7 6-12c0-3.3-2.7-6-6-6z" fill="#8b949e"/><circle cx="10" cy="7" r="2.5" fill="#fff"/></svg>`,
+  // 收容組（橘色）
+  pin_shelter: `<svg width="22" height="22" viewBox="0 0 20 20"><path d="M10 1C6.7 1 4 3.7 4 7c0 5 6 12 6 12s6-7 6-12c0-3.3-2.7-6-6-6z" fill="#f0883e"/><circle cx="10" cy="7" r="2.5" fill="#fff"/></svg>`,
+  // 醫療組（紅色）
+  pin_medical: `<svg width="22" height="22" viewBox="0 0 20 20"><path d="M10 1C6.7 1 4 3.7 4 7c0 5 6 12 6 12s6-7 6-12c0-3.3-2.7-6-6-6z" fill="#e05555"/><circle cx="10" cy="7" r="2.5" fill="#fff"/></svg>`,
 };
 
 // 事件類型歸納（指揮部地圖用，非 PWA 的細項）
@@ -1728,6 +1782,9 @@ function renderMapOverlay() {
 
     const isPinned = _pinnedZones.has(z.id);
     if (isPinned) marker.classList.add('pinned');
+    // 收容/醫療固定據點加 class（常駐高亮+顯示標籤）
+    if (z.node_type === 'shelter') marker.classList.add('node-shelter');
+    if (z.node_type === 'medical') marker.classList.add('node-medical');
 
     // 取新鮮度
     const freshLevel = (z.node_type && calc[z.node_type]?.freshness?.level) || '';
@@ -1774,7 +1831,8 @@ function renderMapOverlay() {
     const isEvt = !!(z.event_id || z.event_code);
     // marker 上只顯示流水號（EV-053），完整日期留給 modal
     const shortCode = z.event_code ? z.event_code.replace(/-\d{4}-/, '-') : '';
-    const displayStats = isEvt ? '' : statsText;
+    const isFixedNode = z.node_type === 'shelter' || z.node_type === 'medical';
+    const displayStats = (isEvt || isFixedNode) ? '' : statsText;
 
     const unitMap = {forward:'前進',security:'安全',shelter:'收容',medical:'醫療',command:'指揮部'};
     // 上方 hover 才顯示的組別+事件名
@@ -1782,7 +1840,7 @@ function renderMapOverlay() {
 
     marker.innerHTML = `
       ${evtTopLabel}
-      <div class="zone-dot ${evtColorClass}" style="position:relative">${renderIcon(z.icon)}${freshDot}</div>
+      <div class="zone-dot ${evtColorClass}" style="position:relative">${renderIcon(z.node_type === 'shelter' ? 'pin_shelter' : z.node_type === 'medical' ? 'pin_medical' : z.icon)}${freshDot}</div>
       <div class="zone-info" ${isEvt ? 'style="display:flex"' : ''}>
         <div class="zone-label">${isEvt ? (shortCode || z.label) : z.label}</div>
         ${displayStats ? '<div class="zone-stats">' + displayStats + '</div>' : ''}
@@ -2151,6 +2209,8 @@ function _deselectMarker() {
 }
 
 function _startDrag(marker, zone, e) {
+  // 收容/醫療固定據點不可拖動
+  if (zone.node_type === 'shelter' || zone.node_type === 'medical') return;
   e.preventDefault();
   e.stopPropagation();
   marker.classList.add('dragging');
@@ -2386,9 +2446,20 @@ function _renderZoneModal() {
   const calc = _data.calc || {};
   const nt = zone.node_type;
   const nodeData = nt ? calc[nt] : null;
-  const freshLabel = nodeData?.freshness?.label || '—';
-  const freshLvl = nodeData?.freshness?.level || 'lkp';
-  const freshColor = freshLvl==='ok'?'var(--green)':freshLvl==='warn'?'var(--yellow)':freshLvl==='crit'?'var(--red)':'var(--text3)';
+  // 優先用 pi_nodes 判斷新鮮度（Wave 4）
+  const piNodes = _data?.pi_nodes || [];
+  const piNode = piNodes.find(n => n.unit_id === nt);
+  let freshLabel, freshLvl, freshColor;
+  if (piNode && piNode.last_seen_at) {
+    const ageSec = Math.round((Date.now() - new Date(piNode.last_seen_at).getTime()) / 1000);
+    freshLabel = ageSec < 60 ? `${ageSec}秒前` : `${Math.round(ageSec/60)}分前`;
+    freshLvl = ageSec < 120 ? 'ok' : ageSec < 300 ? 'warn' : 'crit';
+  } else if (piNode) {
+    freshLabel = '未連線'; freshLvl = 'lkp';
+  } else {
+    freshLabel = nodeData?.freshness?.label || '無資料'; freshLvl = nodeData?.freshness?.level || 'lkp';
+  }
+  freshColor = freshLvl==='ok'?'var(--green)':freshLvl==='warn'?'var(--yellow)':freshLvl==='crit'?'var(--red)':'var(--text3)';
 
   // 頁籤 HTML
   const hasData = nt === 'shelter' || nt === 'medical';
@@ -2412,6 +2483,13 @@ function _renderZoneModal() {
   el('modal-title').innerHTML = `${iconHtml} ${zone.label} <span style="font-size:10px;color:${freshColor};margin-left:6px;">${freshLabel}</span>`;
   el('modal-body').innerHTML = tabsHtml + body;
   el('overlay').className = 'show';
+  // Wave 4：自動載入 Pi push 資料
+  const autoEl = el('modal-body').querySelector('.l3-autoload');
+  if (autoEl) {
+    const unit = autoEl.dataset.unit;
+    autoEl.id = 'l3-container';
+    setTimeout(() => loadL3Records(unit), 50);
+  }
 }
 
 function _zoneTab(key, label) {
@@ -2421,7 +2499,14 @@ function _zoneTab(key, label) {
 
 function _zoneDataTab(zone) {
   const d = getApiSeries(_data);
-  if (!d) return '<div style="color:var(--text3)">無快照資料</div>';
+  if (!d) {
+    if (zone.node_type === 'shelter' || zone.node_type === 'medical') {
+      // Wave 4：無快照時直接自動載入 Pi push 資料
+      return `<div id="l3-container" style="margin-top:4px;"></div>
+        <div class="l3-autoload" data-unit="${zone.node_type}"></div>`;
+    }
+    return '<div style="color:var(--text3)">無快照資料</div>';
+  }
   const N = d.N;
   const idx = N - 1;
   const t = d.times[idx];
@@ -2459,12 +2544,10 @@ function _zoneDataTab(zone) {
     html += '</div>';
   }
 
-  // Wave 4：L3 載入按鈕（shelter/medical）
+  // Wave 4：自動載入 Pi push 資料（shelter/medical）
   if (zone.node_type === 'shelter' || zone.node_type === 'medical') {
-    html += `<div style="margin-top:12px;text-align:center;">
-      <button onclick="loadL3Records('${zone.node_type}')" style="padding:6px 16px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">載入 Pi 詳細資料</button>
-    </div>
-    <div id="l3-container" style="margin-top:8px;"></div>`;
+    html += `<div id="l3-container" style="margin-top:8px;"></div>
+      <div class="l3-autoload" data-unit="${zone.node_type}"></div>`;
   }
 
   return html;

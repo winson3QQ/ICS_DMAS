@@ -3,7 +3,26 @@
     "indoor": {
       "image": "ICS_Campus_map.jpg",
       "label": "站內",
-      "zones": [],
+      "zones": [
+        {
+          "id": "zone_shelter",
+          "label": "收容組",
+          "sub": "B 棟",
+          "x_pct": 54.3,
+          "y_pct": 47,
+          "node_type": "shelter",
+          "icon": "pin"
+        },
+        {
+          "id": "zone_medical",
+          "label": "醫療組",
+          "sub": "A 棟",
+          "x_pct": 63.9,
+          "y_pct": 47.5,
+          "node_type": "medical",
+          "icon": "pin"
+        }
+      ],
       "flows": []
     },
     "outdoor": {

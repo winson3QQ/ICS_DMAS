@@ -475,7 +475,7 @@ function appendDelta(msg) {
       .run(
         msg.src || '',
         msg.table || '',
-        msg.record?._id ? String(msg.record._id) : '',
+        String(msg.record?._id ?? msg.record?.id ?? ''),
         JSON.stringify(msg.record || {}),
         msg.ts || '',
         nowISO()
@@ -487,7 +487,7 @@ function appendDelta(msg) {
 
   // Wave 4：UPSERT current_state（維持各 record 最新版本）
   const _tbl = msg.table || '';
-  const _rid = msg.record?._id ? String(msg.record._id) : '';
+  const _rid = String(msg.record?._id ?? msg.record?.id ?? '');
   if (_tbl && _rid) {
     try {
       db.prepare(`INSERT INTO current_state(table_name, record_id, record_json, updated_at)
@@ -548,7 +548,7 @@ wss.on('connection', (ws, req) => {
     if (_zombieTimer) { clearTimeout(_zombieTimer); _zombieTimer = null; }
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
-    log.debug(`[WS] ← ${msg.type} from ${ip} ${msg.table||''} ${msg.record?._id||''}`);
+    log.debug(`[WS] ← ${msg.type} from ${ip} ${msg.table||''} ${msg.record?._id??msg.record?.id??''}`);
 
     switch (msg.type) {
 
