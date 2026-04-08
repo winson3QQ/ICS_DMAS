@@ -1,6 +1,9 @@
 {
   "name": "ics-dmas-pi-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "description": "ICS DMAS 統一 Pi WebSocket 伺服器（shelter / medical）",
   "main": "ics_ws_server.js",
   "scripts": {
