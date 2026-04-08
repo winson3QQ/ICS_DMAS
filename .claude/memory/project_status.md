@@ -66,7 +66,7 @@ type: project
 | 1 | 三區佈局 + 雙地圖 + calc_engine 基礎智慧 | cmd-v0.2.0 | ✅ 完成 |
 | 2 | 互動地圖事件輸入 + Decision Countdown + DCI + staff API | cmd-v0.3.0 | ✅ 完成 |
 | 3 | Escalation/De-escalation + 佈局重構 + 全中文化 + 登入認證 | cmd-v0.4.0～v0.7.0+ | ✅ 完成 |
-| 4 | Pi Read-Only API + L3/L4 地圖鑽探 | cmd-v0.8.0 | 🔲 進行中 |
+| 4 | Pi Push + L3/L4 鑽探 + calc_engine 接入 | cmd-v0.8.0 / server-v1.1.0 | ✅ 完成 |
 | 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.9.0 | 待做 |
 | 6 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v1.0.0 | 待做 |
 
@@ -92,40 +92,37 @@ type: project
 - Zone A 登出按鈕 + 地圖 marker 清除機制
 - CA 憑證下載頁 + Pi 程式碼更新腳本
 
-### Wave 4 實作項目（依順序，共 5 項）
+### Wave 4 完成摘要（cmd-v0.8.0 / server-v1.1.0）
 
-**架構決策（2026-04-07 討論定案）**：
-- Pi 主動 push current_state 至 Command（Pi 在小網 NAT 後，Command 無法主動連 Pi）
-- Command 自行從收到的記錄衍生 aggregate counts，不依賴 Pi 端的 snapshot 計算
-- Pi 本地維護 push_queue，斷線期間緩衝，復線後補送，Command 以 pushed_at 寫入歷史
-- 移除 Pi 端 snapshot push 及 Command Proxy pull 兩個機制
+**架構**：Pi 主動 push current_state → Command 接收 + 衍生統計
 
-| 順序 | 項目 | 類別 | 說明 |
-|------|------|------|------|
-| 1 | Pi 節點管理 | 後端 DB + 設定 UI | `pi_nodes` 表（unit_id / label / api_key / last_seen_at）+ `/api/pi-nodes` CRUD + 設定面板 UI；api_key 用於驗證 Pi push |
-| 2 | Pi current_state push | `ics_ws_server.js` | 加 `push_queue` 表（pushed_at / records_json / sent）；每 60s UPSERT current_state → enqueue → push `POST /api/pi-push/{unit_id}`；失敗留 sent=0；復線後補送所有 sent=0（按 pushed_at 順序）；push_queue 保留 MAX_QUEUE_AGE=24hr |
-| 3 | Command 接收端 | 後端 | `POST /api/pi-push/{unit_id}`（Bearer API key 驗證）→ INSERT `pi_received_batches(unit_id, pushed_at, received_at, records_json)`；驗證失敗回 401；unit_id 不符回 403 |
-| 4 | L3 個別記錄列表 | 前端 | 數據 tab 讀 `pi_received_batches` 最新一筆的 records_json，展示傷患/住民列表；Pi 離線（無最新批次）顯示提示，不 crash；顯示 pushed_at 作為資料新鮮度 |
-| 5 | L4 單筆資料 Modal | 前端 | 從 L3 列表點單筆，從 records_json 取對應 record 展開顯示；無須額外 API call |
+**已完成項目**：
+| 項目 | 說明 |
+|------|------|
+| Pi 節點管理 | `pi_nodes` 表 + CRUD API + 設定面板 UI（含一鍵推送 API key 至 Pi） |
+| Pi current_state push | `current_state` / `push_queue` 表、每 60s push、hash 比對避免重複、復線補送 |
+| Command 接收端 | `POST /api/pi-push/{unit_id}` Bearer 驗證 + `pi_received_batches` 儲存 |
+| L3 記錄列表 | 自動載入、醫療檢傷矩陣、收容量能+狀態摘要、物資進度條 |
+| L4 單筆詳情 | 點擊展開完整欄位 + 返回列表 |
+| calc_engine 接入 | `_pi_batch_to_snapshot()` 衍生 snapshot、多筆歷史支援趨勢圖 |
+| 主畫面統計 | 頂部人數（可點擊開 L3）、量能警示閃爍、conn dot tooltip |
+| IPI 明細 | 點「未結 IPI」顯示各組未結事件來源 |
 
-### Wave 4 安全 TODO（尚未決定優先序）
+**同時修復的 bug**：
+- Medical PWA syncAfterWrite 全部遺漏（47 處，根因）
+- Shelter PWA syncAfterWrite 補漏（3 處）
+- Medical record 用 `id` 非 `_id`（appendDelta 支援兩者）
+- Medical pushRecoveryData `orderBy('timestamp')` → `orderBy('snapshot_time')`
+- `startPiPush()` 延遲啟動 + 設定後立即觸發
 
+**安全 TODO（待處理）**：
 | 威脅 | 對策 | 狀態 |
 |------|------|------|
-| 傳輸明文 | Command 強制 HTTPS（TLS），Pi push 用 `https://` | 必須，Wave 4 同步處理 |
-| Pi 偽冒 | `pi_nodes.api_key` Bearer token + unit_id 配對驗證 | 必須，Wave 4 Item 1/3 |
-| Pi 被奪取 | Command 支援 per-unit key revocation（`DELETE /api/pi-nodes/{id}/key`） | 必須，Wave 4 Item 1 |
-| push_queue 撐爆磁碟 | MAX_QUEUE_AGE=24hr，定期清除 | 必須，Wave 4 Item 2 |
-| Pi 本地資料外洩 | SQLite 加密（SQLCipher） | defer，Wave 6 或另排 |
-
-### Recovery 機制（各情境）
-
-| 情境 | Pi → Command | Recovery |
-|------|-------------|---------|
-| 1A WiFi + 大網 | 穩定推送 | 短暫中斷 → buffer → 自動補送 |
-| 1B 行動網路 + WireGuard | VPN 掉線時中斷 | VPN 重連後補送 |
-| 2 自建 AP，無大網 | push 永遠失敗，buffer 累積 | 復線後補送；Command 端顯示「Pi 離線」；QR fallback |
-| 3 完全離線 | 同情境 2 | QR code 唯一出口 |
+| 傳輸明文 | Command HTTPS + Pi push 用 `https://` | 待做（TLS 憑證） |
+| Pi 偽冒 | Bearer token + unit_id 驗證 | ✅ 已實作 |
+| Pi 被奪取 | per-unit key revocation（rekey） | ✅ 已實作 |
+| push_queue 撐爆磁碟 | MAX_QUEUE_AGE=24hr 清除 | ✅ 已實作 |
+| Pi 本地資料外洩 | SQLCipher | defer |
 
 ### Wave 5 待做項目（UI 收尾，共 4 項）
 
@@ -138,26 +135,31 @@ type: project
 
 ### Pi Push 技術細節
 
-**Pi 端新增**：
-- `push_queue` 表：`(id, pushed_at TEXT, records_json TEXT, sent INTEGER DEFAULT 0)`
-- `current_state` 表：`(table_name, record_id, record_json, updated_at) PRIMARY KEY (table_name, record_id)`，在 `appendDelta()` 中 UPSERT
-- 每 60s：讀 current_state → 寫入 push_queue → 嘗試 push → 成功則 `UPDATE push_queue SET sent=1`
-- 復線偵測：push 成功後，查 `sent=0` 的舊 queue，按 pushed_at 順序補送
-- 定期清理：`DELETE FROM push_queue WHERE pushed_at < datetime('now', '-24 hours')`
+**Pi 端 table**：
+- `current_state`：`(table_name, record_id, record_json, updated_at) PK(table_name, record_id)`
+- `push_queue`：`(id, records_json, pushed_at, sent, sent_at)`
+- `appendDelta()` 同步 UPSERT current_state（支援 `_id` 和 `id`）
+- `piPushOnce()` 每 60s：hash 比對 → 有變才 push → 復線補送
+- `startPiPush()` 在設定 `command_url` 或 `pi_api_key` 後立即啟動
 
-**Command 端新增**：
-- `pi_received_batches` 表：`(id, unit_id, pushed_at, received_at, records_json)`
-- `pi_nodes.api_key` 欄位，驗證 Bearer token
-- calc_engine 讀 `pi_received_batches`，GROUP BY time window，COUNT by status 衍生趨勢資料
-- L3/L4 讀最新一筆（`ORDER BY pushed_at DESC LIMIT 1`）
+**Command 端 table**：
+- `pi_nodes`：`(unit_id PK, label, api_key UNIQUE, last_seen_at, created_at, revoked_at)`
+- `pi_received_batches`：`(id, unit_id, pushed_at, received_at, records_json)`
 
-**syncTables 參考**：
+**資料流**：
+- Pi push → `pi_received_batches` → `_pi_batch_to_snapshot()` 衍生 snapshot → `calc_engine.dashboard_calc()`
+- 多筆歷史 batch 注入 → 支援趨勢圖
+- L3：`GET /api/pi-data/{unit_id}/list` 讀最新批次
+- L4：從已 fetch 的 `_l3Data` 取，無額外 API call
+
+**syncTables**：
 - shelter：`persons, beds, resources, incidents, shifts`
-- medical：`patients, triages, incidents, shifts`
+- medical：`patients, triages, incidents, shifts, transfers`
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.7.0`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.8.0`）
+- Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.1.0`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
 - DB schema 變更需刪除 `data/ics.db`
