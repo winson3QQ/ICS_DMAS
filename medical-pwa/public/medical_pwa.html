@@ -2307,6 +2307,7 @@ function onSecurityChange() {
         reported_by: _state.operatorName,
       }).then(incId => {
         _state.pendingSecurityIncidentId = incId;
+        syncAfterWrite('incidents', incId);
         refreshAlertBanner();
       });
     } else {
@@ -2420,10 +2421,13 @@ async function doSubmitIntake() {
   };
 
   const patientId = await db.patients.add(patientData);
-  await db.triages.add({ ...triageData, patient_id: patientId });
+  syncAfterWrite('patients', patientId);
+  const triageId = await db.triages.add({ ...triageData, patient_id: patientId });
+  syncAfterWrite('triages', triageId);
   // 若本次入院有安全威脅事件，連結傷患 ID
   if (_state.pendingSecurityIncidentId) {
     await db.incidents.update(_state.pendingSecurityIncidentId, { patient_id: patientId });
+    syncAfterWrite('incidents', _state.pendingSecurityIncidentId);
     _state.pendingSecurityIncidentId = null;
   }
 
@@ -2597,6 +2601,7 @@ async function resetReassess(id) {
   if (!p) return;
   const mins = p.triage_color === 'red' ? 5 : 15;
   await db.patients.update(id, { reassess_due_at: localISO(new Date(Date.now()+mins*60000)), updated_at: localISO() });
+  syncAfterWrite('patients', id);
   showToast('再評估計時重設');
   renderCurrentTab();
 }
@@ -2626,6 +2631,7 @@ async function doMarkTransfer(id, order) {
     transfer_order: order, transfer_called: false,
     // transfer_direction / transfer_hospital 由後送區 ISBAR 交接時填入
   });
+  syncAfterWrite('patients', id);
   closeModal();
   showToast('已加入後送佇列');
   renderCurrentTab();
@@ -2633,6 +2639,7 @@ async function doMarkTransfer(id, order) {
 
 async function cancelTransfer(id) {
   await db.patients.update(id, { disposition:'在場', transferred_by:null, transferred_at:null, transfer_direction:null, transfer_hospital:null, transfer_order:null, transfer_called:false, updated_at:localISO() });
+  syncAfterWrite('patients', id);
   showToast('已取消待後送');
   renderCurrentTab();
 }
@@ -2640,6 +2647,7 @@ async function toggleTransferCalled(id) {
   const p = await db.patients.get(id);
   if (!p) return;
   await db.patients.update(id, { transfer_called: !p.transfer_called, updated_at: localISO() });
+  syncAfterWrite('patients', id);
   await loadPatients(); renderCurrentTab();
 }
 
@@ -2686,10 +2694,12 @@ async function doSetDisposition(id) {
     upd.death_reason = reason;
   }
   await db.patients.update(id, upd);
+  syncAfterWrite('patients', id);
   // 寫入歷程紀錄
   const noteText = val === '死亡' ? `死亡 — ${reason}` : val;
-  await db.triages.add({ patient_id: id, triage_at: now, triage_by: _state.operatorName,
+  const triageRecId = await db.triages.add({ patient_id: id, triage_at: now, triage_by: _state.operatorName,
     retriage_from: p?.disposition || '在場', retriage_to: noteText, disposition_change: true });
+  syncAfterWrite('triages', triageRecId);
   // 死亡：自動結案所有關聯事件
   if (val === '死亡') {
     const linked = await db.incidents
@@ -2701,6 +2711,7 @@ async function doSetDisposition(id) {
         status: '已結案', closed_at: now, closed_by: _state.operatorName,
         notes: [...(inc.notes || []), statusNote],
       });
+      syncAfterWrite('incidents', inc.id);
     }
     if (linked.length > 0) showToast(`${linked.length} 件關聯事件已自動結案`);
   }
@@ -2731,17 +2742,19 @@ async function moveZone(id, zone) {
   const now = localISO();
   const p = await db.patients.get(id);
   if (p && newColor && p.triage_color !== newColor) {
-    await db.triages.add({
+    const mzTriageId = await db.triages.add({
       patient_id: id,
       triage_at: now,
       triage_by: _state.operatorName,
       retriage_from: p.triage_color,
       retriage_to: newColor,
     });
+    syncAfterWrite('triages', mzTriageId);
     await db.patients.update(id, { current_zone: zone, triage_color: newColor, updated_at: now });
   } else {
     await db.patients.update(id, { current_zone: zone, updated_at: now });
   }
+  syncAfterWrite('patients', id);
   showToast(`已移至 ${zone}`);
   renderCurrentTab();
 }
@@ -3231,7 +3244,8 @@ async function saveTreatmentAssessment(id) {
     opqrst_onset: gv('opqrst-o'), opqrst_provoke: gv('opqrst-p'), opqrst_quality: gv('opqrst-q'),
     opqrst_radiation: gv('opqrst-r'), opqrst_severity: gv('opqrst-s'), opqrst_time: gv('opqrst-t'),
   };
-  await db.triages.add({ ...assessData, patient_id: id });
+  const taTriageId = await db.triages.add({ ...assessData, patient_id: id });
+  syncAfterWrite('triages', taTriageId);
   const patientForTimer = await db.patients.get(id);
   const newColor = _treatState.newColor;
   const oldColor = patientForTimer?.triage_color;
@@ -3240,7 +3254,8 @@ async function saveTreatmentAssessment(id) {
   const reassessMins = effectiveColor === 'red' ? 5 : 15;
   // 若有選新燈號，先記錄轉色
   if (newColor && newColor !== oldColor) {
-    await db.triages.add({ patient_id: id, triage_at: now, triage_by: _state.operatorName, retriage_from: oldColor, retriage_to: newColor });
+    const reTriageId = await db.triages.add({ patient_id: id, triage_at: now, triage_by: _state.operatorName, retriage_from: oldColor, retriage_to: newColor });
+    syncAfterWrite('triages', reTriageId);
   }
   await db.patients.update(id, {
     injury_type: injType,
@@ -3260,6 +3275,7 @@ async function saveTreatmentAssessment(id) {
     reassess_due_at: localISO(new Date(Date.now() + reassessMins * 60000)),
     updated_at: now,
   });
+  syncAfterWrite('patients', id);
   closeModal();
   const toastMsg = newColor && newColor !== oldColor ? `✅ 治療評估已儲存（燈號轉為${zoneMap[newColor]}）` : '✅ 治療評估已儲存';
   showToast(toastMsg);
@@ -3355,13 +3371,15 @@ async function saveCareRecord(id) {
     treatment: g('cr-treatment') || '',
     care_notes: g('cr-notes') || '',
   };
-  await db.triages.add(rec);
+  const crTriageId = await db.triages.add(rec);
+  syncAfterWrite('triages', crTriageId);
   // 更新病患最新生命徵象
   await db.patients.update(id, {
     vitals_summary: vitalsSummary,
     vitals_structured: vitals,
     updated_at: now,
   });
+  syncAfterWrite('patients', id);
   closeModal();
   showToast('✅ 照護紀錄已儲存');
   renderCurrentTab();
@@ -3545,17 +3563,19 @@ async function doCompleteHandoff() {
   const p = await db.patients.get(patientId);
   if (!p) return;
   const now = localISO();
-  await db.transfers.add({
+  const transferId = await db.transfers.add({
     patient_id: patientId, patient_display_id: p.display_id,
     status: 'completed', destination: r,
     isbar_text: `B: ${b}\nR: ${r}\n已完成: ${checklist||'（未勾選）'}`,
     departed_at: now, handoff_done_at: now, created_at: now,
   });
+  syncAfterWrite('transfers', transferId);
   await db.patients.update(patientId, {
     disposition:'離開', current_zone:'已離區',
     handoff_by: _state.operatorName, handoff_at: now, updated_at: now,
     transfer_direction: direction, transfer_hospital: hospital,
   });
+  syncAfterWrite('patients', patientId);
   closeModal();
   showToast(`${p.display_id} 後送交接完成`);
   // 查所有關聯的未結事件（不限類型）
@@ -3586,6 +3606,7 @@ async function _closeLinkedIncidents(patientId) {
       status: '已結案', closed_at: now, closed_by: _state.operatorName,
       notes: [...(inc.notes || []), statusNote],
     });
+    syncAfterWrite('incidents', inc.id);
   }
   closeModal();
   showToast(`${linked.length} 件關聯事件已結案`);
@@ -3742,13 +3763,15 @@ async function doUseResource(id) {
   const tx = [...(r.transactions || []), { time: now, type: 'use', qty, reason, by: _state.operatorName }];
   const newQty = r.qty_current - qty;
   await db.resources.update(id, { qty_current: newQty, transactions: tx });
+  syncAfterWrite('resources', id);
   closeModal();
   if (newQty <= r.qty_low_threshold) {
-    await db.incidents.add({
+    const shortIncId = await db.incidents.add({
       type:'resource_shortage', severity:'中', status:'已通報',
       notes:[{ time: now, text: `${r.name} 低量（剩 ${newQty}）`, by: _state.operatorName }],
       reported_by: _state.operatorName, assigned_to:'', reported_at: now
     });
+    syncAfterWrite('incidents', shortIncId);
     showToast(`⚠️ ${r.name} 低量（剩 ${newQty}），事件已建立`);
   } else {
     showToast(`${r.name} 取用 ${qty} ✅`);
@@ -3790,6 +3813,7 @@ async function doAddResource(id) {
   const now = localISO();
   const tx = [...(r.transactions || []), { time: now, type: 'add', qty, reason, by: _state.operatorName }];
   await db.resources.update(id, { qty_current: r.qty_current + qty, transactions: tx });
+  syncAfterWrite('resources', id);
   closeModal();
   showToast(`${r.name} 補充 +${qty} ✅`);
   renderCurrentTab();
@@ -3799,11 +3823,12 @@ async function reportResourceShortage(id) {
   const r = await db.resources.get(id);
   if (!r) return;
   const now = localISO();
-  await db.incidents.add({
+  const rptIncId = await db.incidents.add({
     type:'resource_shortage', severity:'中', status:'已通報',
     notes:[{ time: now, text: `物資缺漏：${r.name}，目前剩餘 ${r.qty_current}`, by: _state.operatorName }],
     reported_by: _state.operatorName, assigned_to:'', reported_at: now
   });
+  syncAfterWrite('incidents', rptIncId);
   showToast('⚠️ 缺料事件已通報');
   renderCurrentTab();
 }
@@ -3839,12 +3864,13 @@ async function saveNewResource() {
   const name = document.getElementById('new-res-name')?.value?.trim();
   if (!name) { showToast('請填寫物資名稱'); return; }
   const qty = parseInt(document.getElementById('new-res-qty')?.value) || 0;
-  await db.resources.add({
+  const newResId = await db.resources.add({
     name, category: document.getElementById('new-res-cat')?.value || '其他',
     qty_initial: qty, qty_current: qty,
     qty_low_threshold: parseInt(document.getElementById('new-res-thresh')?.value) || 2,
     transactions: []
   });
+  syncAfterWrite('resources', newResId);
   closeModal();
   showToast('物資已新增');
   renderCurrentTab();
@@ -3915,6 +3941,7 @@ async function saveEditResource(id) {
     category: document.getElementById('edit-res-cat')?.value || '其他',
     qty_low_threshold: parseInt(document.getElementById('edit-res-thresh')?.value) || 2,
   });
+  syncAfterWrite('resources', id);
   closeModal();
   showToast('已更新');
   renderCurrentTab();
@@ -3937,6 +3964,7 @@ async function doDeleteResource() {
   if (!id) return;
   window._pendingDeleteResourceId = null;
   await db.resources.update(id, { disabled: true });
+  syncAfterWrite('resources', id);
   closeModal();
   showToast('已停用');
   renderCurrentTab();
@@ -3944,6 +3972,7 @@ async function doDeleteResource() {
 
 async function restoreResource(id) {
   await db.resources.update(id, { disabled: false });
+  syncAfterWrite('resources', id);
   closeModal();
   showToast('已恢復');
   renderCurrentTab();
@@ -4138,6 +4167,7 @@ async function addIncidentNote(id) {
   if (!noteText) { showToast('請填寫紀錄內容'); return; }
   const notes = [...(inc.notes||[]), { time: localISO(), text: noteText, by: _state.operatorName }];
   await db.incidents.update(id, { notes, assigned_to: assigned });
+  syncAfterWrite('incidents', id);
   showToast('紀錄已追加');
   closeModal();
   openIncidentDetail(id);
@@ -4158,10 +4188,12 @@ async function updateIncidentStatus(id, status) {
     upd.closed_by = _state.operatorName;
     if (inc.type === 'security_threat' && inc.patient_id) {
       await db.patients.update(inc.patient_id, { security_cleared: 'yes', updated_at: localISO() });
+      syncAfterWrite('patients', inc.patient_id);
       await loadPatients();
     }
   }
   await db.incidents.update(id, upd);
+  syncAfterWrite('incidents', id);
   closeModal();
   showToast(`事件已更新：${status}`);
   renderCurrentTab();
@@ -4225,6 +4257,7 @@ async function createIncident() {
     reported_by: _state.operatorName, assigned_to:'',
     patient_id: patientId, reported_at: localISO(), closed_at: null
   });
+  syncAfterWrite('incidents', id);
   closeModal();
   showToast('事件已通報');
   await renderCurrentTab();
@@ -4292,11 +4325,12 @@ async function renderShift(el) {
 async function createShift() {
   const notes = document.getElementById('shift-notes')?.value || '';
   const snap = { red:countByColor('red'), yellow:countByColor('yellow'), green:countByColor('green'), black:countByColor('black'), pending:getPendingTransfer() };
-  await db.shifts.add({
+  const shiftId = await db.shifts.add({
     started_at: localISO(),
     role: _state.role, operator_name: _state.operatorName,
     handover_notes: notes, snapshot: JSON.stringify(snap)
   });
+  syncAfterWrite('shifts', shiftId);
   showToast('交班紀錄已建立');
   renderCurrentTab();
 }
