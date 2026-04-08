@@ -1538,6 +1538,7 @@ async function loadL3Records(unitId) {
       const prs = grouped.persons.map(r => r.record || {});
       const statuses = [
         {key:'已安置', label:'已安置', color:'var(--green)'},
+        {key:'登記中', label:'登記中', color:'var(--yellow)'},
         {key:'等候中', label:'等候中', color:'var(--yellow)'},
         {key:'已離站', label:'已離站', color:'var(--text3)'},
         {key:'已隔離', label:'已隔離', color:'var(--red)'},
@@ -3035,9 +3036,13 @@ async function poll() {
     _data = await resp.json();
     el('cd-server').className = 'conn-dot ok';
     el('cl-server').textContent = '指揮部';
+    el('cd-server').title = '指揮部後端\n● 正常（API 回應中）';
+    el('cl-server').title = el('cd-server').title;
   } catch(e) {
     el('cd-server').className = 'conn-dot crit';
     el('cl-server').textContent = _data ? '指揮部 離線' : '指揮部 待連線';
+    el('cd-server').title = '指揮部後端\n● 異常（API 無回應）\n' + (e.message || '');
+    el('cl-server').title = el('cd-server').title;
   }
   refresh();
 }
@@ -3285,10 +3290,16 @@ function renderZoneA(d) {
   reasons.push('資源：' + lvlLabel[resLvl] + '（最低' + Math.round(minSupply) + '%）');
   lamp.title = reasons.join('\n');
 
-  // 計數
+  // 計數 + 量能警示閃爍
   const sBu = d.sBu[N-1], mBu = d.mBu[N-1];
-  el('counts-shelter').textContent = '收容 ' + sBu + ' 人';
-  el('counts-medical').textContent = '醫療 ' + mBu + ' 人';
+  const sp = d.sPct[N-1], mp = d.mPct[N-1];
+  const shelEl = el('counts-shelter'), medEl = el('counts-medical');
+  shelEl.textContent = '收容 ' + sBu + ' 人';
+  medEl.textContent = '醫療 ' + mBu + ' 人';
+  shelEl.style.animation = sp >= 90 ? 'blink .6s infinite' : sp >= 70 ? 'blink 1s infinite' : '';
+  shelEl.style.color = sp >= 90 ? 'var(--red)' : sp >= 70 ? 'var(--yellow)' : '';
+  medEl.style.animation = mp >= 90 ? 'blink .6s infinite' : mp >= 70 ? 'blink 1s infinite' : '';
+  medEl.style.color = mp >= 90 ? 'var(--red)' : mp >= 70 ? 'var(--yellow)' : '';
 
 
   // DCI（暫用簡易版，Wave 2 用 calc_engine）
