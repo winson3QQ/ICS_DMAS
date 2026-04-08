@@ -1502,6 +1502,54 @@ async function loadL3Records(unitId) {
     let html = `<div style="font-size:9px;color:var(--text3);margin-bottom:6px;">Pi 資料時間：${(data.pushed_at||'?').replace('T',' ').slice(0,19)}</div>`;
     const grouped = data.grouped || {};
 
+    // 摘要表格
+    if (unitId === 'medical' && grouped.patients) {
+      const pts = grouped.patients.map(r => r.record || {});
+      const colors = ['red','yellow','green','black'];
+      const colorLabels = {red:'紅',yellow:'黃',green:'綠',black:'黑'};
+      const colorBg = {red:'#cc2a2a',yellow:'#c8a82a',green:'#2a8c2a',black:'#333'};
+      // 階段分類
+      const stages = [
+        {key:'triaged', label:'待評估', fn: p => p.care_status==='triaged' && p.disposition!=='後送' && p.current_zone!=='已離區'},
+        {key:'assessed', label:'治療中', fn: p => (p.care_status==='assessed'||p.care_status==='monitoring') && p.disposition!=='後送' && p.current_zone!=='已離區'},
+        {key:'evac', label:'待後送', fn: p => p.disposition==='後送' && p.current_zone!=='已離區'},
+        {key:'gone', label:'已離區', fn: p => p.current_zone==='已離區' || p.disposition==='離開' || p.disposition==='死亡'},
+      ];
+      html += `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;text-align:center;">`;
+      html += `<tr style="background:var(--surface2);"><td></td>${stages.map(s=>`<td style="padding:4px 6px;font-weight:700;color:var(--text2);">${s.label}</td>`).join('')}<td style="padding:4px 6px;font-weight:700;color:var(--text);">合計</td></tr>`;
+      let totalRow = new Array(stages.length).fill(0);
+      let grandTotal = 0;
+      for (const c of colors) {
+        const cPts = pts.filter(p => p.triage_color === c);
+        const counts = stages.map(s => cPts.filter(s.fn).length);
+        const rowTotal = counts.reduce((a,b)=>a+b,0);
+        counts.forEach((v,i) => totalRow[i] += v);
+        grandTotal += rowTotal;
+        html += `<tr><td style="padding:3px 8px;background:${colorBg[c]};color:#fff;font-weight:700;border-radius:2px;">${colorLabels[c]}</td>`;
+        html += counts.map(v => `<td style="padding:3px;color:${v>0?'var(--text)':'var(--text3)'};font-weight:${v>0?'700':'400'};">${v||'—'}</td>`).join('');
+        html += `<td style="padding:3px;font-weight:700;color:var(--text);">${rowTotal}</td></tr>`;
+      }
+      html += `<tr style="border-top:1px solid var(--border);"><td style="padding:3px 8px;font-weight:700;">合計</td>`;
+      html += totalRow.map(v => `<td style="padding:3px;font-weight:700;">${v}</td>`).join('');
+      html += `<td style="padding:3px;font-weight:900;color:var(--text);">${grandTotal}</td></tr></table>`;
+    }
+
+    if (unitId === 'shelter' && grouped.persons) {
+      const prs = grouped.persons.map(r => r.record || {});
+      const statuses = [
+        {key:'已安置', label:'已安置', color:'var(--green)'},
+        {key:'等候中', label:'等候中', color:'var(--yellow)'},
+        {key:'已離站', label:'已離站', color:'var(--text3)'},
+        {key:'已隔離', label:'已隔離', color:'var(--red)'},
+      ];
+      html += `<div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;">`;
+      for (const s of statuses) {
+        const cnt = prs.filter(p => p.status === s.key).length;
+        if (cnt > 0) html += `<div style="text-align:center;"><div style="font-size:22px;font-weight:800;color:${s.color};">${cnt}</div><div style="font-size:10px;color:var(--text3);">${s.label}</div></div>`;
+      }
+      html += `</div>`;
+    }
+
     for (const tableName of showTables) {
       const records = grouped[tableName];
       if (!records || records.length === 0) continue;
