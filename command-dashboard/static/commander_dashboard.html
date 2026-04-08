@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.7.0';</script>
+<script>const CMD_VERSION='v0.8.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -591,10 +591,12 @@ canvas{display:block;width:100%!important;height:100%!important;}
     <div class="adm-tabs">
       <div class="adm-tab active" onclick="admShowTab('list')">帳號列表</div>
       <div class="adm-tab" onclick="admShowTab('add')">新增</div>
+      <div class="adm-tab" onclick="admShowTab('pi')">Pi 節點</div>
       <div class="adm-tab" onclick="admShowTab('log')">日誌</div>
     </div>
     <div class="adm-panel-body" id="adm-panel-list"></div>
     <div class="adm-panel-body" id="adm-panel-add" style="display:none;"></div>
+    <div class="adm-panel-body" id="adm-panel-pi" style="display:none;"></div>
     <div class="adm-panel-body" id="adm-panel-log" style="display:none;"></div>
   </div>
 </div>
@@ -1196,14 +1198,14 @@ async function adminLogin() {
 }
 
 function admShowTab(tab) {
+  const tabs = ['list','add','pi','log'];
   document.querySelectorAll('.adm-tab').forEach((t, i) => {
-    t.classList.toggle('active', ['list','add','log'][i] === tab);
+    t.classList.toggle('active', tabs[i] === tab);
   });
-  el('adm-panel-list').style.display = tab === 'list' ? '' : 'none';
-  el('adm-panel-add').style.display = tab === 'add' ? '' : 'none';
-  el('adm-panel-log').style.display = tab === 'log' ? '' : 'none';
+  tabs.forEach(k => { el('adm-panel-' + k).style.display = k === tab ? '' : 'none'; });
   if (tab === 'list') admLoadAccounts();
   if (tab === 'add') admShowAddForm();
+  if (tab === 'pi') admLoadPiNodes();
   if (tab === 'log') admLoadLog();
 }
 
@@ -1334,6 +1336,241 @@ async function admLoadLog() {
     '</div>';
   }
   el('adm-panel-log').innerHTML = html || '<div style="color:var(--text3);text-align:center;padding:20px;">無日誌</div>';
+}
+
+// ══════════════════════════════════════════════════════════════
+// Wave 4：Pi 節點管理
+// ══════════════════════════════════════════════════════════════
+let _lastCreatedApiKey = null;
+
+async function admLoadPiNodes() {
+  const resp = await authFetch(API_BASE + '/api/admin/pi-nodes', {headers:{'X-Admin-PIN':_admPin}});
+  if (!resp.ok) return;
+  const nodes = await resp.json();
+  let html = '';
+
+  // 新增表單
+  html += `<div style="padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px;">
+    <div style="font-size:11px;font-weight:700;margin-bottom:6px;">註冊新節點</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <select id="pi-new-unit" style="padding:4px 8px;font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;">
+        <option value="shelter">shelter（收容組）</option>
+        <option value="medical">medical（醫療組）</option>
+        <option value="forward">forward（前進組）</option>
+        <option value="security">security（安全組）</option>
+      </select>
+      <input id="pi-new-label" placeholder="顯示名稱" style="padding:4px 8px;font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;width:120px;">
+      <button onclick="admCreatePiNode()" style="padding:4px 12px;font-size:11px;background:var(--blue);color:#fff;border:none;border-radius:3px;cursor:pointer;">建立</button>
+    </div>
+  </div>`;
+
+  // API key 顯示區（建立後顯示）
+  html += `<div id="pi-key-display" style="display:none;padding:8px;margin-bottom:8px;background:#1a2332;border:1px solid var(--yellow);border-radius:4px;">
+    <div style="font-size:10px;color:var(--yellow);font-weight:700;margin-bottom:4px;">⚠ API Key（僅顯示一次，請複製）</div>
+    <div id="pi-key-value" style="font-size:10px;font-family:var(--mono);word-break:break-all;color:var(--text);user-select:all;margin-bottom:6px;"></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <button onclick="navigator.clipboard.writeText(document.getElementById('pi-key-value').textContent)" style="padding:3px 10px;font-size:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;">複製 Key</button>
+      <input id="pi-admin-url" placeholder="Pi Admin URL（如 http://127.0.0.1:8766）" style="padding:3px 6px;font-size:10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;flex:1;min-width:180px;">
+      <button onclick="admPushKeyToPi()" style="padding:3px 10px;font-size:10px;background:var(--green);color:#000;border:none;border-radius:3px;cursor:pointer;font-weight:600;">推送至 Pi</button>
+    </div>
+    <div id="pi-push-result" style="font-size:10px;margin-top:4px;min-height:14px;"></div>
+  </div>`;
+
+  // 節點列表
+  if (nodes.length === 0) {
+    html += '<div style="color:var(--text3);text-align:center;padding:20px;font-size:11px;">尚未註冊任何 Pi 節點</div>';
+  }
+  for (const n of nodes) {
+    const online = n.last_seen_at && (Date.now() - new Date(n.last_seen_at).getTime() < 120000);
+    const dot = online ? '<span style="color:var(--green);">●</span>' : '<span style="color:var(--text3);">○</span>';
+    const seen = n.last_seen_at ? n.last_seen_at.replace('T',' ').slice(0,19) : '從未連線';
+    html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;">
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:600;">${dot} ${n.label || n.unit_id}</div>
+        <div style="font-size:10px;color:var(--text3);">${n.unit_id} · key ...${n.api_key_suffix} · ${seen}</div>
+      </div>
+      <button onclick="admRekeyPiNode('${n.unit_id}')" style="padding:3px 8px;font-size:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;">換 Key</button>
+      <button onclick="admDeletePiNode('${n.unit_id}')" style="padding:3px 8px;font-size:10px;background:var(--surface2);color:var(--red);border:1px solid var(--border);border-radius:3px;cursor:pointer;">刪除</button>
+    </div>`;
+  }
+  el('adm-panel-pi').innerHTML = html;
+}
+
+async function admCreatePiNode() {
+  const unit_id = el('pi-new-unit').value;
+  const label = el('pi-new-label').value.trim() || unit_id;
+  const resp = await authFetch(API_BASE + '/api/admin/pi-nodes', {
+    method:'POST', headers:{'X-Admin-PIN':_admPin,'Content-Type':'application/json'},
+    body: JSON.stringify({unit_id, label}),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(()=>({}));
+    alert(err.detail || '建立失敗');
+    return;
+  }
+  const result = await resp.json();
+  _lastCreatedApiKey = result.api_key;
+  admLoadPiNodes().then(() => {
+    el('pi-key-display').style.display = '';
+    el('pi-key-value').textContent = result.api_key;
+    el('pi-push-result').textContent = '';
+  });
+}
+
+async function admRekeyPiNode(unitId) {
+  if (!confirm(`確定要重新產生 ${unitId} 的 API Key？舊 Key 將立即失效。`)) return;
+  const resp = await authFetch(API_BASE + `/api/admin/pi-nodes/${unitId}/rekey`, {
+    method:'POST', headers:{'X-Admin-PIN':_admPin},
+  });
+  if (!resp.ok) { alert('操作失敗'); return; }
+  const result = await resp.json();
+  _lastCreatedApiKey = result.api_key;
+  admLoadPiNodes().then(() => {
+    el('pi-key-display').style.display = '';
+    el('pi-key-value').textContent = result.api_key;
+    el('pi-push-result').textContent = '';
+  });
+}
+
+async function admDeletePiNode(unitId) {
+  if (!confirm(`確定刪除 ${unitId} 節點？`)) return;
+  await authFetch(API_BASE + `/api/admin/pi-nodes/${unitId}`, {
+    method:'DELETE', headers:{'X-Admin-PIN':_admPin},
+  });
+  admLoadPiNodes();
+}
+
+async function admPushKeyToPi() {
+  const piUrl = el('pi-admin-url').value.trim().replace(/\/$/,'');
+  const key = el('pi-key-value').textContent;
+  const resultEl = el('pi-push-result');
+  if (!piUrl) { resultEl.textContent = '請輸入 Pi Admin URL'; resultEl.style.color = 'var(--red)'; return; }
+  if (!key) { resultEl.textContent = '無 API Key'; resultEl.style.color = 'var(--red)'; return; }
+  resultEl.textContent = '推送中...'; resultEl.style.color = 'var(--text3)';
+  try {
+    // 設定 command_url
+    const r1 = await fetch(piUrl + '/admin/command-url', {
+      method:'POST', headers:{'X-Admin-PIN':'1234','Content-Type':'application/json'},
+      body: JSON.stringify({url: API_BASE}),
+    });
+    if (!r1.ok) { resultEl.textContent = '設定 command_url 失敗（檢查 Pi Admin PIN）'; resultEl.style.color='var(--red)'; return; }
+    // 設定 api_key
+    const r2 = await fetch(piUrl + '/admin/pi-api-key', {
+      method:'POST', headers:{'X-Admin-PIN':'1234','Content-Type':'application/json'},
+      body: JSON.stringify({api_key: key}),
+    });
+    if (!r2.ok) { resultEl.textContent = '設定 api_key 失敗'; resultEl.style.color='var(--red)'; return; }
+    resultEl.textContent = '✓ 已推送 command_url + api_key 至 Pi'; resultEl.style.color = 'var(--green)';
+  } catch(e) {
+    resultEl.textContent = '連線失敗：' + e.message; resultEl.style.color = 'var(--red)';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Wave 4：L3/L4 資料鑽探
+// ══════════════════════════════════════════════════════════════
+let _l3Data = null;
+
+async function loadL3Records(unitId) {
+  const container = document.getElementById('l3-container');
+  if (!container) return;
+  container.innerHTML = '<div style="color:var(--text3);font-size:11px;">載入中...</div>';
+  try {
+    const resp = await authFetch(API_BASE + `/api/pi-data/${unitId}/list`);
+    if (!resp.ok) { container.innerHTML = '<div style="color:var(--red);font-size:11px;">載入失敗</div>'; return; }
+    const data = await resp.json();
+    _l3Data = data;
+
+    if (data.offline) {
+      container.innerHTML = '<div style="color:var(--yellow);font-size:11px;">⚠ Pi 節點離線，無即時資料</div>';
+      return;
+    }
+
+    const tableLabels = {persons:'收容人員',beds:'床位',resources:'物資',incidents:'事件',shifts:'值班',patients:'傷患',triages:'檢傷'};
+    let html = `<div style="font-size:9px;color:var(--text3);margin-bottom:6px;">Pi 資料時間：${(data.pushed_at||'?').replace('T',' ').slice(0,19)}</div>`;
+    const grouped = data.grouped || {};
+
+    for (const [tableName, records] of Object.entries(grouped)) {
+      const label = tableLabels[tableName] || tableName;
+      html += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:8px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">${label}（${records.length}）</div>`;
+      records.forEach((r, i) => {
+        const rec = r.record || {};
+        const name = rec.display_id || rec.name || rec.patient_name || rec._id || '?';
+        const status = rec.status || rec.triage_level || '';
+        const sc = {'已安置':'var(--green)','已離站':'var(--text3)','待處理':'var(--yellow)','red':'var(--red)','yellow':'var(--yellow)','green':'var(--green)','occupied':'var(--green)','empty':'var(--text3)','suspended':'var(--red)'}[status] || 'var(--text2)';
+        html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:5px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+        html += `<span>${name}</span>`;
+        html += `<span style="font-size:10px;color:${sc};font-weight:600;">${status}</span>`;
+        html += `</div>`;
+      });
+    }
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div style="color:var(--red);font-size:11px;">網路錯誤：' + e.message + '</div>';
+  }
+}
+
+function openL4Detail(unitId, tableName, index) {
+  if (!_l3Data || !_l3Data.grouped) return;
+  const records = _l3Data.grouped[tableName];
+  if (!records || !records[index]) return;
+  const r = records[index];
+  const rec = r.record || {};
+  const container = document.getElementById('l3-container');
+  if (!container) return;
+  if (!container.dataset.prevHtml) container.dataset.prevHtml = container.innerHTML;
+
+  const tableLabels = {persons:'收容人員',beds:'床位',resources:'物資',incidents:'事件',patients:'傷患'};
+  const label = tableLabels[tableName] || tableName;
+  const name = rec.display_id || rec.name || rec.patient_name || rec._id || '?';
+
+  let fields = '';
+  // 依 table 類型顯示重要欄位
+  const show = (k, lbl) => {
+    let v = rec[k];
+    if (v === undefined || v === null) return '';
+    if (typeof v === 'object') v = JSON.stringify(v);
+    return `<div class="slice-row"><span class="sk">${lbl}</span><span class="sv">${v}</span></div>`;
+  };
+
+  if (tableName === 'persons') {
+    fields = show('display_id','識別碼') + show('name','姓名') + show('type','身分') + show('gender','性別')
+      + show('age_group','年齡') + show('status','狀態') + show('health_flag','健康') + show('bed_id','床位')
+      + show('intake_at','入站時間') + show('exit_at','離站時間') + show('exit_reason','離站原因')
+      + show('srt_color','SRT') + show('family_unit_id','家庭');
+  } else if (tableName === 'patients') {
+    fields = show('display_id','識別碼') + show('patient_name','姓名') + show('triage_level','檢傷等級')
+      + show('chief_complaint','主訴') + show('status','狀態') + show('arrival_time','到院時間')
+      + show('disposition','後送狀態');
+  } else if (tableName === 'beds') {
+    fields = show('display_id','床位') + show('zone','區域') + show('status','狀態') + show('assigned_to','分配');
+  } else if (tableName === 'incidents') {
+    fields = show('type','類型') + show('severity','嚴重度') + show('status','狀態')
+      + show('linked_persons','相關人員') + show('assigned_to','指派') + show('opened_at','開啟時間');
+  } else {
+    for (const [k, v] of Object.entries(rec)) {
+      if (k === '_id' || k === '_enc') continue;
+      const val = typeof v === 'object' ? JSON.stringify(v) : v;
+      fields += `<div class="slice-row"><span class="sk">${k}</span><span class="sv">${val ?? '—'}</span></div>`;
+    }
+  }
+
+  container.innerHTML = `
+    <div style="margin-bottom:8px;">
+      <button onclick="backToL3()" style="padding:3px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--mono);">← 返回列表</button>
+      <span style="font-size:11px;font-weight:700;margin-left:8px;">${label}：${name}</span>
+    </div>
+    <div style="font-size:9px;color:var(--text3);margin-bottom:6px;">更新時間：${(r.updated_at||'?').replace('T',' ').slice(0,19)}</div>
+    <div style="background:var(--surface);border-radius:5px;padding:10px;font-size:11px;">${fields}</div>
+  `;
+}
+
+function backToL3() {
+  const container = document.getElementById('l3-container');
+  if (container && container.dataset.prevHtml) {
+    container.innerHTML = container.dataset.prevHtml;
+    delete container.dataset.prevHtml;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2221,6 +2458,15 @@ function _zoneDataTab(zone) {
     html += supBar('IV 輸液', iv) + supBar('氧氣瓶', ox) + supBar('止血帶', to);
     html += '</div>';
   }
+
+  // Wave 4：L3 載入按鈕（shelter/medical）
+  if (zone.node_type === 'shelter' || zone.node_type === 'medical') {
+    html += `<div style="margin-top:12px;text-align:center;">
+      <button onclick="loadL3Records('${zone.node_type}')" style="padding:6px 16px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">載入 Pi 詳細資料</button>
+    </div>
+    <div id="l3-container" style="margin-top:8px;"></div>`;
+  }
+
   return html;
 }
 

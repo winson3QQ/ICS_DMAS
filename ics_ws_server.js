@@ -70,7 +70,7 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-const SERVER_VERSION = 'v1.0.0';
+const SERVER_VERSION = 'v1.1.0';
 log.info(`${cfg.logPrefix} WS Server ${SERVER_VERSION} | unit=${unitArg} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
@@ -203,6 +203,8 @@ function getPiApiKey() {
   return row ? row.value : null;
 }
 
+let _lastPushHash = '';
+
 async function piPushOnce() {
   const target = _commandUrl || COMMAND_URL;
   const apiKey = getPiApiKey();
@@ -211,6 +213,14 @@ async function piPushOnce() {
   // 1. 讀 current_state 全表
   const rows = db.prepare('SELECT table_name, record_id, record_json, updated_at FROM current_state').all();
   if (rows.length === 0) { log.debug('[PiPush] current_state 為空，略過'); return; }
+
+  // 1.5 比對 hash，資料沒變就跳過
+  const rawJson = JSON.stringify(rows);
+  const hash = crypto.createHash('md5').update(rawJson).digest('hex');
+  if (hash === _lastPushHash) {
+    log.debug('[PiPush] 資料未變更，略過');
+    return;
+  }
 
   const records = rows.map(r => ({
     table_name: r.table_name,
@@ -231,6 +241,7 @@ async function piPushOnce() {
     );
     if (res.status >= 200 && res.status < 300) {
       db.prepare('UPDATE push_queue SET sent=1, sent_at=? WHERE id=?').run(nowISO(), queueId);
+      _lastPushHash = hash;
       log.info(`[PiPush] OK: ${records.length} records, queue#${queueId}`);
       // 補送舊的未送出項目
       await replayUnsentQueue(target, apiKey);
@@ -271,14 +282,17 @@ async function replayUnsentQueue(target, apiKey) {
   }
 }
 
+let _piPushStarted = false;
 function startPiPush() {
+  if (_piPushStarted) return;
   const target = _commandUrl || COMMAND_URL;
   const apiKey = getPiApiKey();
   if (!target || !apiKey) {
     log.info('[PiPush] 未設定 command_url 或 pi_api_key，跳過定時推送');
     return;
   }
-  setTimeout(() => piPushOnce(), 10_000);
+  _piPushStarted = true;
+  setTimeout(() => piPushOnce(), 5_000);
   setInterval(() => piPushOnce(), PI_PUSH_INTERVAL_MS);
   log.info(`[PiPush] 定時推送 current_state 至指揮部，間隔 ${PI_PUSH_INTERVAL_MS / 1000}s`);
 }
@@ -1021,6 +1035,7 @@ app.post('/admin/command-url', adminAuth, async (req, res) => {
   // 寫入 config 表持久化
   db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('command_url',?)").run(_commandUrl);
   log.debug(`[Config] command_url set to: ${_commandUrl}`);
+  startPiPush();  // 設定後立即嘗試啟動推送迴圈
   // 測試連線
   try {
     const r = await fetch(`${_commandUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
@@ -1044,6 +1059,7 @@ app.post('/admin/pi-api-key', adminAuth, (req, res) => {
   }
   db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('pi_api_key',?)").run(api_key);
   log.info('[Config] pi_api_key 已設定');
+  startPiPush();  // 設定後立即嘗試啟動推送迴圈
   res.json({ ok: true });
 });
 

@@ -33,7 +33,7 @@ import calc_engine
 
 app = FastAPI(
     title="ICS 指揮部 API",
-    version="1.0.0",
+    version="1.1.0",
     docs_url="/docs",   # 開發時可用 Swagger UI 測試
 )
 
@@ -563,7 +563,7 @@ def health():
     """各組 Pi 可 ping 此端點確認指揮部後端存活"""
     return {
         "status": "ok",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "db": str(db.DB_PATH),
     }
 
@@ -902,9 +902,9 @@ def index():
     return """
     <html><head><meta charset="UTF-8"><title>ICS 指揮部</title></head>
     <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
-    <h2 style="color:#fff">ICS 指揮部 command-v0.7.0</h2>
+    <h2 style="color:#fff">ICS 指揮部 command-v0.8.0</h2>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">儀表板</p>
-    <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.7.0</a></p>
+    <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 儀表板 command-v0.8.0</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">工具</p>
     <p><a href="/static/qr_scanner.html" style="color:#90b8e8">▶ QR 快照掃描</a></p>
     <p style="margin-top:16px;font-size:12px;color:#6e7b96">API</p>
