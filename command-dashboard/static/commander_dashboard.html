@@ -1494,15 +1494,15 @@ async function loadL3Records(unitId) {
     }
 
     // L3 顯示順序與隱藏規則
-    const showTables = ['patients','persons','incidents','resources','shifts'];
-    const hideTables = ['triages','transfers','beds','snapshots','audit_log','config','accounts','time_sync'];
+    const showTables = ['patients','persons','incidents','shifts'];
+    const hideTables = ['triages','transfers','beds','resources','snapshots','audit_log','config','accounts','time_sync'];
     const tableLabels = {persons:'收容人員',resources:'物資',incidents:'組內事件',shifts:'值班',patients:'傷患'};
     const triageColorDot = {red:'🔴',yellow:'🟡',green:'🟢',black:'⚫'};
 
-    let html = `<div style="font-size:9px;color:var(--text3);margin-bottom:6px;">Pi 資料時間：${(data.pushed_at||'?').replace('T',' ').slice(0,19)}</div>`;
     const grouped = data.grouped || {};
+    let html = '';
 
-    // 摘要表格
+    // ═══ 摘要表格（最上方）═══
     if (unitId === 'medical' && grouped.patients) {
       const pts = grouped.patients.map(r => r.record || {});
       const colors = ['red','yellow','green','black'];
@@ -1550,6 +1550,26 @@ async function loadL3Records(unitId) {
       html += `</div>`;
     }
 
+    // ═══ 物資（從 Pi push resources）═══
+    if (grouped.resources) {
+      const resList = grouped.resources.map(r => r.record || {}).filter(r => !r.disabled);
+      if (resList.length > 0) {
+        html += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:6px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">物資</div>`;
+        for (const r of resList) {
+          const cur = r.qty_current ?? 0;
+          const max = r.qty_initial || cur || 1;
+          const pct = Math.round(cur / max * 100);
+          const c = pct <= 20 ? 'var(--red)' : pct <= 40 ? 'var(--yellow)' : 'var(--green)';
+          html += `<div style="display:flex;justify-content:space-between;font-size:11px;margin:2px 0;"><span>${r.name||'?'}</span><span style="color:${c};font-weight:600;">${cur}/${max}</span></div>`;
+          html += `<div style="height:3px;background:var(--surface2);border-radius:2px;margin-bottom:3px;"><div style="height:100%;width:${pct}%;background:${c};border-radius:2px;"></div></div>`;
+        }
+      }
+    }
+
+    // ═══ 時間戳 ═══
+    html += `<div style="font-size:9px;color:var(--text3);margin:8px 0 6px;">Pi 資料時間：${(data.pushed_at||'?').replace('T',' ').slice(0,19)}</div>`;
+
+    // ═══ 記錄列表 ═══
     for (const tableName of showTables) {
       const records = grouped[tableName];
       if (!records || records.length === 0) continue;
@@ -2559,59 +2579,16 @@ function _zoneTab(key, label) {
 }
 
 function _zoneDataTab(zone) {
-  const d = getApiSeries(_data);
-  if (!d) {
-    if (zone.node_type === 'shelter' || zone.node_type === 'medical') {
-      // Wave 4：無快照時直接自動載入 Pi push 資料
-      return `<div id="l3-container" style="margin-top:4px;"></div>
-        <div class="l3-autoload" data-unit="${zone.node_type}"></div>`;
-    }
-    return '<div style="color:var(--text3)">無快照資料</div>';
-  }
-  const N = d.N;
-  const idx = N - 1;
-  const t = d.times[idx];
-  const slc = v => v>=90?'var(--red)':v>=70?'var(--yellow)':'var(--green)';
-
-  let html = `<div class="slice-time">最新快照 · ${t}</div>`;
-
-  if (zone.node_type === 'shelter') {
-    const sp = d.sPct[idx];
-    html += '<div class="slice-card"><div class="slice-card-title">收容組</div>';
-    html += `<div style="display:flex;align-items:baseline;gap:6px;margin:4px 0 2px;">`;
-    html += `<span style="font-size:28px;font-weight:800;">${d.sBu[idx]}</span>`;
-    html += `<span style="font-size:12px;color:var(--text3)">/ ${d.sBt[idx]}人</span>`;
-    html += `<span style="font-size:22px;font-weight:700;color:${slc(sp)};margin-left:auto">${sp}%</span></div>`;
-    html += `<div class="slice-row" style="margin-top:6px"><span class="sk">待入站</span><span class="sv">${d.pendS[idx]}人</span></div>`;
-    html += `<div class="slice-row"><span class="sk">人均服務量</span><span class="sv">${d.opsS[idx]?.toFixed?.(1)||d.opsS[idx]}</span></div>`;
-    html += '</div>';
-  } else if (zone.node_type === 'medical') {
-    const mp = d.mPct[idx];
-    const iv = d.ivPct[idx], ox = d.oxPct[idx], to = d.toPct[idx];
-    const supBar = (label, pct) => {
-      const c = pct<=20?'var(--red)':pct<=40?'var(--yellow)':'var(--green)';
-      return `<div class="slice-row"><span class="sk">${label}</span><span class="sv" style="color:${c}">${pct}%</span></div><div class="slice-bar"><div class="slice-fill" style="width:${pct}%;background:${c}"></div></div>`;
-    };
-    html += '<div class="slice-card"><div class="slice-card-title">醫療組</div>';
-    html += `<div style="display:flex;align-items:baseline;gap:6px;margin:4px 0 2px;">`;
-    html += `<span style="font-size:28px;font-weight:800;">${d.mBu[idx]}</span>`;
-    html += `<span style="font-size:12px;color:var(--text3)">/ ${d.mBt[idx]}床</span>`;
-    html += `<span style="font-size:22px;font-weight:700;color:${slc(mp)};margin-left:auto">${mp}%</span></div>`;
-    html += `<div class="slice-row" style="margin-top:6px"><span class="sk">待後送</span><span class="sv">${d.pendEvac[idx]}人</span></div>`;
-    html += `<div class="slice-row"><span class="sk">人均服務量</span><span class="sv">${d.opsM[idx]?.toFixed?.(1)||d.opsM[idx]}</span></div>`;
-    html += '</div>';
-    html += '<div class="slice-card"><div class="slice-card-title">物資</div>';
-    html += supBar('IV 輸液', iv) + supBar('氧氣瓶', ox) + supBar('止血帶', to);
-    html += '</div>';
-  }
-
-  // Wave 4：自動載入 Pi push 資料（shelter/medical）
+  // shelter/medical：優先顯示 Pi push L3 資料（摘要表+記錄列表）
   if (zone.node_type === 'shelter' || zone.node_type === 'medical') {
-    html += `<div id="l3-container" style="margin-top:8px;"></div>
+    return `<div id="l3-container" style="margin-top:4px;"></div>
       <div class="l3-autoload" data-unit="${zone.node_type}"></div>`;
   }
 
-  return html;
+  // 其他 node_type：沿用舊 snapshot 邏輯
+  const d = getApiSeries(_data);
+  if (!d) return '<div style="color:var(--text3)">無快照資料</div>';
+  return '<div style="color:var(--text3)">此據點無詳細資料</div>';
 }
 
 function _zoneEventsTab(zone) {
