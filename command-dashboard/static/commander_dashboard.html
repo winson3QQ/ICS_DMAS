@@ -3092,14 +3092,45 @@ function _renderZoneANoSnap() {
 
 function _renderConnDots() {
   const ch = _data?.calc?.comm_health || {};
+  const piNodes = _data?.pi_nodes || [];
   const map = {shelter:'cl-shelter', medical:'cl-medical'};
   const labels = {shelter:'收容', medical:'醫療'};
   ['shelter','medical'].forEach(k => {
     const dot = el('cd-' + k);
     const lbl = el(map[k]);
-    const level = ch[k]?.health_level || 'lkp';
+    // 優先用 pi_nodes.last_seen_at 判斷（Wave 4 push 機制）
+    const node = piNodes.find(n => n.unit_id === k);
+    let level = ch[k]?.health_level || 'lkp';
+    if (node && node.last_seen_at) {
+      const age = Date.now() - new Date(node.last_seen_at).getTime();
+      level = age < 120000 ? 'ok' : age < 300000 ? 'warn' : 'crit';
+    } else if (node && !node.last_seen_at) {
+      level = 'lkp'; // 已註冊但從未連線
+    }
     if (dot) dot.className = 'conn-dot ' + level;
-    if (lbl) lbl.textContent = level === 'lkp' ? labels[k] + ' 未連線' : labels[k];
+    // tooltip：顯示連線條件說明
+    const tipMap = {
+      ok: '● 正常（2 分鐘內有推送）',
+      warn: '● 注意（2~5 分鐘無推送）',
+      crit: '● 離線（超過 5 分鐘無推送）',
+      lkp: '○ 未連線（尚未收到任何推送）',
+    };
+    let tip = tipMap[level] || '';
+    if (node && node.last_seen_at) {
+      const secsAgo = Math.round((Date.now() - new Date(node.last_seen_at).getTime()) / 1000);
+      const agoStr = secsAgo < 60 ? `${secsAgo} 秒前` : `${Math.round(secsAgo/60)} 分鐘前`;
+      tip += `\n最後推送：${agoStr}`;
+    } else if (node) {
+      tip += '\n已註冊但從未推送';
+    } else {
+      tip += '\n尚未在指揮部註冊 Pi 節點';
+    }
+    if (dot) dot.title = labels[k] + ' Pi\n' + tip;
+    if (lbl) lbl.title = labels[k] + ' Pi\n' + tip;
+    if (lbl) {
+      const tag = level === 'lkp' ? ' 未連線' : level === 'crit' ? ' 離線' : '';
+      lbl.textContent = labels[k] + tag;
+    }
   });
 }
 

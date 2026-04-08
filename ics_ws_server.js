@@ -548,6 +548,7 @@ wss.on('connection', (ws, req) => {
     if (_zombieTimer) { clearTimeout(_zombieTimer); _zombieTimer = null; }
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
+    log.debug(`[WS] ← ${msg.type} from ${ip} ${msg.table||''} ${msg.record?._id||''}`);
 
     switch (msg.type) {
 

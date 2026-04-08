@@ -1105,7 +1105,7 @@ const WsManager = (function(){
         const records=await db[table].filter(r=>(r.updated_at||r.timestamp||r.opened_at||'')>=since).toArray();
         tables[table]=records;totalCount+=records.length;
       }
-      const snapshots=await db.snapshots.orderBy('timestamp').filter(s=>s.source==='qr_generated').toArray();
+      const snapshots=await db.snapshots.orderBy('snapshot_time').filter(s=>s.source==='qr_generated').toArray();
       return new Promise((resolve,reject)=>{
         const timeout=setTimeout(()=>reject(new Error('sync_push 無回應逾時')),15000);
         const prevHandler=this._syncAckHandler;
