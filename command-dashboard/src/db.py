@@ -1319,3 +1319,16 @@ def get_latest_pi_batch(unit_id: str) -> dict | None:
             (unit_id,)
         ).fetchone()
     return dict(row) if row else None
+
+
+def get_recent_pi_batches(unit_id: str, limit: int = 40) -> list[dict]:
+    """取得某組最近 N 筆推送批次（供趨勢分析用）"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            """SELECT id, unit_id, pushed_at, received_at, records_json
+               FROM pi_received_batches
+               WHERE unit_id=?
+               ORDER BY received_at DESC LIMIT ?""",
+            (unit_id, limit)
+        ).fetchall()
+    return [dict(r) for r in rows]

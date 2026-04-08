@@ -1543,6 +1543,18 @@ async function loadL3Records(unitId) {
         {key:'已離站', label:'已離站', color:'var(--text3)'},
         {key:'已隔離', label:'已隔離', color:'var(--red)'},
       ];
+      // 量能指標
+      const totalBeds = (grouped.beds||[]).length || Math.max(prs.filter(p=>p.status==='已安置').length + 2, 12);
+      const usedBeds = prs.filter(p=>p.status==='已安置').length;
+      const capPct = Math.round(usedBeds / totalBeds * 100);
+      const capColor = capPct >= 90 ? 'var(--red)' : capPct >= 70 ? 'var(--yellow)' : 'var(--green)';
+      html += `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">`;
+      html += `<span style="font-size:28px;font-weight:800;">${usedBeds}</span>`;
+      html += `<span style="font-size:12px;color:var(--text3);">/ ${totalBeds} 床</span>`;
+      html += `<span style="font-size:22px;font-weight:700;color:${capColor};margin-left:auto;">${capPct}%</span>`;
+      html += `</div>`;
+      html += `<div style="height:4px;background:var(--surface2);border-radius:2px;margin-bottom:10px;"><div style="height:100%;width:${capPct}%;background:${capColor};border-radius:2px;"></div></div>`;
+      // 狀態計數
       html += `<div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;">`;
       for (const s of statuses) {
         const cnt = prs.filter(p => p.status === s.key).length;

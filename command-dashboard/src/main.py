@@ -567,17 +567,20 @@ def get_dashboard():
     forward_snaps  = db.get_snapshots("forward",  40)
     security_snaps = db.get_snapshots("security", 40)
 
-    # Wave 4：從 pi_received_batches 衍生 snapshot 注入
+    # Wave 4：從 pi_received_batches 衍生多筆 snapshot 注入（供趨勢分析）
     for _unit in ('shelter', 'medical'):
-        _batch = db.get_latest_pi_batch(_unit)
-        if _batch:
+        _batches = db.get_recent_pi_batches(_unit, 40)
+        _pi_snaps = []
+        for _batch in _batches:
             _recs = json.loads(_batch['records_json']) if isinstance(_batch['records_json'], str) else _batch['records_json']
             _snap = _pi_batch_to_snapshot(_unit, _batch['pushed_at'], _recs)
             if _snap:
-                if _unit == 'shelter':
-                    shelter_snaps.insert(0, _snap)
-                elif _unit == 'medical':
-                    medical_snaps.insert(0, _snap)
+                _pi_snaps.append(_snap)
+        if _pi_snaps:
+            if _unit == 'shelter':
+                shelter_snaps = _pi_snaps + shelter_snaps
+            elif _unit == 'medical':
+                medical_snaps = _pi_snaps + medical_snaps
 
     # 事件（先取，供升降級引擎使用）
     open_events     = db.get_events("open",        limit=20)
@@ -600,19 +603,22 @@ def get_dashboard():
     pending_decisions = db.get_decisions("pending")
     decided_decisions = db.get_decisions("approved") + db.get_decisions("completed")
 
-    # 歷史快照（供趨勢圖用）+ Wave 4 Pi push 衍生 snapshot 注入
+    # 歷史快照（供趨勢圖用）+ Wave 4 Pi push 衍生歷史 snapshot
     shelter_history = db.get_snapshots("shelter", 100)
     medical_history = db.get_snapshots("medical", 100)
     for _unit2 in ('shelter', 'medical'):
-        _batch2 = db.get_latest_pi_batch(_unit2)
-        if _batch2:
-            _recs2 = json.loads(_batch2['records_json']) if isinstance(_batch2['records_json'], str) else _batch2['records_json']
-            _snap2 = _pi_batch_to_snapshot(_unit2, _batch2['pushed_at'], _recs2)
-            if _snap2:
-                if _unit2 == 'shelter':
-                    shelter_history.insert(0, _snap2)
-                elif _unit2 == 'medical':
-                    medical_history.insert(0, _snap2)
+        _batches2 = db.get_recent_pi_batches(_unit2, 100)
+        _pi_hist = []
+        for _b2 in _batches2:
+            _r2 = json.loads(_b2['records_json']) if isinstance(_b2['records_json'], str) else _b2['records_json']
+            _s2 = _pi_batch_to_snapshot(_unit2, _b2['pushed_at'], _r2)
+            if _s2:
+                _pi_hist.append(_s2)
+        if _pi_hist:
+            if _unit2 == 'shelter':
+                shelter_history = _pi_hist + shelter_history
+            elif _unit2 == 'medical':
+                medical_history = _pi_hist + medical_history
 
     # 地圖事件（有 location_zone_id 且未結案）
     open_events_on_map = [
