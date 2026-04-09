@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.46';</script>
+<script>const PWA_VERSION='v2.2.47';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -2507,7 +2507,7 @@ const SyncManager = (() => {
   function broadcast(table,record){if(!_bc||!record)return;const delta={src:deviceId(),table,action:'upsert',record:JSON.parse(JSON.stringify(record)),ts:record.updated_at||record.timestamp||new Date().toISOString(),sent_at:new Date().toISOString()};_bc.postMessage(delta);_logDelta(delta);updateDot('ok');}
   async function applyDelta(delta){
     if(delta.src===deviceId())return;const{table,record}=delta;if(!TABLES.includes(table)||!record)return;_logDelta(delta);
-    try{const tbl=db[table],existing=record._id?await tbl.get(record._id):null,incomingTs=delta.ts||'',existingTs=existing?.updated_at||existing?.timestamp||'';if(!existing||incomingTs>existingTs)await tbl.put(record);await renderCurrentTab();await refreshCapacityBanner();}catch(e){console.warn('[Sync] applyDelta:',e);}
+    try{const tbl=db[table],rid=record._id??record.id,existing=rid!=null?await tbl.get(rid):null,incomingTs=delta.ts||'',existingTs=existing?.updated_at||existing?.timestamp||'';if(!existing||incomingTs>existingTs)await tbl.put(record);await renderCurrentTab();await refreshCapacityBanner();}catch(e){console.warn('[Sync] applyDelta:',e);}
     updateDot('ok');
   }
   function _logDelta(delta){_log.unshift({...delta,logged_at:new Date().toISOString()});if(_log.length>500)_log.length=500;}

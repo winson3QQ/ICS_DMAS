@@ -1696,9 +1696,115 @@ function openL4Detail(unitId, tableName, index) {
       + show('intake_at','入站時間') + show('exit_at','離站時間') + show('exit_reason','離站原因')
       + show('srt_color','SRT') + show('family_unit_id','家庭');
   } else if (tableName === 'patients') {
-    fields = show('display_id','識別碼') + show('patient_name','姓名') + show('triage_level','檢傷等級')
-      + show('chief_complaint','主訴') + show('status','狀態') + show('arrival_time','到院時間')
-      + show('disposition','後送狀態');
+    // ── 對齊 Medical PWA 傷患詳情 ──
+    const cs = rec.care_status || 'triaged';
+    const dp = rec.disposition || '';
+    // 四段進度條
+    const pSteps = [
+      { label:'檢傷',   done: true },
+      { label:'治療評估', done: cs==='assessed'||cs==='monitoring'||cs==='pending_transfer' },
+      { label:'留觀',   done: cs==='monitoring' },
+      { label:'後送',   done: cs==='pending_transfer'||dp==='後送'||dp==='離開' },
+    ];
+    fields += `<div style="display:flex;gap:0;margin-bottom:10px;border-radius:6px;overflow:hidden;">
+      ${pSteps.map((s,i)=>`<div style="flex:1;padding:5px 3px;text-align:center;font-size:10px;font-weight:600;background:${s.done?'var(--green)':'var(--surface2)'};color:${s.done?'#fff':'var(--text3)'};${i>0?'border-left:1px solid rgba(255,255,255,.2)':''};">${s.done?'✓ ':''}${s.label}</div>`).join('')}
+    </div>`;
+    // 欄位（對齊 Medical PWA）
+    const srcLabel = {'A':'🚒 前進 MIST','B':'🏠 收容轉送','C':'🚶 自行抵達'}[rec.source_type] || '—';
+    const secLabel = rec.security_cleared==='yes'?'✅ 已完成':rec.security_cleared==='pending'?'⚡ 同步處理中':'⛔ 未完成';
+    const sexLabel = {'M':'男','F':'女','U':'不明'}[rec.source_sex] || '—';
+    const ageStr = rec.source_age ? ' · '+rec.source_age+' 歲' : '';
+    const injLabel = rec.injury_type==='trauma'?'🩸 創傷':rec.injury_type==='medical'?'💊 非創':'—';
+    const row = (lbl,val) => val ? `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;"><span style="color:var(--text3);">${lbl}</span><span style="font-weight:600;text-align:right;max-width:60%;">${val}</span></div>` : '';
+    fields += row('來源', srcLabel);
+    if (rec.source_type==='B' && rec.shelter_number) fields += row('收容編號', rec.shelter_number);
+    fields += row('安檢狀態', secLabel);
+    if (rec.name) fields += row('姓名', rec.name);
+    fields += row('性別／年齡', sexLabel + ageStr);
+    if (rec.appearance_notes) fields += row('外觀特徵', rec.appearance_notes);
+    fields += row('建檔者', rec.operator_name || '—');
+    fields += row('傷型', injLabel);
+    fields += row('主訴', rec.chief_issue || '—');
+    fields += row('生命徵象', rec.vitals_summary || '—');
+    fields += row('目前區域', rec.current_zone || '—');
+    fields += row('處置', dp || '—');
+    // ── 歷程時間軸 ──
+    const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '—';
+    const recolorDot = {red:'🔴',yellow:'🟡',green:'🟢',black:'⚫'};
+    const allTriages = (_l3Data.grouped.triages||[]).map(t=>t.record||{}).filter(t=>String(t.patient_id)===String(rec.id||rec._id));
+    const allEvts = [];
+    // 建檔
+    allEvts.push({at:rec.created_at||rec.updated_at||'', html:`<div><span style="color:var(--text3)">${fmt(rec.created_at||rec.updated_at)}</span> <span style="color:var(--green);font-weight:600;">${rec.operator_name||'—'}</span> — 建檔</div>`});
+    // 評估
+    const assessRecs = allTriages.filter(t=>!!t.trauma_or_medical).sort((a,b)=>(a.triage_at||'')<(b.triage_at||'')?1:-1);
+    let assessCnt = assessRecs.length;
+    assessRecs.forEach((t,i)=>{
+      const label = i===assessCnt-1?'初評':`複評 ${assessCnt-1-i}`;
+      const typeL = t.trauma_or_medical==='trauma'?'🩸 創傷':'💊 非創';
+      let h = `<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--green);font-weight:600;">${t.triage_by||'—'}</span> — ${label} ${typeL}</div>`;
+      if(t.chief_issue) h+=`<div style="margin-left:1.5em;color:var(--text2);font-size:10px;">主訴：${t.chief_issue}</div>`;
+      if(t.vitals_summary) h+=`<div style="margin-left:1.5em;color:var(--text2);font-size:10px;">徵象：${t.vitals_summary}</div>`;
+      const det=[];
+      if(t.condition_types?.length) det.push('狀況：'+t.condition_types.join('、'));
+      if(t.trauma_or_medical==='trauma'){
+        if(t.x_hemorrhage_controlled) det.push('X 止血：'+t.x_hemorrhage_controlled);
+        if(t.a_airway_patent) det.push('A 呼吸道：'+t.a_airway_patent);
+        if(t.b_breathing_status) det.push('B 呼吸：'+t.b_breathing_status);
+        if(t.c_pulse_quality) det.push('C 循環：'+t.c_pulse_quality);
+        if(t.d_gcs) det.push('D 意識/GCS：'+t.d_gcs);
+        if(t.e_exposed) det.push('E 暴露：'+t.e_exposed);
+      } else {
+        if(t.abc_airway) det.push('A 呼吸道：'+t.abc_airway);
+        if(t.abc_breathing) det.push('B 呼吸：'+t.abc_breathing);
+        if(t.abc_circulation) det.push('C 循環：'+t.abc_circulation);
+        if(t.blood_glucose) det.push('血糖：'+t.blood_glucose);
+        if(t.sample_s) det.push('S 主訴：'+t.sample_s);
+        if(t.sample_a) det.push('A 過敏：'+t.sample_a);
+        if(t.sample_m) det.push('M 用藥：'+t.sample_m);
+        if(t.sample_p) det.push('P 病史：'+t.sample_p);
+        if(t.sample_l) det.push('L 最後飲食：'+t.sample_l);
+        if(t.sample_e) det.push('E 誘因：'+t.sample_e);
+      }
+      if(t.past_medical_history?.length) det.push('病史：'+t.past_medical_history.join('、'));
+      if(t.allergy_flags?.length) det.push('過敏：'+t.allergy_flags.join('、')+(t.allergy_detail?' — '+t.allergy_detail:''));
+      if(t.routes?.airway?.length) det.push('管路：'+t.routes.airway.join('、')+(t.routes.airway_detail?' '+t.routes.airway_detail:''));
+      if(t.routes?.o2?.length) det.push('給氧：'+t.routes.o2.join('、')+(t.routes.o2_flow?' '+t.routes.o2_flow+'L/min':''));
+      if(t.routes?.iv) det.push('靜脈通路：已建立'+(t.routes.iv_detail?' — '+t.routes.iv_detail:''));
+      if(t.treatment) det.push('治療：'+t.treatment);
+      if(det.length) h+=`<div style="margin-left:1.5em;margin-top:1px;">${det.map(d=>`<div style="color:var(--text3);font-size:9px;">${d}</div>`).join('')}</div>`;
+      allEvts.push({at:t.triage_at||'',html:h});
+    });
+    // 照護紀錄
+    allTriages.filter(t=>t.record_type==='care').sort((a,b)=>(a.triage_at||'')<(b.triage_at||'')?1:-1).forEach((t,i,arr)=>{
+      let h=`<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--green);font-weight:600;">${t.triage_by||'—'}</span> — 👁 照護紀錄 #${arr.length-i}</div>`;
+      if(t.vitals_summary) h+=`<div style="margin-left:1.5em;color:var(--text2);font-size:10px;">徵象：${t.vitals_summary}</div>`;
+      if(t.consciousness) h+=`<div style="margin-left:1.5em;color:var(--text2);font-size:10px;">意識：${t.consciousness}</div>`;
+      if(t.treatment) h+=`<div style="margin-left:1.5em;color:var(--text2);font-size:10px;">處置：${t.treatment}</div>`;
+      allEvts.push({at:t.triage_at||'',html:h});
+    });
+    // 轉色
+    allTriages.filter(t=>!!t.retriage_to).forEach(t=>{
+      allEvts.push({at:t.triage_at||'',html:`<div><span style="color:var(--text3)">${fmt(t.triage_at)}</span> <span style="color:var(--green);font-weight:600;">${t.triage_by||'—'}</span> — 轉色 ${recolorDot[t.retriage_from]||''}→${recolorDot[t.retriage_to]||t.retriage_to}</div>`});
+    });
+    // 後送/交接
+    if(rec.transferred_at) allEvts.push({at:rec.transferred_at, html:`<div><span style="color:var(--text3)">${fmt(rec.transferred_at)}</span> <span style="color:var(--green);font-weight:600;">${rec.transferred_by||'—'}</span> — 後送</div>`});
+    if(rec.handoff_at) allEvts.push({at:rec.handoff_at, html:`<div><span style="color:var(--text3)">${fmt(rec.handoff_at)}</span> <span style="color:var(--green);font-weight:600;">${rec.handoff_by||'—'}</span> — 交接</div>`});
+    allEvts.sort((a,b)=>a.at<b.at?1:-1);
+    if(allEvts.length) fields += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:10px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">歷程</div>
+      <div style="font-size:10px;line-height:1.8;background:var(--surface2);padding:6px 10px;border-radius:5px;">${allEvts.map(e=>e.html).join('')}</div>`;
+    // ── 關聯事件 ──
+    const linkedInc = (_l3Data.grouped.incidents||[]).map(t=>t.record||{}).filter(t=>String(t.patient_id)===String(rec.id||rec._id));
+    if(linkedInc.length){
+      fields += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:10px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">組內事件（${linkedInc.length}）</div>`;
+      linkedInc.forEach(inc=>{
+        const sevColor = {critical:'var(--red)',high:'var(--yellow)',medium:'var(--blue)',low:'var(--text3)'}[inc.severity]||'var(--text3)';
+        const stLabel = inc.status==='已結案'?'✅ 已結案':inc.status==='處理中'?'🔧 處理中':'🔴 '+inc.status;
+        fields += `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;">
+          <div style="display:flex;justify-content:space-between;"><span><span style="color:${sevColor};">●</span> ${inc.type||'事件'}</span><span style="color:var(--text3);">${stLabel}</span></div>
+          ${inc.description?`<div style="color:var(--text3);font-size:9px;margin-top:1px;">${inc.description.slice(0,60)}</div>`:''}
+        </div>`;
+      });
+    }
   } else if (tableName === 'beds') {
     fields = show('display_id','床位') + show('zone','區域') + show('status','狀態') + show('assigned_to','分配');
   } else if (tableName === 'incidents') {
@@ -1893,9 +1999,19 @@ function renderMapOverlay() {
     if (z.node_type === 'shelter') marker.classList.add('node-shelter');
     if (z.node_type === 'medical') marker.classList.add('node-medical');
 
-    // 取新鮮度
-    const freshLevel = (z.node_type && calc[z.node_type]?.freshness?.level) || '';
-    const freshDot = freshLevel ? `<span class="zone-fresh ${freshLevel}"></span>` : '';
+    // 取新鮮度（優先用 pi_nodes.last_seen_at，與 header 燈號一致）
+    let freshLevel = '';
+    if (z.node_type) {
+      const _piNodes = _data?.pi_nodes || [];
+      const _piNode = _piNodes.find(n => n.unit_id === z.node_type);
+      if (_piNode && _piNode.last_seen_at) {
+        const _age = Date.now() - new Date(_piNode.last_seen_at).getTime();
+        freshLevel = _age < 120000 ? 'ok' : _age < 300000 ? 'warn' : 'crit';
+      } else {
+        freshLevel = calc[z.node_type]?.freshness?.level || '';
+      }
+    }
+    const freshDot = freshLevel && freshLevel !== 'ok' ? `<span class="zone-fresh ${freshLevel}"></span>` : '';
 
     // 事件 marker 的顏色 + 倒數 + 逾時
     let countdownText = '';

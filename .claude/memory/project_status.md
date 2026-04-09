@@ -17,8 +17,9 @@ type: project
 
 ### 目前版號
 
-- 程式：`medical-v0.6.3-alpha`（git tag）
+- 程式：`medical-v0.6.7-alpha`（git tag）
 - 規格書：`v0.6`（medical_pwa_spec_v0_5.md）
+- v0.6.7 修復：applyDelta `_id`→`id` fix，catchup 不再覆寫新資料
 
 ### 已完成 P 項
 
@@ -174,7 +175,7 @@ type: project
 
 - HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.8.0`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.1.0`
-- Shelter PWA 版號 `v2.2.46`、Medical PWA 版號 `v0.6.5-alpha`
+- Shelter PWA 版號 `v2.2.47`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
 - DB schema 變更需刪除 `data/ics.db`
