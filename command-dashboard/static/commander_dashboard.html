@@ -673,7 +673,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
       </div>
       <div class="spark-card" id="sp-flow" onclick="expandSpark('sp-flow')">
         <div class="spark-hdr">
-          <span class="spark-title">流向</span>
+          <span class="spark-title">傷患流向</span>
           <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-flow-v">—</span><span class="spark-rag ok" id="sp-flow-rag"></span></span>
         </div>
         <div class="spark-detail" id="sp-flow-detail">
@@ -3391,18 +3391,23 @@ function renderSparklines(d) {
     {data:d.mPct, color:'#C0392B', w:1.5, fill:true, fillColor:'rgba(192,57,43,.12)', unit:'%'},
   ], {yMin:0, yMax:100, thresholds:[{value:70,color:'rgba(212,144,0,.4)',label:'70%'},{value:90,color:'rgba(204,42,42,.4)',label:'90%'}]}, N, isExp('sp-cap'), t);
 
-  // ② 流向
+  // ② 流向（傷患來源分布）
   const sa=d.srcA[N-1], sb=d.srcB[N-1], sc=d.srcC[N-1];
-  const srcRate = rate(d.srcB);
-  const flowLvl = srcRate > 0.5 ? 'crit' : srcRate > 0.3 ? 'warn' : 'ok';
-  const maxSrc = Math.max(sa,sb,sc);
-  const srcName = maxSrc===sa ? 'A前進' : maxSrc===sb ? 'B收容' : 'C自行';
-  el('sp-flow-v').textContent = srcName + ' SRT:' + d.srtR[N-1];
+  const srcTotal = sa + sb + sc;
+  const flowLvl = srcTotal >= 10 ? 'crit' : srcTotal >= 5 ? 'warn' : 'ok';
+  const flowParts = [];
+  if (sa > 0) flowParts.push('🚒前進:' + sa);
+  if (sb > 0) flowParts.push('🏠收容:' + sb);
+  if (sc > 0) flowParts.push('🚶自行:' + sc);
+  el('sp-flow-v').textContent = flowParts.length > 0 ? flowParts.join(' ') : '無傷患流入';
+  el('sp-flow-v').style.cursor = 'pointer';
+  el('sp-flow-v').onclick = function(e) { e.stopPropagation(); _openZoneByType('medical'); };
   setRag('sp-flow', flowLvl);
-  const srcMax = Math.max(...d.srcA.map((a,i)=>a+(d.srcB[i]||0)+(d.srcC[i]||0)), ...d.srtR, 5);
+  const srcMax = Math.max(...d.srcA.map((a,i)=>a+(d.srcB[i]||0)+(d.srcC[i]||0)), 5);
   drawSparkline('sc2', [
-    {data:d.srtR, color:'#E74C3C', w:1.5, unit:''},
-    {data:d.medCR, color:'#FF8F00', w:1.5, unit:''},
+    {data:d.srcA, color:'#E74C3C', w:1.5, unit:'人', label:'前進'},
+    {data:d.srcB, color:'#F0883E', w:1.5, unit:'人', label:'收容'},
+    {data:d.srcC, color:'#2E7D32', w:1.5, unit:'人', label:'自行'},
   ], {yMin:0, yMax:srcMax+2}, N, isExp('sp-flow'), t);
 
   // ③ 事件
