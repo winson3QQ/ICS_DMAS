@@ -204,6 +204,7 @@ function getPiApiKey() {
 }
 
 let _lastPushHash = '';
+let _commandStatus = { ok: false, lastOkAt: null, lastError: null };
 
 async function piPushOnce() {
   const target = _commandUrl || COMMAND_URL;
@@ -223,7 +224,13 @@ async function piPushOnce() {
         `${target}/api/pi-push/${cfg.unitId}`, { records: [], pushed_at: nowISO(), heartbeat: true }, apiKey
       );
       log.debug('[PiPush] heartbeat OK');
-    } catch(e) { log.debug('[PiPush] heartbeat failed:', e.message); }
+      _commandStatus = { ok: true, lastOkAt: nowISO(), lastError: null };
+      _broadcastCommandStatus();
+    } catch(e) {
+      log.debug('[PiPush] heartbeat failed:', e.message);
+      _commandStatus = { ok: false, lastOkAt: _commandStatus.lastOkAt, lastError: e.message };
+      _broadcastCommandStatus();
+    }
     return;
   }
 
@@ -248,13 +255,19 @@ async function piPushOnce() {
       db.prepare('UPDATE push_queue SET sent=1, sent_at=? WHERE id=?').run(nowISO(), queueId);
       _lastPushHash = hash;
       log.info(`[PiPush] OK: ${records.length} records, queue#${queueId}`);
+      _commandStatus = { ok: true, lastOkAt: nowISO(), lastError: null };
+      _broadcastCommandStatus();
       // 補送舊的未送出項目
       await replayUnsentQueue(target, apiKey);
     } else {
       log.warn(`[PiPush] Failed ${res.status}: ${res.body}`);
+      _commandStatus = { ok: false, lastOkAt: _commandStatus.lastOkAt, lastError: `HTTP ${res.status}` };
+      _broadcastCommandStatus();
     }
   } catch (err) {
     log.warn(`[PiPush] Error: ${err.message} (queued #${queueId}, will retry)`);
+    _commandStatus = { ok: false, lastOkAt: _commandStatus.lastOkAt, lastError: err.message };
+    _broadcastCommandStatus();
   }
 
   // 4. 清理過期 queue
@@ -550,6 +563,11 @@ const wsRawServer = tlsOpts
   : http.createServer();
 const wss = new WebSocket.Server({ server: wsRawServer, perMessageDeflate: false });
 
+function _broadcastCommandStatus() {
+  const msg = JSON.stringify({ type: 'command_status', ..._commandStatus });
+  wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
+}
+
 wsRawServer.on('upgrade', (req, socket, _head) => {
   const ip = socket.remoteAddress;
   const urlSrc = new URL(req.url, 'wss://localhost').searchParams.get('src') || '?';
@@ -797,6 +815,7 @@ wss.on('connection', (ws, req) => {
     pi_time: nowISO(),
     server_version: '2.1',
     last_sync_to_command: getLastSyncToCommand(),
+    command_status: _commandStatus,
   }));
 });
 

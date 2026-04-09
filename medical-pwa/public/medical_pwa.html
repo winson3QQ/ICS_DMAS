@@ -360,6 +360,7 @@ input,select,textarea{font-family:inherit;font-size:16px;}
     <div class="hdr-left">
       <div class="hdr-title"><svg width="20" height="20" viewBox="0 0 88 88" style="flex-shrink:0;"><path d="M34,4 h20 a3,3 0 0 1 3,3 v23 h23 a3,3 0 0 1 3,3 v20 a3,3 0 0 1 -3,3 h-23 v23 a3,3 0 0 1 -3,3 h-20 a3,3 0 0 1 -3,-3 v-23 h-23 a3,3 0 0 1 -3,-3 v-20 a3,3 0 0 1 3,-3 h23 v-23 a3,3 0 0 1 3,-3 z" fill="none" stroke="var(--primary)" stroke-width="6"/></svg>醫療組</div>
       <span id="sync-dot" title="同步狀態（點擊查看 WS log）" style="font-size:11px;cursor:pointer;" onclick="document.getElementById('debug-log-panel')?.classList.toggle('hidden')">⚫</span>
+      <span id="command-status" style="font-size:9px;color:var(--text3);">指揮部 未連線</span>
     </div>
     <div class="hdr-right">
       <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:var(--red-bg);color:var(--primary);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
@@ -1124,7 +1125,8 @@ const WsManager = (function(){
         case 'catchup_resp':if(Array.isArray(msg.deltas))msg.deltas.forEach(d=>SyncManager._applyExternalDelta(d));if(msg.pi_time)_syncTime(msg.pi_time);break;
         case 'time_sync_resp':if(msg.pi_time)_syncTime(msg.pi_time);break;
         case 'pong':if(msg.pi_time)_syncTime(msg.pi_time);break;
-        case 'welcome':if(msg.pi_time)_syncTime(msg.pi_time);if(msg.last_sync_to_command)localStorage.setItem('med_last_pi_sync',msg.last_sync_to_command);break;
+        case 'welcome':if(msg.pi_time)_syncTime(msg.pi_time);if(msg.last_sync_to_command)localStorage.setItem('med_last_pi_sync',msg.last_sync_to_command);if(msg.command_status)_updateCommandStatus(msg.command_status);break;
+        case 'command_status':_updateCommandStatus(msg);break;
         case 'sync_ack':/* handled by _syncAckHandler */break;
       }
     },
@@ -1189,6 +1191,22 @@ const WsManager = (function(){
     _updateDot('off');_updateLoginStatus('offline');
     _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'offline-retry');},_backoffMs);
   });
+  function _updateCommandStatus(cs) {
+    const el = document.getElementById('command-status');
+    if (!el) return;
+    if (cs.ok) {
+      const ago = cs.lastOkAt ? Math.round((Date.now() - new Date(cs.lastOkAt).getTime()) / 1000) : 0;
+      const agoStr = ago < 60 ? `${ago}秒前` : `${Math.round(ago/60)}分前`;
+      el.textContent = `指揮部 ${agoStr}`;
+      el.style.color = 'var(--green)';
+    } else if (cs.lastOkAt) {
+      el.textContent = '指揮部 離線';
+      el.style.color = 'var(--red)';
+    } else {
+      el.textContent = '指揮部 未連線';
+      el.style.color = 'var(--text3)';
+    }
+  }
   function _updateDot(state){
     const dot=document.getElementById('sync-dot');
     const prev=dot?dot.textContent:'(no-dot)';
