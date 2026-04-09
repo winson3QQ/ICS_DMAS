@@ -2624,7 +2624,7 @@ const WsManager = (function(){
         clearTimeout(_connectTimer);_connectTimer=null;_ws=null;
         _wsLog.warn(`ws closed code=${code} reason=${reason||''}`);
         const uiState=navigator.onLine===false?'offline':'pending';
-        if(_connected){_connected=false;_updateDot(navigator.onLine===false?'off':'pending');_updateLoginStatus(uiState);_scheduleReconnect();}
+        if(_connected){_connected=false;_updateDot(navigator.onLine===false?'off':'pending');_updateCommandStatus({ok:false,lastOkAt:null,lastError:'Pi 離線'});_updateLoginStatus(uiState);_scheduleReconnect();}
         else if(!_degraded){_updateLoginStatus(uiState);_scheduleReconnect();}
       };
       w.onerror=(e)=>{
