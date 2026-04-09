@@ -1019,7 +1019,7 @@ const App = {
       if(typeof WsManager!=='undefined'&&WsManager.isDegraded()){badge.style.display='inline';badge.title='Pi 不可用，降級模式';}
       else badge.style.display='none';
     }
-    document.getElementById('header-title').textContent=TAB_TITLES.dashboard;
+    document.getElementById('header-title').textContent='收容組';
     const isLeader=role==='組長';
     document.getElementById('tab-roster').classList.remove('hidden');
     document.getElementById('tab-settings').classList.toggle('hidden',!isLeader);
@@ -1125,7 +1125,7 @@ function switchTab(tab){
   document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
   const panel=el(`panel-${tab}`), tabBtn=el(`tab-${tab}`);
   if(panel)panel.classList.add('active'); if(tabBtn)tabBtn.classList.add('active');
-  el('header-title').textContent=TAB_TITLES[tab]||tab; renderCurrentTab();
+  renderCurrentTab();
 }
 function renderCurrentTab(){switch(App.currentTab){case 'dashboard':renderDashboard();break;case 'intake':renderIntake();break;case 'beds':renderBeds();break;case 'resources':renderResources();break;case 'incidents':renderIncidents();break;case 'roster':renderRoster();break;}}
 function goRosterFilter(status){App.rosterFilter=status;App.rosterTypeFilter='all';App.rosterHealthFilter='all';switchTab('roster');}
