@@ -482,6 +482,12 @@ def _pi_batch_to_snapshot(unit_id: str, pushed_at: str, records: list) -> dict |
         snap["pending_evac"] = len([p for p in active
                                     if p.get("disposition") == "後送"])
         snap["staff_on_duty"] = None
+        # 傷患來源分布（source_type: A=前進, B=收容, C=自行）
+        all_pts = by_table.get("patients", [])
+        src_a = len([p for p in all_pts if p.get("source_type") == "A"])
+        src_b = len([p for p in all_pts if p.get("source_type") == "B"])
+        src_c = len([p for p in all_pts if p.get("source_type") == "C"])
+        snap["extra"] = {"src_a": src_a, "src_b": src_b, "src_c": src_c}
 
     elif unit_id == "shelter":
         persons = by_table.get("persons", [])
