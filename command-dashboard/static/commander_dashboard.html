@@ -249,7 +249,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
 /* ═══ OVERLAY MODAL ═══ */
 #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
 #overlay.show{display:flex;}
-#modal{background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(760px,94vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;color:var(--text);}
+#modal{background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(960px,94vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;color:var(--text);}
 #modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
 #modal-title{font-size:12px;font-weight:700;color:var(--text);}
 #modal-close{font-size:18px;cursor:pointer;color:var(--text3);background:none;border:none;padding:2px 6px;border-radius:3px;}
@@ -1523,17 +1523,26 @@ async function loadL3Records(unitId) {
       const colors = ['red','yellow','green','black'];
       const colorLabels = {red:'紅',yellow:'黃',green:'綠',black:'黑'};
       const colorBg = {red:'#cc2a2a',yellow:'#c8a82a',green:'#2a8c2a',black:'#333'};
-      // 階段分類
+      // 階段分類（對齊 Medical PWA 邏輯：前三階段看 care_status，後兩階段看 disposition/zone）
       const isActive = p => p.current_zone!=='已離區' && p.disposition!=='離開' && p.disposition!=='死亡';
       const stages = [
-        {key:'triaged', label:'待評估', fn: p => (p.care_status||'triaged')==='triaged' && p.disposition!=='留觀' && p.disposition!=='後送' && isActive(p)},
+        {key:'triaged', label:'待評估', fn: p => (p.care_status||'triaged')==='triaged' && p.disposition!=='後送' && isActive(p)},
         {key:'assessed', label:'治療中', fn: p => p.care_status==='assessed' && p.disposition!=='後送' && isActive(p)},
-        {key:'monitoring', label:'留觀', fn: p => (p.care_status==='monitoring' || p.disposition==='留觀') && p.disposition!=='後送' && isActive(p)},
-        {key:'evac', label:'待後送', fn: p => p.disposition==='後送' && isActive(p)},
-        {key:'gone', label:'已離區', fn: p => !isActive(p)},
+        {key:'monitoring', label:'留觀中', fn: p => p.care_status==='monitoring' && p.disposition!=='後送' && isActive(p)},
+        {key:'evac', label:'等待後送', fn: p => p.disposition==='後送' && isActive(p)},
+        {key:'gone', label:'已後送／離區', fn: p => !isActive(p)},
+      ];
+      // 三段進度群組
+      const phaseGroups = [
+        { label:'檢傷', cols:1 },
+        { label:'治療評估', cols:2 },
+        { label:'後送', cols:2 },
       ];
       html += `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;text-align:center;">`;
-      html += `<tr style="background:var(--surface2);"><td></td>${stages.map(s=>`<td style="padding:4px 6px;font-weight:700;color:var(--text2);">${s.label}</td>`).join('')}<td style="padding:4px 6px;font-weight:700;color:var(--text);">合計</td></tr>`;
+      // 第一列：三段進度群組標題
+      html += `<tr><td></td>${phaseGroups.map(g=>`<td colspan="${g.cols}" style="padding:4px 6px;font-weight:800;color:var(--text);background:var(--green);color:#fff;border-left:1px solid rgba(255,255,255,.3);border-radius:${g===phaseGroups[0]?'4px 0 0 0':g===phaseGroups[2]?'0 4px 0 0':'0'};">${g.label}</td>`).join('')}<td></td></tr>`;
+      // 第二列：細項標題
+      html += `<tr style="background:var(--surface2);"><td></td>${stages.map(s=>`<td style="padding:3px 4px;font-weight:700;color:var(--text2);font-size:10px;">${s.label}</td>`).join('')}<td style="padding:3px 4px;font-weight:700;color:var(--text);font-size:10px;">合計</td></tr>`;
       let totalRow = new Array(stages.length).fill(0);
       let grandTotal = 0;
       for (const c of colors) {

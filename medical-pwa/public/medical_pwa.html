@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<script>const PWA_VERSION='v0.6.5-alpha';</script>
+<script>const PWA_VERSION='v0.6.7-alpha';</script>
 <script>
 (function(){
   var MAX=200,_buf=[];
@@ -982,7 +982,7 @@ const SyncManager = (() => {
   function broadcast(table,record){if(!_bc||!record)return;const delta={src:deviceId(),table,action:'upsert',record:JSON.parse(JSON.stringify(record)),ts:record.updated_at||record.timestamp||new Date().toISOString(),sent_at:new Date().toISOString()};_bc.postMessage(delta);_logDelta(delta);updateDot('ok');}
   async function applyDelta(delta){
     if(delta.src===deviceId())return;const{table,record}=delta;if(!TABLES.includes(table)||!record)return;_logDelta(delta);
-    try{const tbl=db[table],existing=record._id?await tbl.get(record._id):null,incomingTs=delta.ts||'',existingTs=existing?.updated_at||existing?.timestamp||'';if(!existing||incomingTs>existingTs)await tbl.put(record);await renderCurrentTab();}catch(e){console.warn('[Sync] applyDelta:',e);}
+    try{const tbl=db[table],rid=record._id??record.id,existing=rid!=null?await tbl.get(rid):null,incomingTs=delta.ts||'',existingTs=existing?.updated_at||existing?.timestamp||'';if(!existing||incomingTs>existingTs)await tbl.put(record);await renderCurrentTab();}catch(e){console.warn('[Sync] applyDelta:',e);}
     updateDot('ok');
   }
   function _logDelta(delta){_log.unshift({...delta,logged_at:new Date().toISOString()});if(_log.length>500)_log.length=500;}
