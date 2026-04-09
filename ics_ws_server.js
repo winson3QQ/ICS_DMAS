@@ -220,11 +220,16 @@ async function piPushOnce() {
   if (hash === _lastPushHash || rows.length === 0) {
     // heartbeat：讓 Command 知道 Pi 還活著（更新 last_seen_at）
     try {
-      await postJSONWithBearer(
+      const hbRes = await postJSONWithBearer(
         `${target}/api/pi-push/${cfg.unitId}`, { records: [], pushed_at: nowISO(), heartbeat: true }, apiKey
       );
-      log.debug('[PiPush] heartbeat OK');
-      _commandStatus = { ok: true, lastOkAt: nowISO(), lastError: null };
+      if (hbRes.status >= 200 && hbRes.status < 300) {
+        log.debug('[PiPush] heartbeat OK');
+        _commandStatus = { ok: true, lastOkAt: nowISO(), lastError: null };
+      } else {
+        log.debug(`[PiPush] heartbeat failed: HTTP ${hbRes.status}`);
+        _commandStatus = { ok: false, lastOkAt: _commandStatus.lastOkAt, lastError: `HTTP ${hbRes.status}` };
+      }
       _broadcastCommandStatus();
     } catch(e) {
       log.debug('[PiPush] heartbeat failed:', e.message);
