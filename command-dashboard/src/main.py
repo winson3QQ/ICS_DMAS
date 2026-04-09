@@ -982,6 +982,11 @@ async def receive_pi_push(unit_id: str, request: Request):
         from datetime import datetime, timezone
         pushed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # heartbeat（無資料）：只更新 last_seen_at，不寫 batch
+    if not records or body.get("heartbeat"):
+        db.touch_pi_node(unit_id)
+        return {"ok": True, "heartbeat": True}
+
     batch_id = db.insert_pi_batch(
         unit_id=unit_id,
         pushed_at=pushed_at,

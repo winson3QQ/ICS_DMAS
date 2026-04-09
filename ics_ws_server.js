@@ -214,11 +214,17 @@ async function piPushOnce() {
   const rows = db.prepare('SELECT table_name, record_id, record_json, updated_at FROM current_state').all();
   if (rows.length === 0) { log.debug('[PiPush] current_state 為空，略過'); return; }
 
-  // 1.5 比對 hash，資料沒變就跳過
+  // 1.5 比對 hash，資料沒變就送 heartbeat（不寫 push_queue）
   const rawJson = JSON.stringify(rows);
   const hash = crypto.createHash('md5').update(rawJson).digest('hex');
   if (hash === _lastPushHash) {
-    log.debug('[PiPush] 資料未變更，略過');
+    // heartbeat：讓 Command 知道 Pi 還活著（更新 last_seen_at）
+    try {
+      await postJSONWithBearer(
+        `${target}/api/pi-push/${cfg.unitId}`, { records: [], pushed_at: nowISO(), heartbeat: true }, apiKey
+      );
+      log.debug('[PiPush] heartbeat OK');
+    } catch(e) { log.debug('[PiPush] heartbeat failed:', e.message); }
     return;
   }
 
