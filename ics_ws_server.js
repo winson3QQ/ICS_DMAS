@@ -212,12 +212,11 @@ async function piPushOnce() {
 
   // 1. 讀 current_state 全表
   const rows = db.prepare('SELECT table_name, record_id, record_json, updated_at FROM current_state').all();
-  if (rows.length === 0) { log.debug('[PiPush] current_state 為空，略過'); return; }
 
-  // 1.5 比對 hash，資料沒變就送 heartbeat（不寫 push_queue）
-  const rawJson = JSON.stringify(rows);
+  // 1.5 比對 hash，資料沒變（或為空）就送 heartbeat（不寫 push_queue）
+  const rawJson = rows.length > 0 ? JSON.stringify(rows) : 'empty';
   const hash = crypto.createHash('md5').update(rawJson).digest('hex');
-  if (hash === _lastPushHash) {
+  if (hash === _lastPushHash || rows.length === 0) {
     // heartbeat：讓 Command 知道 Pi 還活著（更新 last_seen_at）
     try {
       await postJSONWithBearer(
