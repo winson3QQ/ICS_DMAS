@@ -1002,7 +1002,16 @@ function _enterDashboard() {
   el('stg-user-info').textContent = (sessionStorage.getItem('cmd_display_name') || '') + ' (' + sessionStorage.getItem('cmd_role') + ')　' + (sessionStorage.getItem('cmd_login_time') || '').slice(11,19);
   PinLock.start();
   _pollActive = true;
-  poll();
+  poll().then(() => {
+    // 頁面重載後恢復之前開著的 modal
+    const saved = sessionStorage.getItem('_openZoneModal');
+    if (saved) {
+      try {
+        const {node_type} = JSON.parse(saved);
+        if (node_type) _openZoneByType(node_type);
+      } catch(e) {}
+    }
+  });
 }
 
 /* --- 登出 --- */
@@ -2596,6 +2605,7 @@ function showZoneDetail(zone) {
   if (!_data) return;
   _zoneModalZone = zone;
   _zoneModalTab = (zone.node_type === 'shelter' || zone.node_type === 'medical') ? 'data' : 'events';
+  sessionStorage.setItem('_openZoneModal', JSON.stringify({id: zone.id, node_type: zone.node_type}));
   _renderZoneModal();
 }
 
@@ -3968,7 +3978,7 @@ function showSlice(idx, d, focusType) {
   el('overlay').className = 'show';
 }
 
-function closeModal() { el('overlay').className = ''; sessionStorage.removeItem('_openEventId'); }
+function closeModal() { el('overlay').className = ''; sessionStorage.removeItem('_openEventId'); sessionStorage.removeItem('_openZoneModal'); }
 
 // ══════════════════════════════════════════════════════════════
 // Sparkline 放大/縮小
