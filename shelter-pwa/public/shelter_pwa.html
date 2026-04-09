@@ -126,8 +126,10 @@
     #capacity-banner { flex-shrink: 0; }
     #header { display: flex; align-items: center; padding: 0 12px; height: var(--hdr-h); background: var(--surface); border-bottom: 2px solid var(--primary); flex-shrink: 0; gap: 6px; }
     .hdr-title { font-size: 15px; font-weight: 700; color: var(--primary); flex-shrink: 0; }
-    .hdr-status { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-    .hdr-conn { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .hdr-right-block { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; margin-left: auto; }
+    .hdr-row-top { display: flex; align-items: center; gap: 10px; }
+    .hdr-row-bot { display: flex; align-items: center; gap: 6px; }
+    .conn-item { display: flex; align-items: center; gap: 3px; }
     .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #555; flex-shrink: 0; }
     .conn-dot.ok { background: #00d466; box-shadow: 0 0 6px #00d466; }
     .conn-dot.warn { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: blink 1s infinite; }
@@ -412,15 +414,17 @@
   <div id="alert-banner" onclick="switchTab('incidents')">⚠️ 有 <span id="alert-count">0</span> 件開放事件 — 點此查看</div>
   <div id="header">
     <span class="hdr-title" id="header-title">收容組</span>
-    <div class="hdr-status">
-      <span class="hdr-conn">
-        <span class="conn-dot" id="sync-dot"></span>
-        <span class="conn-label" id="command-status">指揮部 未連線</span>
-      </span>
-      <span class="hdr-user" id="role-chip"></span>
-      <span class="hdr-idle" id="idle-countdown"></span>
-      <span class="hdr-ver" id="pwa-ver-hdr"></span>
-      <button class="hdr-logout" onclick="switchRole()">登出</button>
+    <div class="hdr-right-block">
+      <div class="hdr-row-top">
+        <span class="conn-item"><span class="conn-dot" id="sync-dot"></span><span class="conn-label" id="sync-label">Pi 離線</span></span>
+        <span class="conn-item"><span class="conn-dot" id="cmd-dot"></span><span class="conn-label" id="command-status">指揮部 未連線</span></span>
+      </div>
+      <div class="hdr-row-bot">
+        <span class="hdr-user" id="role-chip"></span>
+        <span class="hdr-idle" id="idle-countdown"></span>
+        <span class="hdr-ver" id="pwa-ver-hdr"></span>
+        <button class="hdr-logout" onclick="switchRole()">登出</button>
+      </div>
     </div>
   </div>
   <div id="content">
@@ -2499,7 +2503,7 @@ const SyncManager = (() => {
   const CHANNEL='shelter-sync-v1', TABLES=['persons','beds','resources','incidents'], DEVICE_KEY='shelter_device_id';
   let _bc=null, _deviceId=null, _log=[];
   function deviceId(){if(!_deviceId){_deviceId=localStorage.getItem(DEVICE_KEY);if(!_deviceId){_deviceId='dev-'+Math.random().toString(36).slice(2,9);localStorage.setItem(DEVICE_KEY,_deviceId);}}return _deviceId;}
-  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:'conn-dot ok',pending:'conn-dot warn',off:'conn-dot'};dot.className=MAP[state]||MAP.off;}
+  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:'conn-dot ok',pending:'conn-dot warn',off:'conn-dot'};dot.className=MAP[state]||MAP.off;const lbl=document.getElementById('sync-label');if(lbl)lbl.textContent=state==='ok'?'Pi':'Pi '+(state==='pending'?'連線中':'離線');}
   function broadcast(table,record){if(!_bc||!record)return;const delta={src:deviceId(),table,action:'upsert',record:JSON.parse(JSON.stringify(record)),ts:record.updated_at||record.timestamp||new Date().toISOString(),sent_at:new Date().toISOString()};_bc.postMessage(delta);_logDelta(delta);updateDot('ok');}
   async function applyDelta(delta){
     if(delta.src===deviceId())return;const{table,record}=delta;if(!TABLES.includes(table)||!record)return;_logDelta(delta);
@@ -2753,19 +2757,19 @@ const WsManager = (function(){
     _reconnectTimer=setTimeout(()=>{_reconnectTimer=null;WsManager.connect(null,'offline-retry');},_backoffMs);
   });
   function _updateCommandStatus(cs) {
-    const el = document.getElementById('command-status');
-    if (!el) return;
+    const lbl = document.getElementById('command-status');
+    const dot = document.getElementById('cmd-dot');
     if (cs.ok) {
       const ago = cs.lastOkAt ? Math.round((Date.now() - new Date(cs.lastOkAt).getTime()) / 1000) : 0;
       const agoStr = ago < 60 ? `${ago}秒前` : `${Math.round(ago/60)}分前`;
-      el.textContent = `指揮部 ${agoStr}`;
-      el.style.color = 'var(--green)';
+      if (lbl) { lbl.textContent = `指揮部 ${agoStr}`; lbl.style.color = ''; }
+      if (dot) dot.className = 'conn-dot ok';
     } else if (cs.lastOkAt) {
-      el.textContent = '指揮部 離線';
-      el.style.color = 'var(--red)';
+      if (lbl) { lbl.textContent = '指揮部 離線'; lbl.style.color = ''; }
+      if (dot) dot.className = 'conn-dot crit';
     } else {
-      el.textContent = '指揮部 未連線';
-      el.style.color = 'var(--text3)';
+      if (lbl) { lbl.textContent = '指揮部 未連線'; lbl.style.color = ''; }
+      if (dot) dot.className = 'conn-dot';
     }
   }
   function _updateDot(state){
@@ -2774,6 +2778,8 @@ const WsManager = (function(){
     if(!dot)return;
     const MAP={ok:'conn-dot ok',pending:'conn-dot warn',off:'conn-dot'};
     dot.className=MAP[state]||MAP.off;
+    const lbl=document.getElementById('sync-label');
+    if(lbl)lbl.textContent=state==='ok'?'Pi':'Pi '+(state==='pending'?'連線中':'離線');
   }
   function _updateLoginStatus(state, detail){
     const el=document.getElementById('login-pi-status');if(!el)return;
