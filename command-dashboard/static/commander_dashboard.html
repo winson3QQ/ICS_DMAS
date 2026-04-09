@@ -3319,7 +3319,14 @@ function _renderConnDots() {
     if (node && node.last_seen_at) {
       const secsAgo = Math.round((Date.now() - new Date(node.last_seen_at).getTime()) / 1000);
       const agoStr = secsAgo < 60 ? `${secsAgo} 秒前` : `${Math.round(secsAgo/60)} 分鐘前`;
-      tip += `\n最後推送：${agoStr}`;
+      tip += `\n最後心跳：${agoStr}`;
+      if (node.last_data_at) {
+        const dataAgo = Math.round((Date.now() - new Date(node.last_data_at).getTime()) / 1000);
+        const dataStr = dataAgo < 60 ? `${dataAgo} 秒前` : `${Math.round(dataAgo/60)} 分鐘前`;
+        tip += `\n最後資料：${dataStr}`;
+      } else {
+        tip += '\n尚無資料推送';
+      }
     } else if (node) {
       tip += '\n已註冊但從未推送';
     } else {

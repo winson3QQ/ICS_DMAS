@@ -188,7 +188,8 @@ CREATE TABLE IF NOT EXISTS pi_nodes (
     unit_id      TEXT PRIMARY KEY,           -- 'shelter' / 'medical' / ...
     label        TEXT NOT NULL,              -- 顯示名稱
     api_key      TEXT NOT NULL UNIQUE,       -- Bearer token (hex, 32 bytes)
-    last_seen_at TEXT,                       -- 最後一次成功推送時間
+    last_seen_at TEXT,                       -- 最後一次心跳/推送時間
+    last_data_at TEXT,                       -- 最後一次有資料推送時間
     created_at   TEXT NOT NULL,
     revoked_at   TEXT                        -- 非 NULL 代表已撤銷
 );
@@ -1237,7 +1238,7 @@ def list_pi_nodes() -> list[dict]:
     """列出所有 Pi 節點（api_key 只回傳末 8 碼）"""
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT unit_id, label, api_key, last_seen_at, created_at, revoked_at FROM pi_nodes"
+            "SELECT unit_id, label, api_key, last_seen_at, last_data_at, created_at, revoked_at FROM pi_nodes"
         ).fetchall()
     result = []
     for r in rows:
@@ -1282,12 +1283,22 @@ def validate_pi_push(unit_id: str, bearer_token: str) -> bool:
 
 
 def touch_pi_node(unit_id: str):
-    """更新 Pi 節點的 last_seen_at"""
+    """更新 Pi 節點的 last_seen_at（心跳）"""
     now = _now()
     with get_conn() as conn:
         conn.execute(
             "UPDATE pi_nodes SET last_seen_at=? WHERE unit_id=?",
             (now, unit_id)
+        )
+
+
+def touch_pi_node_data(unit_id: str):
+    """更新 Pi 節點的 last_seen_at + last_data_at（有資料推送）"""
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE pi_nodes SET last_seen_at=?, last_data_at=? WHERE unit_id=?",
+            (now, now, unit_id)
         )
 
 
@@ -1304,7 +1315,7 @@ def insert_pi_batch(unit_id: str, pushed_at: str, records_json: str) -> int:
                VALUES (?,?,?,?)""",
             (unit_id, pushed_at, now, records_json)
         )
-    touch_pi_node(unit_id)
+    touch_pi_node_data(unit_id)
     return cur.lastrowid
 
 
