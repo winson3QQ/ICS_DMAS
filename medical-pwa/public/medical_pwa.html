@@ -2940,6 +2940,13 @@ async function renderSettings(el) {
       </div>
     </div>
     <div class="settings-section">
+      <div class="settings-item danger" onclick="clearAllTestData()" style="border:1px solid var(--red);border-radius:8px;">
+        <span class="si-icon">🧹</span>
+        <div class="si-text"><div class="si-title" style="color:var(--red);">清除所有測試資料</div><div class="si-sub">清空所有表（傷患、檢傷、事件、物資、後送、班次、稽核），無法復原</div></div>
+        <span class="si-arrow">›</span>
+      </div>
+    </div>
+    <div class="settings-section">
       <div class="settings-item" onclick="doLogout()">
         <span class="si-icon">🔒</span>
         <div class="si-text"><div class="si-title">登出（切換角色）</div><div class="si-sub">清除 session，回到登入頁</div></div>
@@ -4433,6 +4440,17 @@ async function doQrSnapshot() {
       if (el) el.textContent = 'QR 產生失敗：' + (e.message || e);
     }
   }, 100);
+}
+
+async function clearAllTestData() {
+  if (_state.role !== '組長') { showToast('僅組長可執行'); return; }
+  const ok = confirm('清除所有測試資料\n\n將清空 IndexedDB 所有資料（傷患、檢傷、事件、物資、後送、班次、稽核日誌）。\n\n此操作無法復原，確定繼續？');
+  if (!ok) return;
+  const tables = ['patients', 'triages', 'incidents', 'resources', 'transfers', 'shifts', 'snapshots', 'audit_log'];
+  for (const t of tables) { if (db[t]) await db[t].clear(); }
+  showToast('✅ 所有測試資料已清除');
+  await loadPatients();
+  renderCurrentTab();
 }
 
 function doLogout() {
