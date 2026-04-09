@@ -682,8 +682,9 @@ canvas{display:block;width:100%!important;height:100%!important;}
           <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-flow-v">—</span><span class="spark-rag ok" id="sp-flow-rag"></span></span>
         </div>
         <div class="spark-detail" id="sp-flow-detail">
-          <div class="li"><div class="ld" style="background:#E74C3C"></div>SRT Red+</div>
-          <div class="li"><div class="ld" style="background:#FF8F00"></div>醫療紅傷</div>
+          <div class="li"><div class="ld" style="background:#E74C3C"></div>前進→醫</div>
+          <div class="li"><div class="ld" style="background:#F0883E"></div>收容→醫</div>
+          <div class="li"><div class="ld" style="background:#2E7D32"></div>自行抵達</div>
         </div>
         <div class="spark-body"><canvas id="sc2"></canvas></div>
       </div>
@@ -3423,11 +3424,10 @@ function renderSparklines(d) {
   const sa=d.srcA[N-1], sb=d.srcB[N-1], sc=d.srcC[N-1];
   const srcTotal = sa + sb + sc;
   const flowLvl = srcTotal >= 10 ? 'crit' : srcTotal >= 5 ? 'warn' : 'ok';
-  const flowParts = [];
-  if (sa > 0) flowParts.push('🚒前進:' + sa);
-  if (sb > 0) flowParts.push('🏠收容:' + sb);
-  if (sc > 0) flowParts.push('🚶自行:' + sc);
-  el('sp-flow-v').textContent = flowParts.length > 0 ? flowParts.join(' ') : '無傷患流入';
+  const flowText = srcTotal > 0
+    ? `入院${srcTotal}人` + (sa?` 前${sa}`:'') + (sb?` 收${sb}`:'') + (sc?` 自${sc}`:'')
+    : '無傷患流入';
+  el('sp-flow-v').textContent = flowText;
   el('sp-flow-v').style.cursor = 'pointer';
   el('sp-flow-v').onclick = function(e) { e.stopPropagation(); _openZoneByType('medical'); };
   setRag('sp-flow', flowLvl);
