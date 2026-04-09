@@ -156,10 +156,25 @@ type: project
 - shelter：`persons, beds, resources, incidents, shifts`
 - medical：`patients, triages, incidents, shifts, transfers`
 
+### Wave 4 後續改善（cmd-v0.8.0 之後）
+
+| 項目 | 說明 |
+|------|------|
+| Pi auto-seed | 首次啟動自動設定 admin PIN=1234 + 建立 admin 帳號（對齊 Command） |
+| Command 重設 DB | 設定面板「重設指揮部資料庫」按鈕（保留帳號和 Pi 節點） |
+| Medical 清除測試資料 | 對齊 Shelter 的 clearAllTestData()，設定頁按鈕 |
+| 傷患流向面板 | 接 Pi push source_type（A 前進/B 收容/C 自行），三色趨勢線 |
+| Pi→Command heartbeat | 無資料變更時也送 heartbeat，Command 維持連線燈 |
+| last_data_at | pi_nodes 區分心跳（last_seen_at）和資料推送（last_data_at） |
+| PWA header 重設計 | 雙燈雙行式對齊 Command（Pi 燈 + 指揮部燈，角色・帳號 + 版號 + 登出） |
+| heartbeat status check | 檢查 HTTP status code，403/401 正確顯示指揮部離線 |
+| Pi 斷線重設指揮部燈 | Pi 離線時指揮部燈同步變灰 |
+
 ### 技術備忘
 
 - HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.8.0`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.1.0`
+- Shelter PWA 版號 `v2.2.46`、Medical PWA 版號 `v0.6.5-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
 - DB schema 變更需刪除 `data/ics.db`
