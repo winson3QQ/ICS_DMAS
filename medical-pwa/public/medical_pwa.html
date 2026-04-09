@@ -1213,15 +1213,13 @@ const WsManager = (function(){
     const lbl = document.getElementById('command-status');
     const dot = document.getElementById('cmd-dot');
     if (cs.ok) {
-      const ago = cs.lastOkAt ? Math.round((Date.now() - new Date(cs.lastOkAt).getTime()) / 1000) : 0;
-      const agoStr = ago < 60 ? `${ago}秒前` : `${Math.round(ago/60)}分前`;
-      if (lbl) { lbl.textContent = `指揮部 ${agoStr}`; lbl.style.color = ''; }
+      if (lbl) lbl.textContent = '指揮部';
       if (dot) dot.className = 'conn-dot ok';
     } else if (cs.lastOkAt) {
-      if (lbl) { lbl.textContent = '指揮部 離線'; lbl.style.color = ''; }
+      if (lbl) lbl.textContent = '指揮部 離線';
       if (dot) dot.className = 'conn-dot crit';
     } else {
-      if (lbl) { lbl.textContent = '指揮部 未連線'; lbl.style.color = ''; }
+      if (lbl) lbl.textContent = '指揮部';
       if (dot) dot.className = 'conn-dot';
     }
   }
