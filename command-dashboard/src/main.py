@@ -870,6 +870,22 @@ def admin_update_role(username: str, role: str, request: Request):
     return {"ok": True}
 
 
+@app.post("/api/admin/reset-db", tags=["系統"])
+def admin_reset_db(request: Request):
+    """重設指揮部資料庫（清除快照、事件、Pi 批次等，保留帳號和 admin PIN）"""
+    _validate_admin_pin(request)
+    tables = ["snapshots", "events", "decisions", "predictions",
+              "manual_records", "sync_log", "pi_received_batches", "audit_log"]
+    with db.get_conn() as conn:
+        for t in tables:
+            try:
+                conn.execute(f"DELETE FROM {t}")
+            except Exception:
+                pass
+    db._audit("admin", None, "db_reset", None, None, {"tables": tables})
+    return {"ok": True, "cleared_tables": tables}
+
+
 @app.post("/api/admin/suspend-all", tags=["帳號管理"])
 def admin_suspend_all(request: Request):
     """緊急停用所有帳號"""

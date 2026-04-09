@@ -568,6 +568,11 @@ canvas{display:block;width:100%!important;height:100%!important;}
         <div class="si-text"><div class="si-title">稽核日誌</div><div class="si-sub">查看操作紀錄</div></div>
         <span class="si-arrow">&#x203A;</span>
       </div>
+      <div class="stg-item" onclick="confirmResetDB()" style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px;">
+        <span class="si-icon" style="color:var(--red);">&#9888;</span>
+        <div class="si-text"><div class="si-title" style="color:var(--red);">重設指揮部資料庫</div><div class="si-sub">清除所有快照、事件、Pi 批次（不影響 Pi 端資料）</div></div>
+        <span class="si-arrow">&#x203A;</span>
+      </div>
     </div>
     <div class="stg-section" id="stg-admin-section">
       <div class="stg-section-title">管理（僅指揮官）</div>
@@ -2513,6 +2518,22 @@ el('map-panel').addEventListener('click', async function(e) {
 // ══════════════════════════════════════════════════════════════
 let _zoneModalTab = 'data';
 let _zoneModalZone = null;
+
+async function confirmResetDB() {
+  closeSettings();
+  const ok = await appConfirm('重設指揮部資料庫', '將清除所有快照、事件、裁示、Pi 批次資料。\n帳號和 Pi 節點註冊不受影響。\n\n此操作無法復原，確定繼續？');
+  if (!ok) return;
+  const pin = prompt('請輸入管理員 PIN 確認：');
+  if (!pin) return;
+  try {
+    const resp = await authFetch(API_BASE + '/api/admin/reset-db', {
+      method: 'POST', headers: {'X-Admin-PIN': pin},
+    });
+    if (!resp.ok) { alert('重設失敗：' + (await resp.json()).detail); return; }
+    alert('資料庫已重設，頁面將重新整理。');
+    location.reload();
+  } catch(e) { alert('錯誤：' + e.message); }
+}
 
 async function showIpiBreakdown() {
   // 從各組 Pi push 收集所有未結組內事件
