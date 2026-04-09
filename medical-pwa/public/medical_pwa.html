@@ -151,11 +151,20 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 .adm-btn-del{border-color:var(--red);color:var(--red);}
 .adm-btn-toggle{border-color:var(--orange);color:var(--orange);}
 /* ── App shell ── */
-#app-header{height:var(--hdr-h);background:var(--surface);color:var(--text);border-bottom:3px solid var(--primary);display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0;position:relative;z-index:10;}
-.hdr-left{display:flex;flex-direction:column;gap:1px;}
-.hdr-right{display:flex;align-items:center;gap:8px;}
-.hdr-title{font-size:16px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:4px;}
-.hdr-idle{font-size:11px;color:var(--text3);}
+#app-header{height:var(--hdr-h);background:var(--surface);color:var(--text);border-bottom:2px solid var(--primary);display:flex;align-items:center;padding:0 12px;flex-shrink:0;position:relative;z-index:10;gap:6px;}
+.hdr-title{font-size:15px;font-weight:700;color:var(--primary);flex-shrink:0;}
+.hdr-status{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.hdr-conn{display:flex;align-items:center;gap:4px;cursor:pointer;}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0;}
+.conn-dot.ok{background:#00d466;box-shadow:0 0 6px #00d466;}
+.conn-dot.warn{background:var(--yellow);box-shadow:0 0 6px var(--yellow);animation:blink 1s infinite;}
+.conn-dot.crit{background:var(--red);box-shadow:0 0 6px var(--red);animation:blink .6s infinite;}
+.conn-label{font-size:9px;color:var(--text3);}
+.hdr-user{font-weight:600;font-size:11px;color:var(--primary);background:var(--red-bg);padding:2px 8px;border-radius:8px;white-space:nowrap;}
+.hdr-idle{color:var(--text3);font-size:10px;white-space:nowrap;}
+.hdr-ver{color:var(--text3);font-size:9px;white-space:nowrap;}
+.hdr-logout{padding:2px 8px;border:1px solid var(--primary);border-radius:4px;background:transparent;color:var(--primary);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 #alert-banner{display:none;background:var(--red);color:#fff;padding:8px 14px;font-size:13px;font-weight:600;flex-shrink:0;z-index:9;}
 #alert-banner.warn{background:var(--orange);}
 #app-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
@@ -357,15 +366,16 @@ input,select,textarea{font-family:inherit;font-size:16px;}
 <!-- ══ APP ═══════════════════════════════════════════════════════ -->
 <div id="app" class="hidden">
   <div id="app-header">
-    <div class="hdr-left">
-      <div class="hdr-title"><svg width="20" height="20" viewBox="0 0 88 88" style="flex-shrink:0;"><path d="M34,4 h20 a3,3 0 0 1 3,3 v23 h23 a3,3 0 0 1 3,3 v20 a3,3 0 0 1 -3,3 h-23 v23 a3,3 0 0 1 -3,3 h-20 a3,3 0 0 1 -3,-3 v-23 h-23 a3,3 0 0 1 -3,-3 v-20 a3,3 0 0 1 3,-3 h23 v-23 a3,3 0 0 1 3,-3 z" fill="none" stroke="var(--primary)" stroke-width="6"/></svg>醫療組</div>
-      <span id="sync-dot" title="同步狀態（點擊查看 WS log）" style="font-size:11px;cursor:pointer;" onclick="document.getElementById('debug-log-panel')?.classList.toggle('hidden')">⚫</span>
-      <span id="command-status" style="font-size:9px;color:var(--text3);">指揮部 未連線</span>
-    </div>
-    <div class="hdr-right">
-      <span id="hdr-role" style="display:flex;flex-direction:column;align-items:center;font-size:13px;font-weight:700;background:var(--red-bg);color:var(--primary);padding:3px 10px;border-radius:12px;line-height:1.3;"></span>
-      <span id="idle-countdown" style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;min-width:32px;text-align:right;"></span>
-      <button onclick="doLogout()" style="background:transparent;border:1.5px solid var(--primary);color:var(--primary);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">登出</button>
+    <span class="hdr-title">醫療組</span>
+    <div class="hdr-status">
+      <span class="hdr-conn" onclick="document.getElementById('debug-log-panel')?.classList.toggle('hidden')" title="點擊顯示連線 log">
+        <span class="conn-dot" id="sync-dot"></span>
+        <span class="conn-label" id="command-status">指揮部 未連線</span>
+      </span>
+      <span class="hdr-user" id="hdr-role"></span>
+      <span class="hdr-idle" id="idle-countdown"></span>
+      <span class="hdr-ver" id="pwa-ver-hdr"></span>
+      <button class="hdr-logout" onclick="doLogout()">登出</button>
     </div>
   </div>
 
@@ -720,7 +730,8 @@ async function enterDemoMode(role) {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
-  document.getElementById('hdr-role').innerHTML = `<span>${role}・${name}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">展示 ${loginTime}</span>`;
+  document.getElementById('hdr-role').textContent = `${role}・${name}`;
+  document.getElementById('hdr-role').title = `展示 ${loginTime}`;
   startIdleTimer();
   _state.currentTab = role === '組長' ? 'dashboard' : 'intake';
   document.querySelectorAll('.tab-item').forEach(el => el.classList.toggle('active', el.dataset.tab === _state.currentTab));
@@ -833,7 +844,10 @@ function showApp(acct) {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   const loginTime = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
-  document.getElementById('hdr-role').innerHTML = `<span>${acct.role}・${_state.operatorName}</span><span style="font-size:9px;font-weight:400;opacity:.7;margin-top:1px;">登入 ${loginTime}</span>`;
+  document.getElementById('hdr-role').textContent = `${acct.role}・${_state.operatorName}`;
+  document.getElementById('hdr-role').title = `登入 ${loginTime}`;
+  const _verEl = document.getElementById('pwa-ver-hdr');
+  if (_verEl) _verEl.textContent = 'medical-' + PWA_VERSION;
   // 組長才顯示設定 tab
   const settingsTab = document.getElementById('tab-settings');
   if (settingsTab) settingsTab.style.display = (acct.role === '組長') ? '' : 'none';
@@ -960,7 +974,7 @@ const SyncManager = (() => {
   const CHANNEL='medical-sync-v1', TABLES=['patients','triages','incidents','shifts'], DEVICE_KEY='med_device_id';
   let _bc=null, _deviceId=null, _log=[];
   function deviceId(){if(!_deviceId){_deviceId=localStorage.getItem(DEVICE_KEY);if(!_deviceId){_deviceId='dev-'+Math.random().toString(36).slice(2,9);localStorage.setItem(DEVICE_KEY,_deviceId);}}return _deviceId;}
-  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:['🟢','伺服器已連線'],pending:['🟡','伺服器連線中…'],off:['⚫','伺服器離線']};const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;}
+  function updateDot(state){const dot=document.getElementById('sync-dot');if(!dot)return;const MAP={ok:'conn-dot ok',pending:'conn-dot warn',off:'conn-dot'};dot.className=MAP[state]||MAP.off;}
   function broadcast(table,record){if(!_bc||!record)return;const delta={src:deviceId(),table,action:'upsert',record:JSON.parse(JSON.stringify(record)),ts:record.updated_at||record.timestamp||new Date().toISOString(),sent_at:new Date().toISOString()};_bc.postMessage(delta);_logDelta(delta);updateDot('ok');}
   async function applyDelta(delta){
     if(delta.src===deviceId())return;const{table,record}=delta;if(!TABLES.includes(table)||!record)return;_logDelta(delta);
@@ -1209,12 +1223,10 @@ const WsManager = (function(){
   }
   function _updateDot(state){
     const dot=document.getElementById('sync-dot');
-    const prev=dot?dot.textContent:'(no-dot)';
-    const caller=(new Error().stack||'').split('\n').slice(1,3).map(s=>s.trim()).join(' | ');
-    _wsLog.debug(`[dot] ${prev} → ${state} | ${caller}`);
+    _wsLog.debug(`[dot] → ${state}`);
     if(!dot)return;
-    const MAP={ok:['🟢','伺服器已連線'],pending:['🟡','伺服器連線中…'],off:['⚫','伺服器離線']};
-    const[icon,tip]=MAP[state]||MAP.off;dot.textContent=icon;dot.title=tip;
+    const MAP={ok:'conn-dot ok',pending:'conn-dot warn',off:'conn-dot'};
+    dot.className=MAP[state]||MAP.off;
   }
   function _updateLoginStatus(state, detail){
     const el=document.getElementById('login-pi-status');if(!el)return;
