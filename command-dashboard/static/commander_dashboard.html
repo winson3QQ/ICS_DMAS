@@ -1515,11 +1515,13 @@ async function loadL3Records(unitId) {
       const colorLabels = {red:'紅',yellow:'黃',green:'綠',black:'黑'};
       const colorBg = {red:'#cc2a2a',yellow:'#c8a82a',green:'#2a8c2a',black:'#333'};
       // 階段分類
+      const isActive = p => p.current_zone!=='已離區' && p.disposition!=='離開' && p.disposition!=='死亡';
       const stages = [
-        {key:'triaged', label:'待評估', fn: p => p.care_status==='triaged' && p.disposition!=='後送' && p.current_zone!=='已離區'},
-        {key:'assessed', label:'治療中', fn: p => (p.care_status==='assessed'||p.care_status==='monitoring') && p.disposition!=='後送' && p.current_zone!=='已離區'},
-        {key:'evac', label:'待後送', fn: p => p.disposition==='後送' && p.current_zone!=='已離區'},
-        {key:'gone', label:'已離區', fn: p => p.current_zone==='已離區' || p.disposition==='離開' || p.disposition==='死亡'},
+        {key:'triaged', label:'待評估', fn: p => (p.care_status||'triaged')==='triaged' && p.disposition!=='留觀' && p.disposition!=='後送' && isActive(p)},
+        {key:'assessed', label:'治療中', fn: p => p.care_status==='assessed' && p.disposition!=='後送' && isActive(p)},
+        {key:'monitoring', label:'留觀', fn: p => (p.care_status==='monitoring' || p.disposition==='留觀') && p.disposition!=='後送' && isActive(p)},
+        {key:'evac', label:'待後送', fn: p => p.disposition==='後送' && isActive(p)},
+        {key:'gone', label:'已離區', fn: p => !isActive(p)},
       ];
       html += `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;text-align:center;">`;
       html += `<tr style="background:var(--surface2);"><td></td>${stages.map(s=>`<td style="padding:4px 6px;font-weight:700;color:var(--text2);">${s.label}</td>`).join('')}<td style="padding:4px 6px;font-weight:700;color:var(--text);">合計</td></tr>`;
