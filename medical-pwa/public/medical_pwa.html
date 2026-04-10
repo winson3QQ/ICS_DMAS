@@ -703,7 +703,7 @@ async function seedAccounts() {
 ════════════════════════════════════════════════════════════════ */
 async function initLogin() {
   const vEl = document.getElementById('login-version-str');
-  if (vEl) vEl.textContent = `醫療組 PWA ${PWA_VERSION} · 規格 v0.4`;
+  if (vEl) vEl.textContent = `醫療組 PWA ${PWA_VERSION} · 規格 v0.6`;
   // 展示模式偵測
   const _isDemo = location.hostname.includes('github.io') || location.hostname.includes('localhost') || location.search.includes('demo=1');
   if (_isDemo) { const demoEl = document.getElementById('demo-btn-section'); if (demoEl) demoEl.style.display = 'block'; }
@@ -2988,7 +2988,7 @@ async function renderSettings(el) {
       </div>
     </div>
     <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;margin-bottom:20px;">
-      醫療組 PWA ${PWA_VERSION} · 規格 v0.4
+      醫療組 PWA ${PWA_VERSION} · 規格 v0.6
     </div>
   `;
 }

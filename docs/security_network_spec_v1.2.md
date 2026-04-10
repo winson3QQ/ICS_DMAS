@@ -1,7 +1,7 @@
 # ICS_DMAS 安全與網路架構規格
 # Security & Network Architecture Specification v1.2
 
-整合對象：指揮部儀表板設計規格 v1.1、收容組規格 v2.2、民防輔助感知系統規格 v1.3
+整合對象：指揮部儀表板設計規格 v1.4、收容組規格 v2.7、民防輔助感知系統規格 v1.4
 
 ---
 
