@@ -273,7 +273,7 @@ def init_db():
 # SNAPSHOT CRUD
 # ──────────────────────────────────────────
 
-def upsert_snapshot(data: dict) -> dict:
+def upsert_snapshot(data: dict, session_type: str = "real") -> dict:
     """
     寫入一筆快照。若 snapshot_id 已存在則忽略（idempotent）。
     回傳 {inserted: bool, id: int}
@@ -292,9 +292,9 @@ def upsert_snapshot(data: dict) -> dict:
             (snapshot_id, snapshot_time, node_type, source,
              casualties_red, casualties_yellow, casualties_green, casualties_black,
              bed_used, bed_total, waiting_count, pending_evac,
-             vehicle_available, staff_on_duty, extra, received_at)
+             vehicle_available, staff_on_duty, extra, received_at, session_type)
         VALUES
-            (?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?)
+            (?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, ?,?)
     """
     casualties = data.get("casualties") or {}
     with get_conn() as conn:
@@ -315,29 +315,31 @@ def upsert_snapshot(data: dict) -> dict:
             data.get("staff_on_duty"),
             json.dumps(extra, ensure_ascii=False) if extra else None,
             now,
+            session_type,
         ))
         inserted = cur.rowcount > 0
         row_id   = cur.lastrowid if inserted else None
 
     _audit("system", None, "snapshot_received",
            "snapshots", data["snapshot_id"],
-           {"node_type": data["node_type"], "source": data.get("source","auto"), "inserted": inserted})
+           {"node_type": data["node_type"], "source": data.get("source","auto"), "inserted": inserted},
+           session_type=session_type)
 
     return {"inserted": inserted, "snapshot_id": data["snapshot_id"]}
 
 
-def get_snapshots(node_type: str, limit: int = 20) -> list[dict]:
+def get_snapshots(node_type: str, limit: int = 20, session_type: str = "real") -> list[dict]:
     """取最近 N 筆快照（依 snapshot_time 倒序）"""
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM snapshots WHERE node_type=? ORDER BY snapshot_time DESC LIMIT ?",
-            (node_type, limit)
+            "SELECT * FROM snapshots WHERE node_type=? AND session_type=? ORDER BY snapshot_time DESC LIMIT ?",
+            (node_type, session_type, limit)
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-def get_latest_snapshot(node_type: str) -> dict | None:
-    rows = get_snapshots(node_type, limit=1)
+def get_latest_snapshot(node_type: str, session_type: str = "real") -> dict | None:
+    rows = get_snapshots(node_type, limit=1, session_type=session_type)
     return rows[0] if rows else None
 
 
@@ -345,7 +347,7 @@ def get_latest_snapshot(node_type: str) -> dict | None:
 # EVENT CRUD
 # ──────────────────────────────────────────
 
-def create_event(data: dict) -> dict:
+def create_event(data: dict, session_type: str = "real") -> dict:
     eid = str(uuid.uuid4())
     now = _now()
     severity = data.get("severity", "info")
@@ -365,12 +367,12 @@ def create_event(data: dict) -> dict:
             (id, event_code, reported_by_unit, location_desc, location_zone_id,
              event_type, severity, status, response_type, response_deadline,
              needs_commander_decision, description,
-             related_person_name, occurred_at, operator_name, created_at)
+             related_person_name, occurred_at, operator_name, created_at, session_type)
         VALUES (?,
             (SELECT ? || printf('%03d',
                 COALESCE(MAX(CAST(SUBSTR(event_code, -3) AS INTEGER)), 0) + 1)
-             FROM events WHERE event_code LIKE ?),
-            ?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?)
+             FROM events WHERE event_code LIKE ? AND session_type=?),
+            ?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?,?)
     """
 
     max_retries = 10
@@ -379,7 +381,7 @@ def create_event(data: dict) -> dict:
             with get_conn() as conn:
                 conn.execute(sql, (
                     eid,
-                    prefix, prefix + "%",
+                    prefix, prefix + "%", session_type,
                     data["reported_by_unit"],
                     data.get("location_desc"),
                     data.get("location_zone_id"),
@@ -394,6 +396,7 @@ def create_event(data: dict) -> dict:
                     occurred,
                     data["operator_name"],
                     now,
+                    session_type,
                 ))
                 # 取回實際產生的 event_code
                 row = conn.execute("SELECT event_code FROM events WHERE id=?", (eid,)).fetchone()
@@ -408,7 +411,8 @@ def create_event(data: dict) -> dict:
             raise
 
     _audit(data["operator_name"], None, "event_created",
-           "events", eid, {"event_code": event_code, "event_type": data["event_type"], "severity": severity})
+           "events", eid, {"event_code": event_code, "event_type": data["event_type"], "severity": severity},
+           session_type=session_type)
     return {"id": eid, "event_code": event_code, "response_deadline": response_deadline}
 
 
@@ -421,20 +425,20 @@ def _add_minutes(iso_str: str, minutes: int) -> str:
     return result.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def get_events(status: str | None = None, limit: int = 50) -> list[dict]:
+def get_events(status: str | None = None, limit: int = 50, session_type: str = "real") -> list[dict]:
     with get_conn() as conn:
         if status:
             rows = conn.execute(
-                "SELECT * FROM events WHERE status=? ORDER BY occurred_at DESC LIMIT ?",
-                (status, limit)).fetchall()
+                "SELECT * FROM events WHERE status=? AND session_type=? ORDER BY occurred_at DESC LIMIT ?",
+                (status, session_type, limit)).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM events ORDER BY occurred_at DESC LIMIT ?",
-                (limit,)).fetchall()
+                "SELECT * FROM events WHERE session_type=? ORDER BY occurred_at DESC LIMIT ?",
+                (session_type, limit)).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-def update_event_status(event_id: str, status: str, operator: str):
+def update_event_status(event_id: str, status: str, operator: str, session_type: str = "real"):
     """更新事件狀態，含狀態機防護 + json_insert 原子追加 notes"""
     valid_transitions = {
         "open":        {"in_progress", "resolved", "closed"},
@@ -448,7 +452,7 @@ def update_event_status(event_id: str, status: str, operator: str):
     note_json = json.dumps({"time": now, "text": f"狀態變更為「{status_label}」", "by": operator}, ensure_ascii=False)
 
     with get_conn() as conn:
-        row = conn.execute("SELECT status FROM events WHERE id=?", (event_id,)).fetchone()
+        row = conn.execute("SELECT status FROM events WHERE id=? AND session_type=?", (event_id, session_type)).fetchone()
         if not row:
             raise ValueError(f"事件 {event_id} 不存在")
         current = row["status"]
@@ -460,25 +464,26 @@ def update_event_status(event_id: str, status: str, operator: str):
             conn.execute(
                 """UPDATE events SET status=?, resolved_at=?,
                    notes = json_insert(COALESCE(notes, '[]'), '$[#]', json(?))
-                   WHERE id=?""",
-                (status, now, note_json, event_id)
+                   WHERE id=? AND session_type=?""",
+                (status, now, note_json, event_id, session_type)
             )
         else:
             conn.execute(
                 """UPDATE events SET status=?,
                    notes = json_insert(COALESCE(notes, '[]'), '$[#]', json(?))
-                   WHERE id=?""",
-                (status, note_json, event_id)
+                   WHERE id=? AND session_type=?""",
+                (status, note_json, event_id, session_type)
             )
-    _audit(operator, None, "event_status_updated", "events", event_id, {"status": status})
+    _audit(operator, None, "event_status_updated", "events", event_id, {"status": status},
+           session_type=session_type)
 
 
-def add_event_note(event_id: str, text: str, operator: str) -> dict:
+def add_event_note(event_id: str, text: str, operator: str, session_type: str = "real") -> dict:
     """追加處置紀錄，使用 json_insert 原子操作避免併發覆蓋"""
     now = _now()
     note_json = json.dumps({"time": now, "text": text, "by": operator}, ensure_ascii=False)
     with get_conn() as conn:
-        row = conn.execute("SELECT status FROM events WHERE id=?", (event_id,)).fetchone()
+        row = conn.execute("SELECT status FROM events WHERE id=? AND session_type=?", (event_id, session_type)).fetchone()
         if not row:
             raise ValueError(f"Event {event_id} not found")
         # 追加紀錄時自動改為「處理中」
@@ -487,15 +492,16 @@ def add_event_note(event_id: str, text: str, operator: str) -> dict:
             """UPDATE events SET
                notes = json_insert(COALESCE(notes, '[]'), '$[#]', json(?)),
                status = ?
-               WHERE id = ?""",
-            (note_json, new_status, event_id)
+               WHERE id = ? AND session_type=?""",
+            (note_json, new_status, event_id, session_type)
         )
         cnt_row = conn.execute(
-            "SELECT json_array_length(COALESCE(notes, '[]')) as cnt FROM events WHERE id=?",
-            (event_id,)
+            "SELECT json_array_length(COALESCE(notes, '[]')) as cnt FROM events WHERE id=? AND session_type=?",
+            (event_id, session_type)
         ).fetchone()
     _audit(operator, None, "event_note_added", "events", event_id,
-           {"text": text[:50]})
+           {"text": text[:50]},
+           session_type=session_type)
     return {"ok": True, "notes_count": cnt_row["cnt"] if cnt_row else 0}
 
 
@@ -503,7 +509,7 @@ def add_event_note(event_id: str, text: str, operator: str) -> dict:
 # DECISION CRUD
 # ──────────────────────────────────────────
 
-def create_decision(data: dict) -> dict:
+def create_decision(data: dict, session_type: str = "real") -> dict:
     did = str(uuid.uuid4())
     now = _now()
 
@@ -515,8 +521,8 @@ def create_decision(data: dict) -> dict:
             rows = conn.execute(
                 "SELECT COUNT(*) as cnt FROM decisions WHERE "
                 "parent_decision_id IS NOT NULL AND "
-                "(id=? OR parent_decision_id=?)",
-                (data["parent_decision_id"], data["parent_decision_id"])
+                "(id=? OR parent_decision_id=?) AND session_type=?",
+                (data["parent_decision_id"], data["parent_decision_id"], session_type)
             ).fetchone()
         seq = (rows["cnt"] or 0) + 2
 
@@ -525,8 +531,8 @@ def create_decision(data: dict) -> dict:
             (id, primary_event_id, decision_seq, parent_decision_id,
              decision_type, severity, decision_title, impact_description,
              suggested_action_a, suggested_action_b, status,
-             created_by, created_at)
-        VALUES (?,?,?,?, ?,?,?,?, ?,?,?, ?,?)
+             created_by, created_at, session_type)
+        VALUES (?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?)
     """
     with get_conn() as conn:
         conn.execute(sql, (
@@ -543,21 +549,24 @@ def create_decision(data: dict) -> dict:
             "pending",
             data["created_by"],
             now,
+            session_type,
         ))
         # 若有 parent，將上一筆標記為 superseded
         if data.get("parent_decision_id"):
             conn.execute(
-                "UPDATE decisions SET status='superseded', superseded_by=? WHERE id=?",
-                (did, data["parent_decision_id"])
+                "UPDATE decisions SET status='superseded', superseded_by=? WHERE id=? AND session_type=?",
+                (did, data["parent_decision_id"], session_type)
             )
 
     _audit(data["created_by"], None, "decision_created", "decisions", did,
            {"title": data["decision_title"], "severity": data["severity"],
-            "type": data["decision_type"]})
+            "type": data["decision_type"]},
+           session_type=session_type)
     return {"id": did}
 
 
-def decide(decision_id: str, action: str, decided_by: str, execution_note: str = "") -> dict:
+def decide(decision_id: str, action: str, decided_by: str, execution_note: str = "",
+           session_type: str = "real") -> dict:
     """
     action: approved / hold / redirect / completed
     Write-Freeze 後不可再修改（除非是 closure 新增一筆）
@@ -568,30 +577,32 @@ def decide(decision_id: str, action: str, decided_by: str, execution_note: str =
 
     now = _now()
     with get_conn() as conn:
-        row = conn.execute("SELECT status FROM decisions WHERE id=?", (decision_id,)).fetchone()
+        row = conn.execute("SELECT status FROM decisions WHERE id=? AND session_type=?", (decision_id, session_type)).fetchone()
         if not row:
             raise ValueError("Decision not found")
         if row["status"] not in ("pending",):
             raise ValueError(f"Decision already decided: {row['status']}")
         conn.execute(
-            "UPDATE decisions SET status=?, decided_by=?, decided_at=?, execution_note=? WHERE id=?",
-            (action, decided_by, now, execution_note, decision_id)
+            "UPDATE decisions SET status=?, decided_by=?, decided_at=?, execution_note=? WHERE id=? AND session_type=?",
+            (action, decided_by, now, execution_note, decision_id, session_type)
         )
 
     _audit(decided_by, None, "decision_made", "decisions", decision_id,
-           {"action": action, "execution_note": execution_note})
+           {"action": action, "execution_note": execution_note},
+           session_type=session_type)
     return {"id": decision_id, "status": action, "decided_at": now}
 
 
-def get_decisions(status: str | None = None) -> list[dict]:
+def get_decisions(status: str | None = None, session_type: str = "real") -> list[dict]:
     with get_conn() as conn:
         if status:
             rows = conn.execute(
-                "SELECT * FROM decisions WHERE status=? ORDER BY created_at DESC",
-                (status,)).fetchall()
+                "SELECT * FROM decisions WHERE status=? AND session_type=? ORDER BY created_at DESC",
+                (status, session_type)).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM decisions ORDER BY created_at DESC").fetchall()
+                "SELECT * FROM decisions WHERE session_type=? ORDER BY created_at DESC",
+                (session_type,)).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
@@ -600,25 +611,27 @@ def get_decisions(status: str | None = None) -> list[dict]:
 # ──────────────────────────────────────────
 
 def _audit(operator: str, device_id: str | None,
-           action_type: str, target_table: str, target_id: str, detail: dict):
+           action_type: str, target_table: str, target_id: str, detail: dict,
+           session_type: str = "real"):
     sql = """
         INSERT INTO audit_log
-            (operator, device_id, action_type, target_table, target_id, detail, created_at)
-        VALUES (?,?,?,?,?,?,?)
+            (operator, device_id, action_type, target_table, target_id, detail, created_at, session_type)
+        VALUES (?,?,?,?,?,?,?,?)
     """
     with get_conn() as conn:
         conn.execute(sql, (
             operator, device_id, action_type,
             target_table, str(target_id),
             json.dumps(detail, ensure_ascii=False),
-            _now()
+            _now(),
+            session_type,
         ))
 
 
-def get_audit_log(limit: int = 100) -> list[dict]:
+def get_audit_log(limit: int = 100, session_type: str = "real") -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?", (limit,)
+            "SELECT * FROM audit_log WHERE session_type=? ORDER BY created_at DESC LIMIT ?", (session_type, limit)
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
@@ -646,7 +659,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 # MANUAL RECORDS CRUD
 # ──────────────────────────────────────────
 
-def create_manual_record(data: dict) -> dict:
+def create_manual_record(data: dict, session_type: str = "real") -> dict:
     """
     儲存一筆手動輸入記錄。
     適用於沒有直接對應 API 端點的表單：
@@ -660,8 +673,8 @@ def create_manual_record(data: dict) -> dict:
     sql = """
         INSERT INTO manual_records
             (id, form_id, form_type, target_table, operator,
-             summary, payload, sync_status, submitted_at)
-        VALUES (?,?,?,?,?, ?,?,?,?)
+             summary, payload, sync_status, submitted_at, session_type)
+        VALUES (?,?,?,?,?, ?,?,?,?,?)
     """
     with get_conn() as conn:
         conn.execute(sql, (
@@ -674,24 +687,26 @@ def create_manual_record(data: dict) -> dict:
             json.dumps(payload, ensure_ascii=False),
             "pending",
             now,
+            session_type,
         ))
 
     _audit(data["operator"], data.get("device_id"),
            "manual_input", "manual_records", rid,
-           {"form_id": data["form_id"], "summary": data.get("summary")})
+           {"form_id": data["form_id"], "summary": data.get("summary")},
+           session_type=session_type)
     return {"id": rid, "submitted_at": now}
 
 
-def get_manual_records(sync_status: str | None = None, limit: int = 100) -> list[dict]:
+def get_manual_records(sync_status: str | None = None, limit: int = 100, session_type: str = "real") -> list[dict]:
     with get_conn() as conn:
         if sync_status:
             rows = conn.execute(
-                "SELECT * FROM manual_records WHERE sync_status=? ORDER BY submitted_at DESC LIMIT ?",
-                (sync_status, limit)).fetchall()
+                "SELECT * FROM manual_records WHERE sync_status=? AND session_type=? ORDER BY submitted_at DESC LIMIT ?",
+                (sync_status, session_type, limit)).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM manual_records ORDER BY submitted_at DESC LIMIT ?",
-                (limit,)).fetchall()
+                "SELECT * FROM manual_records WHERE session_type=? ORDER BY submitted_at DESC LIMIT ?",
+                (session_type, limit)).fetchall()
     result = []
     for r in rows:
         d = _row_to_dict(r)
@@ -704,13 +719,14 @@ def get_manual_records(sync_status: str | None = None, limit: int = 100) -> list
     return result
 
 
-def mark_manual_record_synced(record_id: str, operator: str):
+def mark_manual_record_synced(record_id: str, operator: str, session_type: str = "real"):
     with get_conn() as conn:
         conn.execute(
-            "UPDATE manual_records SET sync_status='synced', synced_at=? WHERE id=?",
-            (_now(), record_id)
+            "UPDATE manual_records SET sync_status='synced', synced_at=? WHERE id=? AND session_type=?",
+            (_now(), record_id, session_type)
         )
-    _audit(operator, None, "manual_record_synced", "manual_records", record_id, {})
+    _audit(operator, None, "manual_record_synced", "manual_records", record_id, {},
+           session_type=session_type)
 
 
 # ──────────────────────────────────────────
