@@ -18,7 +18,7 @@
 | **適用範圍** | 鄉鎮層防災演訓及實際災害應變之據點醫療站 |
 | **機密層級** | C（依上游文件沿用內部使用層級） |
 | **預計輸出** | medical_pwa.html + sw.js + ics_ws_server.js（共用） |
-| **上游文件** | 醫療組SOP_20260323.md、security_network_spec_v1.2.md、shelter_pwa_spec_v2_3.md |
+| **上游文件** | 醫療組SOP_20260323.md、security_network_spec_v1.2.md、shelter_pwa_spec.md |
 
 ---
 
@@ -69,7 +69,7 @@
 **依據文件：**
 
 - \[密級C\] 醫療組SOP_20260323.md
-- shelter_pwa_spec_v2_3.md
+- shelter_pwa_spec.md
 - shelter_pwa.html / shelter_ws_server.js / sw.js
 - security_network_spec_v1.2.md（★ v0.2 新增整合）
 
@@ -97,7 +97,7 @@
 
 **收容組 PWA** 則提供可沿用的系統骨架：PWA 離線安裝、IndexedDB 本機資料庫、角色視角、儀表板、物資追蹤、交班快照、匯出加密、PIN 鎖、假名化與 WebSocket 區網同步。
 
-**安全與網路架構規格 v1.2**（★ v0.2 新增）定義醫療組 Pi（RPi 4B）作為 ICS_DMAS 系統節點的：三情境網路架構、靜態 IP（192.168.100.30）、LUKS 加密、mkcert TLS 憑證、WireGuard VPN、非中國品牌硬體清單，以及與指揮部 Mini PC 的整合關係。
+**安全與網路架構規格 v1.2**（★ v0.2 新增）定義醫療組 Pi（Pi 500）作為 ICS_DMAS 系統節點的：三情境網路架構、靜態 IP（192.168.100.30）、LUKS 加密、mkcert TLS 憑證、WireGuard VPN、非中國品牌硬體清單，以及與指揮部 Pi 500 的整合關係。
 
 ### 0.3　從 SOP 到系統物件的轉換
 
@@ -642,7 +642,7 @@ SOP 明確要求每 30 分鐘回報醫療量能，但未規定系統燈號門檻
 
 **情境 1B 補充：WireGuard VPN**（Jason Donenfeld 開發，美國，已併入 Linux kernel 5.6，無中國關聯）
 
-- Mini PC 開 WireGuard server，監聽 UDP 51820。
+- 指揮部 Pi 500 開 WireGuard server，監聽 UDP 51820。
 - 手機連入後視為同一虛擬 LAN，後續通訊與情境 1A / 2 相同。
 - 每台手機一組金鑰對，設定以 QR code 分發。
 
@@ -652,13 +652,13 @@ SOP 明確要求每 30 分鐘回報醫療量能，但未規定系統燈號門檻
 
 | 節點 | 加密對象 | 金鑰管理 |
 |------|----------|----------|
-| 指揮部 Mini PC | OS 碟 + Data Cartridge | YubiKey（主）+ 備援密碼（雙人原則） |
+| 指揮部 Pi 500 | OS 碟 + Data Cartridge | YubiKey（主）+ 備援密碼（雙人原則） |
 | 醫療組 Pi（本節點） | Data 分區（/data） | 演訓前設定 passphrase，任務結束後銷毀 |
 | Field Node | MicroSD | Panic 長按 5 秒快速格式化 |
 
-**Panic Wipe**：Mini PC / Pi 執行 `cryptsetup luksErase`，0.5 秒內 Header 抹除，資料永久遺失。Panic 按鈕需有防誤觸保護蓋。
+**Panic Wipe**：Pi 500 執行 `cryptsetup luksErase`，0.5 秒內 Header 抹除，資料永久遺失。Panic 按鈕需有防誤觸保護蓋。
 
-開發階段（Mac）：使用 FileVault 全磁碟加密。LUKS 僅在 Pi / Mini PC 正式部署時設定。
+開發階段（Mac）：使用 FileVault 全磁碟加密。LUKS 僅在 Pi 正式部署時設定。
 
 ### 7.4　API 驗證
 
@@ -673,7 +673,7 @@ SOP 明確要求每 30 分鐘回報醫療量能，但未規定系統燈號門檻
 
 依 security_network_spec_v1_2 §2.2，所有節點硬體必須符合非中國品牌要求。與醫療組直接相關的項目如下（完整清單見附錄 D）。
 
-- 醫療組 Pi：Raspberry Pi 4B（英國 Raspberry Pi Foundation）✅
+- 醫療組 Pi：Raspberry Pi 500（英國 Raspberry Pi Foundation）✅
 - 醫療組手機/平板：Apple iPhone / iPad、Samsung Galaxy、Google Pixel ✅
 - 禁止：Huawei、Xiaomi、OPPO、Vivo ❌
 - WiFi（自建網路情境）：ASUS、Netgear、Mikrotik ✅；禁止 TP-Link、GL.iNet ❌
@@ -693,11 +693,11 @@ Field Node (Pi Zero 2W)
 PTT 錄音 → 本機 Whisper STT → 上傳指揮部
 
 【收容組】                          【指揮部 Console】
-收容組 Pi (RPi 4B) ─────────→       Mini PC (Intel N100)
+收容組 Pi (Pi 500) ─────────→        Pi 500
 手機 PWA ↕ WebSocket                 - ICS_DMAS 指揮部儀表板
 
 【醫療組】★ 本文件節點               - 民防感知系統 Console
-醫療組 Pi (RPi 4B) ─────────→        - SQLite（LUKS 加密）
+醫療組 Pi (Pi 500) ─────────→        - SQLite（LUKS 加密）
 手機 PWA ↕ WebSocket                 - 幕僚版儀表板
 IP: 192.168.100.30
 ```
@@ -707,8 +707,8 @@ IP: 192.168.100.30
 | 資料類型 | 所有權 | 儲存位置 |
 |----------|--------|----------|
 | 完整醫療人員名單 | 醫療組 Pi | 醫療組 Pi SQLite（LUKS 加密） |
-| 完整人員名單（同步後） | 指揮部 | Mini PC SQLite（LUKS 加密） |
-| QR 快照 aggregate | 指揮部 | Mini PC SQLite |
+| 完整人員名單（同步後） | 指揮部 | 指揮部 Pi SQLite（LUKS 加密） |
+| QR 快照 aggregate | 指揮部 | 指揮部 Pi SQLite |
 | 稽核日誌 | 各層 | 各機器，不可刪除 |
 
 斷網期間：指揮部僅取得 QR 快照（aggregate），不含個人識別資料。有網路時：完整資料同步至指揮部，供計劃情報組作業。
@@ -728,7 +728,7 @@ IP: 192.168.100.30
 
 | 節點 | IP | 服務 |
 |------|----|------|
-| 指揮部 Mini PC | 192.168.100.10 | FastAPI :8000（ICS_DMAS；民防感知 Console 走 :8001）、WebSocket Console |
+| 指揮部 Pi 500 | 192.168.100.10 | FastAPI :8000（ICS_DMAS；民防感知 Console 走 :8001）、WebSocket Console |
 | 收容組 Pi | 192.168.100.20 | WebSocket :8765、Admin :8766 |
 | 醫療組 Pi ★ | 192.168.100.30 | WebSocket :8775、Admin :8776 |
 | 前進組 Field Node | 192.168.100.40 | 心跳 + 上傳 |
@@ -854,7 +854,7 @@ Admin： https://192.168.100.30:8776
 
 | 項目 | 狀態 | 說明 |
 |------|------|------|
-| Mini PC 品牌確認 | 待確認 | Beelink / ASUS / 其他（見附錄 D） |
+| N100 Mini PC 角色 | 待定 | 已改用 Pi 500 為主要硬體；N100 保留，AI 推論硬體評估中 |
 | Anker 行動電源 | 待決定 | 總部深圳，依組織安全政策決定 |
 | 指揮官版儀表板 | ✅ 初版完成 | `commander_dashboard.html`，待端對端測試 |
 | YubiKey 雙人原則實作 | Phase 3 | 依民防感知系統規格 §4.3 |
@@ -906,7 +906,7 @@ Admin： https://192.168.100.30:8776
 - 醫療組 PWA 的 ERD / 資料表草圖。
 - 醫療組 PWA 的畫面線框（儀表板、檢傷頁、治療區看板、後送頁）。
 - （★ v0.2 新增）演訓前 mkcert 憑證部署 SOP 演練（見 §9.1）。
-- （★ v0.2 新增）確認 Mini PC 品牌及 Anker 行動電源安全政策（見 §11）。
+- （★ v0.2 新增）確認 N100 Mini PC 角色（已改用 Pi 500 為主要硬體）及 Anker 行動電源安全政策（見 §11）。
 
 ---
 
@@ -916,8 +916,8 @@ Admin： https://192.168.100.30:8776
 
 | 硬體 | 建議品牌/型號 | 狀態 |
 |------|-------------|------|
-| Intel N100 Mini PC（指揮部） | ASUS Mini PC ✅（台灣）；Beelink ⚠ 待驗證（現有資訊顯示為深圳品牌 SZBox，採購前必須確認） | |
-| Raspberry Pi 4B（各組 Pi） | 英國 Raspberry Pi Foundation | ✅ |
+| Raspberry Pi 500（指揮部、各組 Pi） | 英國 Raspberry Pi Foundation | ✅ |
+| N100 Mini PC | 保留，角色待定（AI 推論硬體評估中） | — |
 | Raspberry Pi Zero 2W（Field Node） | 英國 Raspberry Pi Foundation | ✅ |
 | 官方 Raspberry Pi 電源供應器 | 原廠配件 | ✅ |
 
@@ -959,7 +959,7 @@ Admin： https://192.168.100.30:8776
 
 ---
 
-*文件版本：v0.5 | 對應程式版本：v0.8.3-alpha | 整合來源：醫療組SOP_20260323.md、shelter_pwa_spec_v2_3.md、security_network_spec_v1.2.md*
+*文件版本：v0.5 | 對應程式版本：v0.8.3-alpha | 整合來源：醫療組SOP_20260323.md、shelter_pwa_spec.md、security_network_spec_v1.2.md*
 
 ## 附錄 D：待辦項目（截至 v0.6.3-alpha）
 

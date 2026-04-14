@@ -15,10 +15,10 @@
   PTT 錄音 → 本機 Whisper STT → 上傳指揮部
                                         ↓
 【收容組 / 醫療組】            【指揮部 Console】
-  手機 PWA                     Mini PC (Intel N100)
+  手機 PWA                     Pi 500
   ↕ WebSocket                  - ICS_DMAS 指揮部儀表板
   各組 Pi ─────────────────→  - 民防感知系統 Console
-  (Raspberry Pi 4B)            - SQLite（LUKS 加密）
+  (Pi 500)                     - SQLite（LUKS 加密）
                                 - 幕僚版儀表板
                                 - 指揮官版儀表板（待建）
 ```
@@ -28,9 +28,9 @@
 | 資料類型 | 所有權 | 儲存位置 |
 |---------|--------|---------|
 | 完整人員名單 | 各組 Pi | 各組 Pi SQLite（LUKS 加密）|
-| 完整人員名單（同步後）| 指揮部 | Mini PC SQLite（LUKS 加密）|
-| 快照 aggregate | 指揮部 | Mini PC SQLite |
-| 語音記錄 | 指揮部 | Mini PC Data Cartridge（LUKS）|
+| 完整人員名單（同步後）| 指揮部 | 指揮部 Pi SQLite（LUKS 加密）|
+| 快照 aggregate | 指揮部 | 指揮部 Pi SQLite |
+| 語音記錄 | 指揮部 | 指揮部 Pi Data Cartridge（LUKS）|
 | 稽核日誌 | 各層 | 各機器，不可刪除 |
 
 **設計原則（§10.2 補充）**：
@@ -46,9 +46,9 @@
 
 | 節點 | 硬體 | 用途 |
 |------|------|------|
-| 指揮部 Console | Intel N100 Mini PC | ICS_DMAS 後端、民防感知 Console |
-| 收容組 Pi | Raspberry Pi 4B（4GB）| WebSocket 伺服器、本地資料庫 |
-| 醫療組 Pi | Raspberry Pi 4B（4GB）| WebSocket 伺服器、本地資料庫 |
+| 指揮部 Console | Raspberry Pi 500 | ICS_DMAS 後端、民防感知 Console |
+| 收容組 Pi | Raspberry Pi 500 | WebSocket 伺服器、本地資料庫 |
+| 醫療組 Pi | Raspberry Pi 500 | WebSocket 伺服器、本地資料庫 |
 | Field Node | Raspberry Pi Zero 2W | PTT 錄音、本機 Whisper STT |
 | 測試機（現階段）| Mac | 模擬所有節點 |
 
@@ -57,9 +57,10 @@
 詳見民防輔助感知系統規格 §12.2。以下為補充項目：
 
 **主機與運算**
-- Intel N100 Mini PC：建議品牌 Beelink（台灣設計）、ASUS Mini PC
-- Raspberry Pi 4B / Zero 2W：英國 Raspberry Pi Foundation ✅
+- Raspberry Pi 500：英國 Raspberry Pi Foundation ✅（指揮部、收容組、醫療組主要硬體）
+- Raspberry Pi Zero 2W：英國 Raspberry Pi Foundation ✅（Field Node）
 - 官方 Raspberry Pi 電源供應器 ✅
+- Intel N100 Mini PC：保留，角色待定（AI 推論硬體評估中）
 
 **儲存**
 - SD 卡：Samsung PRO Endurance（韓國）✅、SanDisk（美國）✅
@@ -91,7 +92,7 @@
 ```
 手機 ─── WiFi ───> 各組 Pi (192.168.100.x)
                          ↓
-                   指揮部 Mini PC (192.168.100.10)
+                   指揮部 Pi 500 (192.168.100.10)
                          ↓（可選）
                    公網（備援上傳）
 ```
@@ -100,19 +101,19 @@
 
 **情境 1B：有公網，手機使用行動網路**
 ```
-手機 ─── 行動網路 ─── WireGuard VPN ───> 指揮部 Mini PC
+手機 ─── 行動網路 ─── WireGuard VPN ───> 指揮部 Pi 500
                                                 ↓
                                          各組 Pi（同 LAN）
 ```
 - 通訊加密：WireGuard（端對端）+ HTTPS + WSS
 - 手機驗證：預裝 WireGuard profile + mkcert CA 憑證
-- 前提：Mini PC 有穩定公網 IP 或 DDNS
+- 前提：指揮部 Pi 500 有穩定公網 IP 或 DDNS
 
 **情境 2：無公網，自建 WiFi**
 ```
 手機 ─── 自建 WiFi AP（Bridge Mode）───> 各組 Pi
                                                 ↓
-                                         指揮部 Mini PC
+                                         指揮部 Pi 500
 ```
 - 所有 AP 必須設定為 **Bridge Mode**（同一子網）
 - 通訊加密：HTTPS + WSS（mkcert）
@@ -131,7 +132,7 @@
 
 | 節點 | IP | 服務 |
 |------|-----|------|
-| 指揮部 Mini PC | 192.168.100.10 | FastAPI :8000、WebSocket Console |
+| 指揮部 Pi 500 | 192.168.100.10 | FastAPI :8000、WebSocket Console |
 | 收容組 Pi | 192.168.100.20 | WebSocket :8765、Admin :8766 |
 | 醫療組 Pi | 192.168.100.30 | WebSocket :8775、Admin :8776 |
 | 前進組 Field Node | 192.168.100.40 | 心跳 + 上傳 |
@@ -140,9 +141,9 @@
 
 演訓前須在 AP 的 DHCP 設定中排除 .10–.99 段。
 
-### 3.3 指揮部 Mini PC 端口分配
+### 3.3 指揮部 Pi 500 端口分配
 
-同一台 Mini PC 同時運行兩套系統：
+同一台 Pi 500 同時運行兩套系統：
 
 | 服務 | 系統 | 端口 | 協定 |
 |------|------|------|------|
@@ -203,7 +204,7 @@
   iOS：AirDrop rootCA.pem → 設定 → 信任憑證
   Android：設定 → 安全性 → 安裝憑證
 
-步驟 4：將憑證部署至各 Pi / Mini PC
+步驟 4：將憑證部署至各 Pi
   scp 192.168.100.10+1.pem pi@192.168.100.10:~/certs/
   scp 192.168.100.10+1-key.pem pi@192.168.100.10:~/certs/
 
@@ -222,7 +223,7 @@
 - 無中國關聯
 
 **設定要點**：
-- Mini PC 開 WireGuard server，監聽 UDP 51820
+- 指揮部 Pi 500 開 WireGuard server，監聽 UDP 51820
 - 每台手機一組金鑰對，設定以 QR code 分發
 - 若無固定公網 IP，使用 DuckDNS（社群維護，免費）或 No-IP（美國）
 - 路由器需開 UDP 51820 port forwarding
@@ -247,19 +248,19 @@
 
 | 節點 | 加密對象 | 金鑰管理 |
 |------|---------|---------|
-| 指揮部 Mini PC | OS 碟 + Data Cartridge | YubiKey（主）+ 備援密碼（雙人原則）|
+| 指揮部 Pi 500 | OS 碟 + Data Cartridge | YubiKey（主）+ 備援密碼（雙人原則）|
 | 各組 Pi | Data 分區（/data）| 演訓前設定 passphrase，任務結束後銷毀 |
 | Field Node | MicroSD | Panic 長按 5 秒快速格式化 |
 
 ### 5.3 開發階段（Mac）
 
 Mac 使用 FileVault 全磁碟加密（系統偏好設定 → 隱私與安全性）。
-LUKS 僅在 Pi / Mini PC 正式部署時設定，不影響 Mac 開發流程。
+LUKS 僅在 Pi 正式部署時設定，不影響 Mac 開發流程。
 
 ### 5.4 Panic Wipe
 
 依民防輔助感知系統規格 §4.2：
-- Mini PC / Pi：`cryptsetup luksErase` → 0.5 秒內 Header 抹除，資料永久遺失
+- Pi 500：`cryptsetup luksErase` → 0.5 秒內 Header 抹除，資料永久遺失
 - Field Node：長按實體按鈕 5 秒 → MicroSD 快速格式化
 - Panic 按鈕需有防誤觸保護蓋
 
@@ -346,8 +347,8 @@ Admin：https://192.168.100.20:8766
 - 部署 mkcert 憑證，改用 HTTPS / WSS
 - **目標**：多裝置真實網路測試
 
-### Phase 3：Mini PC 到貨
-- 指揮部 Console 部署至 Mini PC
+### Phase 3：指揮部 Pi 500 部署
+- 指揮部 Console 部署至 Pi 500
 - LUKS 全碟加密
 - WireGuard server 設定（情境 1B）
 - YubiKey 整合
@@ -382,7 +383,7 @@ Admin：https://192.168.100.20:8766
 
 | 項目 | 狀態 | 說明 |
 |------|------|------|
-| Mini PC 品牌確認 | 待確認 | Beelink / ASUS / 其他 |
+| N100 Mini PC 角色 | 待定 | 已改用 Pi 500 為主要硬體；N100 保留，AI 推論硬體評估中 |
 | Anker 行動電源 | 待決定 | 總部深圳，依安全政策決定 |
 | 指揮官版儀表板 | 已完成初版 | `commander_dashboard.html`，待端對端測試 |
 | YubiKey 雙人原則實作 | Phase 3 | 依民防感知系統規格 §4.3 |

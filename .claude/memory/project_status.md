@@ -18,7 +18,7 @@ type: project
 ### 目前版號
 
 - 程式：`medical-v0.6.7-alpha`（git tag）
-- 規格書：`v0.6`（medical_pwa_spec_v0_5.md）
+- 規格書：`v0.6`（medical_pwa_spec.md）
 - v0.6.7 修復：applyDelta `_id`→`id` fix，catchup 不再覆寫新資料
 
 ### 已完成 P 項
@@ -179,7 +179,7 @@ type: project
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
 - DB schema 變更需刪除 `data/ics.db`
-- UI/UX 規格：`command-dashboard/docs/指揮部儀表板設計規格_v1_4.md`
+- UI/UX 規格：`command-dashboard/docs/指揮部儀表板設計規格.md`
 
 ---
 

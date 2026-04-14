@@ -26,14 +26,14 @@ PTT 錄音 → STT        WebSocket          WebSocket
 .40 / .50             .20                .30
      ↓                   ↓                  ↓
           ┌─────────────────────────────────────┐
-          │         指揮部 Mini PC (N100)        │
+          │         指揮部 Pi 500                  │
           │  ICS_DMAS :8000 │ 民防感知 :8001    │
-          │  FastAPI + SQLite + Whisper Large   │
+          │  FastAPI + SQLite                   │
           └─────────────────────────────────────┘
                          .10
 ```
 
-同一台 Mini PC 跑兩套系統，端口分開：
+同一台 Pi 500 跑兩套系統，端口分開：
 
 | 端口 | 系統 | 用途 |
 |------|------|------|
@@ -101,7 +101,7 @@ PTT 錄音 → STT        WebSocket          WebSocket
 |------|------|
 | 傳輸層（ICS_DMAS） | mkcert 本地 CA；Phase 1 HTTP/WS，Phase 2+ HTTPS/WSS；情境 1B WireGuard UDP 51820 |
 | 傳輸層（民防感知） | Nginx mTLS 雙向憑證（更嚴格，獨立 CA） |
-| 靜態加密 | 各 Pi /data 分區 LUKS2；Mini PC 全磁碟 LUKS2；Field Node MicroSD 加密 |
+| 靜態加密 | 各 Pi /data 分區 LUKS2；指揮部 Pi 500 全磁碟 LUKS2；Field Node MicroSD 加密 |
 | 實體安全 | USB 點火鑰匙（開機解密）；YubiKey FIDO2 雙人原則（關鍵操作授權） |
 | 緊急銷毀 | `cryptsetup luksErase`，0.5 秒抹除 SSD Header；Field Node 長按 5 秒快速格式化 MicroSD |
 | 供應鏈 | 禁用中國品牌（GL.iNet ❌、Huawei ❌、小米 ❌）；Beelink ⚠ 待驗證；見各規格書附錄 |
@@ -146,12 +146,12 @@ ICS_DMAS/
 
 | 文件 | 版本 | 對應程式 |
 |------|------|---------|
-| [指揮部儀表板設計規格](command-dashboard/static/指揮部儀表板設計規格_v1_1.md) | v1.1 | cmd-v0.6.0 |
+| [指揮部儀表板設計規格](command-dashboard/docs/指揮部儀表板設計規格.md) | v1.4 | cmd-v0.8.0+ |
 | [安全與網路架構規格](docs/security_network_spec_v1.2.md) | v1.2 | — |
 | [PWA UI/UX 設計規範](docs/ui_ux_design_guide.md) | — | 醫療 + 收容共用 |
-| [醫療組 PWA 規格](medical-pwa/docs/medical_pwa_spec_v0_5.md) | v0.6 | medical-v0.6.3-alpha |
+| [醫療組 PWA 規格](medical-pwa/docs/medical_pwa_spec.md) | v0.6 | medical-v0.6.3-alpha |
 | [醫療組 SOP](medical-pwa/docs/醫療組SOP_20260323.md) | 2026-03-23 | — |
-| [收容組 PWA 規格](shelter-pwa/docs/shelter_pwa_spec_v2_3.md) | v2.3 | shelter-v2.3 |
+| [收容組 PWA 規格](shelter-pwa/docs/shelter_pwa_spec.md) | v2.7 | shelter-v2.3 |
 | [收容組 SOP](shelter-pwa/docs/收容組_SOP_彙整_20260330.md) | 2026-03-30 | — |
 | [民防感知系統規格書](security%20&%20forward/docs/民防輔助感知系統_規格書_v1_4.md) | v1.4 | 規格先行 |
 | [民防感知開發計畫](security%20&%20forward/docs/民防輔助感知系統_開發計畫_v1_4.md) | v1.4 | 規格先行 |

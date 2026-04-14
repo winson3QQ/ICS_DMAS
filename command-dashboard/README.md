@@ -14,13 +14,13 @@ command-dashboard/
 │   ├── ICS_Campus_map.jpg        — 站內地圖底圖
 │   ├── Satellite_map.png         — 站外衛星地圖底圖
 │   ├── map_config.json           — 地圖據點座標設定
-│   ├── lib/                      — 前端函式庫（Leaflet 等）
-│   └── 指揮部儀表板設計規格_v1_1.md  — UI/UX 規格書
+│   └── lib/                      — 前端函式庫（Leaflet 等）
 ├── tests/
 │   └── gen_test_snapshots.py     — 生成測試快照資料
 ├── data/
 │   └── ics.db                    — SQLite 資料庫（執行後自動建立，.gitignore）
-├── docs/                         — 附加文件
+├── docs/
+│   └── 指揮部儀表板設計規格.md      — UI/UX 規格書（版號見文件內部）
 ├── requirements.txt
 └── setup.sh                      — Pi 安裝腳本
 ```
