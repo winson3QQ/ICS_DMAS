@@ -730,17 +730,19 @@ def auth_login(body: LoginIn):
     _sessions[session_id] = {
         "username": acct["username"],
         "role": acct["role"],
+        "role_detail": acct.get("role_detail"),
         "display_name": acct.get("display_name") or acct["username"],
         "login_time": now,
         "last_active": now,
     }
     db._audit(acct["username"], None, "login", "accounts", acct["username"],
-              {"role": acct["role"]})
+              {"role": acct["role"], "role_detail": acct.get("role_detail")})
     return {
         "ok": True,
         "session_id": session_id,
         "username": acct["username"],
         "role": acct["role"],
+        "role_detail": acct.get("role_detail"),
         "display_name": acct.get("display_name") or acct["username"],
     }
 
@@ -761,7 +763,8 @@ def auth_heartbeat(request: Request):
     sess = _validate_session(request)
     now = datetime.now(timezone.utc).timestamp()
     remaining = max(0, SESSION_TIMEOUT - (now - sess["last_active"]))
-    return {"ok": True, "remaining": remaining, "username": sess["username"], "role": sess["role"]}
+    return {"ok": True, "remaining": remaining, "username": sess["username"],
+            "role": sess["role"], "role_detail": sess.get("role_detail")}
 
 
 @app.get("/api/auth/me", tags=["認證"])
@@ -771,6 +774,7 @@ def auth_me(request: Request):
     return {
         "username": sess["username"],
         "role": sess["role"],
+        "role_detail": sess.get("role_detail"),
         "display_name": sess["display_name"],
     }
 
@@ -783,6 +787,7 @@ class AccountCreateIn(BaseModel):
     username: str
     pin: str
     role: str = "操作員"
+    role_detail: Optional[str] = None
     display_name: Optional[str] = None
 
 
@@ -823,7 +828,8 @@ def admin_create_account(body: AccountCreateIn, request: Request):
     if len(body.pin) < 4 or len(body.pin) > 6 or not body.pin.isdigit():
         raise HTTPException(422, "PIN 必須是 4-6 位數字")
     try:
-        return db.create_account(body.username, body.pin, body.role, body.display_name)
+        return db.create_account(body.username, body.pin, body.role,
+                                 body.display_name, body.role_detail)
     except Exception as e:
         raise HTTPException(409, f"帳號建立失敗：{e}")
 
@@ -859,13 +865,18 @@ def admin_reset_pin(username: str, body: PinResetIn, request: Request):
     return {"ok": True}
 
 
+class RoleUpdateIn(BaseModel):
+    role: str
+    role_detail: Optional[str] = None
+
+
 @app.put("/api/admin/accounts/{username}/role", tags=["帳號管理"])
-def admin_update_role(username: str, role: str, request: Request):
-    """變更角色"""
+def admin_update_role(username: str, body: RoleUpdateIn, request: Request):
+    """變更角色（role + role_detail）"""
     _validate_admin_pin(request)
-    if role not in ("指揮官", "操作員"):
+    if body.role not in ("指揮官", "操作員"):
         raise HTTPException(422, "role 必須是 指揮官 或 操作員")
-    if not db.update_account_role(username, role, "admin"):
+    if not db.update_account_role(username, body.role, "admin", body.role_detail):
         raise HTTPException(404, "帳號不存在")
     return {"ok": True}
 

@@ -6,7 +6,7 @@
    ════════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const CACHE_NAME = 'shelter-pwa-v2.2.47';
+const CACHE_NAME = 'shelter-pwa-v2.2.48';
 const STATIC_ASSETS = [
   './shelter_pwa.html',
   './sw.js',
@@ -86,7 +86,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('message', event => {
   if (event.data?.type === 'CACHE_UPDATE') {
     caches.open(CACHE_NAME).then(cache => {
-      cache.add('./shelter_pwa_v2.1.html').catch(() => {});
+      cache.add('./shelter_pwa.html').catch(() => {});
     });
   }
 });

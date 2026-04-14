@@ -292,7 +292,7 @@ async function loadAccounts() {
       <div class="account-item">
         <div class="account-info">
           <div class="account-name">${a.username}${a.display_name ? '（'+a.display_name+'）' : ''}</div>
-          <div class="account-role">${a.role}</div>
+          <div class="account-role">${a.role_detail || a.role}</div>
         </div>
         <span class="account-status ${a.status === 'active' ? 'status-active' : 'status-suspended'}">
           ${a.status === 'active' ? '啟用' : '暫停'}
@@ -345,7 +345,8 @@ async function suspendAll() {
 async function addAccount() {
   const username = document.getElementById('new-username').value.trim();
   const pin = document.getElementById('new-pin').value.trim();
-  const role = document.getElementById('new-role').value;
+  const role_detail = document.getElementById('new-role').value;
+  const role = role_detail === '組長' ? '指揮官' : '操作員';
   const display_name = document.getElementById('new-display').value.trim();
   const errEl = document.getElementById('add-error');
   const okEl = document.getElementById('add-result');
@@ -355,11 +356,11 @@ async function addAccount() {
   const r = await fetch('/admin/accounts', {
     method: 'POST',
     headers: {'Content-Type':'application/json','X-Admin-PIN':_adminPin},
-    body: JSON.stringify({username, pin, role, display_name: display_name||undefined})
+    body: JSON.stringify({username, pin, role, role_detail, display_name: display_name||undefined})
   });
   const d = await r.json();
   if (d.ok) {
-    okEl.textContent = `✓ 帳號「${username}」已建立（${role}）`;
+    okEl.textContent = `✓ 帳號「${username}」已建立（${role_detail}）`;
     document.getElementById('new-username').value = '';
     document.getElementById('new-pin').value = '';
     document.getElementById('new-display').value = '';

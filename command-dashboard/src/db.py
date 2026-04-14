@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS snapshots (
     vehicle_available INTEGER,
     staff_on_duty     INTEGER,
     extra             TEXT,   -- JSON，各組特有欄位（物資量等）
-    received_at     TEXT    NOT NULL           -- 指揮部收到的時間
+    received_at     TEXT    NOT NULL,          -- 指揮部收到的時間
+    session_type    TEXT    NOT NULL DEFAULT 'real'  -- real / exercise
 );
 
 -- 事件記錄
@@ -74,7 +75,8 @@ CREATE TABLE IF NOT EXISTS events (
     occurred_at             TEXT NOT NULL,
     resolved_at             TEXT,
     operator_name           TEXT NOT NULL,
-    created_at              TEXT NOT NULL
+    created_at              TEXT NOT NULL,
+    session_type            TEXT NOT NULL DEFAULT 'real'  -- real / exercise
 );
 
 -- 待裁示事項（決策主題）
@@ -97,7 +99,8 @@ CREATE TABLE IF NOT EXISTS decisions (
     superseded_by       TEXT REFERENCES decisions(id),
     closed_at           TEXT,
     created_by          TEXT NOT NULL,
-    created_at          TEXT NOT NULL
+    created_at          TEXT NOT NULL,
+    session_type        TEXT NOT NULL DEFAULT 'real'  -- real / exercise
 );
 
 -- 稽核日誌（不可刪除、不可修改）
@@ -111,7 +114,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     target_table TEXT,
     target_id    TEXT,
     detail       TEXT,   -- JSON
-    created_at   TEXT NOT NULL
+    created_at   TEXT NOT NULL,
+    session_type TEXT NOT NULL DEFAULT 'real'  -- real / exercise
 );
 
 -- 手動輸入記錄（通用暫存表，涵蓋無對應 API 的表單）
@@ -127,7 +131,8 @@ CREATE TABLE IF NOT EXISTS manual_records (
     sync_status TEXT NOT NULL DEFAULT 'pending',
         -- pending（待同步）/ synced（已同步）/ skipped（人工略過）
     submitted_at TEXT NOT NULL,
-    synced_at    TEXT
+    synced_at    TEXT,
+    session_type TEXT NOT NULL DEFAULT 'real'  -- real / exercise
 );
 
 -- 計算引擎預測結果（每次新增 SNAPSHOT 後非同步產生）
@@ -142,7 +147,8 @@ CREATE TABLE IF NOT EXISTS predictions (
     trend_rate      REAL,              -- 趨勢速率（每分鐘變化量）
     basis_snap_ids  TEXT,              -- JSON array，計算所用的 snapshot_id 列表
     status          TEXT NOT NULL DEFAULT 'active',  -- active/expired
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    session_type    TEXT NOT NULL DEFAULT 'real'  -- real / exercise
 );
 
 -- 網路恢復同步記錄（三 Pass 對齊執行結果，不可刪除）
@@ -169,7 +175,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     username      TEXT PRIMARY KEY,
     pin_hash      TEXT NOT NULL,
     pin_salt      TEXT NOT NULL,
-    role          TEXT NOT NULL DEFAULT '操作員',   -- 指揮官 / 操作員
+    role          TEXT NOT NULL DEFAULT '操作員',   -- 指揮官 / 操作員（粗分，權限控制用）
+    role_detail   TEXT,                            -- 細分角色（醫療：檢傷官/治療官/後送官/後勤官/組長；收容：一般/組長）
     display_name  TEXT,
     status        TEXT NOT NULL DEFAULT 'active',  -- active / suspended
     created_at    TEXT NOT NULL,
@@ -1070,26 +1077,28 @@ def _verify_pin(pin: str, stored_hash: str, stored_salt: str) -> bool:
 # ──────────────────────────────────────────
 
 def create_account(username: str, pin: str, role: str = "操作員",
-                   display_name: str | None = None) -> dict:
+                   display_name: str | None = None,
+                   role_detail: str | None = None) -> dict:
     pin_hash, pin_salt = _hash_pin(pin)
     now = _now()
     with get_conn() as conn:
         conn.execute(
             """INSERT INTO accounts
-               (username, pin_hash, pin_salt, role, display_name, status, created_at)
-               VALUES (?,?,?,?,?,?,?)""",
-            (username, pin_hash, pin_salt, role, display_name, "active", now)
+               (username, pin_hash, pin_salt, role, role_detail, display_name, status, created_at)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (username, pin_hash, pin_salt, role, role_detail, display_name, "active", now)
         )
     _audit("admin", None, "account_created", "accounts", username,
-           {"role": role})
-    return {"username": username, "role": role, "status": "active", "created_at": now}
+           {"role": role, "role_detail": role_detail})
+    return {"username": username, "role": role, "role_detail": role_detail,
+            "status": "active", "created_at": now}
 
 
 def get_all_accounts() -> list[dict]:
     """列出所有帳號（不含 pin_hash/pin_salt）"""
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT username, role, display_name, status, created_at, updated_at "
+            "SELECT username, role, role_detail, display_name, status, created_at, updated_at "
             "FROM accounts ORDER BY created_at"
         ).fetchall()
     return [dict(r) for r in rows]
@@ -1121,16 +1130,17 @@ def update_account_pin(username: str, new_pin: str, operator: str) -> bool:
     return cur.rowcount > 0
 
 
-def update_account_role(username: str, role: str, operator: str) -> bool:
+def update_account_role(username: str, role: str, operator: str,
+                        role_detail: str | None = None) -> bool:
     now = _now()
     with get_conn() as conn:
         cur = conn.execute(
-            "UPDATE accounts SET role=?, updated_at=? WHERE username=?",
-            (role, now, username)
+            "UPDATE accounts SET role=?, role_detail=?, updated_at=? WHERE username=?",
+            (role, role_detail, now, username)
         )
     if cur.rowcount:
         _audit(operator, None, "account_role_updated", "accounts", username,
-               {"role": role})
+               {"role": role, "role_detail": role_detail})
     return cur.rowcount > 0
 
 
