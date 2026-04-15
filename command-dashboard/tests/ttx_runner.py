@@ -27,7 +27,7 @@ import urllib.request
 import urllib.error
 
 API = "http://127.0.0.1:8000"
-ADMIN_PIN = "9999"
+ADMIN_PIN = "1234"
 TEST_USER = "ttx_runner"
 TEST_PIN = "1234"
 
@@ -107,7 +107,7 @@ def list_scenarios(scenario_dir):
         desc = data.get("description", "")[:60]
         n = len(data.get("injects", []))
         dur = data.get("duration_min", "?")
-        print(f"  {sid:30s}  {n:2d} injects  {dur:>3s}min  {name}")
+        print(f"  {sid:30s}  {n:2d} injects  {str(dur):>3s}min  {name}")
         scenarios.append(sid)
     print()
     return scenarios

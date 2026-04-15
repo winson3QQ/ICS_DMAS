@@ -1307,8 +1307,17 @@ def ttx_push_inject(session_id: str, inject_id: str, request: Request):
     inject_type = inject["inject_type"]
     results = []
 
+    # snapshot payload 的 type → node_type 映射（與 post_snapshot 一致）
+    def _map_snapshot_payload(p):
+        _type_map = {"snapshot_shelter":"shelter","snapshot_medical":"medical",
+                     "snapshot_forward":"forward","snapshot_security":"security",
+                     "shelter":"shelter","medical":"medical","forward":"forward","security":"security"}
+        if "node_type" not in p and "type" in p:
+            p["node_type"] = _type_map.get(p["type"], p["type"])
+        return p
+
     if inject_type == "snapshot":
-        r = db.upsert_snapshot(payload, session_type="exercise")
+        r = db.upsert_snapshot(_map_snapshot_payload(payload), session_type="exercise")
         results.append({"type": "snapshot", "result": r})
     elif inject_type == "event":
         event_data = {
@@ -1343,7 +1352,7 @@ def ttx_push_inject(session_id: str, inject_id: str, request: Request):
             sub_type = item.get("type", "snapshot")
             sub_payload = item.get("payload", item)
             if sub_type == "snapshot":
-                r = db.upsert_snapshot(sub_payload, session_type="exercise")
+                r = db.upsert_snapshot(_map_snapshot_payload(sub_payload), session_type="exercise")
                 results.append({"type": "snapshot", "result": r})
             elif sub_type == "event":
                 sub_event_data = {
