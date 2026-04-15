@@ -298,6 +298,16 @@ class ConflictResolveIn(BaseModel):
     operator:     str
 
 
+class TTXSessionCreateIn(BaseModel):
+    session_name: str
+    facilitator: str
+    scenario_id: Optional[str] = None
+
+
+class TTXInjectBulkIn(BaseModel):
+    injects: list  # list of dicts with seq, target_unit, type, title, payload, etc.
+
+
 # ──────────────────────────────────────────
 # API：快照
 # ──────────────────────────────────────────
@@ -555,10 +565,11 @@ def _pi_batch_to_snapshot(unit_id: str, pushed_at: str, records: list) -> dict |
 # ──────────────────────────────────────────
 
 @app.get("/api/dashboard", tags=["儀表板"])
-def get_dashboard():
+def get_dashboard(session_type: str = "real"):
     """
     前端每 10 秒呼叫一次此端點。
     後端算好所有數字，前端只負責顯示。
+    session_type: "real"（預設）或 "exercise"（TTX 演練模式）
     回傳格式：
       {
         calc: { medical, shelter, forward, security, medical_pressure, ... },
@@ -568,10 +579,10 @@ def get_dashboard():
       }
     """
     # 取各組最近快照（40 筆供 burn_rate / comm_health 分析）
-    medical_snaps  = db.get_snapshots("medical",  40)
-    shelter_snaps  = db.get_snapshots("shelter",  40)
-    forward_snaps  = db.get_snapshots("forward",  40)
-    security_snaps = db.get_snapshots("security", 40)
+    medical_snaps  = db.get_snapshots("medical",  40, session_type=session_type)
+    shelter_snaps  = db.get_snapshots("shelter",  40, session_type=session_type)
+    forward_snaps  = db.get_snapshots("forward",  40, session_type=session_type)
+    security_snaps = db.get_snapshots("security", 40, session_type=session_type)
 
     # Wave 4：從 pi_received_batches 衍生多筆 snapshot 注入（供趨勢分析）
     for _unit in ('shelter', 'medical'):
@@ -589,9 +600,9 @@ def get_dashboard():
                 medical_snaps = _pi_snaps + medical_snaps
 
     # 事件（先取，供升降級引擎使用）
-    open_events     = db.get_events("open",        limit=20)
-    progress_events = db.get_events("in_progress", limit=20)
-    resolved_events = db.get_events("resolved",    limit=50)
+    open_events     = db.get_events("open",        limit=20, session_type=session_type)
+    progress_events = db.get_events("in_progress", limit=20, session_type=session_type)
+    resolved_events = db.get_events("resolved",    limit=50, session_type=session_type)
 
     # 計算引擎（含升降級檢查）
     calc = calc_engine.dashboard_calc(
@@ -606,12 +617,12 @@ def get_dashboard():
     )
 
     # 裁示
-    pending_decisions = db.get_decisions("pending")
-    decided_decisions = db.get_decisions("approved") + db.get_decisions("completed")
+    pending_decisions = db.get_decisions("pending", session_type=session_type)
+    decided_decisions = db.get_decisions("approved", session_type=session_type) + db.get_decisions("completed", session_type=session_type)
 
     # 歷史快照（供趨勢圖用）+ Wave 4 Pi push 衍生歷史 snapshot
-    shelter_history = db.get_snapshots("shelter", 100)
-    medical_history = db.get_snapshots("medical", 100)
+    shelter_history = db.get_snapshots("shelter", 100, session_type=session_type)
+    medical_history = db.get_snapshots("medical", 100, session_type=session_type)
     for _unit2 in ('shelter', 'medical'):
         _batches2 = db.get_recent_pi_batches(_unit2, 100)
         _pi_hist = []
@@ -632,7 +643,7 @@ def get_dashboard():
     ]
 
     # Decision chain grouping（按 primary_event_id 分組）
-    all_decisions = db.get_decisions()  # 全部
+    all_decisions = db.get_decisions(session_type=session_type)  # 全部
     chains = {}
     for dec in all_decisions:
         key = dec.get("primary_event_id") or dec["id"]
@@ -1202,3 +1213,202 @@ def resolve_conflict(sync_id: str, body: ConflictResolveIn):
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ──────────────────────────────────────────
+# API：TTX 演練
+# ──────────────────────────────────────────
+
+@app.post("/api/ttx/sessions", tags=["TTX"])
+def ttx_create_session(body: TTXSessionCreateIn, request: Request):
+    """建立演練場次"""
+    _validate_session(request)
+    return db.create_ttx_session(body.session_name, body.facilitator, body.scenario_id)
+
+
+@app.get("/api/ttx/sessions", tags=["TTX"])
+def ttx_list_sessions(request: Request):
+    """列出所有演練場次"""
+    _validate_session(request)
+    return db.list_ttx_sessions()
+
+
+@app.get("/api/ttx/sessions/{session_id}", tags=["TTX"])
+def ttx_get_session(session_id: str, request: Request):
+    """取得單一場次"""
+    _validate_session(request)
+    result = db.get_ttx_session(session_id)
+    if not result:
+        raise HTTPException(404, "TTX session 不存在")
+    return result
+
+
+@app.post("/api/ttx/sessions/{session_id}/start", tags=["TTX"])
+def ttx_start_session(session_id: str, request: Request):
+    """開始演練"""
+    sess = _validate_session(request)
+    if not db.update_ttx_session_status(session_id, "running", sess["username"]):
+        raise HTTPException(404, "TTX session 不存在")
+    return {"ok": True}
+
+
+@app.post("/api/ttx/sessions/{session_id}/pause", tags=["TTX"])
+def ttx_pause_session(session_id: str, request: Request):
+    """暫停演練"""
+    sess = _validate_session(request)
+    if not db.update_ttx_session_status(session_id, "paused", sess["username"]):
+        raise HTTPException(404, "TTX session 不存在")
+    return {"ok": True}
+
+
+@app.post("/api/ttx/sessions/{session_id}/end", tags=["TTX"])
+def ttx_end_session(session_id: str, request: Request):
+    """結束演練"""
+    sess = _validate_session(request)
+    if not db.update_ttx_session_status(session_id, "completed", sess["username"]):
+        raise HTTPException(404, "TTX session 不存在")
+    return {"ok": True}
+
+
+@app.get("/api/ttx/sessions/{session_id}/injects", tags=["TTX"])
+def ttx_list_injects(session_id: str, request: Request):
+    """列出場次所有 injects"""
+    _validate_session(request)
+    return db.get_ttx_injects(session_id)
+
+
+@app.post("/api/ttx/sessions/{session_id}/injects", tags=["TTX"])
+def ttx_bulk_injects(session_id: str, body: TTXInjectBulkIn, request: Request):
+    """批次匯入 injects"""
+    _validate_session(request)
+    ttx = db.get_ttx_session(session_id)
+    if not ttx:
+        raise HTTPException(404, "TTX session 不存在")
+    count = db.bulk_create_ttx_injects(session_id, body.injects)
+    return {"ok": True, "imported": count}
+
+
+@app.post("/api/ttx/sessions/{session_id}/inject/{inject_id}/push", tags=["TTX"])
+def ttx_push_inject(session_id: str, inject_id: str, request: Request):
+    """執行單一 inject（灌資料到系統）"""
+    sess = _validate_session(request)
+    # 取得 inject 資料
+    injects = db.get_ttx_injects(session_id)
+    inject = next((i for i in injects if i["id"] == inject_id), None)
+    if not inject:
+        raise HTTPException(404, "Inject 不存在")
+    if inject["status"] != "pending":
+        raise HTTPException(409, f"Inject 已執行（status={inject['status']}）")
+
+    payload = inject["payload"]
+    # payload 可能是 JSON 字串，需要解析
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    inject_type = inject["inject_type"]
+    results = []
+
+    if inject_type == "snapshot":
+        r = db.upsert_snapshot(payload, session_type="exercise")
+        results.append({"type": "snapshot", "result": r})
+    elif inject_type == "event":
+        event_data = {
+            "reported_by_unit": payload.get("reported_by_unit", inject["target_unit"]),
+            "event_type": payload.get("event_type", "ttx_inject"),
+            "severity": payload.get("severity", "info"),
+            "description": payload.get("description", inject["title"]),
+            "operator_name": payload.get("operator_name", sess["username"]),
+            "location_desc": payload.get("location_desc"),
+            "location_zone_id": payload.get("location_zone_id"),
+            "needs_commander_decision": payload.get("needs_commander_decision", 0),
+        }
+        r = db.create_event(event_data, session_type="exercise")
+        results.append({"type": "event", "result": r})
+    elif inject_type == "decision":
+        decision_data = {
+            "decision_type": payload.get("decision_type", "initial"),
+            "severity": payload.get("severity", "warning"),
+            "decision_title": payload.get("decision_title", inject["title"]),
+            "impact_description": payload.get("impact_description", ""),
+            "suggested_action_a": payload.get("suggested_action_a", ""),
+            "suggested_action_b": payload.get("suggested_action_b"),
+            "created_by": payload.get("created_by", sess["username"]),
+            "primary_event_id": payload.get("primary_event_id"),
+        }
+        r = db.create_decision(decision_data, session_type="exercise")
+        results.append({"type": "decision", "result": r})
+    elif inject_type == "compound":
+        # payload 是子項目列表
+        items = payload if isinstance(payload, list) else payload.get("items", [])
+        for item in items:
+            sub_type = item.get("type", "snapshot")
+            sub_payload = item.get("payload", item)
+            if sub_type == "snapshot":
+                r = db.upsert_snapshot(sub_payload, session_type="exercise")
+                results.append({"type": "snapshot", "result": r})
+            elif sub_type == "event":
+                sub_event_data = {
+                    "reported_by_unit": sub_payload.get("reported_by_unit", "system"),
+                    "event_type": sub_payload.get("event_type", "ttx_inject"),
+                    "severity": sub_payload.get("severity", "info"),
+                    "description": sub_payload.get("description", ""),
+                    "operator_name": sub_payload.get("operator_name", sess["username"]),
+                }
+                r = db.create_event(sub_event_data, session_type="exercise")
+                results.append({"type": "event", "result": r})
+
+    # 標記 inject 已執行
+    db.mark_ttx_inject_done(inject_id, sess["username"])
+    return {"ok": True, "inject_id": inject_id, "results": results}
+
+
+# ──────────────────────────────────────────
+# API：TTX 預建情境
+# ──────────────────────────────────────────
+
+@app.get("/api/ttx/scenarios", tags=["TTX"])
+def ttx_list_scenarios(request: Request):
+    """列出可用預建情境"""
+    _validate_session(request)
+    import glob
+    import os
+    scenario_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scenarios")
+    if not os.path.isdir(scenario_dir):
+        return []
+    files = sorted(glob.glob(os.path.join(scenario_dir, "*.json")))
+    result = []
+    for f in files:
+        try:
+            with open(f, "r", encoding="utf-8") as fh:
+                data = json.loads(fh.read())
+            result.append({
+                "id": data.get("id", os.path.basename(f).replace(".json", "")),
+                "name": data.get("name", ""),
+                "description": data.get("description", ""),
+                "duration_min": data.get("duration_min"),
+                "inject_count": len(data.get("injects", [])),
+            })
+        except Exception:
+            pass
+    return result
+
+
+@app.post("/api/ttx/scenarios/{scenario_id}/load", tags=["TTX"])
+def ttx_load_scenario(scenario_id: str, request: Request):
+    """載入預建情境到新 session"""
+    sess = _validate_session(request)
+    import os
+    scenario_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scenarios")
+    fpath = os.path.join(scenario_dir, f"{scenario_id}.json")
+    if not os.path.isfile(fpath):
+        raise HTTPException(404, f"情境 {scenario_id} 不存在")
+    with open(fpath, "r", encoding="utf-8") as fh:
+        data = json.loads(fh.read())
+    # 建立 session
+    ttx = db.create_ttx_session(
+        name=data.get("name", scenario_id),
+        facilitator=sess["username"],
+        scenario_id=scenario_id,
+    )
+    # 批次匯入 injects
+    count = db.bulk_create_ttx_injects(ttx["id"], data.get("injects", []))
+    return {"ok": True, "session": ttx, "injects_loaded": count}

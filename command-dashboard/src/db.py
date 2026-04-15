@@ -210,6 +210,35 @@ CREATE TABLE IF NOT EXISTS pi_received_batches (
     records_json TEXT NOT NULL               -- JSON array of records
 );
 
+-- TTX 演練場次
+CREATE TABLE IF NOT EXISTS ttx_sessions (
+    id              TEXT PRIMARY KEY,
+    session_name    TEXT NOT NULL,
+    scenario_id     TEXT,
+    facilitator     TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'setup',
+    started_at      TEXT,
+    ended_at        TEXT,
+    created_at      TEXT NOT NULL,
+    session_type    TEXT NOT NULL DEFAULT 'exercise'
+);
+
+-- TTX 情境注入卡
+CREATE TABLE IF NOT EXISTS ttx_injects (
+    id                    TEXT PRIMARY KEY,
+    session_id            TEXT NOT NULL REFERENCES ttx_sessions(id),
+    inject_seq            INTEGER NOT NULL,
+    target_unit           TEXT NOT NULL,
+    inject_type           TEXT NOT NULL,
+    title                 TEXT NOT NULL,
+    description           TEXT,
+    payload               TEXT NOT NULL,
+    scheduled_offset_min  INTEGER,
+    status                TEXT NOT NULL DEFAULT 'pending',
+    injected_at           TEXT,
+    created_at            TEXT NOT NULL
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_pi_nodes_api_key
     ON pi_nodes(api_key);
@@ -231,6 +260,8 @@ CREATE INDEX IF NOT EXISTS idx_sync_log_unit
     ON sync_log(source_unit, sync_started_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_code_unique
     ON events(event_code);
+CREATE INDEX IF NOT EXISTS idx_ttx_injects_session
+    ON ttx_injects(session_id, inject_seq);
 """
 
 
@@ -1369,3 +1400,128 @@ def get_recent_pi_batches(unit_id: str, limit: int = 40) -> list[dict]:
             (unit_id, limit)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── TTX 演練管理 ──
+
+def create_ttx_session(name: str, facilitator: str, scenario_id: str | None = None) -> dict:
+    """建立演練場次"""
+    sid = str(uuid.uuid4())
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO ttx_sessions
+               (id, session_name, scenario_id, facilitator, status, created_at, session_type)
+               VALUES (?,?,?,?,?,?,?)""",
+            (sid, name, scenario_id, facilitator, "setup", now, "exercise")
+        )
+    _audit(facilitator, None, "ttx_session_created", "ttx_sessions", sid,
+           {"name": name, "scenario_id": scenario_id}, session_type="exercise")
+    return {"id": sid, "session_name": name, "scenario_id": scenario_id,
+            "facilitator": facilitator, "status": "setup", "created_at": now}
+
+
+def get_ttx_session(session_id: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM ttx_sessions WHERE id=?", (session_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def list_ttx_sessions() -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM ttx_sessions ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_ttx_session_status(session_id: str, status: str, facilitator: str) -> bool:
+    now = _now()
+    updates = {"status": status, "updated_fields": {}}
+    if status == "running":
+        updates["updated_fields"]["started_at"] = now
+        sql = "UPDATE ttx_sessions SET status=?, started_at=? WHERE id=?"
+        params = (status, now, session_id)
+    elif status == "completed":
+        updates["updated_fields"]["ended_at"] = now
+        sql = "UPDATE ttx_sessions SET status=?, ended_at=? WHERE id=?"
+        params = (status, now, session_id)
+    else:
+        sql = "UPDATE ttx_sessions SET status=? WHERE id=?"
+        params = (status, session_id)
+    with get_conn() as conn:
+        cur = conn.execute(sql, params)
+    if cur.rowcount:
+        _audit(facilitator, None, "ttx_session_status", "ttx_sessions", session_id,
+               updates, session_type="exercise")
+    return cur.rowcount > 0
+
+
+def create_ttx_inject(session_id: str, seq: int, target_unit: str,
+                      inject_type: str, title: str, payload: dict,
+                      description: str | None = None,
+                      scheduled_offset_min: int | None = None) -> dict:
+    iid = str(uuid.uuid4())
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO ttx_injects
+               (id, session_id, inject_seq, target_unit, inject_type, title,
+                description, payload, scheduled_offset_min, status, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (iid, session_id, seq, target_unit, inject_type, title,
+             description, json.dumps(payload, ensure_ascii=False),
+             scheduled_offset_min, "pending", now)
+        )
+    return {"id": iid, "session_id": session_id, "inject_seq": seq,
+            "target_unit": target_unit, "inject_type": inject_type,
+            "title": title, "status": "pending", "created_at": now}
+
+
+def bulk_create_ttx_injects(session_id: str, injects: list[dict]) -> int:
+    """批次建立 injects，回傳成功筆數"""
+    count = 0
+    for inj in injects:
+        create_ttx_inject(
+            session_id=session_id,
+            seq=inj["seq"],
+            target_unit=inj["target_unit"],
+            inject_type=inj["type"],
+            title=inj["title"],
+            payload=inj["payload"],
+            description=inj.get("description"),
+            scheduled_offset_min=inj.get("offset_min"),
+        )
+        count += 1
+    return count
+
+
+def get_ttx_injects(session_id: str) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM ttx_injects WHERE session_id=? ORDER BY inject_seq",
+            (session_id,)
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        if isinstance(d.get("payload"), str):
+            try:
+                d["payload"] = json.loads(d["payload"])
+            except Exception:
+                pass
+        result.append(d)
+    return result
+
+
+def mark_ttx_inject_done(inject_id: str, facilitator: str) -> bool:
+    now = _now()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE ttx_injects SET status='injected', injected_at=? WHERE id=? AND status='pending'",
+            (now, inject_id)
+        )
+    if cur.rowcount:
+        _audit(facilitator, None, "ttx_inject_pushed", "ttx_injects", inject_id,
+               {}, session_type="exercise")
+    return cur.rowcount > 0
