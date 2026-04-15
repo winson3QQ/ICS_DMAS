@@ -1289,10 +1289,10 @@ def ttx_bulk_injects(session_id: str, body: TTXInjectBulkIn, request: Request):
 
 
 @app.post("/api/ttx/sessions/{session_id}/inject/{inject_id}/push", tags=["TTX"])
-def ttx_push_inject(session_id: str, inject_id: str, request: Request):
-    """執行單一 inject（灌資料到系統）"""
+def ttx_push_inject(session_id: str, inject_id: str, request: Request,
+                    live: bool = False):
+    """執行單一 inject。live=true 時用當前 UTC 時間取代固定時間戳。"""
     sess = _validate_session(request)
-    # 取得 inject 資料
     injects = db.get_ttx_injects(session_id)
     inject = next((i for i in injects if i["id"] == inject_id), None)
     if not inject:
@@ -1301,11 +1301,22 @@ def ttx_push_inject(session_id: str, inject_id: str, request: Request):
         raise HTTPException(409, f"Inject 已執行（status={inject['status']}）")
 
     payload = inject["payload"]
-    # payload 可能是 JSON 字串，需要解析
     if isinstance(payload, str):
         payload = json.loads(payload)
     inject_type = inject["inject_type"]
     results = []
+
+    # live 模式：用當前時間取代固定時間戳
+    if live:
+        _live_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if "t" in payload:
+            payload["t"] = _live_now
+        if "snapshot_id" in payload:
+            payload["snapshot_id"] = f"live-{inject_id[:8]}-{int(datetime.now(timezone.utc).timestamp())}"
+        # forward units 的 last_update
+        for u in payload.get("extra", {}).get("units", []):
+            if "last_update" in u:
+                u["last_update"] = _live_now
 
     # snapshot payload 的 type → node_type 映射（與 post_snapshot 一致）
     def _map_snapshot_payload(p):

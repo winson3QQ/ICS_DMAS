@@ -113,8 +113,29 @@ def list_scenarios(scenario_dir):
     return scenarios
 
 
-def run_scenario(scenario_id, scenario_dir, token, api=API, batch=False):
-    """執行單一情境"""
+def _now_utc():
+    """回傳當前 UTC ISO 字串"""
+    import datetime
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _patch_live_timestamp(payload, seq_counter):
+    """live 模式：把 snapshot 的 t 和 snapshot_id 換成當前時間"""
+    if isinstance(payload, dict) and "t" in payload:
+        payload["t"] = _now_utc()
+    if isinstance(payload, dict) and "snapshot_id" in payload:
+        payload["snapshot_id"] = f"live-{seq_counter:06d}-{int(time.time()*1000) % 100000}"
+    # forward units 的 last_update 也要換
+    if isinstance(payload, dict):
+        for u in payload.get("extra", {}).get("units", []):
+            if "last_update" in u:
+                u["last_update"] = _now_utc()
+    return payload
+
+
+def run_scenario(scenario_id, scenario_dir, token, api=API, batch=False,
+                 live=False, live_duration=120):
+    """執行單一情境。live 模式用當前時間 + 壓縮延遲讓 Dashboard 即時感受。"""
     # 找到情境檔
     fpath = None
     for f in glob.glob(os.path.join(scenario_dir, "*.json")):
@@ -171,24 +192,41 @@ def run_scenario(scenario_id, scenario_dir, token, api=API, batch=False):
         print(f"  ✗ 讀取 injects 失敗：{inject_list}")
         return False
 
+    # 計算 live 模式的時間壓縮比
+    max_offset = max((inj.get("scheduled_offset_min") or 0) for inj in inject_list) or 1
+    if live:
+        sec_per_min = live_duration / max_offset  # 例：120 秒 / 16 分鐘 = 7.5 秒/模擬分鐘
+        print(f"  ▶ Live 模式：{max_offset} 模擬分鐘 → {live_duration} 秒（{sec_per_min:.1f} 秒/分鐘）")
+        print(f"  ▶ 請在瀏覽器開 Dashboard → 點「演練」按鈕觀看\n")
+
     # 依序 push
     ok = 0
     err = 0
     prev_offset = 0
+    live_seq = 0
     for i, inj in enumerate(inject_list):
         inject_id = inj["id"]
         title = inj.get("title", "")
         offset = inj.get("scheduled_offset_min") or 0
 
-        # 非 batch 模式：按 offset 差異 delay
-        if not batch and offset > prev_offset:
-            delay = min((offset - prev_offset) * 0.5, 3)  # 縮時：1 分鐘 → 0.5 秒，上限 3 秒
+        # 延遲策略
+        if live and offset > prev_offset:
+            delay = (offset - prev_offset) * sec_per_min
+            for remaining in range(int(delay), 0, -1):
+                sys.stdout.write(f"\r  ⏳ 下一波 inject 在 {remaining} 秒後... （T+{offset}min）  ")
+                sys.stdout.flush()
+                time.sleep(1)
+            sys.stdout.write("\r" + " " * 60 + "\r")
+        elif not batch and not live and offset > prev_offset:
+            delay = min((offset - prev_offset) * 0.5, 3)
             time.sleep(delay)
         prev_offset = offset
 
-        code, result = _req("POST",
-                            f"/api/ttx/sessions/{session_id}/inject/{inject_id}/push",
-                            token=token, api=api)
+        # push inject（live 模式加 ?live=1 讓 server 端替換時間戳）
+        push_url = f"/api/ttx/sessions/{session_id}/inject/{inject_id}/push"
+        if live:
+            push_url += "?live=true"
+        code, result = _req("POST", push_url, token=token, api=api)
         if code == 200 and result.get("ok"):
             ok += 1
             status = "✓"
@@ -221,6 +259,8 @@ def main():
     parser.add_argument("--scenario", type=str, help="執行指定情境（ID 或前綴）")
     parser.add_argument("--all", action="store_true", help="逐一執行所有情境")
     parser.add_argument("--batch", action="store_true", help="無延遲全灌（預設有縮時延遲）")
+    parser.add_argument("--live", action="store_true", help="Live 模式：用當前時間、按比例延遲，Dashboard 即時觀看")
+    parser.add_argument("--duration", type=int, default=120, help="Live 模式總時長秒數（預設 120 = 2 分鐘）")
     parser.add_argument("--api", type=str, default=API, help=f"Command Server URL（預設 {API}）")
     args = parser.parse_args()
 
@@ -247,7 +287,8 @@ def main():
     print(f"  ✓ 已登入（{TEST_USER}）\n")
 
     if args.scenario:
-        success = run_scenario(args.scenario, scenario_dir, token, args.api, args.batch)
+        success = run_scenario(args.scenario, scenario_dir, token, args.api,
+                               args.batch, live=args.live, live_duration=args.duration)
         sys.exit(0 if success else 1)
 
     if args.all:
@@ -256,7 +297,8 @@ def main():
         passed = 0
         for i, sid in enumerate(scenarios):
             print(f"\n[{i+1}/{total}]", end="")
-            if run_scenario(sid, scenario_dir, token, args.api, args.batch):
+            if run_scenario(sid, scenario_dir, token, args.api, args.batch,
+                            live=args.live, live_duration=args.duration):
                 passed += 1
         print(f"\n{'='*60}")
         print(f"結果：{passed}/{total} 通過")

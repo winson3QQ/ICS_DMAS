@@ -647,6 +647,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
         <span id="idle-countdown"></span>
         <span onclick="openSettings()" style="font-size:14px;cursor:pointer;color:var(--text3);" title="設定">&#9881;</span>
         <span class="h-ver" id="h-ver"></span>
+        <button id="ttx-toggle" onclick="toggleTTXMode()" style="padding:2px 8px;border:1px solid var(--text3);border-radius:4px;background:transparent;color:var(--text3);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--mono);transition:all .2s;" title="切換實戰/演練模式">實戰</button>
         <button onclick="cmdLogout()" style="padding:2px 8px;border:1px solid var(--red);border-radius:4px;background:transparent;color:var(--red);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--mono);transition:all .2s;" onmouseenter="this.style.background='var(--red)';this.style.color='#fff'" onmouseleave="this.style.background='transparent';this.style.color='var(--red)'">登出</button>
       </div>
     </div>
@@ -3243,7 +3244,8 @@ function sliceSeries(d, s, e) {
 async function poll() {
   if (!_pollActive) return;
   try {
-    const resp = await authFetch(API_BASE + '/api/dashboard', { signal: AbortSignal.timeout(5000) });
+    const _dashUrl = API_BASE + '/api/dashboard' + (_sessionType === 'exercise' ? '?session_type=exercise' : '');
+    const resp = await authFetch(_dashUrl, { signal: AbortSignal.timeout(5000) });
     if (!resp.ok) throw new Error(resp.status);
     _data = await resp.json();
     el('cd-server').className = 'conn-dot ok';
@@ -4151,6 +4153,27 @@ _updateClock();
 // 版號統一設定（對齊 shelter/medical PWA 的 PWA_VERSION 做法）
 document.title = 'ICS 指揮部 ' + CMD_VERSION;
 document.querySelector('.h-ver').textContent = 'cmd-' + CMD_VERSION;
+
+// ── TTX 模式切換 ──
+let _sessionType = 'real';
+function toggleTTXMode() {
+  _sessionType = _sessionType === 'real' ? 'exercise' : 'real';
+  const btn = document.getElementById('ttx-toggle');
+  if (_sessionType === 'exercise') {
+    btn.textContent = '演練';
+    btn.style.border = '2px solid #FF6600';
+    btn.style.color = '#FF6600';
+    btn.style.fontWeight = '800';
+    btn.title = '目前顯示演練資料（點擊切回實戰）';
+  } else {
+    btn.textContent = '實戰';
+    btn.style.border = '1px solid var(--text3)';
+    btn.style.color = 'var(--text3)';
+    btn.style.fontWeight = '600';
+    btn.title = '目前顯示實戰資料（點擊切到演練）';
+  }
+  poll(); // 立即重新拉資料
+}
 
 initMap();
 // 恢復展開狀態
