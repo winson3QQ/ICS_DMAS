@@ -18,7 +18,7 @@
 | **驗證** | 🔍 **驗證中** | 情境 01(24/24)、02 live(22/22)、09(23/23) 已通過；剩餘 7 個情境待人工 Dashboard 視覺確認 |
 | 1 Wave 5 UI | 🔲 待做 | |
 | 2 E2B 評估 | 🔲 待做 | |
-| 3-3 facilitator.html | 🔲 待做 | |
+| 3-3 scenario_designer.html | 🔲 待做 | 情境設計器（參數 slider + 即時生成 + live 注入）兼 Dashboard 驗證工具 |
 | 3-4/3-5 PWA TTX 模式 | 🔲 待做 | |
 | 3-6~3-8 Field Node MVP | 🔲 待做 | |
 | 4~7 | 🔲 待做 | |
@@ -111,7 +111,7 @@
 
 **目標**：數位化兵推框架 + 前進/安全組進入系統。兩者都不需要 AI。
 
-**實作參考（TTX）**：AI 技術報告 §3.2（完整 CREATE TABLE）、§3.4（API endpoint 設計）、§3.5（facilitator.html + PWA TTX mode）
+**實作參考（TTX）**：AI 技術報告 §3.2（完整 CREATE TABLE）、§3.4（API endpoint 設計）、§3.5（scenario_designer.html + PWA TTX mode）
 **實作參考（Field Node）**：民防感知規格書 v1.4 §2-3（系統架構 + 軟體元件）、§6（硬體接線 GPIO pin）、§8（檔案結構 + 同步協議）；民防感知測試計畫 v1.4 §F1-F2（驗收標準）
 
 ### TTX 部分
@@ -129,10 +129,81 @@ POST /api/ttx/sessions/{id}/inject/{iid}/push    — 推送到 PWA
 GET  /api/ttx/sessions/{id}/timeline             — 即時決策時間軸
 ```
 
-**3-3. 主持人控制台** → 新增 `facilitator.html`
-- 建立/管理 session、上傳 inject 卡（照片 + 說明 + 目標組）
-- 全局態勢監看（唯讀）、推送 inject、即時時間軸
-- Phase 5 再加 AI 後果審核介面
+**3-3. 情境設計器 + 主持人控制台** → 新增 `scenario_designer.html`（同時作為 Dashboard 驗證工具和 TTX 主持人控制台）
+
+**角色**：Phase 3 先作為 Dashboard 驗證工具，Phase 5 擴充為 TTX 主持人控制台（加 AI 後果審核）。
+
+**核心概念**：不用事先寫死 JSON，用參數 + 公式即時生成 inject 序列，透過 TTX API live 注入系統。
+
+**敘事主軸 preset**（可選預設或全自訂）：
+
+| preset | 核心壓力 | 說明 |
+|--------|---------|------|
+| 🏠 收容壓力 | bed 使用率逼近 100% | shelter 主角，其他穩定 |
+| 🏥 醫療緊急 | 紅傷湧入 + 物資耗盡 | medical 主角，shelter 轉介 |
+| 📡 通訊中斷 | 某組斷線 N 分鐘 | gap 時間、影響組別可調 |
+| ⚠️ 複合壓力 | 多組同時受壓 | 所有 slider 拉高 |
+| 📉 壓力緩解 | 從高峰下降 | 起始值高，下降速率可調 |
+| 🔧 自訂 | 全部手動 | 全部 slider 自由調整 |
+
+**可調參數（sliders）**：
+
+收容組：
+- 床位：初始使用率% → 目標使用率%，湧入速度
+- SRT 紅旗比例，pending_intake
+- **當班人數**：N 人，異動時間點（T+Xmin ±N 人）→ 自動算 staff_ratio
+- **物資**：毛毯（初始/最大 + 消耗速率）、飲用水（初始/最大 + 消耗速率）
+
+醫療組：
+- 紅傷：初始 → 目標，黃/綠/黑比例
+- **物資**：IV / 氧氣 / 止血帶（初始/最大 + 消耗速率）
+- 後送積壓速度
+- **當班人數**：N 人，異動時間點
+
+前進組：
+- Alpha / Bravo：hazard type、傷亡人數、vehicle_needed
+
+安全組：
+- 哨位異常、隔離人數、QRF 可用人數
+
+時間軸：
+- 模擬時長（分鐘）、注入間隔（分鐘）、即時壓縮（秒）
+
+事件觸發（門檻自動觸發）：
+- ☑ 容量警告（shelter > 80%）
+- ☑ IV 危急（IV < 20%）
+- ☑ 人員不足警告（staff_ratio > 10）
+- ☑ 物資即將耗盡（blanket 或 water < 15%）
+- ☐ 安全威脅
+- ☑ 待裁示（IV 補給 / 啟動備用收容點）
+
+**資料路徑**（兩條並行，驗證 Dashboard 所有面板）：
+- `snapshot` inject type → `POST /api/snapshots` → 頂部數字、burn rate、escalation
+- `pi_push` inject type（新增）→ `POST /api/pi-push/{unit_id}` → L3/L4 鑽探、Pi 連線燈、趨勢線
+
+`pi_push` payload 含個別傷患/住民記錄，模擬 PWA 實際產生的資料：
+```json
+{"unit_id": "medical", "records": [
+  {"table_name": "patients", "record": {"id":"P001", "display_id":"M001-MA", "triage_color":"red", ...}},
+  {"table_name": "resources", "record": {"id":"R001", "name":"IV 輸液", "current_qty":15, ...}}
+]}
+```
+
+**操作流程**：
+1. 選 preset → sliders 自動調到預設值
+2. 手動微調任何參數
+3. 按「預覽」→ 下方顯示 inject 時間軸
+4. 按「注入」→ 自動建 TTX session + live push
+5. 另一個 tab 開 Dashboard 演練模式 → 即時看數字變化
+6. 注入完畢 → 按「結束」
+
+**生成邏輯**：純前端 JS（線性插值 + 隨機擾動 + 門檻觸發），不需 AI、不需新後端 API。
+
+**現有 10 情境 JSON 的角色**：變成 presets 的參數範本，頁面可載入後調整。
+
+**檔案**：`command-dashboard/static/scenario_designer.html`（~800-1200 行）
+
+**Phase 5 擴充**：加 AI 後果審核面板、inject 卡上傳（照片）、全局態勢監看。
 
 **3-4. PWA TTX 模式** → `medical_pwa.html`、`shelter_pwa.html`
 - `sessionStorage` 存 `ttx_session_id`，有值即為演練模式
@@ -325,7 +396,7 @@ Phase 0 (bug fix + session_type)
 | `command-dashboard/src/ai_engine.py`（新建） | 5 |
 | `command-dashboard/src/aar_engine.py`（新建） | 6 |
 | `command-dashboard/static/commander_dashboard.html` | 1, 3, 5 |
-| `command-dashboard/static/facilitator.html`（新建） | 3, 5 |
+| `command-dashboard/static/scenario_designer.html`（新建） | 3, 5 |
 | `ics_ws_server.js` | 4 |
 | `medical-pwa/public/medical_pwa.html` | 0, 3, 4 |
 | `medical-pwa/public/sw.js` | 0 |
@@ -340,7 +411,7 @@ Phase 0 (bug fix + session_type)
 | 0 | 刪 `data/ics.db` 重建 → session_type 存在、role_detail 可寫入；shelter SW 更新不再靜默失敗 |
 | 1 | 啟動 dashboard → deadline reset、決策合併、burn rate 線、流向箭頭正常 |
 | 2 | Pi 500 + llama.cpp + E2B → 餵演練錄音 → 量化報告 |
-| 3 | facilitator.html 建 session → inject 推送 → PWA 收到情境卡 → audit_log 完整；Field Node Mac 模擬 → 錄音 → upload → Command 收到 |
+| 3 | scenario_designer.html 建 session → inject 推送 → PWA 收到情境卡 → audit_log 完整；Field Node Mac 模擬 → 錄音 → upload → Command 收到 |
 | 4 | 醫療 PWA 按麥克風 → 說話 → AI 填欄位 → 確認寫入 |
 | 5 | AI 面板顯示情勢摘要；Field Node 正式文字稿生成；TTX 後果生成 → 主持人審核 → 推送 |
 | 6 | 演練結束 → AAR 生成 → 時間軸 + 決策分析可讀 |
