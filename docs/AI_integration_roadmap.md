@@ -3,6 +3,26 @@
 **唯一主文件** — 整合來源：Wave 5 待辦、AI 藍圖 v1.0、AI 技術報告 v1.0、民防感知系統規格書/開發計畫/測試計畫 v1.4
 原始文件降為參考資料，不需要日常查閱。
 
+## 進度追蹤
+
+| Phase | 狀態 | 備註 |
+|-------|------|------|
+| 0-1 sw.js bug fix | ✅ 完成 | `b6b26a5` shelter-v2.2.48 |
+| 0-2 role_detail | ✅ 完成 | `b6b26a5` accounts + 兩個 admin.html |
+| 0-3 session_type | ✅ 完成 | `b6b26a5` + `308dbbc` 6 表 schema + 14 函式過濾 |
+| 3-1 TTX 資料表 | ✅ 完成 | `f5b572e` ttx_sessions + ttx_injects |
+| 3-2 TTX API | ✅ 完成 | `f5b572e` + `fba0592` 12 endpoints + inject push |
+| 3-2+ 10 情境 JSON | ✅ 完成 | `f5b572e` scenarios/ 目錄 10 檔 |
+| 3-2+ CLI runner | ✅ 完成 | `fba0592` ttx_runner.py --live/--batch |
+| 3-5 Dashboard TTX toggle | ✅ 完成 | `9c854cd` 實戰/演練切換 + session_type query |
+| **驗證** | 🔍 **驗證中** | 情境 01(24/24)、02 live(22/22)、09(23/23) 已通過；剩餘 7 個情境待人工 Dashboard 視覺確認 |
+| 1 Wave 5 UI | 🔲 待做 | |
+| 2 E2B 評估 | 🔲 待做 | |
+| 3-3 facilitator.html | 🔲 待做 | |
+| 3-4/3-5 PWA TTX 模式 | 🔲 待做 | |
+| 3-6~3-8 Field Node MVP | 🔲 待做 | |
+| 4~7 | 🔲 待做 | |
+
 ---
 
 ## Context
