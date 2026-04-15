@@ -144,6 +144,10 @@ GET  /api/ttx/sessions/{id}/timeline             — 即時決策時間軸
 | 📡 通訊中斷 | 某組斷線 N 分鐘 | gap 時間、影響組別可調 |
 | ⚠️ 複合壓力 | 多組同時受壓 | 所有 slider 拉高 |
 | 📉 壓力緩解 | 從高峰下降 | 起始值高，下降速率可調 |
+| 🎯 五縱多點滲透 | 同時多地點事件 | 來源：第一場 INC-02+03+04（事件群），測試偵測延遲 |
+| 🔫 指揮中斷與接場 | 指揮官倒底 + 空窗 + 接場 | 來源：第二場 II-A，測試指揮延續性 |
+| 🏴 主線敘事弧 | 多階段連續情境 | 來源：第三場 VIP 被俘→談判→救回，測試跨組協調 |
+| 📋 P1 驗證：醫療通報延遲 | 傷患事件產生但不推播 | 驗證自動提醒機制（AAR P1 惡化問題） |
 | 🔧 自訂 | 全部手動 | 全部 slider 自由調整 |
 
 **可調參數（sliders）**：
@@ -335,10 +339,37 @@ GET  /api/ttx/sessions/{id}/timeline             — 即時決策時間軸
 - `POST /api/ttx/sessions/{id}/aar` — 生成 AAR
 - `GET /api/aar/reports/{id}` — 讀取報告
 
-**6-3. Ground Truth 知識庫（非技術）**
-- 需要有經驗的指揮官整理「什麼決定 → 什麼後果」因果關係
-- JSON 格式：scenario, decision, consequence, alternative, lesson
-- 程式碼解決不了，人必須先建
+**6-3. Ground Truth 知識庫**
+
+**種子資料來源**：`docs/0411-0412_ExcerciseData.md`（福和會三場演習 AAR 草稿 v1）
+
+已有的因果關係（取自真實演習）：
+
+| 決定/狀況 | 後果 | 基準值 | 目標 |
+|-----------|------|--------|------|
+| 指揮部知道傷患但未主動推播 | 醫療通報延遲 25→32 分（惡化） | 25-32 min | < 2 min |
+| 收容/機動橫向不垂直上報 | 指揮部感知被動，< 20% 事件進入體系 | < 20% | > 60% |
+| 嫌犯移交無 SOP | 第一、二場失敗，第三場成功 | 0→0→100% | 100%（維持） |
+| 靜態威脅偵測無主動巡查 | 第一場平均 64 分延遲 | 64 min → 即時 | < 10 min（已達） |
+| 裝備遺失不進指揮體系 | 連續兩場無追蹤無結案 | 0% 通報率 | 100% 強制通報 |
+| 國軍失聯無備案程序 | 1 小時+ 無升級應對 | 無 SOP | 30 分觸發升級 |
+
+量測指標（`compare_to_ground_truth()` 的輸入）：
+```json
+[
+  {"metric": "醫療垂直通報延遲", "baseline_min": [25, null, 32], "target_min": 2, "trend": "worsening"},
+  {"metric": "收容區垂直通報率", "baseline_pct": [20, 20, 20], "target_pct": 60, "trend": "no_change"},
+  {"metric": "靜態威脅偵測延遲", "baseline_min": [64, 33, 2], "target_min": 10, "trend": "improving"},
+  {"metric": "嫌犯移交成功率", "baseline_pct": [0, 0, 100], "target_pct": 100, "trend": "improving"},
+  {"metric": "全組記錄完整率", "baseline_pct": [50, 50, 100], "target_pct": 100, "trend": "improving"},
+  {"metric": "真實意外暫停時間", "baseline_min": [null, 11, 4], "target_min": 3, "trend": "improving"}
+]
+```
+
+**DMAS 應直接支援的功能**（AAR 文件明確提到）：
+- 傷患事件自動提醒 → Phase 5 `ai_engine.synthesize_situation()` 沉默警報
+- 持續事件 vs 已結案分類 → events.status 狀態機（已有 open/in_progress/resolved）
+- 追蹤執行緒管理 → 新增 event 標記：`tracking_thread: true`（長時間持續追蹤）
 
 ---
 
