@@ -31,7 +31,7 @@
     },
     {
       "name": "指揮部儀表板",
-      "runtimeExecutable": "python",
+      "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"],
       "port": 8000,
       "cwd": "command-dashboard/src"

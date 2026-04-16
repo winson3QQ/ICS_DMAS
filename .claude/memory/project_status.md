@@ -68,7 +68,8 @@ type: project
 | 2 | 互動地圖事件輸入 + Decision Countdown + DCI + staff API | cmd-v0.3.0 | ✅ 完成 |
 | 3 | Escalation/De-escalation + 佈局重構 + 全中文化 + 登入認證 | cmd-v0.4.0～v0.7.0+ | ✅ 完成 |
 | 4 | Pi Push + L3/L4 鑽探 + calc_engine 接入 | cmd-v0.8.0 / server-v1.1.0 | ✅ 完成 |
-| 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.9.0 | 待做 |
+| 4+ | 情境設計器 + chart_utils.js 共用 + 演練模式鑽探停用 + 量能右軸 | cmd-v0.9.0 / FastAPI-v1.2.0 | ✅ 完成 |
+| 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.10.0 | 待做 |
 | 6 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v1.0.0 | 待做 |
 
 ### Wave 3 版本歷史摘要
@@ -173,8 +174,10 @@ type: project
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.8.0`）
-- Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.1.0`
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.0`）
+- `scenario_designer.html` 版號 `DESIGNER_VERSION`（目前 `v0.9.9`）
+- 共用圖表 `chart_utils.js`（drawSparkline + ipiCalc）
+- Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.47`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`

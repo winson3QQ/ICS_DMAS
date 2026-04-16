@@ -33,7 +33,7 @@ import calc_engine
 
 app = FastAPI(
     title="ICS 指揮部 API",
-    version="1.1.0",
+    version="1.2.0",
     docs_url="/docs",   # 開發時可用 Swagger UI 測試
 )
 
@@ -906,6 +906,31 @@ def admin_reset_db(request: Request):
                 pass
     db._audit("admin", None, "db_reset", None, None, {"tables": tables})
     return {"ok": True, "cleared_tables": tables}
+
+
+@app.post("/api/admin/reset-exercise", tags=["系統"])
+def admin_reset_exercise(request: Request):
+    """清除所有演練資料（session_type='exercise'），保留實戰資料"""
+    _validate_session(request)
+    data_tables = ["snapshots", "events", "decisions", "predictions",
+                   "manual_records", "audit_log"]
+    cleared = {}
+    with db.get_conn() as conn:
+        for t in data_tables:
+            try:
+                cur = conn.execute(f"DELETE FROM {t} WHERE session_type = 'exercise'")
+                cleared[t] = cur.rowcount
+            except Exception:
+                pass
+        # TTX 專用表：全部清除（本身就是演練資料）
+        for t in ["ttx_injects", "ttx_sessions"]:
+            try:
+                cur = conn.execute(f"DELETE FROM {t}")
+                cleared[t] = cur.rowcount
+            except Exception:
+                pass
+    db._audit("admin", None, "exercise_reset", None, None, {"cleared": cleared})
+    return {"ok": True, "cleared": cleared}
 
 
 @app.post("/api/admin/suspend-all", tags=["帳號管理"])

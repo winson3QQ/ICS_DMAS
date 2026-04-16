@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.8.0';</script>
+<script>const CMD_VERSION='v0.9.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -513,6 +513,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
   background:rgba(212,144,0,.12);padding:2px 6px;border-radius:3px;
 }
 </style>
+<script src="chart_utils.js"></script>
 </head>
 <body>
 
@@ -629,8 +630,8 @@ canvas{display:block;width:100%!important;height:100%!important;}
         <span id="date-label" style="font-size:12px;color:var(--text3);"></span>
       </div>
       <div class="za-col za-col-r">
-        <span class="za-counts" id="counts-shelter" style="cursor:pointer;" onclick="_openZoneByType('shelter')"></span>
-        <span class="za-counts" id="counts-medical" style="cursor:pointer;" onclick="_openZoneByType('medical')"></span>
+        <span class="za-counts" id="counts-shelter"></span>
+        <span class="za-counts" id="counts-medical"></span>
       </div>
     </div>
   </div>
@@ -3282,11 +3283,9 @@ function minsUntil(current, threshold, ratePerSnap, snapMins) {
 }
 function ipiCalc(h, m) { return h * 3 + m; }
 
-// ══════════════════════════════════════════════════════════════
-// Sparkline / 完整圖表繪圖
-// expanded=true 時加入 Y 軸標籤、X 軸時間、資料點、末端值
-// ══════════════════════════════════════════════════════════════
-function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
+// Sparkline 繪圖已移至 chart_utils.js（共用）
+// drawSparkline(canvasId, datasets, opts, N, expanded, times) 由外部載入
+function _legacyDrawSparkline(canvasId, datasets, opts, N, expanded, times) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   const par = canvas.parentElement;
@@ -3520,7 +3519,14 @@ function renderZoneA(d) {
   shelEl.style.color = sp >= 90 ? 'var(--red)' : sp >= 70 ? 'var(--yellow)' : '';
   medEl.style.animation = mp >= 90 ? 'blink .6s infinite' : mp >= 70 ? 'blink 1s infinite' : '';
   medEl.style.color = mp >= 90 ? 'var(--red)' : mp >= 70 ? 'var(--yellow)' : '';
-
+  // 鑽探點擊：實戰模式才啟用
+  if (_sessionType === 'real') {
+    shelEl.style.cursor = 'pointer'; shelEl.onclick = () => _openZoneByType('shelter');
+    medEl.style.cursor = 'pointer';  medEl.onclick = () => _openZoneByType('medical');
+  } else {
+    shelEl.style.cursor = 'default'; shelEl.onclick = null;
+    medEl.style.cursor = 'default';  medEl.onclick = null;
+  }
 
   // DCI（暫用簡易版，Wave 2 用 calc_engine）
   const calc = _data?.calc || {};
@@ -3552,12 +3558,22 @@ function renderSparklines(d) {
   const sp = d.sPct[N-1], mp = d.mPct[N-1];
   const capMax = Math.max(sp, mp);
   const capLvl = capMax >= 90 ? 'crit' : capMax >= 70 ? 'warn' : 'ok';
-  el('sp-cap-v').textContent = '收' + sp + '% 醫' + mp + '%';
+  const capEl = el('sp-cap-v');
+  capEl.textContent = '收' + sp + '% 醫' + mp + '%';
+  if (_sessionType === 'real') {
+    capEl.style.cursor = 'pointer';
+    capEl.onclick = function(e) { e.stopPropagation(); _openZoneByType('shelter'); };
+  } else {
+    capEl.style.cursor = 'default';
+    capEl.onclick = null;
+  }
   setRag('sp-cap', capLvl);
+  const sBt = d.sBt[N-1]||50, mBt = d.mBt[N-1]||30;
   drawSparkline('sc1', [
     {data:d.sPct, color:'#E67E22', w:1.5, fill:true, fillColor:'rgba(230,126,34,.15)', unit:'%'},
     {data:d.mPct, color:'#C0392B', w:1.5, fill:true, fillColor:'rgba(192,57,43,.12)', unit:'%'},
-  ], {yMin:0, yMax:100, thresholds:[{value:70,color:'rgba(212,144,0,.4)',label:'70%'},{value:90,color:'rgba(204,42,42,.4)',label:'90%'}]}, N, isExp('sp-cap'), t);
+  ], {yMin:0, yMax:100, thresholds:[{value:70,color:'rgba(212,144,0,.4)',label:'70%'},{value:90,color:'rgba(204,42,42,.4)',label:'90%'}],
+    rightAxis:{max:Math.max(sBt,mBt), unit:'', label:'人'}}, N, isExp('sp-cap'), t);
 
   // ② 流向（傷患來源分布）
   const sa=d.srcA[N-1], sb=d.srcB[N-1], sc=d.srcC[N-1];
@@ -3567,8 +3583,13 @@ function renderSparklines(d) {
     ? `入院${srcTotal}人` + (sa?` 前${sa}`:'') + (sb?` 收${sb}`:'') + (sc?` 自${sc}`:'')
     : '無傷患流入';
   el('sp-flow-v').textContent = flowText;
-  el('sp-flow-v').style.cursor = 'pointer';
-  el('sp-flow-v').onclick = function(e) { e.stopPropagation(); _openZoneByType('medical'); };
+  if (_sessionType === 'real') {
+    el('sp-flow-v').style.cursor = 'pointer';
+    el('sp-flow-v').onclick = function(e) { e.stopPropagation(); _openZoneByType('medical'); };
+  } else {
+    el('sp-flow-v').style.cursor = 'default';
+    el('sp-flow-v').onclick = null;
+  }
   setRag('sp-flow', flowLvl);
   const srcMax = Math.max(...d.srcA.map((a,i)=>a+(d.srcB[i]||0)+(d.srcC[i]||0)), 5);
   drawSparkline('sc2', [
@@ -3582,8 +3603,13 @@ function renderSparklines(d) {
   const incLvl = totalIPI >= 6 ? 'crit' : totalIPI >= 3 ? 'warn' : 'ok';
   const incEl = el('sp-inc-v');
   incEl.textContent = '未結' + d.incOpen[N-1] + ' IPI:' + totalIPI;
-  incEl.style.cursor = 'pointer';
-  incEl.onclick = function(e) { e.stopPropagation(); showIpiBreakdown(); };
+  if (_sessionType === 'real') {
+    incEl.style.cursor = 'pointer';
+    incEl.onclick = function(e) { e.stopPropagation(); showIpiBreakdown(); };
+  } else {
+    incEl.style.cursor = 'default';
+    incEl.onclick = null;
+  }
   setRag('sp-inc', incLvl);
   const incMax = Math.max(...d.incOpen, ...d.incHigh.map((h,i)=>h+(d.incMed[i]||0)+(d.incLow[i]||0)), 3);
   drawSparkline('sc3', [

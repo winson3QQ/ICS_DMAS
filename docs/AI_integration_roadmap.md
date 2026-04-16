@@ -18,7 +18,7 @@
 | **驗證** | 🔍 **驗證中** | 情境 01(24/24)、02 live(22/22)、09(23/23) 已通過；剩餘 7 個情境待人工 Dashboard 視覺確認 |
 | 1 Wave 5 UI | 🔲 待做 | |
 | 2 E2B 評估 | 🔲 待做 | |
-| 3-3 scenario_designer.html | 🔲 待做 | 情境設計器（參數 slider + 即時生成 + live 注入）兼 Dashboard 驗證工具 |
+| 3-3 scenario_designer.html | ✅ 完成 | v0.9.9 壓力等級 + 敘事階段 + 共用 chart_utils.js + Dashboard 圖表對齊驗證通過 |
 | 3-4/3-5 PWA TTX 模式 | 🔲 待做 | |
 | 3-6~3-8 Field Node MVP | 🔲 待做 | |
 | 4~7 | 🔲 待做 | |
