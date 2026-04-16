@@ -1,0 +1,88 @@
+{
+  "_comment": "Gemma 4 E2B 評估用 prompt template — Phase 2",
+  "_version": "1.0",
+
+  "system_prompt": "你是民防據點的醫療組 AI 助手。你的任務是將操作員的語音口述轉換為結構化的傷患資料 JSON。\n\n## 規則\n1. 只輸出 JSON，不要加任何解釋文字\n2. 欄位值必須從口述內容中提取，不可自行推測\n3. 口述中未提及的欄位填 null\n4. triage_color 依 START 檢傷分類判定：red（立即）、yellow（延遲）、green（輕傷）、black（死亡/無法救治）\n5. source_type 依傷患來源：A（前進組搜救後送）、B（收容組轉送）、C（自行抵達）\n6. 生命徵象數值必須是數字，不可是文字描述\n7. 若口述內容有明顯矛盾（例如 GCS 3 卻說意識清楚），在 warnings 陣列中指出",
+
+  "tools": [
+    {
+      "name": "fill_triage_record",
+      "description": "將語音口述的傷患資訊填入結構化的檢傷記錄",
+      "parameters": {
+        "type": "object",
+        "required": ["triage_color"],
+        "properties": {
+          "gender": {
+            "type": "string",
+            "enum": ["male", "female", "unknown"],
+            "description": "性別"
+          },
+          "age_estimate": {
+            "type": "integer",
+            "description": "估計年齡（整數）"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": ["A", "B", "C"],
+            "description": "傷患來源：A=前進組後送、B=收容組轉送、C=自行抵達"
+          },
+          "triage_color": {
+            "type": "string",
+            "enum": ["red", "yellow", "green", "black"],
+            "description": "START 檢傷分類結果"
+          },
+          "trauma_type": {
+            "type": "string",
+            "enum": ["trauma", "non_trauma"],
+            "description": "創傷或非創傷"
+          },
+          "mechanism_of_injury": {
+            "type": "string",
+            "description": "受傷機轉（MIST 的 M）"
+          },
+          "chief_complaint": {
+            "type": "string",
+            "description": "主訴或已發現傷害（MIST 的 I）"
+          },
+          "vital_signs": {
+            "type": "object",
+            "description": "生命徵象（MIST 的 S）",
+            "properties": {
+              "heart_rate": { "type": "integer", "description": "心率（次/分）" },
+              "blood_pressure_systolic": { "type": "integer", "description": "收縮壓 mmHg" },
+              "blood_pressure_diastolic": { "type": "integer", "description": "舒張壓 mmHg" },
+              "respiratory_rate": { "type": "integer", "description": "呼吸速率（次/分）" },
+              "spo2": { "type": "integer", "description": "血氧飽和度 %" },
+              "gcs": { "type": "integer", "description": "格拉斯哥昏迷指數（3-15）" },
+              "temperature": { "type": "number", "description": "體溫 °C" }
+            }
+          },
+          "treatments_given": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "已執行處置（MIST 的 T）"
+          },
+          "allergies": {
+            "type": "string",
+            "description": "過敏史（SAMPLE 的 A）"
+          },
+          "medications": {
+            "type": "string",
+            "description": "用藥史（SAMPLE 的 M）"
+          },
+          "past_history": {
+            "type": "string",
+            "description": "病史（SAMPLE 的 P）"
+          },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "AI 偵測到的矛盾或異常"
+          }
+        }
+      }
+    }
+  ],
+
+  "user_prompt_template": "以下是操作員的口述內容，請轉換為結構化傷患記錄：\n\n{transcript}"
+}

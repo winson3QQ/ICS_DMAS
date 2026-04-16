@@ -1,0 +1,55 @@
+{
+  "_comment": "矛盾偵測測試 — 5 組刻意含有矛盾的口述。偵測率 > 60%（至少 3/5）為通過。",
+  "_scoring": "每個 case 的 expected_warnings 列出所有應被偵測的矛盾。AI 的 warnings 欄位需包含語意相符的警示。",
+  "cases": [
+    {
+      "id": "CONTRA-01",
+      "description": "GCS 與意識描述矛盾（GCS 3 = 深度昏迷，卻說可以對話）",
+      "transcript": "前進組後送，男性約四十歲，從高處墜落，頭部外傷，患者可以跟我們對話回答問題，GCS三分，心率九十，血壓一百三十除以八十五，呼吸十八，血氧九十六，分類黃區",
+      "expected_warnings": [
+        "GCS 3 分為深度昏迷狀態，與「可以對話回答問題」矛盾",
+        "GCS 3 應為紅區或黑區，分類黃區可能不適當"
+      ],
+      "contradiction_type": "vital_sign_vs_description"
+    },
+    {
+      "id": "CONTRA-02",
+      "description": "血氧極低卻分類綠區（SpO2 70% 應為紅區）",
+      "transcript": "一位女性自己走過來，大約三十歲，說她覺得有點喘，血氧七十，心率一百三十，血壓一百除以六十五，呼吸三十二，GCS十五，看起來還好，分類綠區",
+      "expected_warnings": [
+        "血氧 70% 為危急值，與「看起來還好」及綠區分類嚴重矛盾",
+        "呼吸速率 32 超過 30，依 START 應分類紅區",
+        "心率 130 合併血氧 70% 提示嚴重低血氧，不應為綠區"
+      ],
+      "contradiction_type": "triage_vs_vitals"
+    },
+    {
+      "id": "CONTRA-03",
+      "description": "已確認死亡卻有生命徵象數值",
+      "transcript": "前進組報告，男性約六十歲，建物壓傷，無呼吸無脈搏，已確認死亡分類黑區，心率六十，血壓一百二十除以八十，血氧九十五",
+      "expected_warnings": [
+        "已確認死亡（黑區）但報告心率 60、血壓 120/80、血氧 95% 等正常生命徵象，數據矛盾"
+      ],
+      "contradiction_type": "death_with_vitals"
+    },
+    {
+      "id": "CONTRA-04",
+      "description": "年齡與用藥矛盾（8 歲兒童服用降血壓藥+胰島素）",
+      "transcript": "收容組轉來一個小朋友大約八歲，男生，肚子痛嘔吐，他說他平常有在吃降血壓藥還有打胰島素，對盤尼西林過敏，心率一百，血壓一百除以六十，呼吸二十，血氧九十八，GCS十五，分類黃區",
+      "expected_warnings": [
+        "8 歲兒童同時服用降血壓藥和胰島素不常見，建議確認用藥史是否正確"
+      ],
+      "contradiction_type": "age_vs_medication"
+    },
+    {
+      "id": "CONTRA-05",
+      "description": "傷患來源與描述矛盾（說自己走來但雙腿截肢）",
+      "transcript": "一位男性自己走到醫療站，大約五十歲，雙下肢膝蓋以下截肢，大量出血中，心率一百五十，血壓六十除以四十，呼吸三十五，血氧八十二，GCS十，分類紅區",
+      "expected_warnings": [
+        "雙下肢膝蓋以下截肢但描述為「自己走到」，來源方式矛盾",
+        "生命徵象顯示嚴重休克（BP 60/40, HR 150），GCS 10 意識下降，此患者不可能自行行走"
+      ],
+      "contradiction_type": "source_vs_physical"
+    }
+  ]
+}
