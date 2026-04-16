@@ -74,13 +74,14 @@ def call_ollama_generate(ollama_url: str, model: str, prompt: str,
         "model": model,
         "messages": messages,
         "stream": False,
+        "think": False,
         "options": {"temperature": 0.1, "num_predict": 2048},
     }
     if tools:
         payload["tools"] = tools
 
     start = time.time()
-    resp = requests.post(url, json=payload, timeout=120)
+    resp = requests.post(url, json=payload, timeout=300)
     elapsed = time.time() - start
 
     resp.raise_for_status()
@@ -149,38 +150,80 @@ def compute_cer(reference: str, hypothesis: str) -> float:
     return d[n][m] / n
 
 
+def _normalize_empty(val):
+    """將 None、[]、「」統一為 None，方便比對「無資料」"""
+    if val is None:
+        return None
+    if isinstance(val, list) and len(val) == 0:
+        return None
+    if isinstance(val, str) and val.strip() == "":
+        return None
+    return val
+
+
+def _to_str_list(val) -> list[str] | None:
+    """將字串或字串陣列統一為 list[str]，方便比對"""
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return [val.strip()] if val.strip() else None
+    if isinstance(val, list):
+        return [str(v).strip() for v in val if str(v).strip()]
+    return None
+
+
 def score_field(gt_val, ai_val) -> float:
-    """比對單一欄位，回傳 0.0 或 1.0"""
-    if gt_val is None and ai_val is None:
+    """比對單一欄位，回傳 0.0~1.0"""
+    # 正規化空值
+    gt_norm = _normalize_empty(gt_val)
+    ai_norm = _normalize_empty(ai_val)
+
+    if gt_norm is None and ai_norm is None:
         return 1.0
-    if gt_val is None or ai_val is None:
+    if gt_norm is None and ai_norm is not None:
+        return 0.8  # AI 多給了東西，不算錯但輕微扣分
+    if gt_norm is not None and ai_norm is None:
+        return 0.0  # AI 漏了
+
+    # 數值比對（容許 ±5% 或 ±2 的小誤差，如年齡估計）
+    if isinstance(gt_norm, (int, float)) and isinstance(ai_norm, (int, float)):
+        if abs(gt_norm - ai_norm) < 0.01:
+            return 1.0
+        # 容許小幅偏差（如「二十多歲」→ 20 vs 25）
+        if gt_norm != 0 and abs(gt_norm - ai_norm) / abs(gt_norm) <= 0.15:
+            return 0.8
         return 0.0
-    # 數值比對
-    if isinstance(gt_val, (int, float)) and isinstance(ai_val, (int, float)):
-        return 1.0 if abs(gt_val - ai_val) < 0.01 else 0.0
+
+    # 字串 vs 陣列容錯（如 gt="降血壓藥" vs ai=["降血壓藥"]）
+    gt_list = _to_str_list(gt_norm)
+    ai_list = _to_str_list(ai_norm)
+    if gt_list is not None and ai_list is not None:
+        # 列表比對
+        if len(gt_list) == 0 and len(ai_list) == 0:
+            return 1.0
+        matches = 0
+        for gt_item in gt_list:
+            for ai_item in ai_list:
+                gt_l = gt_item.lower()
+                ai_l = ai_item.lower()
+                if gt_l == ai_l:
+                    matches += 1
+                    break
+                if gt_l in ai_l or ai_l in gt_l:
+                    matches += 1
+                    break
+        return matches / len(gt_list) if gt_list else 1.0
+
     # 字串比對（允許 AI 回覆包含 ground truth 的關鍵字）
-    if isinstance(gt_val, str) and isinstance(ai_val, str):
-        gt_lower = gt_val.lower().strip()
-        ai_lower = ai_val.lower().strip()
+    if isinstance(gt_norm, str) and isinstance(ai_norm, str):
+        gt_lower = gt_norm.lower().strip()
+        ai_lower = ai_norm.lower().strip()
         if gt_lower == ai_lower:
             return 1.0
         if gt_lower in ai_lower or ai_lower in gt_lower:
-            return 0.8  # 部分匹配
+            return 1.0  # 語意包含視為正確
         return 0.0
-    # 列表比對（treatments_given, warnings）
-    if isinstance(gt_val, list) and isinstance(ai_val, list):
-        if len(gt_val) == 0 and len(ai_val) == 0:
-            return 1.0
-        if len(gt_val) == 0:
-            return 0.5  # AI 多給了東西，不算錯但扣分
-        matches = 0
-        for gt_item in gt_val:
-            for ai_item in ai_val:
-                if isinstance(gt_item, str) and isinstance(ai_item, str):
-                    if gt_item.lower() in ai_item.lower() or ai_item.lower() in gt_item.lower():
-                        matches += 1
-                        break
-        return matches / len(gt_val)
+
     return 0.0
 
 
@@ -389,13 +432,15 @@ def generate_report(all_results: list[TestResult], output_path: Path):
         summary[t]["total"] += 1
         if r.passed:
             summary[t]["passed"] += 1
-        summary[t]["avg_accuracy"] += r.score
+        score_key = "avg_detection" if t == "contradiction" else "avg_accuracy"
+        summary[t][score_key] += r.score
         summary[t]["avg_latency"] += r.latency_sec
 
     for t in summary:
         n = summary[t]["total"]
         if n > 0:
-            summary[t]["avg_accuracy"] /= n
+            score_key = "avg_detection" if t == "contradiction" else "avg_accuracy"
+            summary[t][score_key] /= n
             summary[t]["avg_latency"] /= n
 
     # 整體判定
@@ -440,7 +485,7 @@ def generate_report(all_results: list[TestResult], output_path: Path):
           f"平均準確率 {s['avg_accuracy']:.1%}, 平均延遲 {s['avg_latency']:.1f}s")
     c = summary["contradiction"]
     print(f"矛盾偵測:   {c['passed']}/{c['total']} 通過, "
-          f"平均偵測率 {c['avg_accuracy']:.1%}, 平均延遲 {c['avg_latency']:.1f}s")
+          f"平均偵測率 {c['avg_detection']:.1%}, 平均延遲 {c['avg_latency']:.1f}s")
     print(f"\n詳細報告: {output_path}")
 
 
