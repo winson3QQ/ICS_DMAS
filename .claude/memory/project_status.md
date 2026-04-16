@@ -48,7 +48,7 @@ type: project
 | 🟢 | P6 WS 多裝置同步 | `handleWsMsg()` 目前空函式，最小實作：收 `patient_updated` 後 `loadPatients()` 再重繪 |
 | 🟢 | P7 腕帶 QR | 演習不需要（display_id 手寫），熱感應印表機到位後再做 |
 | 🟢 | P8 全域掃碼 | 同 P7，演習後 |
-| 🟢 | P9 語音建檔 | Pi 5 離線辨識（faster-whisper），P3–P6 完成後再做 |
+| 🟢 | P9 語音建檔 | Pi 500 本地 STT 不可行（Whisper 中文醫療術語 CER 45%），改考慮雲端 API（Gemini Flash）或 N100 |
 
 ### 技術注意事項
 
@@ -201,3 +201,40 @@ type: project
 8. 重開機驗證自動啟動
 
 硬體資訊：Pi 500（BCM2712）、OS Lite 64-bit（SSD）、主機名 ics-pi、用戶 ics、靜態 IP 192.168.100.10、自建 WiFi AP（192.168.100.0/24）
+
+---
+
+## Phase 2: E2B 評估結果（2026-04-16～04-17，Pi 500 完成）
+
+### 結果摘要
+
+| 測試 | 結果 | 判定 |
+|------|------|------|
+| Gemma4 E2B 結構化輸出 | 準確率 93.5%，延遲 40~50 秒 | 準確率 PASS，延遲 FAIL |
+| Gemma4 E2B 矛盾偵測 | 0/5 | FAIL |
+| Ollama 調參（gemma4-fast） | decode 4.2 tok/s 為硬體天花板，無法突破 | FAIL |
+| Whisper STT（Tiny/Base/Small/Medium） | CER 45.3%，繁體中文醫療術語全錯 | FAIL |
+
+### 結論
+
+- Pi 500 不適合跑即時 AI 推論，專注 WS server / PWA host / Pi push / 錄音暫存
+- LLM 結構化能力已驗證可行（93.5%），延遲問題是硬體限制非軟體問題
+- Whisper 中文醫療 STT 不可行（訓練資料問題，非模型大小問題）
+- 矛盾偵測用規則引擎實作（確定性邏輯）
+
+### 語音輸入路線決策（待定）
+
+| 路線 | 方式 | 狀態 |
+|------|------|------|
+| A. 雲端 API | Gemini 2.5 Flash（音檔→JSON 一步到位） | 待評估 |
+| B. N100 Console | Pi 錄音→N100 推論 | 待硬體 |
+| C. 規則引擎 | 關鍵字解析（需嚴格口述格式） | 可隨時實作 |
+| D. 維持手動 | 不做語音輸入 | 保底方案 |
+
+### 相關檔案
+
+- 評估報告：`command-dashboard/tests/phase2_e2b/BENCHMARK_REPORT.md`
+- 結構化結果：`benchmark_report_20260416_224930.json`
+- STT 結果：`stt_report_20260417_*.json`
+- 最佳化 Modelfile：`Modelfile.fast`
+- 分支：`phase2/e2b-evaluation`

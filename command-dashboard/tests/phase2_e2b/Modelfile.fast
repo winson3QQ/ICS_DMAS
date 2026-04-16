@@ -1,0 +1,20 @@
+FROM gemma4:e2b
+
+# --- Phase 2 最佳化參數 ---
+# 目標：在 Pi 500 (8GB RAM) 上將推論延遲從 54 秒降到 < 15 秒
+
+# 縮小 context window：檢傷口述 + system prompt 不超過 1024 tokens
+PARAMETER num_ctx 1024
+
+# 縮小 batch size：GPU/大 RAM 才需要 512，Pi 上 128 就夠
+PARAMETER num_batch 128
+
+# 限制輸出長度：結構化 JSON 不需要超過 200 tokens
+PARAMETER num_predict 200
+
+# Greedy decoding：結構化任務不需要隨機性，省掉 sampling 運算
+PARAMETER temperature 0
+PARAMETER top_k 1
+
+# 使用全部 4 核
+PARAMETER num_thread 4
