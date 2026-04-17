@@ -17,7 +17,7 @@
 | 3-5 Dashboard TTX toggle | ✅ 完成 | `9c854cd` 實戰/演練切換 + session_type query |
 | **驗證** | 🔍 **驗證中** | 情境 01(24/24)、02 live(22/22)、09(23/23) 已通過；剩餘 7 個情境待人工 Dashboard 視覺確認 |
 | 1 Wave 5 UI | 🔲 待做 | |
-| 2 E2B 評估 | 🔲 待做 | |
+| 2 E2B 評估 | ⚠️ **部分完成** | Gemma4 E2B 結構化輸出準確率 93.5% ✅；延遲 40-50s ❌；矛盾偵測 0% ❌；Whisper 全部失敗（醫療中文 CER ~45%）；Phase 2b 小模型評估待執行 |
 | 3-3 scenario_designer.html | ✅ 完成 | v0.9.9 壓力等級 + 敘事階段 + 共用 chart_utils.js + Dashboard 圖表對齊驗證通過 |
 | 3-4/3-5 PWA TTX 模式 | 🔲 待做 | |
 | 3-6~3-8 Field Node MVP | 🔲 待做 | |
@@ -37,11 +37,15 @@
 
 | 節點 | 硬體 | 模型 | 角色 |
 |------|------|------|------|
-| 醫療/收容組 | Pi 500（8GB） | Gemma 4 E2B（Q4, ~1.5GB） | 語音 → 結構化欄位填寫 + 矛盾偵測 |
-| 前進/安全組 Field Node | Pi Zero 2W（512MB） | **Whisper Tiny**（int8, ~75MB） | 本機草稿 STT，上傳原始音檔至 Console |
-| 指揮部 Console | N100 或替代（32GB） | Gemma 4 26B MoE 或 Whisper Large + Llama 3 8B | Field Node 正式文字稿、情勢合成、TTX 後果引擎、AAR |
+| 醫療/收容組 | Pi 500（8GB） | Gemma 4 E2B（Q4, ~1.5GB）— 結構化輸出待優化 | 語音 → 結構化欄位填寫（矛盾偵測 Phase 2b 重新評估） |
+| 前進/安全組 Field Node | Pi Zero 2W（512MB） | **錄音為主**；Whisper Tiny 草稿 STT（**V1-01 待驗證**：戰術用語 CER 需 < 15%，醫療中文已確認失敗） | 錄製原始音檔 + Tiny 草稿，上傳 Console；STT 正式稿由 Console 重推 |
+| 指揮部 Console | N100 或替代（32GB） | Whisper Large-v3 + Llama 3 8B 或 Gemma 4 26B MoE | Field Node 正式文字稿、情勢合成、TTX 後果引擎、AAR |
 
-**Field Node 為什麼不用 Gemma 4**：Pi Zero 2W 只有 512MB RAM，E2B Q4 需 1.5GB，載不進去。且 Field Node 上傳**原始音檔**，Console 用大模型重新推論——Whisper Tiny 草稿品質不影響 Console AI「幕僚」和「演練夥伴」能力。
+**Phase 2 實測結論**（2026-04）：
+- Gemma 4 E2B 結構化輸出準確率 93.5%（通過 85% 門檻），但延遲 40-50s（門檻 15s）未過；矛盾偵測 0%（門檻 60%）未過
+- Whisper Tiny/Small/Medium/Large 在醫療繁中術語 CER ~45%，Pi 500 記憶體頻寬上限 4.2 tok/s 是硬天花板
+- **架構轉向**：Field Node 改為「啞錄音節點」，Console 統一做 STT；Whisper Tiny 在 Field Node 上的**戰術用語**表現仍待 V1-01 驗證
+- Phase 2b 待執行：Gemma3 4B / 1B、SmolLM3 3B、Phi-4-mini 3.8B 在 Pi 500 上的小模型評估
 
 ---
 
@@ -90,20 +94,48 @@
 - Gemma 4 E2B（2.3B 有效參數）
 
 ### 測試項目與通過標準
-| 測試 | 輸入 | 通過 |
-|------|------|------|
-| STT 準確率 | 10 段演練錄音（15-30 秒，含 CMIST/ISBAR/START 術語） | 字元錯誤率 < 15% |
-| 結構化輸出 | 同上 → JSON（性別/年齡/分級/主訴） | 欄位準確率 > 85% |
-| 矛盾偵測 | 5 段刻意矛盾錄音 | 偵測率 > 60% |
-| 推論延遲 | 30 秒音訊 → 完整 JSON | < 15 秒 |
-| 記憶體 | 推論中 + WS server 同時運行 | 無 OOM，RSS < 6GB |
 
-### Fallback
-- 全不通過 → 維持手動輸入，不整合語音 AI
-- STT 過但結構化不過 → 只做 STT（Whisper Tiny 替代），不做結構化
+| 測試 | 輸入 | 通過標準 | **實測結果** |
+|------|------|---------|------------|
+| STT 準確率（Whisper Tiny） | 10 段演練錄音（15-30 秒，含 CMIST/ISBAR/START 術語） | CER < 15% | ❌ **CER ~45%**（醫療繁中術語全部失敗） |
+| 結構化輸出（E2B） | 同上 → JSON（性別/年齡/分級/主訴） | 欄位準確率 > 85% | ✅ **93.5%**（準確率過關） |
+| 矛盾偵測（E2B） | 5 段刻意矛盾錄音 | 偵測率 > 60% | ❌ **0%**（完全未偵測） |
+| 推論延遲（E2B） | 30 秒音訊 → 完整 JSON | < 15 秒 | ❌ **40-50s**（Pi 500 記憶體頻寬瓶頸 4.2 tok/s） |
+| 記憶體 | 推論中 + WS server 同時運行 | 無 OOM，RSS < 6GB | ✅ 通過（無 OOM） |
+
+**根因**：Pi 500 BCM2712 記憶體頻寬 34 GB/s 是硬天花板，即使 Q4_K_M 也無法在 15s 內完成推論。Whisper 各 size 在醫療中文術語均超出可用範圍。
+
+### 實測結論與架構轉向
+
+| 項目 | 結論 |
+|------|------|
+| Whisper（Pi 500 本機） | Pi 500 不做 STT，改由 Console Whisper Large-v3 集中處理 |
+| E2B 結構化輸出 | 準確率可用，但延遲需優化（prompt 精簡 / 批次推論 / 換小模型） |
+| E2B 矛盾偵測 | 需重設計 prompt 或改用規則引擎輔助 |
+| 整體架構 | Field Node 降級為「啞錄音節點」，音訊集中上傳 Console 做 STT |
+
+### Phase 2b（待執行，Pi 500 上）
+
+目標：找更快的小模型解決延遲問題，候選：
+
+| 模型 | 大小（Q4） | 預估速度 | 優先 |
+|------|-----------|---------|------|
+| Gemma3 4B | ~2.5GB | 未知 | 🔴 優先 |
+| Gemma3 1B | ~0.7GB | 未知 | 🔴 次優先 |
+| SmolLM3 3B | ~1.8GB | 未知 | 🟡 |
+| Phi-4-mini 3.8B | ~2.3GB | 未知 | 🟡 |
+
+測試重點：同樣的結構化輸出 prompt → 延遲是否 < 15s；矛盾偵測重新設計 prompt 後再試。
+
+### Fallback（更新後）
+- Whisper Pi 500 本機 STT → **已棄用**，改 Console 集中
+- E2B 延遲問題 → Phase 2b 小模型評估（進行中）
+- 若所有小模型延遲仍 > 15s → 降為「手動確認 + 批次離線推論」，不做即時 AI 填表
 
 ### 產出
-- 評估報告 + prompt template + JSON output schema
+- ✅ 評估報告：`command-dashboard/tests/phase2_e2b/BENCHMARK_REPORT.md`（branch: phase2/e2b-evaluation）
+- ✅ Prompt template + JSON output schema（同目錄）
+- 🔲 Phase 2b 小模型報告（待執行）
 
 ---
 
@@ -441,7 +473,7 @@ Phase 0 (bug fix + session_type)
 |-------|------|
 | 0 | 刪 `data/ics.db` 重建 → session_type 存在、role_detail 可寫入；shelter SW 更新不再靜默失敗 |
 | 1 | 啟動 dashboard → deadline reset、決策合併、burn rate 線、流向箭頭正常 |
-| 2 | Pi 500 + llama.cpp + E2B → 餵演練錄音 → 量化報告 |
+| 2 | ✅ Pi 500 + llama.cpp + E2B → 量化報告完成（見 BENCHMARK_REPORT.md）；2b 小模型評估待執行 |
 | 3 | scenario_designer.html 建 session → inject 推送 → PWA 收到情境卡 → audit_log 完整；Field Node Mac 模擬 → 錄音 → upload → Command 收到 |
 | 4 | 醫療 PWA 按麥克風 → 說話 → AI 填欄位 → 確認寫入 |
 | 5 | AI 面板顯示情勢摘要；Field Node 正式文字稿生成；TTX 後果生成 → 主持人審核 → 推送 |
