@@ -218,10 +218,17 @@ function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
       datasets.forEach(ds => {
         const v = ds.data[nearest];
         if (v == null) return;
-        const pct  = v + (ds.unit||'');
-        const abs  = ds.extraData ? ` / ${ds.extraData[nearest]}${ds.extraUnit||''}` : '';
-        const lbl  = ds.label ? ds.label + '&ensp;' : '';
+        const pct = v + (ds.unit||'');
+        const abs = ds.extraData ? ` / ${ds.extraData[nearest]}${ds.extraUnit||''}` : '';
+        const lbl = ds.label ? ds.label + '&ensp;' : '';
         html += `<div><span style="color:${ds.color}">●</span>&ensp;${lbl}<b>${pct}${abs}</b></div>`;
+      });
+      // hoverExtra：只在 tooltip 顯示，不繪製線條（stackedArea 分解、補充數值等）
+      (opts.hoverExtra||[]).forEach(he => {
+        const v = he.data[nearest];
+        if (v == null) return;
+        const lbl = he.label ? he.label + '&ensp;' : '';
+        html += `<div style="color:${he.color||'#8b949e'}"><span>●</span>&ensp;${lbl}<b>${v}${he.unit||''}</b></div>`;
       });
       const tip = _getTooltip();
       tip.innerHTML = html;
