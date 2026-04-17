@@ -2018,7 +2018,7 @@ let _leafletMap = null;
 let _leafletMarkers = [];
 
 const _HSINCHU_CENTER = [24.80, 120.97];
-const _HSINCHU_ZOOM = 13;
+const _HSINCHU_ZOOM = 15;
 
 // 測試 marker 資料（後續改從 map_config.json 讀 lat/lng）
 const _TEST_MARKERS = [
@@ -2053,16 +2053,21 @@ function _initLeafletMap() {
   _leafletMap = L.map(container, { zoomControl: true, attributionControl: true })
     .setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
 
-  // ── Base layers（PMTiles vector，離線，支援 zoom 0-19）──
+  // ── Base layers ──
+  // Raster：OSM 標準外觀（最清晰），zoom 14-16 離線，超出範圍自動 overzoom
+  const rasterLayer = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    minZoom: 10, maxZoom: 19, maxNativeZoom: 16
+  });
+  // PMTiles vector：離線，zoom 0-19 overzoom
   const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
   const lightLayer = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'light' });
   const darkLayer  = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'dark' });
-  const blackLayer = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'black' });
 
-  lightLayer.addTo(_leafletMap);
+  rasterLayer.addTo(_leafletMap);
 
   L.control.layers(
-    { '彩色（離線）': lightLayer, '深色（離線）': darkLayer, '黑色（離線）': blackLayer },
+    { 'OSM 街道（離線）': rasterLayer, '向量彩色（離線）': lightLayer, '向量深色（離線）': darkLayer },
     {},
     { position: 'topright', collapsed: false }
   ).addTo(_leafletMap);
