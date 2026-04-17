@@ -172,20 +172,29 @@ function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
       ctx.restore(); // 恢復 scale(dpr, dpr)
     }
 
+    const SNAP_R = 22; // 邏輯像素，游標距點在此半徑內才觸發
     const mm = (e) => {
       const rect = canvas.getBoundingClientRect();
       // 換算到 canvas 邏輯座標
       const logicX = (e.clientX - rect.left) * (W / rect.width);
-      if (logicX < pad.l || logicX > pad.l + cW) {
+      const logicY = (e.clientY - rect.top)  * (H / rect.height);
+
+      // 找 2D 距離最近的資料點，距離超過 SNAP_R 則不顯示
+      let nearest = -1, minD2 = SNAP_R * SNAP_R;
+      for (let i = 0; i < N; i++) {
+        const dx = px(i) - logicX;
+        for (const ds of datasets) {
+          const v = ds.data[i];
+          if (v == null) continue;
+          const dy = py(v) - logicY;
+          const d2 = dx*dx + dy*dy;
+          if (d2 < minD2) { minD2 = d2; nearest = i; }
+        }
+      }
+      if (nearest === -1) {
         restoreSnapshot();
         _getTooltip().style.display = 'none';
         return;
-      }
-      // 找最近 x index
-      let nearest = 0, minDist = Infinity;
-      for (let i = 0; i < N; i++) {
-        const d = Math.abs(px(i) - logicX);
-        if (d < minDist) { minDist = d; nearest = i; }
       }
       // 還原靜態畫面，再疊高亮點
       restoreSnapshot();
