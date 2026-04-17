@@ -15,10 +15,11 @@ FastAPI + SQLite，跑在指揮部 Pi
 from fastapi import FastAPI, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from pydantic import BaseModel, Field
 from typing import Optional
 import json
+import sqlite3
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
@@ -152,6 +153,36 @@ async def auth_middleware(request: Request, call_next):
 static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
+# ── Tile server（MBTiles → Leaflet XYZ）──────────────────────────────────────
+_MBTILES_DIR = static_path / "tiles"
+
+def _get_tile_db(name: str) -> Path:
+    p = _MBTILES_DIR / f"{name}.mbtiles"
+    if not p.exists():
+        raise HTTPException(404, f"Tile source '{name}' not found")
+    return p
+
+@app.get("/tiles/{source}/{z}/{x}/{y}.png", tags=["地圖 Tiles"])
+def serve_tile(source: str, z: int, x: int, y: int):
+    db_path = _get_tile_db(source)
+    tms_y = (2**z - 1) - y  # Leaflet XYZ → MBTiles TMS
+    with sqlite3.connect(str(db_path)) as conn:
+        row = conn.execute(
+            "SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?",
+            (z, x, tms_y)
+        ).fetchone()
+    if not row:
+        raise HTTPException(204, "Tile not found")
+    return Response(content=row[0], media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+@app.get("/tiles/{source}/metadata", tags=["地圖 Tiles"])
+def tile_metadata(source: str):
+    db_path = _get_tile_db(source)
+    with sqlite3.connect(str(db_path)) as conn:
+        rows = conn.execute("SELECT name, value FROM metadata").fetchall()
+    return {k: v for k, v in rows}
 
 # CA 根憑證下載（供手機/平板安裝）
 cert_path = Path(__file__).parent.parent.parent / "certs" / "rootCA.pem"

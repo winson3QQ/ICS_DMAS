@@ -534,6 +534,13 @@ canvas{display:block;width:100%!important;height:100%!important;}
 }
 </style>
 <script src="chart_utils.js"></script>
+<link rel="stylesheet" href="lib/leaflet.min.css">
+<script src="lib/leaflet.min.js"></script>
+<style>
+#leaflet-map{position:absolute;inset:0;z-index:1;display:none;}
+#leaflet-map.active{display:block;}
+.leaflet-layer-control{font-family:var(--mono);font-size:10px;}
+</style>
 </head>
 <body>
 
@@ -759,11 +766,13 @@ canvas{display:block;width:100%!important;height:100%!important;}
     <div id="map-tabs">
       <div class="map-tab active" data-map="indoor" onclick="switchMap('indoor')">站內</div>
       <div class="map-tab" data-map="outdoor" onclick="switchMap('outdoor')">站外</div>
+      <div class="map-tab" data-map="osm" onclick="switchMap('osm')">OSM</div>
     </div>
     <div id="map-tools"></div>
     <div id="edit-coords"></div>
     <img id="map-img" src="" alt="地圖載入中">
     <div id="map-overlay"></div>
+    <div id="leaflet-map"></div>
     <div id="edit-bar">
       <div style="display:flex;gap:0;align-items:center;margin:0 auto;">
         <button class="place-grp" data-grp="forward" onclick="selectPlaceGroup('forward')">前進</button>
@@ -1981,16 +1990,93 @@ async function initMap() {
 }
 
 function switchMap(key) {
+  const isOsm = key === 'osm';
+  // tab 切換
+  document.querySelectorAll('.map-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.map === key);
+  });
+  // 靜態地圖 vs Leaflet 切換
+  el('map-img').style.display = isOsm ? 'none' : '';
+  el('map-overlay').style.display = isOsm ? 'none' : '';
+  el('edit-bar').style.display = isOsm ? 'none' : '';
+  el('leaflet-map').classList.toggle('active', isOsm);
+  if (isOsm) {
+    _initLeafletMap();
+    return;
+  }
   if (!_mapConfig || !_mapConfig.maps[key]) return;
   _currentMap = key;
   sessionStorage.setItem('_currentMap', key);
   const m = _mapConfig.maps[key];
   el('map-img').src = '/static/' + m.image;
-  // tab 切換
-  document.querySelectorAll('.map-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.map === key);
-  });
   renderMapOverlay();
+}
+
+// ── Leaflet OSM 地圖 ──────────────────────────────────────────────────────────
+let _leafletMap = null;
+let _leafletMarkers = [];
+
+const _HSINCHU_CENTER = [24.80, 120.97];
+const _HSINCHU_ZOOM = 13;
+
+// 測試 marker 資料（後續改從 map_config.json 讀 lat/lng）
+const _TEST_MARKERS = [
+  { lat: 24.8022, lng: 120.9714, label: '收容組', type: 'shelter', sub: '新竹市立體育館' },
+  { lat: 24.7975, lng: 120.9961, label: '醫療組', type: 'medical', sub: '新竹馬偕醫院' },
+  { lat: 24.8138, lng: 120.9675, label: '前進指揮所', type: 'forward', sub: '新竹火車站廣場' },
+];
+
+const _MARKER_COLORS = {
+  shelter: '#f0883e', medical: '#e05555', forward: '#58a6ff',
+  security: '#bc8cff', command: '#d49000'
+};
+
+function _leafletIcon(type) {
+  const color = _MARKER_COLORS[type] || '#8b949e';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+    <path d="M14 2C7.4 2 2 7.4 2 14c0 9 12 22 12 22s12-13 12-22C26 7.4 20.6 2 14 2z"
+      fill="${color}" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="14" cy="14" r="5" fill="#fff" opacity=".9"/>
+  </svg>`;
+  return L.divIcon({
+    html: svg, className: '', iconSize: [28, 36], iconAnchor: [14, 36], popupAnchor: [0, -36]
+  });
+}
+
+function _initLeafletMap() {
+  const container = el('leaflet-map');
+  if (_leafletMap) {
+    _leafletMap.invalidateSize();
+    return;
+  }
+  _leafletMap = L.map(container, { zoomControl: true, attributionControl: true })
+    .setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
+
+  // ── Base layers ──
+  const osmLayer = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 16, minZoom: 10
+  });
+  const topoLayer = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenTopoMap (CC-BY-SA)',
+    maxZoom: 16, minZoom: 10
+  });
+
+  osmLayer.addTo(_leafletMap);
+
+  L.control.layers(
+    { 'OSM 街道（離線）': osmLayer, '地形（線上）': topoLayer },
+    {},
+    { position: 'topright', collapsed: false }
+  ).addTo(_leafletMap);
+
+  // ── 測試 markers ──
+  _TEST_MARKERS.forEach(m => {
+    const marker = L.marker([m.lat, m.lng], { icon: _leafletIcon(m.type) })
+      .bindPopup(`<b>${m.label}</b><br><small>${m.sub}</small>`)
+      .addTo(_leafletMap);
+    _leafletMarkers.push(marker);
+  });
 }
 
 function renderMapOverlay() {
