@@ -536,6 +536,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
 <script src="chart_utils.js"></script>
 <link rel="stylesheet" href="lib/leaflet.min.css">
 <script src="lib/leaflet.min.js"></script>
+<script src="lib/protomaps-leaflet.js"></script>
 <style>
 #leaflet-map{position:absolute;inset:0;z-index:1;display:none;}
 #leaflet-map.active{display:block;}
@@ -2052,20 +2053,16 @@ function _initLeafletMap() {
   _leafletMap = L.map(container, { zoomControl: true, attributionControl: true })
     .setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
 
-  // ── Base layers ──
-  const osmLayer = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 16, minZoom: 10
-  });
-  const topoLayer = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenTopoMap (CC-BY-SA)',
-    maxZoom: 16, minZoom: 10
-  });
+  // ── Base layers（PMTiles vector，離線，支援 zoom 0-19）──
+  const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
+  const darkLayer   = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'dark' });
+  const lightLayer  = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' });
+  const whiteLayer  = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'white' });
 
-  osmLayer.addTo(_leafletMap);
+  darkLayer.addTo(_leafletMap);
 
   L.control.layers(
-    { 'OSM 街道（離線）': osmLayer, '地形（線上）': topoLayer },
+    { '深色（離線）': darkLayer, '灰階（離線）': lightLayer, '淺色（離線）': whiteLayer },
     {},
     { position: 'topright', collapsed: false }
   ).addTo(_leafletMap);
