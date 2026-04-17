@@ -2054,20 +2054,19 @@ function _initLeafletMap() {
     .setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
 
   // ── Base layers ──
-  // Raster：OSM 標準外觀（最清晰），zoom 14-16 離線，超出範圍自動 overzoom
+  // Raster：OSM 標準外觀，zoom 14-16 離線，overzoom 到 19
   const rasterLayer = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     minZoom: 10, maxZoom: 19, maxNativeZoom: 16
   });
-  // PMTiles vector：離線，zoom 0-19 overzoom
+  // PMTiles vector：夜間/深色模式用
   const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
-  const lightLayer = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'light' });
   const darkLayer  = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'dark' });
 
   rasterLayer.addTo(_leafletMap);
 
   L.control.layers(
-    { 'OSM 街道（離線）': rasterLayer, '向量彩色（離線）': lightLayer, '向量深色（離線）': darkLayer },
+    { 'OSM 街道（離線）': rasterLayer, '夜間深色（離線）': darkLayer },
     {},
     { position: 'topright', collapsed: false }
   ).addTo(_leafletMap);
