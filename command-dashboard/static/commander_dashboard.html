@@ -2055,14 +2055,14 @@ function _initLeafletMap() {
 
   // ── Base layers（PMTiles vector，離線，支援 zoom 0-19）──
   const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
-  const darkLayer   = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'dark' });
-  const lightLayer  = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' });
-  const whiteLayer  = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'white' });
+  const lightLayer = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'light' });
+  const darkLayer  = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'dark' });
+  const blackLayer = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'black' });
 
-  darkLayer.addTo(_leafletMap);
+  lightLayer.addTo(_leafletMap);
 
   L.control.layers(
-    { '深色（離線）': darkLayer, '灰階（離線）': lightLayer, '淺色（離線）': whiteLayer },
+    { '彩色（離線）': lightLayer, '深色（離線）': darkLayer, '黑色（離線）': blackLayer },
     {},
     { position: 'topright', collapsed: false }
   ).addTo(_leafletMap);
