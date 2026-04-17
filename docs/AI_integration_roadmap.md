@@ -288,23 +288,38 @@ GET  /api/ttx/sessions/{id}/timeline             — 即時決策時間軸
 
 ---
 
-## Phase 4：語音輸入整合（依 Phase 2 結果）
+## Phase 4：語音輸入整合（依 Phase 2b 結果）
 
-**前提**：Phase 2 E2B 評估通過。針對醫療/收容組 Pi 500。
-**實作參考**：AI 藍圖 §肆（各組 AI 整合細節）、AI 技術報告 §4（Gemma 4 部署 + 可追溯性設計）
+**前提**：Phase 2b 小模型評估至少一個模型通過（結構化輸出準確率 > 85%，延遲 < 15 秒）。
+Phase 2（E2B）已確認 Pi 500 不適合跑 Gemma4 E2B（延遲 40-50s，硬天花板 4.2 tok/s），Phase 4 架構改為下列雙軌：
 
-**4-1. Pi 端 AI 推論服務**
-- llama.cpp server mode（`127.0.0.1:8090`）作為獨立 process
-- `ics_ws_server.js` 透過 HTTP 呼叫本機 llama.cpp
+**架構選項（Phase 2b 結束後二選一）：**
+
+| 選項 | 條件 | 架構 |
+|------|------|------|
+| A. Pi 本機小模型 | Phase 2b 至少一個模型通過 | Pi 500 跑 Gemma3 4B / Phi-4-mini，Ollama 本機推論 |
+| B. 雲端 API | Phase 2b 全部失敗 | PWA 錄音 → 送 Gemini 2.5 Flash → 結構化 JSON 回傳（需網路） |
+
+**實作參考**：AI 技術報告 §4（部署 + 可追溯性設計）
+
+**4-1. Pi 端 AI 推論服務**（選項 A）
+- Ollama server mode（`127.0.0.1:11434`）作為獨立 process，跑 Phase 2b 通過的小模型
+- `ics_ws_server.js` 透過 HTTP 呼叫本機 Ollama
 - 不修改 WS 協議，AI 結果作為 delta 欄位發出
+
+**4-1b. 雲端 API 服務**（選項 B）
+- PWA 直接呼叫 Gemini 2.5 Flash API（音訊 → JSON，一步到位）
+- API key 由 Pi admin 設定頁管理
+- 離線 fallback：降級為手動輸入，顯示「AI 暫不可用」提示
 
 **4-2. PWA 語音輸入 UI** → `medical_pwa.html`、`shelter_pwa.html`
 - 檢傷頁加麥克風按鈕 → `MediaRecorder` API 錄音
-- 錄完 → POST 到 Pi 本機 AI endpoint → 回傳結構化 JSON
+- 錄完 → POST 到本機 Ollama（選項 A）或 Gemini API（選項 B）→ 回傳結構化 JSON
 - **人工確認再寫入**：AI 填好欄位，使用者確認或修改，按「確認」才 submit
 
-**4-3. 矛盾偵測**
-- AI 回傳 `warnings[]`（如「血壓偏低但分在綠區」）
+**4-3. 矛盾偵測**（規則引擎，不依賴 LLM）
+- Phase 2 確認 Gemma4 E2B 矛盾偵測率 0%，改用確定性規則引擎實作
+- 規則範例：GCS ≤ 8 但分級為綠/黃、血氧 < 90% 但未標記呼吸道問題、年齡 < 15 但使用成人劑量
 - PWA 顯示黃色警告框，使用者可忽略或修正
 
 ---
@@ -432,7 +447,7 @@ Phase 0 (bug fix + session_type)
    │         ↓
    │    Phase 3 (TTX 骨架 + Field Node MVP)
    │         │
-   │         ├──→ Phase 4 (醫療/收容語音輸入) [依 E2B 評估]
+   │         ├──→ Phase 4 (醫療/收容語音輸入) [依 Phase 2b 小模型評估]
    │         │         │
    │         │         ↓
    │         └──→ Phase 5 (Console AI 統一部署) [依硬體決定]
@@ -443,8 +458,8 @@ Phase 0 (bug fix + session_type)
    │                   ↓
    │              Phase 7 (安全硬化)
    │
-   └──→ Phase 2 (E2B 評估) ──→ Phase 4
-        （與 Phase 1 平行）
+   └──→ Phase 2 (E2B 評估，結案) ──→ Phase 2b (小模型) ──→ Phase 4
+        （E2B 已完成，2b 待執行）
 ```
 
 ---
