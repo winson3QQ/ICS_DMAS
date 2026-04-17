@@ -402,7 +402,7 @@ def create_event(data: dict, session_type: str = "real") -> dict:
         VALUES (?,
             (SELECT ? || printf('%03d',
                 COALESCE(MAX(CAST(SUBSTR(event_code, -3) AS INTEGER)), 0) + 1)
-             FROM events WHERE event_code LIKE ? AND session_type=?),
+             FROM events WHERE event_code LIKE ?),
             ?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?,?)
     """
 
@@ -412,7 +412,7 @@ def create_event(data: dict, session_type: str = "real") -> dict:
             with get_conn() as conn:
                 conn.execute(sql, (
                     eid,
-                    prefix, prefix + "%", session_type,
+                    prefix, prefix + "%",
                     data["reported_by_unit"],
                     data.get("location_desc"),
                     data.get("location_zone_id"),

@@ -28,7 +28,41 @@
     "outdoor": {
       "image": "Satellite_map.png",
       "label": "站外",
-      "zones": [],
+      "zones": [
+        {
+          "id": "evt_1776408435322",
+          "label": "QRF 出動",
+          "sub": "",
+          "x_pct": 67.7,
+          "y_pct": 57.8,
+          "node_type": "forward",
+          "icon": "run",
+          "event_id": "82ad1f78-4981-4a01-806e-2e6581e1cbf3",
+          "event_code": "EV-0417-017"
+        },
+        {
+          "id": "evt_1776408457447",
+          "label": "不明人士",
+          "sub": "",
+          "x_pct": 47.9,
+          "y_pct": 61.2,
+          "node_type": "forward",
+          "icon": "person",
+          "event_id": "0c6e9641-78df-4e57-b5ac-0c6428a11d47",
+          "event_code": "EV-0417-018"
+        },
+        {
+          "id": "evt_1776408469538",
+          "label": "疑似爆裂物",
+          "sub": "",
+          "x_pct": 37.8,
+          "y_pct": 54.5,
+          "node_type": "security",
+          "icon": "explosive",
+          "event_id": "92201e1f-ef6f-44dd-9d85-0d8955d5063d",
+          "event_code": "EV-0417-019"
+        }
+      ],
       "flows": []
     }
   }
