@@ -17,7 +17,7 @@
 | 3-5 Dashboard TTX toggle | ✅ 完成 | `9c854cd` 實戰/演練切換 + session_type query |
 | **驗證** | 🔍 **驗證中** | 情境 01(24/24)、02 live(22/22)、09(23/23) 已通過；剩餘 7 個情境待人工 Dashboard 視覺確認 |
 | 1 Wave 5 UI | 🔲 待做 | |
-| 2 E2B 評估 | 🔲 待做 | |
+| 2 E2B 評估 | ⚠️ **部分完成** | Gemma4 E2B 結構化輸出準確率 93.5% ✅；延遲 40-50s ❌；矛盾偵測 0% ❌；Whisper 全部失敗（醫療中文 CER ~45%）；Phase 2b 小模型評估待執行 |
 | 3-3 scenario_designer.html | ✅ 完成 | v0.9.9 壓力等級 + 敘事階段 + 共用 chart_utils.js + Dashboard 圖表對齊驗證通過 |
 | 3-4/3-5 PWA TTX 模式 | 🔲 待做 | |
 | 3-6~3-8 Field Node MVP | 🔲 待做 | |
@@ -37,11 +37,17 @@
 
 | 節點 | 硬體 | 模型 | 角色 |
 |------|------|------|------|
-| 醫療/收容組 | Pi 500（8GB） | Gemma 4 E2B（Q4, ~1.5GB） | 語音 → 結構化欄位填寫 + 矛盾偵測 |
-| 前進/安全組 Field Node | Pi Zero 2W（512MB） | **Whisper Tiny**（int8, ~75MB） | 本機草稿 STT，上傳原始音檔至 Console |
+| 醫療/收容組 | Pi 500（8GB） | Gemma 4 E2B（Q4, ~1.5GB）— 結構化輸出待優化 | 語音 → 結構化欄位填寫（矛盾偵測 Phase 2b 重新評估） |
+| 前進/安全組 Field Node | Pi Zero 2W（512MB） | **錄音為主**；Whisper Tiny 草稿 STT（**V1-01 待驗證**：戰術用語 CER 需 < 15%，醫療中文已確認失敗） | 錄製原始音檔 + Tiny 草稿，上傳 Console；STT 正式稿由 Console 重推 |
 | 指揮部 Console | N100 或替代（32GB） | Gemma 4 26B MoE 或 Whisper Large + Llama 3 8B | Field Node 正式文字稿、情勢合成、TTX 後果引擎、AAR |
 
-**Field Node 為什麼不用 Gemma 4**：Pi Zero 2W 只有 512MB RAM，E2B Q4 需 1.5GB，載不進去。且 Field Node 上傳**原始音檔**，Console 用大模型重新推論——Whisper Tiny 草稿品質不影響 Console AI「幕僚」和「演練夥伴」能力。
+**Field Node 為什麼不用 Gemma 4**：Pi Zero 2W 只有 512MB RAM，E2B Q4 需 1.5GB，載不進去。且 Field Node 上傳**原始音檔**，Console 用大模型重新推論——Whisper Tiny 草稿品質不影響 Console AI「幕僚」和「演練夥伴」能力。Whisper Tiny 對醫療繁中術語 CER ~45%（確認失敗）；戰術用語表現仍待 V1-01 驗證。
+
+**Phase 2 實測結論**（2026-04）：
+- Gemma 4 E2B 結構化輸出準確率 93.5%（通過 85% 門檻），但延遲 40-50s（門檻 15s）未過；矛盾偵測 0%（門檻 60%）未過
+- Whisper Tiny/Small/Medium/Large 在醫療繁中術語 CER ~45%，Pi 500 記憶體頻寬上限 4.2 tok/s 是硬天花板
+- **架構轉向**：Field Node 改為「啞錄音節點」，Console 統一做 STT；Whisper Tiny 在 Field Node 上的**戰術用語**表現仍待 V1-01 驗證
+- Phase 2b 待執行：Gemma3 4B / 1B、SmolLM3 3B、Phi-4-mini 3.8B 在 Pi 500 上的小模型評估
 
 ---
 
