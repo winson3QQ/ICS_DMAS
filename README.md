@@ -116,7 +116,7 @@ PTT 錄音 → STT        WebSocket          WebSocket
 | Phase 2 | HTTPS/WSS（mkcert），LUKS 部署至各 Pi，WireGuard |
 | Phase 3 | 演訓正式環境，YubiKey + 全加密 + WireGuard 全部到位 |
 
-目前開發階段：**Phase 1**（醫療 PWA medical-v0.6.3-alpha、指揮部 cmd-v0.6.0、收容組 PWA shelter-v2.3）
+目前開發階段：**Phase 1**（醫療 PWA medical-v0.6.7-alpha、指揮部 cmd-v0.9.2、收容組 PWA shelter-v2.2.48）
 
 ---
 
@@ -127,16 +127,58 @@ ICS_DMAS/
 ├── command-dashboard/       # 指揮部後端（FastAPI + SQLite）+ 前端儀表板
 │   ├── src/                 # main.py / db.py / calc_engine.py
 │   ├── static/              # commander_dashboard.html、qr_scanner.html、地圖底圖
-│   ├── docs/                # 指揮部儀表板設計規格 v1.1
+│   ├── docs/                # 指揮部儀表板設計規格 v1.6
 │   └── tests/               # gen_test_snapshots.py
 ├── shelter-pwa/             # 收容組 PWA + WebSocket Pi 伺服器
-│   └── docs/                # 收容組規格 v2.3、SOP、DB schema
+│   └── docs/                # 收容組規格 v2.7、SOP、DB schema
 ├── medical-pwa/             # 醫療組 PWA + WebSocket Pi 伺服器
 │   └── docs/                # 醫療組規格 v0.6、SOP
 ├── security & forward/      # 民防輔助感知系統（前進/安全組，規格先行）
 │   └── docs/                # 規格書、開發計畫、測試計畫 v1.4
 └── docs/                    # 跨組共用規格
     └── ui_ux_design_guide.md
+```
+
+---
+
+## 指揮部後端快速啟動
+
+```bash
+cd command-dashboard
+export PYTHONPATH=src          # Windows: set PYTHONPATH=src
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
+
+測試資料注入：
+
+```bash
+python tests/gen_test_snapshots.py --batch
+```
+
+> **DB schema 變更**需刪除 `data/ics.db` 讓服務重建。
+
+### 指揮部後端檔案結構
+
+```
+command-dashboard/
+├── src/
+│   ├── main.py              — FastAPI 主程式（API 路由）
+│   ├── db.py                — SQLite schema + CRUD
+│   └── calc_engine.py       — 計算引擎（趨勢、倒數、壓力指數）
+├── static/
+│   ├── commander_dashboard.html   — 指揮部儀表板前端（CMD_VERSION 常數控制版號）
+│   ├── scenario_designer.html     — TTX 情境設計器
+│   ├── chart_utils.js             — 共用圖表繪製
+│   ├── qr_scanner.html            — QR 掃描介面
+│   ├── ICS_Campus_map.jpg         — 站內地圖底圖
+│   ├── Satellite_map.png          — 站外衛星地圖底圖
+│   └── map_config.json            — 地圖據點座標設定
+├── tests/
+│   └── gen_test_snapshots.py      — 測試快照資料生成
+├── data/
+│   └── ics.db                     — SQLite 資料庫（執行後自動建立，.gitignore）
+└── docs/
+    └── 指揮部儀表板設計規格.md        — UI/UX 規格書 v1.6
 ```
 
 ---
@@ -149,7 +191,7 @@ ICS_DMAS/
 | [PWA UI/UX 設計規範](docs/ui_ux_design_guide.md) | — | 醫療 + 收容共用 |
 | [醫療組 PWA 規格](medical-pwa/docs/medical_pwa_spec.md) | v0.6 | medical-v0.6.7-alpha |
 | [醫療組 SOP](medical-pwa/docs/醫療組SOP_20260323.md) | 2026-03-23 | — |
-| [收容組 PWA 規格](shelter-pwa/docs/shelter_pwa_spec.md) | v2.7 | shelter-v2.3 |
+| [收容組 PWA 規格](shelter-pwa/docs/shelter_pwa_spec.md) | v2.7 | shelter-v2.2.48 |
 | [收容組 SOP](shelter-pwa/docs/收容組_SOP_彙整_20260330.md) | 2026-03-30 | — |
 | [民防感知系統規格書](security%20&%20forward/docs/民防輔助感知系統_規格書_v1_4.md) | v1.4 | 規格先行 |
 | [民防感知開發計畫](security%20&%20forward/docs/民防輔助感知系統_開發計畫_v1_4.md) | v1.4 | 規格先行 |
