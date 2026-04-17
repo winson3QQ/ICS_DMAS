@@ -7,12 +7,34 @@
  * drawSparkline(canvasId, datasets, opts, N, expanded, times)
  *
  * @param {string}  canvasId   - canvas 元素 ID
- * @param {Array}   datasets   - [{data:[], color, w, fill, fillColor, dash, unit, label}]
- * @param {Object}  opts       - {yMin, yMax, thresholds:[{value,color,label}], stackedArea:[{data,fillColor}], gridSteps}
+ * @param {Array}   datasets   - [{data, color, w, fill, fillColor, dash, unit, label,
+ *                                 extraData, extraUnit}]
+ * @param {Object}  opts       - {yMin, yMax, yUnit, noEndLabel, hover,
+ *                                thresholds, stackedArea, gridSteps,
+ *                                rightAxis:{max, unit, label}}
  * @param {number}  N          - 資料點數
- * @param {boolean} expanded   - 是否展開模式（顯示軸標籤、資料點）
- * @param {Array}   times      - X 軸時間標籤（展開時用）
+ * @param {boolean} expanded   - 是否展開模式
+ * @param {Array}   times      - X 軸時間標籤
  */
+
+// 全域共用 tooltip div
+let _chartTooltip = null;
+function _getTooltip() {
+  if (!_chartTooltip) {
+    _chartTooltip = document.createElement('div');
+    _chartTooltip.style.cssText =
+      'position:fixed;pointer-events:none;z-index:9999;display:none;' +
+      'background:rgba(13,17,23,.96);border:1px solid rgba(48,54,61,.8);border-radius:6px;' +
+      'padding:7px 11px;font:11px IBM Plex Mono,monospace;color:#e6edf3;' +
+      'box-shadow:0 4px 16px rgba(0,0,0,.6);white-space:nowrap;line-height:1.8;';
+    document.body.appendChild(_chartTooltip);
+  }
+  return _chartTooltip;
+}
+
+// 各 canvas 的 hover listener 參照（避免重複掛載）
+const _hoverState = {};
+
 function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
@@ -26,13 +48,14 @@ function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
 
   const fs = expanded ? {axis:11, threshold:10, value:13, dot:3.5} : {axis:7, threshold:7, value:9, dot:2};
   const hasRightAxis = expanded && opts.rightAxis;
-  const pad = expanded ? {t:8, r: hasRightAxis ? 52 : 44, b:24, l:40} : {t:2, r:4, b:2, l:4};
+  // hasRightAxis 時右側需容納兩個 zone：末端標籤（~36px）+ 右軸數字（~30px）
+  const pad = expanded ? {t:8, r: hasRightAxis ? 72 : 44, b:24, l:40} : {t:2, r:4, b:2, l:4};
   const cW = W-pad.l-pad.r, cH = H-pad.t-pad.b;
   const yMin = opts.yMin||0, yMax = opts.yMax||100, yR = yMax-yMin||1;
   function px(i){ return pad.l + (i/Math.max(N-1,1)) * cW; }
   function py(v){ return pad.t + cH - ((v-yMin)/yR)*cH; }
 
-  // 展開：Y 軸 grid
+  // 展開：左側 Y 軸 grid
   if (expanded) {
     const steps = opts.gridSteps || _autoGridSteps(yMin, yMax);
     ctx.strokeStyle='rgba(110,118,129,.2)'; ctx.lineWidth=0.5;
@@ -41,27 +64,25 @@ function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
       if (v < yMin || v > yMax) return;
       const y = py(v);
       ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
-      ctx.fillText(v, pad.l-4, y+4);
+      ctx.fillText(v + (opts.yUnit||''), pad.l-4, y+4);
     });
   }
 
-  // 右側 Y 軸（絕對值）
-  // opts.rightAxis = {label:'人', max:50} → 右軸 0~max，與左軸 yMin~yMax 對齊
+  // 右側 Y 軸（zone 2：raX = cW+40 起，zone 1：cW+4~36 留給末端標籤）
   if (hasRightAxis) {
     const ra = opts.rightAxis;
     const raMax = ra.max || 100;
     const raSteps = _autoGridSteps(0, raMax);
+    const raX = pad.l + cW + 40;
     ctx.fillStyle='#8b949e'; ctx.font=fs.axis+'px IBM Plex Mono,monospace'; ctx.textAlign='left';
     raSteps.forEach(v => {
-      // 右軸的 v 對應左軸的 (v/raMax)*(yMax-yMin)+yMin
       const leftV = (v / raMax) * (yMax - yMin) + yMin;
       const y = py(leftV);
-      ctx.fillText(v + (ra.unit||''), pad.l + cW + 4, y + 4);
+      ctx.fillText(v + (ra.unit||''), raX, y + 4);
     });
-    // 軸標籤
     if (ra.label) {
       ctx.fillStyle='#6e7681'; ctx.font=(fs.axis-1)+'px IBM Plex Mono,monospace';
-      ctx.fillText(ra.label, pad.l + cW + 4, pad.t - 1);
+      ctx.fillText(ra.label, raX, pad.t - 1);
     }
   }
 
@@ -91,7 +112,7 @@ function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
     });
   }
 
-  // 線條
+  // 線條 + 資料點
   datasets.forEach(ds => {
     if (ds.fill) {
       ctx.beginPath();
@@ -105,15 +126,18 @@ function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
     ds.data.forEach((v,i) => { i===0 ? ctx.moveTo(px(i),py(v)) : ctx.lineTo(px(i),py(v)); });
     ctx.stroke(); ctx.setLineDash([]);
 
-    // 展開：資料點 + 末端數值
     if (expanded) {
+      // 資料點
       ds.data.forEach((v,i) => {
         ctx.fillStyle=ds.color; ctx.beginPath(); ctx.arc(px(i),py(v),fs.dot,0,Math.PI*2); ctx.fill();
       });
-      const lv = ds.data[N-1];
-      if (lv != null) {
-        ctx.fillStyle=ds.color; ctx.font='bold '+fs.value+'px IBM Plex Mono,monospace'; ctx.textAlign='left';
-        ctx.fillText(lv+(ds.unit||''), px(N-1)+6, py(lv)+4);
+      // 末端數值標籤（opts.noEndLabel 時省略）
+      if (!opts.noEndLabel) {
+        const lv = ds.data[N-1];
+        if (lv != null) {
+          ctx.fillStyle=ds.color; ctx.font='bold '+fs.value+'px IBM Plex Mono,monospace'; ctx.textAlign='left';
+          ctx.fillText(lv+(ds.unit||''), px(N-1)+6, py(lv)+4);
+        }
       }
     }
   });
@@ -125,6 +149,89 @@ function drawSparkline(canvasId, datasets, opts, N, expanded, times) {
     for (let i=0; i<N; i++) {
       if (i % step === 0 || i === N-1) ctx.fillText(times[i], px(i), H-3);
     }
+  }
+
+  // ── Hover 互動 ────────────────────────────────────────────────
+  // 清除舊 listener（避免重複掛載）
+  if (_hoverState[canvasId]) {
+    const {mm, ml} = _hoverState[canvasId];
+    canvas.removeEventListener('mousemove', mm);
+    canvas.removeEventListener('mouseleave', ml);
+    delete _hoverState[canvasId];
+  }
+
+  if (expanded && opts.hover) {
+    // 靜態快照：hover 時先還原此快照再疊高亮點
+    const snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const dpr = devicePixelRatio;
+
+    function restoreSnapshot() {
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0); // putImageData 不受 transform 影響，需先重置
+      ctx.putImageData(snapshot, 0, 0);
+      ctx.restore(); // 恢復 scale(dpr, dpr)
+    }
+
+    const mm = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      // 換算到 canvas 邏輯座標
+      const logicX = (e.clientX - rect.left) * (W / rect.width);
+      if (logicX < pad.l || logicX > pad.l + cW) {
+        restoreSnapshot();
+        _getTooltip().style.display = 'none';
+        return;
+      }
+      // 找最近 x index
+      let nearest = 0, minDist = Infinity;
+      for (let i = 0; i < N; i++) {
+        const d = Math.abs(px(i) - logicX);
+        if (d < minDist) { minDist = d; nearest = i; }
+      }
+      // 還原靜態畫面，再疊高亮點
+      restoreSnapshot();
+      datasets.forEach(ds => {
+        const v = ds.data[nearest];
+        if (v == null) return;
+        ctx.fillStyle = ds.color;
+        ctx.strokeStyle = 'rgba(230,236,240,.85)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px(nearest), py(v), fs.dot * 2.2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+      });
+      // 建 tooltip
+      let html = '';
+      if (times && times[nearest]) {
+        html += `<div style="color:#8b949e;border-bottom:1px solid rgba(48,54,61,.6);` +
+                `margin-bottom:5px;padding-bottom:3px">${times[nearest]}</div>`;
+      }
+      datasets.forEach(ds => {
+        const v = ds.data[nearest];
+        if (v == null) return;
+        const pct  = v + (ds.unit||'');
+        const abs  = ds.extraData ? ` / ${ds.extraData[nearest]}${ds.extraUnit||''}` : '';
+        const lbl  = ds.label ? ds.label + '&ensp;' : '';
+        html += `<div><span style="color:${ds.color}">●</span>&ensp;${lbl}<b>${pct}${abs}</b></div>`;
+      });
+      const tip = _getTooltip();
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+      // 位置：貼游標右上，防右溢
+      const tipW = tip.offsetWidth || 140;
+      const tx = Math.min(e.clientX + 14, window.innerWidth - tipW - 8);
+      tip.style.left = tx + 'px';
+      tip.style.top  = (e.clientY - 10) + 'px';
+    };
+
+    const ml = () => {
+      restoreSnapshot();
+      _getTooltip().style.display = 'none';
+    };
+
+    canvas.addEventListener('mousemove', mm);
+    canvas.addEventListener('mouseleave', ml);
+    _hoverState[canvasId] = {mm, ml};
   }
 }
 

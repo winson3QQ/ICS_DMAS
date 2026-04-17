@@ -174,7 +174,7 @@ type: project
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.0`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.1`）
 - `scenario_designer.html` 版號 `DESIGNER_VERSION`（目前 `v0.9.9`）
 - 共用圖表 `chart_utils.js`（drawSparkline + ipiCalc）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`

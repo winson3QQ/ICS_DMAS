@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.9.0';</script>
+<script>const CMD_VERSION='v0.9.1';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -156,10 +156,30 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   background:var(--surface2);border:1px solid var(--border);color:var(--text);
   padding:3px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);width:100px;
 }
-#edit-bar select{
+/* 自訂事件類型下拉 */
+.csel-wrap{position:relative;margin-left:6px;}
+.csel-btn{
+  display:flex;align-items:center;justify-content:space-between;gap:6px;
   background:var(--surface2);border:1px solid var(--border);color:var(--text);
-  padding:3px 6px;border-radius:4px;font-size:11px;font-family:var(--mono);
+  padding:3px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);
+  cursor:pointer;min-width:110px;user-select:none;white-space:nowrap;
 }
+.csel-btn.disabled{opacity:0.4;cursor:not-allowed;pointer-events:none;}
+.csel-btn::after{content:'▴';font-size:8px;color:var(--text3);flex-shrink:0;}
+.csel-panel{
+  display:none;position:absolute;bottom:calc(100% + 4px);right:0;
+  background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+  z-index:200;overflow:hidden;
+  box-shadow:0 -4px 12px rgba(0,0,0,.55);
+}
+.csel-panel.open{display:block;}
+.csel-opt{
+  padding:4px 10px;font-size:11px;font-family:var(--mono);
+  color:var(--text);cursor:pointer;white-space:nowrap;
+}
+.csel-opt:hover{background:rgba(255,255,255,.07);}
+.csel-opt.active{color:var(--green);}
+.csel-opt.placeholder{color:var(--text3);}
 #edit-bar button:not(.place-grp){
   background:var(--green);color:#fff;border:none;padding:4px 10px;border-radius:4px;
   font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);
@@ -671,8 +691,8 @@ canvas{display:block;width:100%!important;height:100%!important;}
           <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-cap-v">—</span><span class="spark-rag ok" id="sp-cap-rag"></span></span>
         </div>
         <div class="spark-detail" id="sp-cap-detail">
-          <div class="li"><div class="ld" style="background:#E67E22"></div>收容床位%</div>
-          <div class="li"><div class="ld" style="background:#C0392B"></div>醫療床位%</div>
+          <div class="li"><div class="ld" style="background:#E67E22"></div>收容床位</div>
+          <div class="li"><div class="ld" style="background:#C0392B"></div>醫療床位</div>
           <div class="li"><div class="ld dash" style="border-color:rgba(212,144,0,.6)"></div>警戒70%</div>
           <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>危急90%</div>
         </div>
@@ -751,9 +771,12 @@ canvas{display:block;width:100%!important;height:100%!important;}
         <button class="place-grp" data-grp="shelter" onclick="selectPlaceGroup('shelter')">收容</button>
         <button class="place-grp" data-grp="medical" onclick="selectPlaceGroup('medical')">醫療</button>
         <button class="place-grp" data-grp="command" onclick="selectPlaceGroup('command')">指揮部</button>
-        <select id="place-type" style="min-width:100px;margin-left:6px;" onchange="onPlaceTypeChange()" disabled>
-          <option value="">—</option>
-        </select>
+        <div class="csel-wrap" id="place-type-wrap">
+          <div class="csel-btn disabled" id="place-type-btn" onclick="toggleCsel()">
+            <span id="place-type-label">—</span>
+          </div>
+          <div class="csel-panel" id="place-type-panel"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -2549,6 +2572,65 @@ function _toggleEvtGroup() {
 // ══════════════════════════════════════════════════════════════
 let _placeMode = null; // null 或 { group, type, icon, label }
 let _placeGroup = null;
+let _placeTypeValue = '';
+
+function toggleCsel() {
+  const panel = el('place-type-panel');
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open', opening);
+  if (opening) {
+    setTimeout(() => {
+      document.addEventListener('click', _closeCsel, { once: true });
+    }, 0);
+  }
+}
+function _closeCsel(e) {
+  if (!e.target.closest('#place-type-wrap')) {
+    el('place-type-panel').classList.remove('open');
+  }
+}
+function _setCselOptions(cats) {
+  // 先移除舊的 close listener，防止同一個 click 冒泡到 document 時把剛開的 panel 又關掉
+  document.removeEventListener('click', _closeCsel);
+  const panel = el('place-type-panel');
+  const btn   = el('place-type-btn');
+  const lbl   = el('place-type-label');
+  _placeTypeValue = '';
+  lbl.textContent = '— 選事件 —';
+  panel.innerHTML = '';
+  if (!cats || !Object.keys(cats).length) { btn.classList.add('disabled'); return; }
+  // 佔位項
+  const ph = document.createElement('div');
+  ph.className = 'csel-opt placeholder active';
+  ph.textContent = '— 選事件 —';
+  ph.onclick = () => _pickCsel('', '— 選事件 —');
+  panel.appendChild(ph);
+  Object.entries(cats).forEach(([k, v]) => {
+    const d = document.createElement('div');
+    d.className = 'csel-opt';
+    d.textContent = v;
+    d.dataset.value = k;
+    d.onclick = () => _pickCsel(k, v);
+    panel.appendChild(d);
+  });
+  btn.classList.remove('disabled');
+  // 自動向上彈出
+  panel.classList.add('open');
+  // click 冒泡結束後才掛 close listener
+  setTimeout(() => {
+    document.addEventListener('click', _closeCsel, { once: true });
+  }, 0);
+}
+function _pickCsel(value, label) {
+  _placeTypeValue = value;
+  el('place-type-label').textContent = label || '— 選事件 —';
+  el('place-type-panel').classList.remove('open');
+  el('place-type-panel').querySelectorAll('.csel-opt').forEach(d => {
+    d.classList.toggle('active',
+      value === '' ? d.classList.contains('placeholder') : d.dataset.value === value);
+  });
+  onPlaceTypeChange();
+}
 
 function selectPlaceGroup(grp) {
   // 選組別時取消已選取的 marker
@@ -2556,25 +2638,14 @@ function selectPlaceGroup(grp) {
   _placeGroup = grp;
   // 切換按鈕 active
   document.querySelectorAll('.place-grp').forEach(b => b.classList.toggle('active', b.dataset.grp === grp));
-  // 填入事件類型下拉
-  const sel = el('place-type');
-  sel.innerHTML = '<option value="">— 選事件 —</option>';
-  const cats = EVENT_CATEGORIES[grp] || {};
-  Object.entries(cats).forEach(([k, v]) => {
-    const opt = document.createElement('option');
-    opt.value = k;
-    opt.textContent = v;
-    sel.appendChild(opt);
-  });
+  // 填入自訂事件類型下拉並向上彈出
+  _setCselOptions(EVENT_CATEGORIES[grp] || {});
   _placeMode = null;
-  sel.disabled = false;
   el('map-panel').classList.remove('placing');
-  // 自動展開下拉讓使用者直接看到事件一覽
-  requestAnimationFrame(() => { try { sel.showPicker(); } catch(e) {} });
 }
 
 function onPlaceTypeChange() {
-  const typeKey = el('place-type').value;
+  const typeKey = _placeTypeValue;
   if (!typeKey || !_placeGroup) {
     _placeMode = null;
     el('map-panel').classList.remove('placing');
@@ -2590,8 +2661,11 @@ function cancelPlaceMode() {
   _placeMode = null;
   _placeGroup = null;
   document.querySelectorAll('.place-grp').forEach(b => b.classList.remove('active'));
-  el('place-type').innerHTML = '<option value="">—</option>';
-  el('place-type').disabled = true;
+  _placeTypeValue = '';
+  el('place-type-label').textContent = '—';
+  el('place-type-panel').innerHTML = '';
+  el('place-type-panel').classList.remove('open');
+  el('place-type-btn').classList.add('disabled');
   el('map-panel').classList.remove('placing');
 }
 
@@ -3570,10 +3644,11 @@ function renderSparklines(d) {
   setRag('sp-cap', capLvl);
   const sBt = d.sBt[N-1]||50, mBt = d.mBt[N-1]||30;
   drawSparkline('sc1', [
-    {data:d.sPct, color:'#E67E22', w:1.5, fill:true, fillColor:'rgba(230,126,34,.15)', unit:'%'},
-    {data:d.mPct, color:'#C0392B', w:1.5, fill:true, fillColor:'rgba(192,57,43,.12)', unit:'%'},
-  ], {yMin:0, yMax:100, thresholds:[{value:70,color:'rgba(212,144,0,.4)',label:'70%'},{value:90,color:'rgba(204,42,42,.4)',label:'90%'}],
-    rightAxis:{max:Math.max(sBt,mBt), unit:'', label:'人'}}, N, isExp('sp-cap'), t);
+    {data:d.sPct, color:'#E67E22', w:1.5, fill:true, fillColor:'rgba(230,126,34,.15)', unit:'%', label:'收容', extraData:d.sBt, extraUnit:'人'},
+    {data:d.mPct, color:'#C0392B', w:1.5, fill:true, fillColor:'rgba(192,57,43,.12)', unit:'%', label:'醫療', extraData:d.mBt, extraUnit:'人'},
+  ], {yMin:0, yMax:100, yUnit:'%', noEndLabel:true, hover:true,
+    thresholds:[{value:70,color:'rgba(212,144,0,.4)',label:'70%'},{value:90,color:'rgba(204,42,42,.4)',label:'90%'}],
+    rightAxis:{max:Math.max(sBt,mBt), unit:'人', label:'人'}}, N, isExp('sp-cap'), t);
 
   // ② 流向（傷患來源分布）
   const sa=d.srcA[N-1], sb=d.srcB[N-1], sc=d.srcC[N-1];
@@ -3632,7 +3707,7 @@ function renderSparklines(d) {
     {data:d.ivPct,  color:'#D32F2F', w:1.5, dash:[3,2], unit:'%'},
     {data:d.oxPct,  color:'#F57F17', w:1.5, dash:[3,2], unit:'%'},
     {data:d.toPct,  color:'#388E3C', w:1.5, dash:[3,2], unit:'%'},
-  ], {yMin:0, yMax:100, thresholds:[{value:20,color:'rgba(204,42,42,.4)',label:'20%'}]}, N, isExp('sp-res'), t);
+  ], {yMin:0, yMax:100, yUnit:'%', thresholds:[{value:20,color:'rgba(204,42,42,.4)',label:'20%'}]}, N, isExp('sp-res'), t);
 
   // ⑤ 人力
   const sR = d.opsS[N-1], mR = d.opsM[N-1];
