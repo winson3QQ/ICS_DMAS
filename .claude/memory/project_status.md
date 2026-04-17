@@ -2,8 +2,8 @@
 name: 專案狀態總覽
 description: 醫療 PWA 進度、指揮部路線圖、硬體資訊、Pi 設定步驟
 type: project
+originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 ---
-
 ## 目前開發重心
 
 指揮部（command-dashboard）是目前的整備重心，所有準備工作集中在這裡。
@@ -68,8 +68,7 @@ type: project
 | 2 | 互動地圖事件輸入 + Decision Countdown + DCI + staff API | cmd-v0.3.0 | ✅ 完成 |
 | 3 | Escalation/De-escalation + 佈局重構 + 全中文化 + 登入認證 | cmd-v0.4.0～v0.7.0+ | ✅ 完成 |
 | 4 | Pi Push + L3/L4 鑽探 + calc_engine 接入 | cmd-v0.8.0 / server-v1.1.0 | ✅ 完成 |
-| 4+ | 情境設計器 + chart_utils.js 共用 + 演練模式鑽探停用 + 量能右軸 | cmd-v0.9.0 / FastAPI-v1.2.0 | ✅ 完成 |
-| 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.10.0 | 待做 |
+| 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.9.0 | 待做 |
 | 6 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v1.0.0 | 待做 |
 
 ### Wave 3 版本歷史摘要
@@ -126,14 +125,14 @@ type: project
 | push_queue 撐爆磁碟 | MAX_QUEUE_AGE=24hr 清除 | ✅ 已實作 |
 | Pi 本地資料外洩 | SQLCipher | defer |
 
-### Wave 5 待做項目（UI 收尾，共 4 項）
+### Wave 5 待做項目（UI 收尾）
 
-| 項目 | 說明 |
-|------|------|
-| 重設 deadline 後端 API | `PATCH /api/events/{id}/deadline`，同時更新 DB 欄位 + 追加 note（目前只有 note） |
-| 決策主題合併卡片 | `_zoneDecisionsTab()` group by `primary_event_id`，多筆顯示「鏈 N 筆」 |
-| 物資 burn rate 預測線 | `drawSparkline()` 加 `projectToZero` dataset 屬性，虛線延伸到 Y=0 |
-| 地圖流向箭頭 | `renderFlows()` 讀實際 flows 資料，`data_source` 欄位對應 calc 數值，動態粗度 |
+| 項目 | 狀態 | 說明 |
+|------|------|------|
+| 重設 deadline 後端 API | 🔲 待做 | 前端 `_resetDeadline()` UI 已實作（只追加 note）；後端 `PATCH /api/events/{id}/deadline` 未建立，DB `response_deadline` 欄位未更新 |
+| 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
+| 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
+| 地圖流向箭頭 | ⚠️ 部分完成 | `renderFlows()` 已實作（讀 `m.flows`，按 `calc.forward.units` red 傷亡數計算動態粗度）；無 `data_source` 欄位對應，直接用 calc 數值，功能可用 |
 
 ### Pi Push 技術細節
 
@@ -174,11 +173,9 @@ type: project
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.1`）
-- `scenario_designer.html` 版號 `DESIGNER_VERSION`（目前 `v0.9.9`）
-- 共用圖表 `chart_utils.js`（drawSparkline + ipiCalc）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.2`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
-- Shelter PWA 版號 `v2.2.47`、Medical PWA 版號 `v0.6.7-alpha`
+- Shelter PWA 版號 `v2.2.48`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
 - DB schema 變更需刪除 `data/ics.db`
