@@ -2721,6 +2721,7 @@ el('map-panel').addEventListener('click', async function(e) {
         operator_name: _currentOperator(),
         location_zone_id: id,
         location_desc: _placeMode.label,
+        session_type: _sessionType,
       })
     });
     if (resp.ok) {

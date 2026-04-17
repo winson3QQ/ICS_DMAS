@@ -259,6 +259,7 @@ class EventIn(BaseModel):
     needs_commander_decision: bool = False
     related_person_name:      Optional[str] = None
     occurred_at:              Optional[str] = None
+    session_type:             str = "real"
 
 
 class DecisionIn(BaseModel):
@@ -361,7 +362,7 @@ def post_event(ev: EventIn):
         raise HTTPException(422, f"severity 必須是 {VALID_SEVERITIES} 之一，收到: {ev.severity}")
     if ev.reported_by_unit not in VALID_UNITS:
         raise HTTPException(422, f"reported_by_unit 必須是 {VALID_UNITS} 之一，收到: {ev.reported_by_unit}")
-    result = db.create_event(ev.model_dump())
+    result = db.create_event(ev.model_dump(), session_type=ev.session_type)
 
     # 若需要指揮官裁示，自動建立待裁示事項（decision_type=initial）
     if ev.needs_commander_decision:
@@ -373,7 +374,7 @@ def post_event(ev: EventIn):
             "impact_description": f"來源：{ev.reported_by_unit}　{ev.event_type}",
             "suggested_action_a": "（計劃情報組補充建議動作）",
             "created_by":        ev.operator_name,
-        })
+        }, session_type=ev.session_type)
 
     return result
 
