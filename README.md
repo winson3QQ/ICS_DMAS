@@ -136,7 +136,6 @@ ICS_DMAS/
 ├── security & forward/      # 民防輔助感知系統（前進/安全組，規格先行）
 │   └── docs/                # 規格書、開發計畫、測試計畫 v1.4
 └── docs/                    # 跨組共用規格
-    ├── security_network_spec_v1.2.md
     └── ui_ux_design_guide.md
 ```
 
@@ -146,10 +145,9 @@ ICS_DMAS/
 
 | 文件 | 版本 | 對應程式 |
 |------|------|---------|
-| [指揮部儀表板設計規格](command-dashboard/docs/指揮部儀表板設計規格.md) | v1.4 | cmd-v0.8.0+ |
-| [安全與網路架構規格](docs/security_network_spec_v1.2.md) | v1.2 | — |
+| [指揮部儀表板設計規格](command-dashboard/docs/指揮部儀表板設計規格.md) | v1.6 | cmd-v0.9.2 |
 | [PWA UI/UX 設計規範](docs/ui_ux_design_guide.md) | — | 醫療 + 收容共用 |
-| [醫療組 PWA 規格](medical-pwa/docs/medical_pwa_spec.md) | v0.6 | medical-v0.6.3-alpha |
+| [醫療組 PWA 規格](medical-pwa/docs/medical_pwa_spec.md) | v0.6 | medical-v0.6.7-alpha |
 | [醫療組 SOP](medical-pwa/docs/醫療組SOP_20260323.md) | 2026-03-23 | — |
 | [收容組 PWA 規格](shelter-pwa/docs/shelter_pwa_spec.md) | v2.7 | shelter-v2.3 |
 | [收容組 SOP](shelter-pwa/docs/收容組_SOP_彙整_20260330.md) | 2026-03-30 | — |

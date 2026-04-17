@@ -17,7 +17,7 @@
 | **機密層級** | C（僅供收容組內部使用） |
 | **維護單位** | 收容組 |
 | **程式輸出** | shelter_pwa.html + sw.js + shelter_ws_server.js + admin.html |
-| **上游文件** | shelter_pwa_spec.md、security_network_spec_v1.2.md、民防輔助感知系統規格 v1.4 |
+| **上游文件** | shelter_pwa_spec.md、指揮部儀表板設計規格 §15-17（安全架構，原 security_network_spec_v1.2 已整合）、民防輔助感知系統規格 v1.4 |
 
 ### 標記說明
 

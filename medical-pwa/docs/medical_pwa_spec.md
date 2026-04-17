@@ -18,7 +18,7 @@
 | **適用範圍** | 鄉鎮層防災演訓及實際災害應變之據點醫療站 |
 | **機密層級** | C（依上游文件沿用內部使用層級） |
 | **預計輸出** | medical_pwa.html + sw.js + ics_ws_server.js（共用） |
-| **上游文件** | 醫療組SOP_20260323.md、security_network_spec_v1.2.md、shelter_pwa_spec.md |
+| **上游文件** | 醫療組SOP_20260323.md、指揮部儀表板設計規格 §15-17（安全架構，原 security_network_spec_v1.2 已整合）、shelter_pwa_spec.md |
 
 ---
 
