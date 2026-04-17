@@ -102,7 +102,7 @@ cp "c:/Users/yello/研究計畫/ICS_DMAS/.claude/memory/"* "C:/Users/yello/.clau
 ## 開發環境
 
 - 主要開發機：Mac
-- 目標部署：Raspberry Pi（未到貨，到貨後驗證）
+- 目標部署：Raspberry Pi 500（已到貨，Phase 2 E2B AI 評估已在 Pi 500 執行）
 - 測試方式：Mac 本機模擬完整架構
 
 ## 專案結構

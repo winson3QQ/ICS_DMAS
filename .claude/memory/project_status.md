@@ -186,7 +186,7 @@ type: project
 
 ---
 
-## Pi 500 設定步驟（到貨後執行）
+## Pi 500 部署步驟（已到貨，Phase 2 E2B 評估已完成）
 
 1. SSD 插上 Pi 500（USB 3.0），接網路線，開機
 2. `ssh ics@ics-pi.local`
