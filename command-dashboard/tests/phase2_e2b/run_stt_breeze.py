@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""
+Phase 2: Breeze ASR 25 STT Benchmark — Pi 500
+測試聯發科 Breeze ASR 25（Whisper Large-v2 fine-tune for 台灣華語）
+僅測 CER 準確率，不考慮延遲
+"""
+import argparse
+import json
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+from transformers import (
+    WhisperProcessor,
+    WhisperForConditionalGeneration,
+    AutomaticSpeechRecognitionPipeline,
+)
+
+try:
+    import soundfile as sf
+    USE_SOUNDFILE = True
+except ImportError:
+    import torchaudio
+    USE_SOUNDFILE = False
+
+SCRIPT_DIR = Path(__file__).parent
+CASES_PATH = SCRIPT_DIR / "test_cases" / "stt_cases.json"
+AUDIO_DIR = SCRIPT_DIR / "test_audio"
+PASS_CER = 0.15  # CER < 15%
+DEFAULT_MODEL = "MediaTek-Research/Breeze-ASR-25"
+
+
+def compute_cer(reference: str, hypothesis: str) -> float:
+    """字元錯誤率 (Character Error Rate)"""
+    ref = list(reference.replace(" ", "").replace("，", "").replace("。", ""))
+    hyp = list(hypothesis.replace(" ", "").replace("，", "").replace("。", ""))
+    n, m = len(ref), len(hyp)
+    if n == 0:
+        return 1.0 if m > 0 else 0.0
+
+    d = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(n + 1):
+        d[i][0] = i
+    for j in range(m + 1):
+        d[0][j] = j
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            cost = 0 if ref[i - 1] == hyp[j - 1] else 1
+            d[i][j] = min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+    return d[n][m] / n
+
+
+def check_key_terms(hypothesis: str, key_terms: list) -> dict:
+    """檢查關鍵術語是否出現在辨識結果中"""
+    results = {}
+    for term in key_terms:
+        results[term] = term in hypothesis
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Breeze ASR 25 STT Benchmark")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
+                        help=f"HuggingFace 模型 ID (default: {DEFAULT_MODEL})")
+    args = parser.parse_args()
+    model_id = args.model
+
+    data = json.loads(CASES_PATH.read_text())
+    cases = data["cases"]
+
+    # 載入模型��CPU, float32 — Pi 500 無 CUDA）
+    print(f"載入 {model_id} 模型...")
+    t0 = time.time()
+    processor = WhisperProcessor.from_pretrained(model_id)
+    model = WhisperForConditionalGeneration.from_pretrained(
+        model_id, torch_dtype=torch.float16
+    ).eval()
+    load_time = time.time() - t0
+    print(f"模型載入：{load_time:.1f}s\n")
+
+    # 建立 pipeline
+    asr_pipeline = AutomaticSpeechRecognitionPipeline(
+        model=model,
+        tokenizer=processor.tokenizer,
+        feature_extractor=processor.feature_extractor,
+        chunk_length_s=0,
+    )
+
+    results = []
+    total_cer = 0
+    total_key_found = 0
+    total_key_count = 0
+
+    print(f"{'Case':<8} {'CER':>6} {'延遲':>7} {'關鍵詞':>8}  {'結果'}")
+    print("-" * 70)
+
+    for case in cases:
+        wav_path = AUDIO_DIR / f"{case['id']}.wav"
+        if not wav_path.exists():
+            print(f"{case['id']:<8} SKIP — 音檔不存在")
+            continue
+
+        # 載入音檔
+        if USE_SOUNDFILE:
+            waveform, sample_rate = sf.read(str(wav_path), dtype="float32")
+            if waveform.ndim > 1:
+                waveform = waveform.mean(axis=1)
+        else:
+            wf, sample_rate = torchaudio.load(str(wav_path))
+            if wf.shape[0] > 1:
+                wf = wf.mean(dim=0)
+            waveform = wf.squeeze().numpy()
+
+        if sample_rate != 16_000:
+            # 簡易 resample：用 scipy 或 numpy
+            import scipy.signal
+            num_samples = int(len(waveform) * 16_000 / sample_rate)
+            waveform = scipy.signal.resample(waveform, num_samples).astype(np.float32)
+            sample_rate = 16_000
+
+        # 推論
+        start = time.time()
+        output = asr_pipeline(waveform, return_timestamps=True)
+        text = output["text"]
+        latency = time.time() - start
+
+        # CER
+        cer = compute_cer(case["transcript"], text)
+        total_cer += cer
+
+        # 關鍵詞
+        key_check = check_key_terms(text, case["key_terms"])
+        found = sum(key_check.values())
+        total_key_found += found
+        total_key_count += len(case["key_terms"])
+
+        passed = "✅" if cer < PASS_CER else "❌"
+        key_str = f"{found}/{len(case['key_terms'])}"
+
+        print(f"{case['id']:<8} {cer:>5.1%} {latency:>6.1f}s {key_str:>8}  {passed}")
+
+        result = {
+            "case_id": case["id"],
+            "cer": round(cer, 4),
+            "latency_sec": round(latency, 2),
+            "key_terms_found": found,
+            "key_terms_total": len(case["key_terms"]),
+            "reference": case["transcript"],
+            "hypothesis": text,
+            "key_term_details": key_check,
+            "passed": cer < PASS_CER,
+        }
+        results.append(result)
+
+    n = len(results)
+    avg_cer = total_cer / n if n else 0
+    avg_latency = sum(r["latency_sec"] for r in results) / n if n else 0
+    passed_count = sum(1 for r in results if r["passed"])
+
+    print("-" * 70)
+    print(f"{'平均':<8} {avg_cer:>5.1%} {avg_latency:>6.1f}s {total_key_found}/{total_key_count:>5}")
+    print(f"\n通過率：{passed_count}/{n}（門檻 CER < {PASS_CER:.0%}）")
+    print(f"整體判定：{'✅ PASS' if avg_cer < PASS_CER else '❌ FAIL'}")
+
+    # 存報告
+    model_short = model_id.split("/")[-1].lower()
+    report = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "model": model_short,
+        "device": "cpu",
+        "compute_type": "float16",
+        "pass_criteria_cer": PASS_CER,
+        "model_load_time_sec": round(load_time, 1),
+        "summary": {
+            "avg_cer": round(avg_cer, 4),
+            "avg_latency_sec": round(avg_latency, 2),
+            "passed": passed_count,
+            "total": n,
+            "key_terms_accuracy": round(total_key_found / total_key_count, 4) if total_key_count else 0,
+            "overall_pass": avg_cer < PASS_CER,
+        },
+        "results": results,
+    }
+
+    out_path = SCRIPT_DIR / f"stt_report_{model_short}_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    print(f"\n報告已存：{out_path.name}")
+
+    # 顯示錯誤最多的案例
+    print("\n--- 辨識差異最大的案例 ---")
+    worst = sorted(results, key=lambda r: r["cer"], reverse=True)[:3]
+    for r in worst:
+        print(f"\n{r['case_id']} (CER {r['cer']:.1%}):")
+        print(f"  原文：{r['reference'][:80]}...")
+        print(f"  辨識：{r['hypothesis'][:80]}...")
+
+
+if __name__ == "__main__":
+    main()
