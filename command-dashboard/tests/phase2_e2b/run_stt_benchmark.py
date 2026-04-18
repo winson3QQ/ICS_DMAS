@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
-Phase 2: Whisper Tiny STT Benchmark — Pi 500
-測試 faster-whisper tiny 模型在 Pi 500 上的中文語音辨識準確率和延遲
+Phase 2: Whisper STT Benchmark — Pi 500
+測試 faster-whisper 模型在 Pi 500 上的中文語音辨識準確率和延遲
+支援 --model 指定模型（tiny/base/small/medium/large-v3）
 """
+import argparse
 import json
 import time
 from pathlib import Path
@@ -11,6 +13,7 @@ SCRIPT_DIR = Path(__file__).parent
 CASES_PATH = SCRIPT_DIR / "test_cases" / "stt_cases.json"
 AUDIO_DIR = SCRIPT_DIR / "test_audio"
 PASS_CER = 0.15  # CER < 15%
+DEFAULT_MODEL = "tiny"
 
 
 def compute_cer(reference: str, hypothesis: str) -> float:
@@ -44,14 +47,22 @@ def check_key_terms(hypothesis: str, key_terms: list) -> dict:
 def main():
     from faster_whisper import WhisperModel
 
+    parser = argparse.ArgumentParser(description="Whisper STT Benchmark")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
+                        help=f"Whisper 模型 (default: {DEFAULT_MODEL})，"
+                             "可選：tiny/base/small/medium/large-v3")
+    args = parser.parse_args()
+    model_name = args.model
+
     data = json.loads(CASES_PATH.read_text())
     cases = data["cases"]
 
     # 載入模型
-    print("載入 Whisper Tiny 模型...")
+    print(f"載入 Whisper {model_name} 模型...")
     t0 = time.time()
-    model = WhisperModel("tiny", device="cpu", compute_type="int8")
-    print(f"模型載入：{time.time() - t0:.1f}s\n")
+    model = WhisperModel(model_name, device="cpu", compute_type="int8")
+    load_time = time.time() - t0
+    print(f"模型載入：{load_time:.1f}s\n")
 
     results = []
     total_cer = 0
@@ -119,7 +130,7 @@ def main():
     # 存報告
     report = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "model": "whisper-tiny",
+        "model": f"whisper-{model_name}",
         "device": "cpu",
         "compute_type": "int8",
         "pass_criteria_cer": PASS_CER,
