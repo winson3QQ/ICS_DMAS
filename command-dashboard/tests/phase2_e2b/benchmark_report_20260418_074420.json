@@ -1,0 +1,1057 @@
+{
+  "timestamp": "2026-04-18T07:44:20",
+  "pass_criteria": {
+    "field_accuracy": 0.85,
+    "contradiction_detection": 0.6,
+    "max_latency_sec": 15.0
+  },
+  "overall_verdict": "FAIL",
+  "summary": {
+    "structured": {
+      "total": 8,
+      "passed": 0,
+      "avg_accuracy": 0.21323529411764708,
+      "avg_latency": 44.33249959349632
+    },
+    "contradiction": {
+      "total": 5,
+      "passed": 0,
+      "avg_detection": 0.0,
+      "avg_latency": 22.974887752532958
+    }
+  },
+  "results": [
+    {
+      "case_id": "STRUCT-01",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.17647058823529413,
+      "latency_sec": 44.366867780685425,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": "male",
+            "ai": null,
+            "score": 0.0
+          },
+          "age_estimate": {
+            "gt": 45,
+            "ai": null,
+            "score": 0.0
+          },
+          "source_type": {
+            "gt": "A",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "red",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": "建物倒塌壓傷",
+            "ai": null,
+            "score": 0.0
+          },
+          "chief_complaint": {
+            "gt": "右大腿開放性骨折合併大量出血",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [
+              "止血帶",
+              "給氧"
+            ],
+            "ai": null,
+            "score": 0.0
+          },
+          "allergies": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "medications": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "past_history": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_heart_rate": {
+            "gt": 120,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 90,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 60,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": 24,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_spo2": {
+            "gt": 92,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_gcs": {
+            "gt": 15,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "red",
+          "Source_Type": "A",
+          "Injury_Description": "壓傷",
+          "Patient_Age": "約四十五歲",
+          "Injury_Location": "右大腿",
+          "Injury_Type": "骨折",
+          "Injury_Details": "開放性骨折",
+          "GCS": "十五",
+          "HeartRate": "一百二十",
+          "BloodPressure": "九十除以六十",
+          "BreathingRate": "二十四",
+          "OxygenLevel": "九十二",
+          "Treatment": "上止血帶並給氧",
+          "Notes": "已意識清楚，GCS十五，心率一百二十，血壓九十除以六十，呼吸二十四，血氧九十二，已緊急處理。"
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-02",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.11764705882352941,
+      "latency_sec": 32.21102714538574,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": "female",
+            "ai": null,
+            "score": 0.0
+          },
+          "age_estimate": {
+            "gt": 60,
+            "ai": null,
+            "score": 0.0
+          },
+          "source_type": {
+            "gt": "B",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "yellow",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "non_trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "chief_complaint": {
+            "gt": "胸悶冒冷汗三十分鐘",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [],
+            "ai": null,
+            "score": 1.0
+          },
+          "allergies": {
+            "gt": "乙內醯胺磺",
+            "ai": null,
+            "score": 0.0
+          },
+          "medications": {
+            "gt": "降血壓藥",
+            "ai": null,
+            "score": 0.0
+          },
+          "past_history": {
+            "gt": "高血壓",
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_heart_rate": {
+            "gt": 108,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 160,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 100,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": 22,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_spo2": {
+            "gt": 95,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_gcs": {
+            "gt": 15,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "yellow",
+          "Source_Type": "B",
+          "Injury_Description": "胸悶冒冷汗",
+          "Symptoms": {
+            "Chief_Complaint": "胸悶冒冷汗",
+            "Duration": "三十分鐘"
+          },
+          "Medical_History": {
+            "Patient_Age": "六十歲",
+            "Medical_Condition": "高血壓",
+            "Medications": "降血壓藥",
+            "Allergy": "對乙內醯胺磺過敏",
+            "Heart_Rate": "一百零八",
+            "Blood_Pressure": "一百六十除以一百",
+            "Respiratory_Rate": "二十二",
+            "Oxygen_Saturation": "九十五"
+          },
+          "GCS": "十五",
+          "Classification": "黃區"
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-03",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.29411764705882354,
+      "latency_sec": 27.20134425163269,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": "male",
+            "ai": null,
+            "score": 0.0
+          },
+          "age_estimate": {
+            "gt": 25,
+            "ai": null,
+            "score": 0.0
+          },
+          "source_type": {
+            "gt": "C",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "green",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "chief_complaint": {
+            "gt": "左手前臂擦傷加淺層撕裂傷",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [],
+            "ai": null,
+            "score": 1.0
+          },
+          "allergies": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "medications": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "past_history": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_heart_rate": {
+            "gt": 80,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 120,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 80,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": 16,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_spo2": {
+            "gt": 99,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_gcs": {
+            "gt": 15,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "green",
+          "Source_Type": "A",
+          "Injury_Description": "Left arm forearm, minor laceration, shallow tear.",
+          "Patient_Status": "Stable",
+          "VitalSigns": {
+            "HeartRate": "80",
+            "BloodPressure": "120/80",
+            "RespirationRate": "16",
+            "OxygenLevel": "99"
+          },
+          "GCS": "15",
+          "Notes": "Patient reports able to walk and speak.  No obvious signs of distress."
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-04",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.17647058823529413,
+      "latency_sec": 27.185640573501587,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": "male",
+            "ai": null,
+            "score": 0.0
+          },
+          "age_estimate": {
+            "gt": 30,
+            "ai": null,
+            "score": 0.0
+          },
+          "source_type": {
+            "gt": "A",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "red",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": "爆炸波及右側胸部",
+            "ai": null,
+            "score": 0.0
+          },
+          "chief_complaint": {
+            "gt": "疑似張力性氣胸，呼吸困難，右側呼吸音消失",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [
+              "胸封貼"
+            ],
+            "ai": null,
+            "score": 0.0
+          },
+          "allergies": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "medications": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "past_history": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_heart_rate": {
+            "gt": 135,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 80,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 50,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": 36,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_spo2": {
+            "gt": 85,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_gcs": {
+            "gt": 13,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "red",
+          "Source_Type": "A",
+          "Injury_Description": "爆炸波及右側胸部",
+          "Patient_Age": "約三十歲",
+          "Patient_Gender": "男性",
+          "GCS": "十三",
+          "Respiratory_Status": {
+            "Breathing_Rate": "三十六",
+            "Breathing_Sounds": "消失",
+            "Oxygen_Saturation": "八十五"
+          },
+          "Chest_Condition": {
+            "Status": "張力性氣胸",
+            "Symptoms": "呼吸困難明顯",
+            "Heart_Rate": "一百三十五",
+            "Blood_Pressure": "八十除以五十",
+            "Oxygen_Level": "八十五"
+          },
+          "Treatment": {
+            "Actions": [
+              "胸封貼處置"
+            ]
+          },
+          "Notes": null
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-05",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.17647058823529413,
+      "latency_sec": 32.97296714782715,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": "female",
+            "ai": null,
+            "score": 0.0
+          },
+          "age_estimate": {
+            "gt": 25,
+            "ai": null,
+            "score": 0.0
+          },
+          "source_type": {
+            "gt": "A",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "red",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": "三樓墜落",
+            "ai": null,
+            "score": 0.0
+          },
+          "chief_complaint": {
+            "gt": "雙下肢變形疑似骨折，腹部壓痛膨脹疑似內出血",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [
+              "止血帶x2",
+              "保暖毯",
+              "IV通路",
+              "生理食鹽水"
+            ],
+            "ai": null,
+            "score": 0.0
+          },
+          "allergies": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "medications": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "past_history": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_heart_rate": {
+            "gt": 140,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 70,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 40,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": 28,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_spo2": {
+            "gt": 90,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_gcs": {
+            "gt": 12,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "red",
+          "Source_Type": "A",
+          "伤患_描述": "女性约二十五岁，从三楼墜落，双下肢变形疑似骨折，腹部压痛膨胀，疑似内出血，面色苍白四肢冰冷，心率140，血压70/40，呼吸28，血氧90，GCS12，已上两条止血带加保暖毯，建立IV通路給生理食鹽水，分类红区",
+          "Medical_Assessment": {
+            "GCS": 12,
+            "HeartRate": 140,
+            "BloodPressure": 70,
+            "RespiratoryRate": 28,
+            "OxygenLevel": 90,
+            "PainLevel": null
+          }
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-06",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.23529411764705882,
+      "latency_sec": 27.231751203536987,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": "male",
+            "ai": null,
+            "score": 0.0
+          },
+          "age_estimate": {
+            "gt": 8,
+            "ai": null,
+            "score": 0.0
+          },
+          "source_type": {
+            "gt": "B",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "yellow",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "chief_complaint": {
+            "gt": "頭部五公分撕裂傷，持續滲血",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [
+              "紗布加壓止血"
+            ],
+            "ai": null,
+            "score": 0.0
+          },
+          "allergies": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "medications": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "past_history": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_heart_rate": {
+            "gt": 110,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 100,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 65,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": 24,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_spo2": {
+            "gt": 97,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_gcs": {
+            "gt": 15,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "yellow",
+          "Source_Type": "A",
+          "伤患_描述": "头部，大约五公分的撕裂伤，持续滲血，但不是喷射性出血，意识清楚，哭泣，心率100，血压100/65，呼吸24，血氧97，GCS15，已加壓紗布止血。",
+          "Notes": "有明显出血，但不是喷射性出血，意识清楚，哭泣，心率快，血压稍高，呼吸正常，血氧略低，GCS15，需要进一步观察。"
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-07",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.11764705882352941,
+      "latency_sec": 25.07044768333435,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": "male",
+            "ai": null,
+            "score": 0.0
+          },
+          "age_estimate": {
+            "gt": 55,
+            "ai": null,
+            "score": 0.0
+          },
+          "source_type": {
+            "gt": "C",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "yellow",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "non_trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "chief_complaint": {
+            "gt": "頭暈全身無力，低血糖（血糖45）",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [
+              "口服葡萄糖"
+            ],
+            "ai": null,
+            "score": 0.0
+          },
+          "allergies": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "medications": {
+            "gt": "胰島素",
+            "ai": null,
+            "score": 0.0
+          },
+          "past_history": {
+            "gt": "糖尿病",
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_heart_rate": {
+            "gt": 100,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 110,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 70,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": 18,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_spo2": {
+            "gt": 98,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_gcs": {
+            "gt": 14,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "yellow",
+          "Source_Type": "A",
+          "Injury_Description": "頭暈，全身無力，快要昏倒",
+          "Patient_Age": "五十五歲",
+          "Patient_Complaint": "糖尿病，平常打胰島素",
+          "Current_Condition": "沒吃東西，量血糖四十五，心率一百，血壓一百一十除以七十，呼吸十八，血氧九十八，GCS十四",
+          "VitalSigns": {
+            "HeartRate": "一百",
+            "BloodPressure": "一百一十除以七十",
+            "RespiratoryRate": "十八",
+            "OxygenSaturation": "九十八"
+          },
+          "GCS": "十四",
+          "Initial_Treatment": "給口服葡萄糖"
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-08",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0.4117647058823529,
+      "latency_sec": 138.41995096206665,
+      "details": {
+        "field_details": {
+          "gender": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "age_estimate": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "source_type": {
+            "gt": "A",
+            "ai": null,
+            "score": 0.0
+          },
+          "triage_color": {
+            "gt": "red",
+            "ai": null,
+            "score": 0.0
+          },
+          "trauma_type": {
+            "gt": "trauma",
+            "ai": null,
+            "score": 0.0
+          },
+          "mechanism_of_injury": {
+            "gt": "建物倒塌壓傷",
+            "ai": null,
+            "score": 0.0
+          },
+          "chief_complaint": {
+            "gt": "右大腿開放性骨折合併大量出血",
+            "ai": null,
+            "score": 0.0
+          },
+          "treatments_given": {
+            "gt": [
+              "止血帶加壓止血",
+              "IV通路",
+              "生理食鹽水500CC"
+            ],
+            "ai": null,
+            "score": 0.0
+          },
+          "allergies": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "medications": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "past_history": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_heart_rate": {
+            "gt": 120,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_systolic": {
+            "gt": 90,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_blood_pressure_diastolic": {
+            "gt": 60,
+            "ai": null,
+            "score": 0.0
+          },
+          "vital_respiratory_rate": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_spo2": {
+            "gt": null,
+            "ai": null,
+            "score": 1.0
+          },
+          "vital_gcs": {
+            "gt": 14,
+            "ai": null,
+            "score": 0.0
+          }
+        },
+        "ai_raw": {
+          "Triage_Color": "red",
+          "Source_Type": "A",
+          "Injury_Description": "開裂性骨折",
+          "Patient_Status": "傷勢",
+          "GCS": "14",
+          "VitalSigns": {
+            "HeartRate": "120",
+            "BloodPressure": "90/60"
+          },
+          "CurrentTreatment": {
+            "止血": "加壓止血",
+            "IV通路": "五百CC生理食鹽水"
+          },
+          "Warning": "口述內容有明顯矛盾：GCS 3 卻說意識清楚。"
+        }
+      }
+    },
+    {
+      "case_id": "STRUCT-09",
+      "test_type": "structured",
+      "passed": true,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "skipped": true,
+        "note": "此案例為多重傷患報告，不適用單筆 fill_triage_record。評估 AI 是否能辨識並回報多筆。"
+      }
+    },
+    {
+      "case_id": "STRUCT-10",
+      "test_type": "structured",
+      "passed": true,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "skipped": true,
+        "note": "此為安全事件通報，非傷患記錄。評估 AI 是否能正確辨識這不是醫療口述，並拒絕填入 triage 欄位或回報為非醫療事件。"
+      }
+    },
+    {
+      "case_id": "CONTRA-01",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0.0,
+      "latency_sec": 22.202863931655884,
+      "details": {
+        "warning_details": {
+          "warning_0": {
+            "expected": "GCS 3 分為深度昏迷狀態，與「可以對話回答問題」矛盾",
+            "detected": false
+          },
+          "warning_1": {
+            "expected": "GCS 3 應為紅區或黑區，分類黃區可能不適當",
+            "detected": false
+          }
+        },
+        "ai_warnings": []
+      }
+    },
+    {
+      "case_id": "CONTRA-02",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0.0,
+      "latency_sec": 19.31812882423401,
+      "details": {
+        "warning_details": {
+          "warning_0": {
+            "expected": "血氧 70% 為危急值，與「看起來還好」及綠區分類嚴重矛盾",
+            "detected": false
+          },
+          "warning_1": {
+            "expected": "呼吸速率 32 超過 30，依 START 應分類紅區",
+            "detected": false
+          },
+          "warning_2": {
+            "expected": "心率 130 合併血氧 70% 提示嚴重低血氧，不應為綠區",
+            "detected": false
+          }
+        },
+        "ai_warnings": []
+      }
+    },
+    {
+      "case_id": "CONTRA-03",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0.0,
+      "latency_sec": 13.499302864074707,
+      "details": {
+        "warning_details": {
+          "warning_0": {
+            "expected": "已確認死亡（黑區）但報告心率 60、血壓 120/80、血氧 95% 等正常生命徵象，數據矛盾",
+            "detected": false
+          }
+        },
+        "ai_warnings": []
+      }
+    },
+    {
+      "case_id": "CONTRA-04",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0.0,
+      "latency_sec": 33.02650547027588,
+      "details": {
+        "warning_details": {
+          "warning_0": {
+            "expected": "8 歲兒童同時服用降血壓藥和胰島素不常見，建議確認用藥史是否正確",
+            "detected": false
+          }
+        },
+        "ai_warnings": "口述內容有明顯矛盾，GCS 15，心率 100，血壓 100/60，呼吸 20，血氧 98，GCS 15，分類黃區"
+      }
+    },
+    {
+      "case_id": "CONTRA-05",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0.0,
+      "latency_sec": 26.827637672424316,
+      "details": {
+        "warning_details": {
+          "warning_0": {
+            "expected": "雙下肢膝蓋以下截肢但描述為「自己走到」，來源方式矛盾",
+            "detected": false
+          },
+          "warning_1": {
+            "expected": "生命徵象顯示嚴重休克（BP 60/40, HR 150），GCS 10 意識下降，此患者不可能自行行走",
+            "detected": false
+          }
+        },
+        "ai_warnings": []
+      }
+    }
+  ]
+}

@@ -218,7 +218,60 @@ Pi 500 LPDDR4X-4267 bandwidth ≈ 34 GB/s。Gemma4 E2B 載入 7.2GB，每 token 
 3. **STT**：Pi 500 本地 Whisper 不可行，改用雲端 API（Gemini 2.5 Flash）或外部裝置
 4. **語音輸入完整鏈**：雲端 API（路線 A）為主，離線時 fallback 規則引擎或手動輸入
 
-### 9.6 Phase 2 結案狀態
+### 9.6 Phase 2b：小模型結構化輸出評估（2026-04-18）
+
+**目標**：找到 Pi 500 上延遲 < 15s 且準確率 > 85% 的密集模型。
+
+**候選模型與結果**：
+
+| 模型 | 來源 | 載入大小 | 準確率 | 平均延遲 | 矛盾偵測 | tool calling | 判定 |
+|------|------|---------|--------|---------|---------|-------------|------|
+| Gemma4 E2B (baseline) | Google | 7.2GB | 93.5% | 53.7s | 0% | ✅ | 準確但太慢 |
+| **Phi4-mini** | Microsoft | 2.5GB | **87.0%** ✅ | **103.6s** ❌ | 0% | ✅ | **準確但太慢** |
+| Gemma3 4B | Google | 3.3GB | 45.6%* | 112.3s | 0% | ❌ | FAIL |
+| Gemma3 1B | Google | 0.8GB | 21.3%* | 44.3s | 0% | ❌ | FAIL |
+| SmolLM3 3B | HuggingFace | — | — | — | — | — | Ollama 無此模型 |
+
+*Gemma3 不支援 Ollama tool calling，缺少 JSON schema 引導導致欄位名稱錯誤，準確率不反映模型真實能力。
+
+**Phi4-mini 逐案詳細結果**：
+
+| Case ID | 準確率 | 延遲(s) | 備註 |
+|---------|--------|---------|------|
+| STRUCT-01 | 100.0% | 221.7s | 首次載入，含模型載入時間 |
+| STRUCT-02 | 94.1% | 75.7s | |
+| STRUCT-03 | 87.1% | 82.4s | |
+| STRUCT-04 | 94.1% | 88.0s | |
+| STRUCT-05 | 98.5% | 94.0s | |
+| STRUCT-06 | 87.1% | 83.4s | |
+| STRUCT-07 | 94.1% | 94.9s | |
+| STRUCT-08 | 41.2% | 88.5s | 多處置合併描述導致低分 |
+
+**關鍵發現**：
+
+1. **Phi4-mini 準確率 87.0% — 通過 85% 門檻**，是 N100 Console 的最佳候選模型
+2. **實測 tok/s 遠低於理論預估**：Gemma3 4B 理論 ~14 tok/s，實測 ~2.8 tok/s。Ollama 在 aarch64 上的推論效率約為理論值的 20-30%
+3. **所有模型矛盾偵測 0%** — 確認矛盾偵測應改用規則引擎
+4. **AI 加速器（Hailo-8L）無法解決 LLM 問題** — Hailo 為 CNN/視覺設計，不支援 transformer 架構；on-chip SRAM ~2MB 不足以存放 LLM 權重；Pi 5 PCIe Gen3 x1（~1 GB/s）也會成為瓶頸
+
+### 9.7 Phase 2 + 2b 最終結論
+
+**Pi 500 不適合跑任何本地 LLM 即時推論。** 所有測試過的模型（0.8GB ~ 7.2GB）延遲均超過 15 秒門檻 3-15 倍。
+
+**Pi 500 的正確角色**：WebSocket server、PWA host、Pi push 資料管線、錄音暫存上傳。不跑 AI。
+
+**AI 推論架構定案**：
+
+| 功能 | 方案 | 硬體 |
+|------|------|------|
+| 結構化輸出 | Phi4-mini（2.5GB, Q4）或 Gemini 2.5 Flash API | N100 Console 或雲端 |
+| STT | 雲端 API（Google/Azure/Gemini） | 雲端（Whisper 繁中醫療不可用） |
+| 矛盾偵測 | 規則引擎（確定性邏輯） | 任何硬體 |
+| 視覺監控 | Pi 5 + Hailo-8L | 邊緣（正確用法） |
+
+**N100 Console 最低建議規格**：DDR5 雙通道 32GB（bandwidth ~76 GB/s），Phi4-mini 2.5GB 預估 ~30 tok/s，到貨後需實測。
+
+### 9.8 Phase 2 + 2b 結案狀態
 
 - [x] LLM 結構化輸出評估（Gemma4 E2B）
 - [x] LLM 矛盾偵測評估
@@ -226,11 +279,12 @@ Pi 500 LPDDR4X-4267 bandwidth ≈ 34 GB/s。Gemma4 E2B 載入 7.2GB，每 token 
 - [x] STT 評估（Whisper Tiny/Base/Small/Medium）
 - [x] 延遲瓶頸分析（bandwidth vs capacity）
 - [x] 結論與路線建議
-- [ ] **Phase 2b：小模型結構化輸出評估**（待執行）
+- [x] **Phase 2b：小模型結構化輸出評估**（Phi4-mini 準確通過、延遲不通過）
+- [x] **AI 加速器可行性分析**（Hailo-8L 不適用 LLM）
 
-**Phase 2 評估完成，Phase 2b 待執行。**
+**Phase 2 + 2b 全部完成。**
 
 ---
 
 *本報告對應 Roadmap Phase 2，結果決定 Phase 4（語音輸入整合）的技術方案。*
-*測試原始資料：`benchmark_report_20260416_*.json`、`stt_report_20260417_*.json`、`resource_log.csv`*
+*測試原始資料：`benchmark_report_20260416_*.json`、`stt_report_20260417_*.json`、`benchmark_report_20260418_*.json`、`resource_log.csv`*

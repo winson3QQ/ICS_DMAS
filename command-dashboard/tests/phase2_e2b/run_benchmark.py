@@ -34,6 +34,38 @@ PROMPT_TEMPLATE_PATH = SCRIPT_DIR / "prompt_template.json"
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 DEFAULT_MODEL = "gemma4:e2b"  # Ollama 模型名稱，依實際安裝調整
 
+# no-tools 模式：把 JSON schema 嵌入 system prompt，讓模型知道正確的欄位名稱
+NO_TOOLS_SCHEMA_SUFFIX = """
+
+## 輸出格式
+你必須輸出以下 JSON 格式（只輸出 JSON，不要加任何其他文字）：
+```json
+{
+  "gender": "male|female|unknown",
+  "age_estimate": 整數,
+  "source_type": "A|B|C",
+  "triage_color": "red|yellow|green|black",
+  "trauma_type": "trauma|non_trauma",
+  "mechanism_of_injury": "字串或null",
+  "chief_complaint": "字串或null",
+  "vital_signs": {
+    "heart_rate": 整數或null,
+    "blood_pressure_systolic": 整數或null,
+    "blood_pressure_diastolic": 整數或null,
+    "respiratory_rate": 整數或null,
+    "spo2": 整數或null,
+    "gcs": 整數或null,
+    "temperature": 數字或null
+  },
+  "treatments_given": ["字串陣列"],
+  "allergies": "字串或null",
+  "medications": "字串或null",
+  "past_history": "字串或null",
+  "warnings": ["矛盾或異常的描述"]
+}
+```
+欄位名稱必須完全一致，不可自創欄位。"""
+
 # 通過標準
 PASS_CER = 0.15            # STT 字元錯誤率 < 15%
 PASS_FIELD_ACCURACY = 0.85  # 結構化欄位準確率 > 85%
@@ -294,26 +326,30 @@ def score_contradiction_detection(expected_warnings: list, ai_warnings: list) ->
 # 測試執行器
 # ---------------------------------------------------------------------------
 
-def run_structured_tests(ollama_url: str, model: str, prompt_cfg: dict) -> list[TestResult]:
+def run_structured_tests(ollama_url: str, model: str, prompt_cfg: dict,
+                         no_tools: bool = False) -> list[TestResult]:
     """執行結構化輸出測試"""
     with open(TEST_CASES_DIR / "structured_cases.json") as f:
         cases = json.load(f)["cases"]
 
     system_prompt = prompt_cfg["system_prompt"]
     user_template = prompt_cfg["user_prompt_template"]
-    tools_cfg = prompt_cfg.get("tools", [])
 
-    # 轉換為 Ollama tools 格式
+    # no_tools 模式：把 JSON schema 直接嵌入 system prompt
+    if no_tools:
+        system_prompt += NO_TOOLS_SCHEMA_SUFFIX
     ollama_tools = []
-    for t in tools_cfg:
-        ollama_tools.append({
-            "type": "function",
-            "function": {
-                "name": t["name"],
-                "description": t["description"],
-                "parameters": t["parameters"],
-            }
-        })
+    if not no_tools:
+        tools_cfg = prompt_cfg.get("tools", [])
+        for t in tools_cfg:
+            ollama_tools.append({
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["parameters"],
+                }
+            })
 
     results = []
     for case in cases:
@@ -358,25 +394,29 @@ def run_structured_tests(ollama_url: str, model: str, prompt_cfg: dict) -> list[
     return results
 
 
-def run_contradiction_tests(ollama_url: str, model: str, prompt_cfg: dict) -> list[TestResult]:
+def run_contradiction_tests(ollama_url: str, model: str, prompt_cfg: dict,
+                            no_tools: bool = False) -> list[TestResult]:
     """執行矛盾偵測測試"""
     with open(TEST_CASES_DIR / "contradiction_cases.json") as f:
         cases = json.load(f)["cases"]
 
     system_prompt = prompt_cfg["system_prompt"]
     user_template = prompt_cfg["user_prompt_template"]
-    tools_cfg = prompt_cfg.get("tools", [])
 
+    if no_tools:
+        system_prompt += NO_TOOLS_SCHEMA_SUFFIX
     ollama_tools = []
-    for t in tools_cfg:
-        ollama_tools.append({
-            "type": "function",
-            "function": {
-                "name": t["name"],
-                "description": t["description"],
-                "parameters": t["parameters"],
-            }
-        })
+    if not no_tools:
+        tools_cfg = prompt_cfg.get("tools", [])
+        for t in tools_cfg:
+            ollama_tools.append({
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["parameters"],
+                }
+            })
 
     results = []
     for case in cases:
@@ -503,6 +543,8 @@ def main():
                         help=f"Ollama API URL (default: {DEFAULT_OLLAMA_URL})")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
                         help=f"模型名稱 (default: {DEFAULT_MODEL})")
+    parser.add_argument("--no-tools", action="store_true",
+                        help="不使用 tool calling（適用於不支援 tools 的模型）")
     parser.add_argument("--output", type=str, default=None,
                         help="報告輸出路徑 (default: benchmark_report_TIMESTAMP.json)")
     args = parser.parse_args()
@@ -519,11 +561,13 @@ def main():
 
     # 結構化輸出測試
     print("=== 結構化輸出測試 ===")
-    all_results.extend(run_structured_tests(args.ollama_url, args.model, prompt_cfg))
+    all_results.extend(run_structured_tests(args.ollama_url, args.model, prompt_cfg,
+                                            no_tools=args.no_tools))
 
     # 矛盾偵測測試
     print("\n=== 矛盾偵測測試 ===")
-    all_results.extend(run_contradiction_tests(args.ollama_url, args.model, prompt_cfg))
+    all_results.extend(run_contradiction_tests(args.ollama_url, args.model, prompt_cfg,
+                                               no_tools=args.no_tools))
 
     # STT 測試（需要音檔）
     if not args.text_only and args.audio_dir:

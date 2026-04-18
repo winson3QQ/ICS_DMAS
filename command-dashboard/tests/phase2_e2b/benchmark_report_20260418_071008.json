@@ -1,0 +1,177 @@
+{
+  "timestamp": "2026-04-18T07:10:08",
+  "pass_criteria": {
+    "field_accuracy": 0.85,
+    "contradiction_detection": 0.6,
+    "max_latency_sec": 15.0
+  },
+  "overall_verdict": "FAIL",
+  "summary": {
+    "structured": {
+      "total": 8,
+      "passed": 0,
+      "avg_accuracy": 0.0,
+      "avg_latency": 0.0
+    },
+    "contradiction": {
+      "total": 5,
+      "passed": 0,
+      "avg_detection": 0.0,
+      "avg_latency": 0.0
+    }
+  },
+  "results": [
+    {
+      "case_id": "STRUCT-01",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-02",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-03",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-04",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-05",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-06",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-07",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-08",
+      "test_type": "structured",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "STRUCT-09",
+      "test_type": "structured",
+      "passed": true,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "skipped": true,
+        "note": "此案例為多重傷患報告，不適用單筆 fill_triage_record。評估 AI 是否能辨識並回報多筆。"
+      }
+    },
+    {
+      "case_id": "STRUCT-10",
+      "test_type": "structured",
+      "passed": true,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "skipped": true,
+        "note": "此為安全事件通報，非傷患記錄。評估 AI 是否能正確辨識這不是醫療口述，並拒絕填入 triage 欄位或回報為非醫療事件。"
+      }
+    },
+    {
+      "case_id": "CONTRA-01",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "CONTRA-02",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "CONTRA-03",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "CONTRA-04",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    },
+    {
+      "case_id": "CONTRA-05",
+      "test_type": "contradiction",
+      "passed": false,
+      "score": 0,
+      "latency_sec": 0,
+      "details": {
+        "error": "400 Client Error: Bad Request for url: http://localhost:11434/api/chat"
+      }
+    }
+  ]
+}
