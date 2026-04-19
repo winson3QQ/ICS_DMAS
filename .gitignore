@@ -38,6 +38,10 @@ certs/
 # 臨時指令檔
 claude_code_instructions.md
 
+# AI 模型檔案（太大不進 git）
+*.bin
+breeze_asr_25_ct2/
+
 # 測試報告
 ICS_DMAS_*測試*.md
 ICS_DMAS_*報告*.md

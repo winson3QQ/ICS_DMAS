@@ -369,5 +369,54 @@ Pi 500 LPDDR4X-4267 bandwidth ≈ 34 GB/s。Gemma4 E2B 載入 7.2GB，每 token 
 
 ---
 
+## 10. Breeze ASR 25 改善測試（2026-04-19）
+
+### 10.1 測試目的
+
+驗證零成本方案（`initial_prompt`、`hotwords`）能否進一步降低 Breeze ASR 25 的 CER，目標 < 3%。
+
+### 10.2 測試素材
+
+YouTube 影片「安妮怎麼了？」頻道：〈每五年大更新！你學的急救方式可能已經不能用了｜2025 美國心臟醫學會AHA 指引更新〉（8:34），取前 1 分鐘音訊測試。該影片有人工校正繁體中文字幕作為 reference。
+
+### 10.3 測試結果
+
+| 設定 | CER | 推論時間 | 改善幅度 |
+|------|-----|---------|---------|
+| Baseline（無 prompt） | 6.21% | 659s | — |
+| + initial_prompt（醫療術語引導） | 6.50% | 474s | ❌ 無改善（+0.29%） |
+| + initial_prompt + hotwords | **5.93%** | 515s | ⚠️ 微幅改善（-0.28%） |
+
+### 10.4 典型錯誤（三種設定完全相同）
+
+| Reference | Hypothesis | 錯誤類別 |
+|-----------|-----------|---------|
+| 安妮的夥伴 | 安聯夥伴 | 專有名詞 |
+| 我是翔文 | 我是翔雯 | 人名 |
+| 這份指引 | 身份指引 | 同音字 |
+| CPR&ECC | CPRECC | 特殊符號 |
+
+### 10.5 結論
+
+1. **`initial_prompt` 對 Breeze ASR 25 幾乎無效** — 可能因 Breeze fine-tune 時已建立強 decoder 偏好，prompt 的影響力被壓低
+2. **`hotwords` 改善極微** — 僅從 6.21% 降到 5.93%，核心錯誤完全未改變
+3. **零成本方案無法達到 < 3% 目標** — 錯誤來自模型本身的限制，需要 fine-tune 才能改善
+
+### 10.6 Fine-tune 計畫
+
+**目標：** CER 從 7.5%（合成語音）/ 6.2%（YouTube 影片）降到 < 3%
+
+**資料來源（兩軌並行）：**
+- 網路影片：「安妮怎麼了？」等急救教育頻道（有人工字幕）
+- 自錄 PTT：實際 PTT 設備錄模擬口述 + 人工逐字稿
+
+**訓練方案：**
+- 方法：LoRA fine-tune（凍結原始 1.5B 參數，只訓練 ~10M 新參數）
+- 基底模型：Breeze ASR 25（不是原始 Whisper）
+- 訓練平台：Kaggle 免費 GPU（T4 16GB）
+- 推論平台：N100 Console（模型大小不變 ~1.5GB）
+
+---
+
 *本報告對應 Roadmap Phase 2，結果決定 Phase 4（語音輸入整合）的技術方案。*
 *測試原始資料：`benchmark_report_20260416_*.json`、`stt_report_20260417_*.json`、`stt_report_20260418_*.json`、`stt_report_20260419_*.json`、`benchmark_report_20260418_*.json`、`resource_log.csv`*
