@@ -475,6 +475,43 @@ YouTube 影片「安妮怎麼了？」頻道：〈2025 AHA 指引更新〉（8:3
 
 詳細轉錄文字見 `breeze_cer_results.json`。
 
+#### 人工校正操作指引
+
+**檔案位置：** `command-dashboard/tests/phase2_e2b/*_transcript.txt`（共 13 個檔案）
+
+**步驟：**
+1. `git pull` 取得最新的 `*_transcript.txt` 檔案
+2. 打開檔案，檔頭有對應的 YouTube 連結
+3. 播放 YouTube 影片，對照影片上的硬字幕校正文字
+4. 直接修改檔案內容，**不需要改檔名**
+5. 校正完後 `git commit` + `git push`
+
+**校正重點（優先改這些）：**
+- 醫療術語：止血袋→止血帶、急切→GCS、醫師→意識 等
+- 專有名詞：MARCH、TCCC、TECC、OHCA 等英文縮寫
+- 同音字：健物→建物、和病→合併 等
+- 數字格式：保持原始說法即可（四十五歲 或 45歲 都行）
+
+**檔案對應表：**
+
+| 檔案 | YouTube | 來源 | 內容 |
+|------|---------|------|------|
+| `Dl5oyUi0OKk_transcript.txt` | [連結](https://www.youtube.com/watch?v=Dl5oyUi0OKk) | OSEM | MARCH 操作完整流程（5:00） |
+| `vas9O-ed_eA_transcript.txt` | [連結](https://www.youtube.com/watch?v=vas9O-ed_eA) | OSEM | RAM 操作（3:03） |
+| `BmgXntYkhho_transcript.txt` | [連結](https://www.youtube.com/watch?v=BmgXntYkhho) | OSEM | 止血帶：熱區單手自救（0:26） |
+| `YbponuVaDjs_transcript.txt` | [連結](https://www.youtube.com/watch?v=YbponuVaDjs) | OSEM | 止血帶：熱區雙手自救互救（0:43） |
+| `U-kKq5WojUk_transcript.txt` | [連結](https://www.youtube.com/watch?v=U-kKq5WojUk) | OSEM | 止血帶：暖冷區互救（1:19） |
+| `Lh7IJP6WZno_transcript.txt` | [連結](https://www.youtube.com/watch?v=Lh7IJP6WZno) | OSEM | 止血帶降位（1:46） |
+| `06RaGBRAY7E_transcript.txt` | [連結](https://www.youtube.com/watch?v=06RaGBRAY7E) | OSEM | 止血帶轉換（2:01） |
+| `pWdnHe-QJCs_transcript.txt` | [連結](https://www.youtube.com/watch?v=pWdnHe-QJCs) | OSEM | 鼠蹊部交界處止血帶（1:27） |
+| `8RrpZDkG00A_transcript.txt` | [連結](https://www.youtube.com/watch?v=8RrpZDkG00A) | OSEM | 傷口填塞（0:54） |
+| `lRZkKIYYfZw_transcript.txt` | [連結](https://www.youtube.com/watch?v=lRZkKIYYfZw) | OSEM | 加壓繃帶包紮（1:16） |
+| `LaBekkIO2iA_transcript.txt` | [連結](https://www.youtube.com/watch?v=LaBekkIO2iA) | OSEM | 腋下填塞包紮（1:38） |
+| `aWnE9qfOS0E_transcript.txt` | [連結](https://www.youtube.com/watch?v=aWnE9qfOS0E) | OSEM | 頸部填塞包紮（1:34） |
+| `FOWjUDCUYz8_transcript.txt` | [連結](https://www.youtube.com/watch?v=FOWjUDCUYz8) | 國軍 | TCCC MARCH 流程（2:42） |
+
+**預估校正時間：** 總共約 21 分鐘音訊，估計 1-1.5 小時可完成。
+
 ### 10.6 典型錯誤分析
 
 | Reference | Hypothesis | 錯誤類別 |
