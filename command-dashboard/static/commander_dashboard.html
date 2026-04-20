@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.9.5';</script>
+<script>const CMD_VERSION='v0.9.6';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -2250,8 +2250,18 @@ function switchMap(key) {
   _currentMap = key;
   sessionStorage.setItem('_currentMap', key);
 
+  // 切離站外地圖時清除座標 pin 和 cursor
+  if (!isLeaflet) {
+    _clearCoordPin();
+    if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  }
+
   if (isLeaflet) {
-    _initLeafletMap();
+    _initLeafletMap();  // _leafletMap 在此函式中被建立或刷新
+    // 若已在放置模式中切換到站外，補設 crosshair
+    if (_placeMode && _leafletMap) {
+      _leafletMap.getContainer().style.setProperty('cursor', 'crosshair', 'important');
+    }
     return;
   }
 
@@ -2272,6 +2282,7 @@ function switchMap(key) {
 // ── Leaflet 站外地圖 ───────────────────────────────────────────────────────────
 let _leafletMap = null;
 let _leafletMarkers = [];
+let _coordPin = null;    // 點擊地圖後放置的藍色十字位置指示（非事件 marker）
 
 const _HSINCHU_CENTER = [24.8283, 121.0149]; // 竹北體育場
 const _HSINCHU_ZOOM = 15;
@@ -2410,11 +2421,12 @@ function _initLeafletMap() {
       _placeOnLeaflet(lat, lng);
       return;
     }
-    // 一般模式：顯示游標所在 MGRS 座標
+    // 一般模式：放置藍色十字 + 顯示 MGRS 座標
     const mgrs = _latlngToMGRS(lat, lng, 5);
+    _showCoordPin(lat, lng);
     _coordPanel.style.display = 'block';
     _coordPanel.innerHTML =
-      `<span style="color:#8b949e">游標</span> <b>${mgrs}</b>` +
+      `<span style="color:#58a6ff">✛</span> <b>${mgrs}</b>` +
       `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
       `${lat.toFixed(6)}°N, ${lng.toFixed(6)}°E`;
   });
@@ -2539,6 +2551,28 @@ function _renderLeafletMarkers() {
   });
 }
 
+// ── 座標指示 pin（藍色十字，非事件 marker）────────────────────
+function _showCoordPin(lat, lng) {
+  if (!_leafletMap) return;
+  if (_coordPin) { _leafletMap.removeLayer(_coordPin); _coordPin = null; }
+  const svg =
+    `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">` +
+    `<line x1="12" y1="1" x2="12" y2="23" stroke="#58a6ff" stroke-width="1.5" opacity=".9"/>` +
+    `<line x1="1" y1="12" x2="23" y2="12" stroke="#58a6ff" stroke-width="1.5" opacity=".9"/>` +
+    `<circle cx="12" cy="12" r="3.5" stroke="#58a6ff" stroke-width="1.5" fill="rgba(88,166,255,.18)"/>` +
+    `</svg>`;
+  _coordPin = L.marker([lat, lng], {
+    icon: L.divIcon({ html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12] }),
+    interactive: false,
+    zIndexOffset: -200,
+  });
+  _coordPin.addTo(_leafletMap);
+}
+
+function _clearCoordPin() {
+  if (_coordPin && _leafletMap) { _leafletMap.removeLayer(_coordPin); _coordPin = null; }
+}
+
 // ── 站外放置模式：click → 建立 event zone（Method 1）──────────
 async function _placeOnLeaflet(lat, lng) {
   if (!_placeMode || !_mapConfig) return;
@@ -2582,12 +2616,13 @@ async function _placeOnLeaflet(lat, lng) {
   if (zone.event_id) {
     _mapConfig.maps['outdoor'].zones.push(zone);
     saveMapConfig();
+    _clearCoordPin();   // 放置成功：移除藍色十字，事件 marker 取代之
     _renderLeafletMarkers();
     // 顯示放置成功的 MGRS 座標
     const coordPanel = document.getElementById('map-coord-panel');
     coordPanel.style.display = 'block';
     coordPanel.innerHTML =
-      `<span style="color:#8b949e">放置</span> <b>${zone.event_code}</b>` +
+      `<span style="color:#3fb950">✓ 放置</span> <b>${zone.event_code}</b>` +
       `<span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
     setTimeout(() => { coordPanel.style.display = 'none'; }, 3000);
   } else {
@@ -3332,6 +3367,7 @@ function selectPlaceGroup(grp) {
   _setCselOptions(EVENT_CATEGORIES[grp] || {});
   _placeMode = null;
   el('map-panel').classList.remove('placing');
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
 }
 
 function onPlaceTypeChange() {
@@ -3345,8 +3381,10 @@ function onPlaceTypeChange() {
   const label = EVENT_CATEGORIES[_placeGroup][typeKey];
   _placeMode = { group: _placeGroup, type: typeKey, label, icon: iconType };
   el('map-panel').classList.toggle('placing', !!_placeMode);
-  // 站外：切換 Leaflet crosshair cursor
-  if (_currentMap === 'outdoor') el('leaflet-map').classList.toggle('placing', !!_placeMode);
+  // 站外：直接用 JS 設 cursor（CSS !important 不夠穩定，Leaflet 會覆寫）
+  if (_currentMap === 'outdoor' && _leafletMap) {
+    _leafletMap.getContainer().style.setProperty('cursor', 'crosshair', 'important');
+  }
 }
 
 function cancelPlaceMode() {
@@ -3360,6 +3398,8 @@ function cancelPlaceMode() {
   el('place-type-btn').classList.add('disabled');
   el('map-panel').classList.remove('placing');
   el('leaflet-map').classList.remove('placing');
+  // 還原 Leaflet cursor
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
 }
 
 // 地圖點擊：放置事件 or 取消選取
