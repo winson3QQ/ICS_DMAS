@@ -134,7 +134,8 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | Step B：站內平面圖動態載入（admin 上傳） | ✅ 完成 | `/api/map/upload-image`，session 權限驗證 |
 | Phase 1：Grayscale base map + MGRS 座標顯示 | ✅ 完成 | protomaps-leaflet + `_latlngToMGRS()` |
 | Phase 2：Event Point — zone + lat/lng、NAPSG 符號 | ✅ 完成 | 長按 popup 放置、NAPSG 22 類型、assigned_unit、座標面板持久顯示 |
-| Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | 🔲 待做 | |
+| Phase 2.5：MGRS 搜尋輸入框 | 🔲 待做 | 獨立搜尋欄（非座標面板雙用途）；輸入 MGRS 或 WGS84 → panTo + 開啟事件 popup；設計已定 |
+| Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | 🔲 待做 | 繪製管制區、疏散範圍；後端儲存 |
 | Phase 4：NATO APP-6E 軍用符號 | 🔲 待做 | 友軍符號、Phase Line、SIDC |
 | Phase 5：MGRS 格線 overlay | 🔲 待做 | zoom 自動調整、格線標注 |
 
