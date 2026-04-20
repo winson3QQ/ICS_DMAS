@@ -76,7 +76,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   flex:1;position:relative;background:#111;overflow:hidden;
 }
 #map-tabs{
-  position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:0;
+  position:absolute;top:8px;right:8px;z-index:10;display:flex;gap:0;
 }
 .map-tab{
   padding:3px 12px;font-size:10px;font-weight:600;cursor:pointer;
@@ -543,7 +543,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .leaflet-layer-control{font-family:var(--mono);font-size:10px;}
 /* 座標顯示面板 */
 #map-coord-panel{
-  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  position:absolute;top:8px;left:50%;transform:translateX(-50%);
   z-index:1000;background:rgba(13,17,23,.88);color:#e6edf3;
   font-family:var(--mono);font-size:11px;padding:4px 12px;border-radius:4px;
   pointer-events:none;display:none;white-space:nowrap;letter-spacing:.03em;
@@ -2033,7 +2033,7 @@ function switchMap(key) {
 let _leafletMap = null;
 let _leafletMarkers = [];
 
-const _HSINCHU_CENTER = [24.80, 120.97];
+const _HSINCHU_CENTER = [24.8283, 121.0149]; // 竹北體育場
 const _HSINCHU_ZOOM = 15;
 
 // ── MGRS 座標轉換（WGS84 → MGRS，依 DMA TM 8358.2 規格）──
