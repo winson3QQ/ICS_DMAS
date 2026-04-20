@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.9.3';</script>
+<script>const CMD_VERSION='v0.9.4';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -542,6 +542,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 <style>
 #leaflet-map{position:absolute;inset:0;z-index:1;display:none;}
 #leaflet-map.active{display:block;}
+#leaflet-map.placing .leaflet-container{cursor:crosshair!important;}
+.napsg-tooltip{background:rgba(13,17,23,.85);border:1px solid rgba(255,255,255,.15);color:#e6edf3;font-size:10px;padding:2px 7px;border-radius:3px;white-space:nowrap;}
+.napsg-highlighted{animation:napsg-pulse .9s ease-in-out infinite alternate;transform-origin:center;display:block;}
+@keyframes napsg-pulse{from{filter:drop-shadow(0 0 4px #3fb950);transform:scale(1);}to{filter:drop-shadow(0 0 14px #3fb950);transform:scale(1.35);}}
 .leaflet-layer-control{font-family:var(--mono);font-size:10px;}
 /* 座標顯示面板 */
 #map-coord-panel{
@@ -875,7 +879,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 </div>
 
 <!-- ═══════ 確認 OVERLAY ═══════ -->
-<div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;">
+<div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:220;align-items:center;justify-content:center;">
   <div style="background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(340px,90vw);overflow:hidden;">
     <div style="padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;font-weight:700;" id="confirm-title"></div>
     <div style="padding:20px 16px;font-size:12px;color:var(--text);" id="confirm-msg"></div>
@@ -2308,27 +2312,59 @@ function _latlngToMGRS(lat, lng, precision) {
   return `${zoneNum}${latBand} ${colLetter}${rowLetter} ${ep} ${np}`;
 }
 
-const _MARKER_COLORS = {
+// ── NAPSG 色彩系統 ──────────────────────────────────────────────
+// 節點色：各組別固定色
+const _NODE_COLORS = {
   shelter: '#f0883e', medical: '#e05555', forward: '#58a6ff',
   security: '#bc8cff', command: '#d49000'
 };
+// 事件嚴重度色：stop-light
+const _SEV_COLORS = { critical: '#e05555', warning: '#e3b341', info: '#3fb950' };
+// 節點縮寫
+const _NODE_ABBR = { shelter:'收', medical:'醫', forward:'前', security:'安', command:'指' };
 
-function _leafletIcon(type) {
-  const color = _MARKER_COLORS[type] || '#8b949e';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-    <path d="M14 2C7.4 2 2 7.4 2 14c0 9 12 22 12 22s12-13 12-22C26 7.4 20.6 2 14 2z"
-      fill="${color}" stroke="#fff" stroke-width="1.5"/>
-    <circle cx="14" cy="14" r="5" fill="#fff" opacity=".9"/>
+/**
+ * NAPSG-styled L.divIcon
+ * @param {string} nodeType  - shelter/medical/forward/security/command
+ * @param {string} severity  - critical/warning/info（事件用）
+ * @param {boolean} isEvent  - true=事件 marker（菱形），false=永久節點
+ */
+function _napsgIcon(nodeType, severity, isEvent) {
+  const abbr = _NODE_ABBR[nodeType] || '?';
+  if (isEvent) {
+    // 菱形（NAPSG Hazard/Incident）— 嚴重度配色
+    const c = _SEV_COLORS[severity] || '#8b949e';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">
+      <polygon points="13,1 25,13 13,25 1,13" fill="${c}" stroke="#fff" stroke-width="2"/>
+      <text x="13" y="17" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
+            font-family="sans-serif">${abbr}</text>
+    </svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [26,26], iconAnchor: [13,13] });
+  }
+  const c = _NODE_COLORS[nodeType] || '#8b949e';
+  if (nodeType === 'forward' || nodeType === 'security') {
+    // 矩形（NAPSG Unit / Mobile Resource）
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="22" viewBox="0 0 32 22">
+      <rect x="1" y="1" width="30" height="20" rx="2" fill="${c}" stroke="#fff" stroke-width="2"/>
+      <text x="16" y="15" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
+            font-family="sans-serif">${abbr}</text>
+    </svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [32,22], iconAnchor: [16,11] });
+  }
+  // 圓形（NAPSG Operations Node — shelter / medical / command）
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/>
+    <text x="14" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="#fff"
+          font-family="sans-serif">${abbr}</text>
   </svg>`;
-  return L.divIcon({
-    html: svg, className: '', iconSize: [28, 36], iconAnchor: [14, 36], popupAnchor: [0, -36]
-  });
+  return L.divIcon({ html: svg, className: '', iconSize: [28,28], iconAnchor: [14,14] });
 }
 
 function _initLeafletMap() {
   const container = el('leaflet-map');
   if (_leafletMap) {
     _leafletMap.invalidateSize();
+    _renderLeafletMarkers();   // 已存在的地圖也要刷新 marker
     return;
   }
   _leafletMap = L.map(container, { zoomControl: true, attributionControl: true })
@@ -2346,7 +2382,6 @@ function _initLeafletMap() {
   const vectorGrayscale = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' });
   const vectorWhite     = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'white' });
 
-  // 預設：Grayscale vector（NAPSG/ICS 標準中性底圖）
   vectorGrayscale.addTo(_leafletMap);
 
   L.control.layers(
@@ -2361,10 +2396,16 @@ function _initLeafletMap() {
     { position: 'topright', collapsed: true }
   ).addTo(_leafletMap);
 
-  // ── 點擊地圖顯示座標（lat/lng + MGRS）──
+  // ── 點擊地圖：放置模式 → 放置 marker；否則顯示座標 ──
   const _coordPanel = document.getElementById('map-coord-panel');
   _leafletMap.on('click', function(e) {
     const lat = e.latlng.lat, lng = e.latlng.lng;
+    // 放置模式：攔截 click 建立 event marker
+    if (_placeMode && _currentMap === 'outdoor') {
+      _placeOnLeaflet(lat, lng);
+      return;
+    }
+    // 一般模式：顯示 MGRS 座標
     const mgrs = _latlngToMGRS(lat, lng, 5);
     _coordPanel.style.display = 'block';
     _coordPanel.innerHTML =
@@ -2372,6 +2413,185 @@ function _initLeafletMap() {
       `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
       `${lat.toFixed(6)}°N, ${lng.toFixed(6)}°E`;
   });
+
+  // 恢復上次位置（若有），否則預設竹北體育場
+  const _savedView = sessionStorage.getItem('_mapView');
+  if (_savedView) {
+    try {
+      const { lat, lng, zoom } = JSON.parse(_savedView);
+      _leafletMap.setView([lat, lng], zoom);
+    } catch(e) { _leafletMap.setView(_HSINCHU_CENTER, _HSINCHU_ZOOM); }
+  }
+
+  // 移動/縮放時記錄位置
+  _leafletMap.on('moveend zoomend', () => {
+    const c = _leafletMap.getCenter();
+    sessionStorage.setItem('_mapView', JSON.stringify({
+      lat: Math.round(c.lat * 100000) / 100000,
+      lng: Math.round(c.lng * 100000) / 100000,
+      zoom: _leafletMap.getZoom()
+    }));
+  });
+
+  // 初始化後渲染 marker
+  _renderLeafletMarkers();
+}
+
+// ── 渲染 outdoor Leaflet markers（NAPSG 符號）──────────────────
+function _renderLeafletMarkers() {
+  if (!_leafletMap || !_mapConfig) return;
+  // 清除舊 marker
+  _leafletMarkers.forEach(m => _leafletMap.removeLayer(m));
+  _leafletMarkers = [];
+
+  const m = _mapConfig.maps['outdoor'];
+  if (!m?.zones) return;
+
+  const allEvts = _data?.events || [];
+
+  m.zones.forEach(zone => {
+    // 必須有 lat/lng 才能在 Leaflet 上渲染
+    if (zone.lat == null || zone.lng == null) return;
+
+    const isEvent = !!(zone.event_id || zone.event_code);
+    let severity = 'warning';
+
+    if (isEvent) {
+      const ev = allEvts.find(e => e.id === zone.event_id);
+      if (!ev) {
+        severity = 'info';  // 事件不存在（可能被清除）→ 灰顯
+      } else if (ev.status === 'resolved' || ev.status === 'closed') {
+        return;  // 已結案：不渲染
+      } else {
+        severity = ev.severity || 'warning';
+      }
+    }
+
+    const icon = _napsgIcon(zone.node_type, severity, isEvent);
+    const marker = L.marker([zone.lat, zone.lng], {
+      icon,
+      draggable: true,
+      title: zone.label,
+    });
+
+    // Tooltip（NAPSG 風格）
+    const tipHtml = `<span>${zone.label}</span>${zone.event_code ? ` <span style="color:var(--yellow)">${zone.event_code}</span>` : ''}`;
+    marker.bindTooltip(tipHtml, {
+      className: 'napsg-tooltip',
+      direction: 'top',
+      offset: [0, -16],
+      permanent: !isEvent,  // 永久節點常駐標籤；事件 hover 才顯示
+    });
+
+    // 單擊：開 modal
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      if (isEvent) showEventProcessModal(zone);
+      else showZoneDetail(zone);
+    });
+
+    // 拖動結束：更新 lat/lng 並儲存（Method 2：拖動重定位）
+    marker.on('dragend', () => {
+      const ll = marker.getLatLng();
+      zone.lat = Math.round(ll.lat * 1000000) / 1000000;
+      zone.lng = Math.round(ll.lng * 1000000) / 1000000;
+      const mgrs = _latlngToMGRS(zone.lat, zone.lng, 5);
+      saveMapConfig();
+      // 顯示新座標
+      const coordPanel = document.getElementById('map-coord-panel');
+      coordPanel.style.display = 'block';
+      coordPanel.innerHTML =
+        `<span style="color:#8b949e">移動至</span> <b>${mgrs}</b>` +
+        `<span style="color:#56d364;margin-left:10px">✓ 已儲存</span>`;
+      setTimeout(() => { coordPanel.style.display = 'none'; }, 2500);
+      // 若為事件 marker，將新座標寫入處置紀錄
+      if (zone.event_id) {
+        authFetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            text: `地圖位置已移動 → ${mgrs}`,
+            operator: _currentOperator()
+          })
+        }).then(() => poll()).catch(() => {});
+      }
+    });
+
+    marker.addTo(_leafletMap);
+    // highlight：長按事件卡片時閃爍（套在 svg 子元素，避免干擾 Leaflet wrapper 的 translate3d）
+    if (marker._icon) {
+      const svgEl = marker._icon.querySelector('svg');
+      if (svgEl) {
+        if (zone.event_id && zone.event_id === _highlightedEventId) {
+          svgEl.classList.add('napsg-highlighted');
+        } else if (_highlightedEventId) {
+          // 其他 marker dimmed
+          marker._icon.style.opacity = '0.3';
+        }
+      }
+    }
+    _leafletMarkers.push(marker);
+  });
+}
+
+// ── 站外放置模式：click → 建立 event zone（Method 1）──────────
+async function _placeOnLeaflet(lat, lng) {
+  if (!_placeMode || !_mapConfig) return;
+  const id = 'evt_' + Date.now();
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  const zone = {
+    id,
+    label: _placeMode.label,
+    sub: '',
+    lat: Math.round(lat * 1000000) / 1000000,
+    lng: Math.round(lng * 1000000) / 1000000,
+    node_type: _placeMode.group,
+    icon: _placeMode.icon,
+  };
+
+  const _CRITICAL_TYPES = new Set(['drone', 'explosive', 'unknown']);
+  const severity = _CRITICAL_TYPES.has(_placeMode.type) ? 'critical' : 'warning';
+
+  try {
+    const resp = await authFetch(API_BASE + '/api/events', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        reported_by_unit: _placeMode.group,
+        event_type: _placeMode.type,
+        severity,
+        description: _placeMode.label,
+        operator_name: _currentOperator(),
+        location_zone_id: id,
+        location_desc: mgrs,   // MGRS 作為位置描述
+        session_type: _sessionType,
+      })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      zone.event_id  = data.id;
+      zone.event_code = data.event_code;
+    }
+  } catch(e) { console.error('[PLACE-LEAFLET]', e); }
+
+  if (zone.event_id) {
+    _mapConfig.maps['outdoor'].zones.push(zone);
+    saveMapConfig();
+    _renderLeafletMarkers();
+    // 顯示放置成功的 MGRS 座標
+    const coordPanel = document.getElementById('map-coord-panel');
+    coordPanel.style.display = 'block';
+    coordPanel.innerHTML =
+      `<span style="color:#8b949e">放置</span> <b>${zone.event_code}</b>` +
+      `<span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
+    setTimeout(() => { coordPanel.style.display = 'none'; }, 3000);
+  } else {
+    console.warn('[PLACE-LEAFLET] 事件建立失敗，不放置 marker');
+  }
+
+  cancelPlaceMode();
+  el('leaflet-map').classList.remove('placing');
+  poll();
 }
 
 function renderMapOverlay() {
@@ -2975,15 +3195,21 @@ async function saveMapConfig() {
 let _highlightedEventId = null;
 
 function _highlightEvent(eventId) {
-  // 找事件對應的 zone 和所在地圖
   if (!_mapConfig) return;
   for (const [mapKey, m] of Object.entries(_mapConfig.maps)) {
     const zone = m.zones.find(z => z.event_id === eventId);
     if (zone) {
-      // 切換到該地圖
       if (_currentMap !== mapKey) switchMap(mapKey);
       _highlightedEventId = eventId;
-      renderMapOverlay();
+      if (mapKey === 'outdoor') {
+        _renderLeafletMarkers();
+        // Pan to marker if it has coordinates
+        if (zone.lat != null && zone.lng != null && _leafletMap) {
+          _leafletMap.panTo([zone.lat, zone.lng]);
+        }
+      } else {
+        renderMapOverlay();
+      }
       return;
     }
   }
@@ -2993,6 +3219,7 @@ function _unhighlightEvent() {
   if (!_highlightedEventId) return;
   _highlightedEventId = null;
   renderMapOverlay();
+  if (_currentMap === 'outdoor') _renderLeafletMarkers();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -3101,6 +3328,8 @@ function onPlaceTypeChange() {
   const label = EVENT_CATEGORIES[_placeGroup][typeKey];
   _placeMode = { group: _placeGroup, type: typeKey, label, icon: iconType };
   el('map-panel').classList.toggle('placing', !!_placeMode);
+  // 站外：切換 Leaflet crosshair cursor
+  if (_currentMap === 'outdoor') el('leaflet-map').classList.toggle('placing', !!_placeMode);
 }
 
 function cancelPlaceMode() {
@@ -3113,12 +3342,15 @@ function cancelPlaceMode() {
   el('place-type-panel').classList.remove('open');
   el('place-type-btn').classList.add('disabled');
   el('map-panel').classList.remove('placing');
+  el('leaflet-map').classList.remove('placing');
 }
 
 // 地圖點擊：放置事件 or 取消選取
 el('map-panel').addEventListener('click', async function(e) {
   // 點到 marker、edit-bar、map-tabs 不處理
   if (e.target.closest('.zone-marker') || e.target.closest('#edit-bar') || e.target.closest('#map-tabs')) return;
+  // 站外（Leaflet）：由 Leaflet click handler 處理，這裡不重複觸發
+  if (_currentMap === 'outdoor') return;
   // 非放置模式：點空白地圖取消選取
   if (!_placeMode) {
     if (_selectedZoneId) _deselectMarker();
@@ -3935,6 +4167,8 @@ function refresh() {
   _renderConnDots();
   renderZoneC(d);
   renderMapOverlay();
+  // 站外：同步刷新 Leaflet marker（嚴重度顏色、已結案消失）
+  if (_currentMap === 'outdoor') _renderLeafletMarkers();
 }
 
 function _renderZoneANoSnap() {

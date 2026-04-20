@@ -30,26 +30,81 @@
       "label": "站外",
       "zones": [
         {
-          "id": "evt_1776658340699",
-          "label": "QRF 出動",
+          "id": "evt_1776671308774",
+          "label": "不明人員",
           "sub": "",
-          "x_pct": 52.5,
-          "y_pct": 57,
-          "node_type": "forward",
-          "icon": "run",
-          "event_id": "48b62762-45e5-4921-99c9-033ae797a1fb",
-          "event_code": "EV-0420-001"
+          "lat": 24.819489,
+          "lng": 121.017945,
+          "node_type": "security",
+          "icon": "person",
+          "event_id": "e8f4468b-9dcf-400c-a0ef-35f7dff2c141",
+          "event_code": "EV-0420-012"
         },
         {
-          "id": "evt_1776658461279",
-          "label": "指揮交接",
+          "id": "evt_1776671318148",
+          "label": "無人機",
           "sub": "",
-          "x_pct": 52,
-          "y_pct": 66.4,
+          "lat": 24.819001,
+          "lng": 121.021528,
+          "node_type": "security",
+          "icon": "drone",
+          "event_id": "a8290349-2dc6-486a-b874-00525a804205",
+          "event_code": "EV-0420-013"
+        },
+        {
+          "id": "evt_1776671610090",
+          "label": "疑似爆裂物",
+          "sub": "",
+          "lat": 24.820538,
+          "lng": 121.019286,
+          "node_type": "shelter",
+          "icon": "explosive",
+          "event_id": "2e9fb867-da40-4e9a-858c-4aa57f41beb1",
+          "event_code": "EV-0420-014"
+        },
+        {
+          "id": "evt_1776671613509",
+          "label": "設施異常",
+          "sub": "",
+          "lat": 24.820182,
+          "lng": 121.01913,
+          "node_type": "shelter",
+          "icon": "event",
+          "event_id": "1fd5d1fd-0161-47b8-b838-640a6a04e1a3",
+          "event_code": "EV-0420-015"
+        },
+        {
+          "id": "evt_1776671616923",
+          "label": "人員狀況",
+          "sub": "",
+          "lat": 24.819992,
+          "lng": 121.01891,
+          "node_type": "shelter",
+          "icon": "person",
+          "event_id": "b77d8648-7ef3-4496-8401-fc552b49d7c5",
+          "event_code": "EV-0420-016"
+        },
+        {
+          "id": "evt_1776671619373",
+          "label": "傳染疑慮",
+          "sub": "",
+          "lat": 24.820411,
+          "lng": 121.01927,
+          "node_type": "medical",
+          "icon": "event",
+          "event_id": "4cc2f316-060f-4505-8d68-7c3bb9801648",
+          "event_code": "EV-0420-017"
+        },
+        {
+          "id": "evt_1776671623467",
+          "label": "通訊異常",
+          "sub": "",
+          "lat": 24.820738,
+          "lng": 121.019329,
           "node_type": "command",
-          "icon": "handshake",
-          "event_id": "a041f132-2c50-4ee0-9814-5feec3e2a5da",
-          "event_code": "EV-0420-002"
+          "icon": "event",
+          "event_id": "15546025-0b12-4784-b06e-30e85ce1f51c",
+          "event_code": "EV-0420-018"
         }
       ],
       "flows": []
