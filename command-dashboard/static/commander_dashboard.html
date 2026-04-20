@@ -224,7 +224,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .spark-rag.warn{background:var(--yellow);}
 .spark-rag.crit{background:var(--red);}
 .spark-body{flex:1;min-height:0;padding:0 2px 1px;}
-canvas{display:block;width:100%!important;height:100%!important;}
+.spark-body canvas{display:block;width:100%!important;height:100%!important;}
 
 /* sparkline 展開圖例 */
 .spark-detail{display:none;padding:2px 6px;}
@@ -2053,14 +2053,32 @@ function _initLeafletMap() {
   _leafletMap = L.map(container, { zoomControl: true, attributionControl: true })
     .setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
 
+  const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
+
   // ── Base layers ──
-  // OSM raster：zoom 14-16 離線，overzoom 到 19
   const rasterLayer = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     minZoom: 10, maxZoom: 19, maxNativeZoom: 16
   });
+  const vectorLight     = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'light' });
+  const vectorDark      = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'dark' });
+  const vectorGrayscale = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' });
+  const vectorWhite     = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'white' });
 
+  // 預設 OSM raster
   rasterLayer.addTo(_leafletMap);
+
+  L.control.layers(
+    {
+      'OSM Raster（離線）':     rasterLayer,
+      'Vector Light（離線）':   vectorLight,
+      'Vector Dark（離線）':    vectorDark,
+      'Vector Grayscale（離線）': vectorGrayscale,
+      'Vector White（離線）':   vectorWhite,
+    },
+    {},
+    { position: 'topright', collapsed: false }
+  ).addTo(_leafletMap);
 
   // ── 測試 markers ──
   _TEST_MARKERS.forEach(m => {
