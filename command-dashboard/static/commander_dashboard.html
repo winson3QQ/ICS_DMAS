@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.9.4';</script>
+<script>const CMD_VERSION='v0.9.5';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -542,7 +542,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 <style>
 #leaflet-map{position:absolute;inset:0;z-index:1;display:none;}
 #leaflet-map.active{display:block;}
-#leaflet-map.placing .leaflet-container{cursor:crosshair!important;}
+#leaflet-map.placing .leaflet-container,
+#leaflet-map.placing .leaflet-container .leaflet-pane,
+#leaflet-map.placing .leaflet-container .leaflet-tile-pane,
+#leaflet-map.placing .leaflet-container .leaflet-grab,
+#leaflet-map.placing .leaflet-container .leaflet-touch-drag{cursor:crosshair!important;}
+#leaflet-map.placing .leaflet-container .leaflet-marker-icon{cursor:crosshair!important;}
 .napsg-tooltip{background:rgba(13,17,23,.85);border:1px solid rgba(255,255,255,.15);color:#e6edf3;font-size:10px;padding:2px 7px;border-radius:3px;white-space:nowrap;}
 .napsg-highlighted{animation:napsg-pulse .9s ease-in-out infinite alternate;transform-origin:center;display:block;}
 @keyframes napsg-pulse{from{filter:drop-shadow(0 0 4px #3fb950);transform:scale(1);}to{filter:drop-shadow(0 0 14px #3fb950);transform:scale(1.35);}}
@@ -2405,11 +2410,11 @@ function _initLeafletMap() {
       _placeOnLeaflet(lat, lng);
       return;
     }
-    // 一般模式：顯示 MGRS 座標
+    // 一般模式：顯示游標所在 MGRS 座標
     const mgrs = _latlngToMGRS(lat, lng, 5);
     _coordPanel.style.display = 'block';
     _coordPanel.innerHTML =
-      `<span style="color:#8b949e">MGRS</span> <b>${mgrs}</b>` +
+      `<span style="color:#8b949e">游標</span> <b>${mgrs}</b>` +
       `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
       `${lat.toFixed(6)}°N, ${lng.toFixed(6)}°E`;
   });
@@ -3203,9 +3208,18 @@ function _highlightEvent(eventId) {
       _highlightedEventId = eventId;
       if (mapKey === 'outdoor') {
         _renderLeafletMarkers();
-        // Pan to marker if it has coordinates
+        // Pan to marker + 顯示事件座標
         if (zone.lat != null && zone.lng != null && _leafletMap) {
           _leafletMap.panTo([zone.lat, zone.lng]);
+          const mgrs = _latlngToMGRS(zone.lat, zone.lng, 5);
+          const coordPanel = document.getElementById('map-coord-panel');
+          const codeLabel = zone.event_code ? `<b>${zone.event_code}</b>` : `<b>${zone.label}</b>`;
+          coordPanel.style.display = 'block';
+          coordPanel.innerHTML =
+            `<span style="color:#3fb950">📍 事件</span> ${codeLabel}` +
+            `<span style="color:#8b949e;margin-left:12px">MGRS</span> <b>${mgrs}</b>` +
+            `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
+            `${zone.lat.toFixed(6)}°N, ${zone.lng.toFixed(6)}°E`;
         }
       } else {
         renderMapOverlay();
@@ -3220,6 +3234,9 @@ function _unhighlightEvent() {
   _highlightedEventId = null;
   renderMapOverlay();
   if (_currentMap === 'outdoor') _renderLeafletMarkers();
+  // 清除事件 highlight 座標顯示
+  const coordPanel = document.getElementById('map-coord-panel');
+  if (coordPanel) coordPanel.style.display = 'none';
 }
 
 // ══════════════════════════════════════════════════════════════
