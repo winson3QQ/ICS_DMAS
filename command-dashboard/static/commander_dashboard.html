@@ -541,6 +541,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #leaflet-map{position:absolute;inset:0;z-index:1;display:none;}
 #leaflet-map.active{display:block;}
 .leaflet-layer-control{font-family:var(--mono);font-size:10px;}
+/* 座標顯示面板 */
+#map-coord-panel{
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  z-index:1000;background:rgba(13,17,23,.88);color:#e6edf3;
+  font-family:var(--mono);font-size:11px;padding:4px 12px;border-radius:4px;
+  pointer-events:none;display:none;white-space:nowrap;letter-spacing:.03em;
+  border:1px solid rgba(255,255,255,.08);
+}
 </style>
 </head>
 <body>
@@ -773,7 +781,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     <div id="edit-coords"></div>
     <img id="map-img" src="" alt="地圖載入中">
     <div id="map-overlay"></div>
-    <div id="leaflet-map"></div>
+    <div id="leaflet-map"><div id="map-coord-panel"></div></div>
     <div id="edit-bar">
       <div style="display:flex;gap:0;align-items:center;margin:0 auto;">
         <button class="place-grp" data-grp="forward" onclick="selectPlaceGroup('forward')">前進</button>
@@ -2020,12 +2028,46 @@ let _leafletMarkers = [];
 const _HSINCHU_CENTER = [24.80, 120.97];
 const _HSINCHU_ZOOM = 15;
 
-// 測試 marker 資料（後續改從 map_config.json 讀 lat/lng）
-const _TEST_MARKERS = [
-  { lat: 24.8022, lng: 120.9714, label: '收容組', type: 'shelter', sub: '新竹市立體育館' },
-  { lat: 24.7975, lng: 120.9961, label: '醫療組', type: 'medical', sub: '新竹馬偕醫院' },
-  { lat: 24.8138, lng: 120.9675, label: '前進指揮所', type: 'forward', sub: '新竹火車站廣場' },
-];
+// ── MGRS 座標轉換（WGS84 → MGRS，依 DMA TM 8358.2 規格）──
+function _latlngToMGRS(lat, lng, precision) {
+  precision = (precision === undefined) ? 5 : precision;
+  // UTM 帶號
+  let zoneNum = Math.floor((lng + 180) / 6) + 1;
+  // 緯度帶（C-X，跳過 I、O）
+  const latBands = 'CDEFGHJKLMNPQRSTUVWX';
+  const latBand  = latBands[Math.min(Math.floor((lat + 80) / 8), 19)];
+  // WGS84 橢球參數
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const b = a * (1 - f), e2 = 1 - (b * b) / (a * a), ep2 = e2 / (1 - e2), k0 = 0.9996;
+  const φ = lat * Math.PI / 180, λ = lng * Math.PI / 180;
+  const λ0 = ((zoneNum - 1) * 6 - 180 + 3) * Math.PI / 180;
+  const sinφ = Math.sin(φ), cosφ = Math.cos(φ), tanφ = Math.tan(φ);
+  const N = a / Math.sqrt(1 - e2 * sinφ * sinφ);
+  const T = tanφ * tanφ, C = ep2 * cosφ * cosφ, A = cosφ * (λ - λ0);
+  const M = a * (
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * φ
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*φ)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*φ)
+    - (35*e2*e2*e2/3072) * Math.sin(6*φ));
+  let E = k0*N*(A+(1-T+C)*A*A*A/6+(5-18*T+T*T+72*C-58*ep2)*A*A*A*A*A/120)+500000;
+  let Nn = k0*(M+N*tanφ*(A*A/2+(5-T+9*C+4*C*C)*A*A*A*A/24
+    +(61-58*T+T*T+600*C-330*ep2)*A*A*A*A*A*A/720));
+  if (lat < 0) Nn += 10000000;
+  // 100km 格方字母（欄）
+  const colSets = ['ABCDEFGH','JKLMNPQR','STUVWXYZ'];
+  // 100km 格方字母（列），奇數帶由 A 起，偶數帶由 F 起
+  const rowOdd  = 'ABCDEFGHJKLMNPQRSTUV';
+  const rowEven = 'FGHJKLMNPQRSTUVABCDE';
+  const colIdx = Math.floor(E  / 100000) - 1;
+  const rowIdx = Math.floor(Nn / 100000) % 20;
+  if (colIdx < 0 || colIdx > 7) return `${zoneNum}${latBand} ??`;
+  const colLetter = colSets[(zoneNum-1)%3][colIdx];
+  const rowLetter = (zoneNum % 2 === 1 ? rowOdd : rowEven)[rowIdx];
+  // 數字部分
+  const ep = String(Math.round(E  % 100000)).padStart(5,'0').substring(0, precision);
+  const np = String(Math.round(Nn % 100000)).padStart(5,'0').substring(0, precision);
+  return `${zoneNum}${latBand} ${colLetter}${rowLetter} ${ep} ${np}`;
+}
 
 const _MARKER_COLORS = {
   shelter: '#f0883e', medical: '#e05555', forward: '#58a6ff',
@@ -2056,7 +2098,7 @@ function _initLeafletMap() {
   const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
 
   // ── Base layers ──
-  const rasterLayer = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
+  const rasterLayer     = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     minZoom: 10, maxZoom: 19, maxNativeZoom: 16
   });
@@ -2065,27 +2107,31 @@ function _initLeafletMap() {
   const vectorGrayscale = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' });
   const vectorWhite     = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'white' });
 
-  // 預設 OSM raster
-  rasterLayer.addTo(_leafletMap);
+  // 預設：Grayscale vector（NAPSG/ICS 標準中性底圖）
+  vectorGrayscale.addTo(_leafletMap);
 
   L.control.layers(
     {
-      'OSM Raster（離線）':     rasterLayer,
-      'Vector Light（離線）':   vectorLight,
-      'Vector Dark（離線）':    vectorDark,
       'Vector Grayscale（離線）': vectorGrayscale,
-      'Vector White（離線）':   vectorWhite,
+      'Vector Light（離線）':     vectorLight,
+      'Vector Dark（離線）':      vectorDark,
+      'Vector White（離線）':     vectorWhite,
+      'OSM Raster（離線）':       rasterLayer,
     },
     {},
-    { position: 'topright', collapsed: false }
+    { position: 'topright', collapsed: true }
   ).addTo(_leafletMap);
 
-  // ── 測試 markers ──
-  _TEST_MARKERS.forEach(m => {
-    const marker = L.marker([m.lat, m.lng], { icon: _leafletIcon(m.type) })
-      .bindPopup(`<b>${m.label}</b><br><small>${m.sub}</small>`)
-      .addTo(_leafletMap);
-    _leafletMarkers.push(marker);
+  // ── 點擊地圖顯示座標（lat/lng + MGRS）──
+  const _coordPanel = document.getElementById('map-coord-panel');
+  _leafletMap.on('click', function(e) {
+    const lat = e.latlng.lat, lng = e.latlng.lng;
+    const mgrs = _latlngToMGRS(lat, lng, 5);
+    _coordPanel.style.display = 'block';
+    _coordPanel.innerHTML =
+      `<span style="color:#8b949e">MGRS</span> <b>${mgrs}</b>` +
+      `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
+      `${lat.toFixed(6)}°N, ${lng.toFixed(6)}°E`;
   });
 }
 
