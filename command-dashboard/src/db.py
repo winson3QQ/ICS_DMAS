@@ -661,9 +661,18 @@ def _audit(operator: str, device_id: str | None,
 
 def get_audit_log(limit: int = 100, session_type: str = "real") -> list[dict]:
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM audit_log WHERE session_type=? ORDER BY created_at DESC LIMIT ?", (session_type, limit)
-        ).fetchall()
+        rows = conn.execute("""
+            SELECT a.*,
+                   e.event_code  AS _event_code,
+                   e.description AS _event_desc
+            FROM   audit_log a
+            LEFT JOIN events e
+                ON  a.target_table = 'events'
+                AND a.target_id    = e.id
+            WHERE  a.session_type = ?
+            ORDER  BY a.created_at DESC
+            LIMIT  ?
+        """, (session_type, limit)).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 

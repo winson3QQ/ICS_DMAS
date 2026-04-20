@@ -12,7 +12,7 @@ FastAPI + SQLite，跑在指揮部 Pi
   GET  http://<指揮部IP>:8000/api/dashboard
 """
 
-from fastapi import FastAPI, HTTPException, Request, Body
+from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
@@ -741,6 +741,30 @@ async def save_map_config(request: Request):
     config_path = static_path / "map_config.json"
     config_path.write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True, "path": str(config_path)}
+
+
+@app.post("/api/map/upload-image", tags=["系統"])
+async def upload_map_image(request: Request, file: UploadFile = File(...)):
+    """上傳室內平面圖（需指揮官 session）"""
+    token = request.headers.get("X-Session-Token")
+    print(f"[upload-image] token={token!r}  sessions={list(_sessions.keys())}")
+    sess = _sessions.get(token)
+    print(f"[upload-image] sess={sess}")
+    if not sess or sess.get("role") != "指揮官":
+        print(f"[upload-image] 403 — role={sess.get('role') if sess else 'NO SESSION'}")
+        raise HTTPException(403, "僅指揮官可上傳地圖")
+    # 限制副檔名
+    filename = file.filename or "map.jpg"
+    ext = filename.rsplit(".", 1)[-1].lower()
+    print(f"[upload-image] filename={filename!r} ext={ext!r}")
+    if ext not in {"jpg", "jpeg", "png", "gif", "webp", "svg"}:
+        raise HTTPException(400, f"不支援的圖片格式：{ext}")
+    # 儲存到 static/
+    save_path = static_path / filename
+    content = await file.read()
+    save_path.write_bytes(content)
+    print(f"[upload-image] 儲存完成 → {save_path}")
+    return {"ok": True, "filename": filename}
 
 
 @app.get("/api/health", tags=["系統"])

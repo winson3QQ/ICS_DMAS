@@ -1,15 +1,15 @@
 {
   "maps": {
     "indoor": {
-      "image": "ICS_Campus_map.jpg",
+      "image": null,
       "label": "站內",
       "zones": [
         {
           "id": "zone_shelter",
           "label": "收容組",
           "sub": "B 棟",
-          "x_pct": 54.3,
-          "y_pct": 47,
+          "x_pct": 94.7,
+          "y_pct": 85.5,
           "node_type": "shelter",
           "icon": "pin"
         },
@@ -17,8 +17,8 @@
           "id": "zone_medical",
           "label": "醫療組",
           "sub": "A 棟",
-          "x_pct": 63.9,
-          "y_pct": 47.5,
+          "x_pct": 87,
+          "y_pct": 85.5,
           "node_type": "medical",
           "icon": "pin"
         }
@@ -28,7 +28,30 @@
     "outdoor": {
       "image": "Satellite_map.png",
       "label": "站外",
-      "zones": [],
+      "zones": [
+        {
+          "id": "evt_1776658340699",
+          "label": "QRF 出動",
+          "sub": "",
+          "x_pct": 52.5,
+          "y_pct": 57,
+          "node_type": "forward",
+          "icon": "run",
+          "event_id": "48b62762-45e5-4921-99c9-033ae797a1fb",
+          "event_code": "EV-0420-001"
+        },
+        {
+          "id": "evt_1776658461279",
+          "label": "指揮交接",
+          "sub": "",
+          "x_pct": 52,
+          "y_pct": 66.4,
+          "node_type": "command",
+          "icon": "handshake",
+          "event_id": "a041f132-2c50-4ee0-9814-5feec3e2a5da",
+          "event_code": "EV-0420-002"
+        }
+      ],
       "flows": []
     }
   }

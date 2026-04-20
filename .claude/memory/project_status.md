@@ -126,6 +126,18 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | push_queue 撐爆磁碟 | MAX_QUEUE_AGE=24hr 清除 | ✅ 已實作 |
 | Pi 本地資料外洩 | SQLCipher | defer |
 
+### Wave 4.5 地圖系統（進行中）
+
+| 項目 | 狀態 | 說明 |
+|------|------|------|
+| Step A：站外改 Leaflet、移除 OSM tab | ✅ 完成 | commit 6336759 |
+| Step B：站內平面圖動態載入（admin 上傳） | ✅ 完成 | `/api/map/upload-image`，session 權限驗證 |
+| Phase 1：Grayscale base map + MGRS 座標顯示 | ✅ 完成 | protomaps-leaflet + `_latlngToMGRS()` |
+| Phase 2：Event Point — zone + lat/lng、NAPSG 符號 | 🔲 待做 | 三種放置方式、事件接地圖 |
+| Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | 🔲 待做 | |
+| Phase 4：NATO APP-6E 軍用符號 | 🔲 待做 | 友軍符號、Phase Line、SIDC |
+| Phase 5：MGRS 格線 overlay | 🔲 待做 | zoom 自動調整、格線標注 |
+
 ### Wave 5 待做項目（UI 收尾）
 
 | 項目 | 狀態 | 說明 |
@@ -172,9 +184,24 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | heartbeat status check | 檢查 HTTP status code，403/401 正確顯示指揮部離線 |
 | Pi 斷線重設指揮部燈 | Pi 離線時指揮部燈同步變灰 |
 
+### 稽核日誌 ICS-214 合規備忘
+
+現有 audit_log 欄位：operator、action_type、target_table、target_id、detail（JSON）、created_at
+
+**與 ICS-214 Unit Log 的差距（待補）**：
+| 缺少 | 說明 | 優先 |
+|------|------|------|
+| Incident Name | 未綁定演練/事件名稱 | 中 |
+| Operational Period | 未記錄作業週期（D1/N1…） | 中 |
+| ICS Position | 只記 username，未記職稱（如「行動組長」） | 低 |
+| ICS-214 匯出 | 依 log 自動產出 ICS-214 格式（PDF/表格），演練後檢討用 | 低 |
+
+現狀定位較接近 **NIST SP 800-92** 技術稽核 trail，非 ICS 操作日誌。
+NATO MIP 要求的 `classification`（密級標記）亦尚未實作。
+
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.2`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.3`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.48`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
