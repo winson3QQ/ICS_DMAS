@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.9.6';</script>
+<script>const CMD_VERSION='v0.9.9';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -180,6 +180,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .csel-opt:hover{background:rgba(255,255,255,.07);}
 .csel-opt.active{color:var(--green);}
 .csel-opt.placeholder{color:var(--text3);}
+.csel-group-header{
+  padding:4px 10px 2px;font-size:9px;font-weight:700;color:var(--text3);
+  letter-spacing:.08em;text-transform:uppercase;border-top:1px solid var(--border);
+  margin-top:2px;pointer-events:none;
+}
+.csel-group-header:first-child{border-top:none;margin-top:0;}
 #edit-bar button:not(.place-grp){
   background:var(--green);color:#fff;border:none;padding:4px 10px;border-radius:4px;
   font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);
@@ -552,6 +558,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .napsg-highlighted{animation:napsg-pulse .9s ease-in-out infinite alternate;transform-origin:center;display:block;}
 @keyframes napsg-pulse{from{filter:drop-shadow(0 0 4px #3fb950);transform:scale(1);}to{filter:drop-shadow(0 0 14px #3fb950);transform:scale(1.35);}}
 .leaflet-layer-control{font-family:var(--mono);font-size:10px;}
+/* 抑制 Leaflet layer toggle 圖示 404（我們用暗色主題，圖示不顯示也可接受） */
+.leaflet-retina .leaflet-control-layers-toggle{background-image:none!important;}
+.leaflet-control-layers-toggle{background-image:none!important;font-size:18px;line-height:36px;}
+.leaflet-control-layers-toggle::after{content:'⊞';}
 /* 座標顯示面板 */
 #map-coord-panel{
   position:absolute;top:8px;left:50%;transform:translateX(-50%);
@@ -563,6 +573,41 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 }
 #map-coord-panel.clickable{cursor:pointer;}
 #map-coord-panel.clickable:hover{background:rgba(88,166,255,.18);border-color:rgba(88,166,255,.5);}
+/* 長按事件 popup ─────────────────────────────── */
+.ev-popup .leaflet-popup-content-wrapper{
+  background:#161b22;border:1px solid rgba(255,255,255,.18);
+  border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.72);padding:0;
+}
+.ev-popup .leaflet-popup-tip{background:#161b22;}
+.ev-popup .leaflet-popup-content{margin:0;}
+.ev-popup .leaflet-popup-close-button{color:#8b949e!important;top:6px;right:8px;font-size:16px;line-height:1;}
+.ev-popup-inner{padding:10px 12px;min-width:190px;}
+.ev-popup-title{font-size:9px;color:#8b949e;font-family:var(--mono);letter-spacing:.06em;margin-bottom:6px;}
+.ev-popup-groups{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.ev-popup-group-btn{
+  padding:7px 4px;border-radius:5px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.05);color:#c9d1d9;font-size:11px;font-family:var(--mono);
+  cursor:pointer;text-align:center;transition:background .12s,border-color .12s;
+}
+.ev-popup-group-btn:hover{background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.4);}
+.ev-popup-types{display:flex;flex-direction:column;gap:3px;}
+.ev-popup-type-btn{
+  padding:6px 10px;border-radius:4px;border:1px solid transparent;
+  background:rgba(255,255,255,.04);color:#e6edf3;font-size:11px;font-family:var(--mono);
+  cursor:pointer;text-align:left;transition:background .1s;
+}
+.ev-popup-type-btn:hover{background:rgba(88,166,255,.18);border-color:rgba(88,166,255,.35);}
+.ev-popup-back{display:inline-block;margin-bottom:7px;font-size:10px;color:#58a6ff;cursor:pointer;padding:2px 0;}
+.ev-popup-back:hover{text-decoration:underline;}
+.ev-popup-reporter{
+  display:flex;align-items:center;gap:6px;margin-bottom:8px;
+  padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.ev-popup-reporter label{font-size:9px;color:#8b949e;font-family:var(--mono);white-space:nowrap;}
+.ev-popup-reporter select{
+  background:#0d1117;border:1px solid rgba(255,255,255,.12);color:#c9d1d9;
+  font-size:10px;font-family:var(--mono);padding:2px 4px;border-radius:3px;flex:1;
+}
 </style>
 </head>
 <body>
@@ -811,21 +856,27 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     <div id="map-overlay"></div>
     <div id="leaflet-map"><div id="map-coord-panel" onclick="_panToCoordTarget(event)"></div></div>
     <div id="edit-bar">
-      <div style="display:flex;gap:0;align-items:center;margin:0 auto;">
-        <button class="place-grp" data-grp="forward" onclick="selectPlaceGroup('forward')">前進</button>
-        <button class="place-grp" data-grp="security" onclick="selectPlaceGroup('security')">安全</button>
-        <button class="place-grp" data-grp="shelter" onclick="selectPlaceGroup('shelter')">收容</button>
-        <button class="place-grp" data-grp="medical" onclick="selectPlaceGroup('medical')">醫療</button>
-        <button class="place-grp" data-grp="command" onclick="selectPlaceGroup('command')">指揮部</button>
-        <div class="csel-wrap" id="place-type-wrap">
-          <div class="csel-btn disabled" id="place-type-btn" onclick="toggleCsel()">
-            <span id="place-type-label">—</span>
+      <div style="display:flex;gap:6px;align-items:center;margin:0 auto;">
+        <!-- 回報單位（誰在回報，metadata only，不影響危害分類） -->
+        <select id="place-report-unit" title="回報單位"
+          style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);
+                 padding:3px 6px;border-radius:4px;font-size:10px;font-family:var(--mono);">
+          <option value="command">指揮部</option>
+          <option value="forward">前進組</option>
+          <option value="security">安全組</option>
+          <option value="shelter">收容組</option>
+          <option value="medical">醫療組</option>
+        </select>
+        <!-- NAPSG 危害類型：Leaflet outdoor 改用長按 popup；此 selector 保留供站內地圖使用 -->
+        <div class="csel-wrap" id="place-type-wrap" style="margin-left:0;display:none;">
+          <div class="csel-btn" id="place-type-btn" onclick="toggleCsel()">
+            <span id="place-type-label">— 選危害類型 —</span>
           </div>
           <div class="csel-panel" id="place-type-panel"></div>
         </div>
         <button id="pin-edit-btn" onclick="togglePinEditMode()"
           title="調整永久據點位置"
-          style="margin-left:8px;padding:3px 10px;font-size:10px;border-radius:4px;cursor:pointer;
+          style="padding:3px 10px;font-size:10px;border-radius:4px;cursor:pointer;
                  border:1px solid var(--border);background:var(--surface2);color:var(--text2);
                  transition:all .15s;display:none;">✏ 調整據點</button>
       </div>
@@ -919,24 +970,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     </div>
     <div style="padding:16px;overflow-y:auto;">
       <div style="margin-bottom:10px;">
-        <label>回報組別</label>
-        <select id="ev-unit" onchange="_updateEvTypeFromCategories()">
+        <label>回報單位（誰在回報）</label>
+        <select id="ev-unit">
+          <option value="command">指揮部</option>
           <option value="forward">前進組</option>
           <option value="security">安全組</option>
-          <option value="command">指揮部</option>
+          <option value="shelter">收容組</option>
+          <option value="medical">醫療組</option>
         </select>
       </div>
       <div style="margin-bottom:10px;">
-        <label>事件類型</label>
-        <select id="ev-type">
-          <option value="supply_shortage">物資短缺</option>
-          <option value="capacity_warning">容量警告</option>
-          <option value="medical_emergency">醫療緊急</option>
-          <option value="security_incident">安全事件</option>
-          <option value="personnel_issue">人員問題</option>
-          <option value="comm_failure">通訊異常</option>
-          <option value="other">其他</option>
-        </select>
+        <label>危害類型（NAPSG）</label>
+        <select id="ev-type"></select>
       </div>
       <div style="margin-bottom:10px;">
         <label>嚴重度</label>
@@ -2134,73 +2179,52 @@ const SVG_ICONS = {
   pin_medical: `<svg width="22" height="22" viewBox="0 0 20 20"><path d="M10 1C6.7 1 4 3.7 4 7c0 5 6 12 6 12s6-7 6-12c0-3.3-2.7-6-6-6z" fill="#e05555"/><circle cx="10" cy="7" r="2.5" fill="#fff"/></svg>`,
 };
 
-// 事件類型歸納（指揮部地圖用，非 PWA 的細項）
-const EVENT_CATEGORIES = {
-  forward: {
-    qrf:         'QRF 出動',    // 從安全組移入
-    hazard:      '危害回報',
-    rescue:      '受困救援',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    unknown:     '不明人士',
-    situation:   '現場變化',
-  },
-  security: {
-    suspect:     '不明人員',    // 原可疑人員
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    perimeter:   '管制區異常',
-    crowd:       '秩序問題',
-    isolation:   '隔離事件',
-  },
-  shelter: {
-    unknown:     '不明人士',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    infectious:  '傳染疑慮',
-    capacity:    '量能超載',
-    security:    '安全威脅',
-    facility:    '設施異常',
-    person:      '人員狀況',
-    other:       '其他',
-  },
-  medical: {
-    unknown:     '不明人士',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    infectious:  '傳染疑慮',
-    violent:     '暴力傷患',
-    emergency:   '緊急病症',
-    mci:         '大量傷亡',
-    equipment:   '設備故障',
-    evacuation:  '撤退',
-  },
-  command: {
-    unknown:     '不明人士',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    comm_fail:   '通訊異常',
-    handover:    '指揮交接',
-    resource:    '資源調度',
-    escalation:  '升降級',
-    evacuation:  '撤離',
-    other:       '其他',
-  },
+// ══════════════════════════════════════════════════════════════
+// NAPSG 危害事件類型（取代舊的 EVENT_CATEGORIES 按組分類）
+// 回報者≠處理者：任何人都可回報任何危害，分類依危害性質而非組別
+// ══════════════════════════════════════════════════════════════
+const NAPSG_EVENTS = {
+  // ── 安全威脅 ──────────────────────────────────────────────────
+  explosive:    { label: '疑似爆裂物', group: 'security', icon: 'explosive', abbr: '爆', defaultAssigned: 'forward'  },
+  drone:        { label: '無人機威脅', group: 'security', icon: 'drone',     abbr: '機', defaultAssigned: 'security' },
+  unknown_person:{ label: '不明人士',  group: 'security', icon: 'eye',       abbr: '人', defaultAssigned: 'security' },
+  perimeter:    { label: '管制區異常', group: 'security', icon: 'shield',    abbr: '域', defaultAssigned: 'security' },
+  crowd:        { label: '秩序問題',   group: 'security', icon: 'shield',    abbr: '眾', defaultAssigned: 'security' },
+  violent:      { label: '暴力事件',   group: 'security', icon: 'shield',    abbr: '暴', defaultAssigned: 'security' },
+  // ── 搜救行動 ──────────────────────────────────────────────────
+  rescue:       { label: '受困救援',   group: 'rescue',   icon: 'run',       abbr: '救', defaultAssigned: 'forward'  },
+  qrf:          { label: 'QRF 出動',   group: 'rescue',   icon: 'run',       abbr: 'QR', defaultAssigned: 'forward'  },
+  // ── 醫療緊急 ──────────────────────────────────────────────────
+  mci:          { label: '大量傷亡',   group: 'medical',  icon: 'event',     abbr: 'MCI', defaultAssigned: 'medical' },
+  emergency:    { label: '緊急病症',   group: 'medical',  icon: 'event',     abbr: '急', defaultAssigned: 'medical'  },
+  infectious:   { label: '傳染疑慮',   group: 'medical',  icon: 'event',     abbr: '疫', defaultAssigned: 'medical'  },
+  // ── 收容照護 ──────────────────────────────────────────────────
+  capacity:     { label: '量能超載',   group: 'care',     icon: 'event',     abbr: '滿', defaultAssigned: 'shelter'  },
+  person_need:  { label: '人員狀況',   group: 'care',     icon: 'person',    abbr: '護', defaultAssigned: 'shelter'  },
+  isolation:    { label: '隔離事件',   group: 'care',     icon: 'shield',    abbr: '隔', defaultAssigned: 'shelter'  },
+  // ── 基礎設施 ──────────────────────────────────────────────────
+  facility:     { label: '設施異常',   group: 'infra',    icon: 'event',     abbr: '設', defaultAssigned: 'command'  },
+  equipment:    { label: '設備故障',   group: 'infra',    icon: 'event',     abbr: '器', defaultAssigned: 'command'  },
+  comm_fail:    { label: '通訊異常',   group: 'infra',    icon: 'event',     abbr: '訊', defaultAssigned: 'command'  },
+  // ── 行動管理 ──────────────────────────────────────────────────
+  evacuation:   { label: '撤離',       group: 'ops',      icon: 'run',       abbr: '疏', defaultAssigned: 'command'  },
+  resource:     { label: '資源調度',   group: 'ops',      icon: 'event',     abbr: '物', defaultAssigned: 'command'  },
+  situation:    { label: '現場變化',   group: 'ops',      icon: 'event',     abbr: '況', defaultAssigned: null       },
+  hazard:       { label: '危害回報',   group: 'ops',      icon: 'event',     abbr: '危', defaultAssigned: null       },
+  other:        { label: '其他',       group: 'ops',      icon: 'event',     abbr: '他', defaultAssigned: null       },
 };
 
-// 事件類型 → icon key
-// 未列出的類型全部預設 'event'（警告三角）
-const EVENT_ICON_MAP = {
-  explosive: 'explosive',   // 疑似爆裂物
-  drone:     'drone',       // 無人機
-  suspect:   'person',      // 不明人員（安全組）
-  qrf:       'run',         // QRF 出動
-  isolation: 'shield',      // 隔離事件
-  security:  'shield',      // 安全威脅（收容組）
-  handover:  'handshake',   // 指揮交接
-  unknown:   'person',      // 不明人士（人形）
-  person:    'person',      // 人員狀況（收容組，同人形）
+const NAPSG_GROUPS = {
+  security: '安全威脅',
+  rescue:   '搜救行動',
+  medical:  '醫療緊急',
+  care:     '收容照護',
+  infra:    '基礎設施',
+  ops:      '行動管理',
 };
+
+// 地圖菱形 marker 內的群組縮寫
+const _NAPSG_GROUP_ABBR = { security:'安', rescue:'救', medical:'醫', care:'護', infra:'設', ops:'行' };
 
 // emoji → SVG key 對應（向下相容舊 map_config）
 const EMOJI_TO_SVG = {'📌':'pin','🚑':'pin','⚠️':'event','👤':'threat'};
@@ -2349,10 +2373,11 @@ const _NODE_ABBR = { shelter:'收', medical:'醫', forward:'前', security:'安'
  * @param {boolean} isEvent  - true=事件 marker（菱形），false=永久節點
  */
 function _napsgIcon(nodeType, severity, isEvent) {
-  const abbr = _NODE_ABBR[nodeType] || '?';
   if (isEvent) {
-    // 菱形（NAPSG Hazard/Incident）— 嚴重度配色
+    // 菱形（NAPSG Hazard/Incident）
+    // nodeType 為 NAPSG group key：security/rescue/medical/care/infra/ops
     const c = _SEV_COLORS[severity] || '#8b949e';
+    const abbr = _NAPSG_GROUP_ABBR[nodeType] || _NODE_ABBR[nodeType] || '?';
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">
       <polygon points="13,1 25,13 13,25 1,13" fill="${c}" stroke="#fff" stroke-width="2"/>
       <text x="13" y="17" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
@@ -2360,6 +2385,7 @@ function _napsgIcon(nodeType, severity, isEvent) {
     </svg>`;
     return L.divIcon({ html: svg, className: '', iconSize: [26,26], iconAnchor: [13,13] });
   }
+  const abbr = _NODE_ABBR[nodeType] || '?';
   const c = _NODE_COLORS[nodeType] || '#8b949e';
   if (nodeType === 'forward' || nodeType === 'security') {
     // 矩形（NAPSG Unit / Mobile Resource）
@@ -2435,6 +2461,32 @@ function _initLeafletMap() {
       `<span style="color:#58a6ff">✛</span> <b>${mgrs}</b>` +
       `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
       `${lat.toFixed(6)}°N, ${lng.toFixed(6)}°E`;
+  });
+
+  // ── 長按地圖（650ms）：開啟事件回報 popup ──
+  let _lpTimer = null, _lpMoved = false;
+  _leafletMap.on('mousedown', function(e) {
+    // 右鍵、中鍵不觸發
+    if (e.originalEvent && e.originalEvent.button !== 0) return;
+    _lpMoved = false;
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+    const latlng = { lat: e.latlng.lat, lng: e.latlng.lng };
+    _lpTimer = setTimeout(() => {
+      _lpTimer = null;
+      if (!_lpMoved) _openEventPopup(latlng.lat, latlng.lng);
+    }, 650);
+  });
+  _leafletMap.on('mousemove', function() {
+    _lpMoved = true;
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  });
+  _leafletMap.on('mouseup', function() {
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  });
+  // drag 開始時也要取消
+  _leafletMap.on('dragstart', function() {
+    _lpMoved = true;
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
   });
 
   // 恢復上次位置（若有），否則預設竹北體育場
@@ -2526,7 +2578,7 @@ function _renderLeafletMarkers() {
       coordPanel.innerHTML =
         `<span style="color:#8b949e">移動至</span> <b>${mgrs}</b>` +
         `<span style="color:#56d364;margin-left:10px">✓ 已儲存</span>`;
-      setTimeout(() => { coordPanel.style.display = 'none'; }, 2500);
+      setTimeout(() => _refreshCoordPanel(), 2500);
       // 若為事件 marker，將新座標寫入處置紀錄
       if (zone.event_id) {
         authFetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
@@ -2624,11 +2676,11 @@ async function _placeOnLeaflet(lat, lng) {
     sub: '',
     lat: Math.round(lat * 1000000) / 1000000,
     lng: Math.round(lng * 1000000) / 1000000,
-    node_type: _placeMode.group,
+    node_type: _placeMode.napsgGroup || 'ops',   // NAPSG 危害群組
     icon: _placeMode.icon,
   };
 
-  const _CRITICAL_TYPES = new Set(['drone', 'explosive', 'unknown']);
+  const _CRITICAL_TYPES = new Set(['drone', 'explosive']);
   const severity = _CRITICAL_TYPES.has(_placeMode.type) ? 'critical' : 'warning';
 
   try {
@@ -2636,13 +2688,14 @@ async function _placeOnLeaflet(lat, lng) {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        reported_by_unit: _placeMode.group,
+        reported_by_unit: _placeMode.reportedBy || 'command',
         event_type: _placeMode.type,
         severity,
         description: _placeMode.label,
         operator_name: _currentOperator(),
         location_zone_id: id,
-        location_desc: mgrs,   // MGRS 作為位置描述
+        location_desc: mgrs,
+        assigned_unit: _placeMode.assignedUnit || null,
         session_type: _sessionType,
       })
     });
@@ -2656,7 +2709,6 @@ async function _placeOnLeaflet(lat, lng) {
   if (zone.event_id) {
     _mapConfig.maps['outdoor'].zones.push(zone);
     saveMapConfig();
-    _clearCoordPin();   // 放置成功：移除藍色十字，事件 marker 取代之
     _renderLeafletMarkers();
     // 顯示放置成功的 MGRS 座標
     const coordPanel = document.getElementById('map-coord-panel');
@@ -2664,9 +2716,14 @@ async function _placeOnLeaflet(lat, lng) {
     coordPanel.innerHTML =
       `<span style="color:#3fb950">✓ 放置</span> <b>${zone.event_code}</b>` +
       `<span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
-    setTimeout(() => { coordPanel.style.display = 'none'; }, 3000);
+    setTimeout(() => _refreshCoordPanel(), 3000);
   } else {
     console.warn('[PLACE-LEAFLET] 事件建立失敗，不放置 marker');
+    // 在座標面板顯示失敗提示，3 秒後消失
+    const _errPanel = document.getElementById('map-coord-panel');
+    _errPanel.style.display = 'block';
+    _errPanel.innerHTML = `<span style="color:#f85149">✗ 放置失敗</span><span style="color:#8b949e;margin-left:8px">請查看 console（F12）</span>`;
+    setTimeout(() => { _errPanel.style.display = 'none'; }, 4000);
   }
 
   cancelPlaceMode();
@@ -2999,8 +3056,18 @@ function showEventProcessModal(zone) {
   html += `</div>`;
 
   // 事件資訊（精簡，不重複標題）
+  const unitLabels = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
+  const assignedLabel = unitLabels[ev.assigned_unit] || '—';
+  const assignedColor = ev.assigned_unit ? 'var(--green)' : 'var(--text3)';
   html += `<div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6;">`;
-  html += `${unitLabel}　回報：${ev.operator_name}<br>`;
+  html += `回報：${unitLabel}　${ev.operator_name}<br>`;
+  html += `<span style="display:inline-flex;align-items:center;gap:6px;">指派處理：<span style="color:${assignedColor};font-weight:600;">${assignedLabel}</span>`;
+  html += `<select style="font-size:10px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;font-family:var(--mono);" onchange="_setAssignedUnit('${ev.id}', this.value)">`;
+  html += `<option value="">—</option>`;
+  ['forward','security','shelter','medical','command'].forEach(u => {
+    html += `<option value="${u}" ${ev.assigned_unit===u?'selected':''}>${unitLabels[u]}</option>`;
+  });
+  html += `</select></span><br>`;
   html += `發生：${(ev.occurred_at||'').slice(0,16).replace('T',' ')}　期限：${(ev.response_deadline||'').slice(0,16).replace('T',' ')}`;
   html += `</div>`;
 
@@ -3094,6 +3161,20 @@ async function _autoSaveAndAction(eventId, action) {
       await poll();
     }
   } catch(e) { alert('更新失敗：' + e.message); }
+}
+
+// 指派事件處理單位
+async function _setAssignedUnit(eventId, unit) {
+  try {
+    await authFetch(API_BASE + '/api/events/' + eventId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ assigned_unit: unit || null }),
+    });
+    await poll();
+    const zone = _findZoneByEventId(eventId);
+    if (zone) showEventProcessModal(zone);
+  } catch(e) { console.error('[SET-ASSIGNED]', e); }
 }
 
 // 重設事件 deadline 選單
@@ -3335,9 +3416,30 @@ function _toggleEvtGroup() {
 // ══════════════════════════════════════════════════════════════
 // 放置模式（事件快速放置到地圖）
 // ══════════════════════════════════════════════════════════════
-let _placeMode = null; // null 或 { group, type, icon, label }
-let _placeGroup = null;
+let _placeMode = null; // null 或 { reportedBy, type, label, icon, assignedUnit }
 let _placeTypeValue = '';
+
+// ── NAPSG 危害類型 csel 初始化（頁面載入後呼叫一次）────────────
+function _populateNapsgCsel() {
+  const panel = el('place-type-panel');
+  panel.innerHTML = '';
+  let prevGroup = null;
+  Object.entries(NAPSG_EVENTS).forEach(([k, v]) => {
+    if (v.group !== prevGroup) {
+      const hdr = document.createElement('div');
+      hdr.className = 'csel-group-header';
+      hdr.textContent = NAPSG_GROUPS[v.group] || v.group;
+      panel.appendChild(hdr);
+      prevGroup = v.group;
+    }
+    const d = document.createElement('div');
+    d.className = 'csel-opt';
+    d.textContent = v.label;
+    d.dataset.value = k;
+    d.onclick = () => _pickCsel(k, v.label);
+    panel.appendChild(d);
+  });
+}
 
 function toggleCsel() {
   const panel = el('place-type-panel');
@@ -3354,74 +3456,35 @@ function _closeCsel(e) {
     el('place-type-panel').classList.remove('open');
   }
 }
-function _setCselOptions(cats) {
-  // 先移除舊的 close listener，防止同一個 click 冒泡到 document 時把剛開的 panel 又關掉
-  document.removeEventListener('click', _closeCsel);
-  const panel = el('place-type-panel');
-  const btn   = el('place-type-btn');
-  const lbl   = el('place-type-label');
-  _placeTypeValue = '';
-  lbl.textContent = '— 選事件 —';
-  panel.innerHTML = '';
-  if (!cats || !Object.keys(cats).length) { btn.classList.add('disabled'); return; }
-  // 佔位項
-  const ph = document.createElement('div');
-  ph.className = 'csel-opt placeholder active';
-  ph.textContent = '— 選事件 —';
-  ph.onclick = () => _pickCsel('', '— 選事件 —');
-  panel.appendChild(ph);
-  Object.entries(cats).forEach(([k, v]) => {
-    const d = document.createElement('div');
-    d.className = 'csel-opt';
-    d.textContent = v;
-    d.dataset.value = k;
-    d.onclick = () => _pickCsel(k, v);
-    panel.appendChild(d);
-  });
-  btn.classList.remove('disabled');
-  // 自動向上彈出
-  panel.classList.add('open');
-  // click 冒泡結束後才掛 close listener
-  setTimeout(() => {
-    document.addEventListener('click', _closeCsel, { once: true });
-  }, 0);
-}
 function _pickCsel(value, label) {
   _placeTypeValue = value;
-  el('place-type-label').textContent = label || '— 選事件 —';
+  el('place-type-label').textContent = label || '— 選危害類型 —';
   el('place-type-panel').classList.remove('open');
   el('place-type-panel').querySelectorAll('.csel-opt').forEach(d => {
-    d.classList.toggle('active',
-      value === '' ? d.classList.contains('placeholder') : d.dataset.value === value);
+    d.classList.toggle('active', d.dataset.value === value);
   });
   onPlaceTypeChange();
 }
 
-function selectPlaceGroup(grp) {
-  // 選組別時取消已選取的 marker
-  if (_selectedZoneId) _deselectMarker();
-  _placeGroup = grp;
-  // 切換按鈕 active
-  document.querySelectorAll('.place-grp').forEach(b => b.classList.toggle('active', b.dataset.grp === grp));
-  // 填入自訂事件類型下拉並向上彈出
-  _setCselOptions(EVENT_CATEGORIES[grp] || {});
-  _placeMode = null;
-  el('map-panel').classList.remove('placing');
-  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
-}
-
 function onPlaceTypeChange() {
   const typeKey = _placeTypeValue;
-  if (!typeKey || !_placeGroup) {
+  if (!typeKey) {
     _placeMode = null;
     el('map-panel').classList.remove('placing');
+    if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
     return;
   }
-  const iconType = EVENT_ICON_MAP[typeKey] || 'event';
-  const label = EVENT_CATEGORIES[_placeGroup][typeKey];
-  _placeMode = { group: _placeGroup, type: typeKey, label, icon: iconType };
-  el('map-panel').classList.toggle('placing', !!_placeMode);
-  // 站外：直接用 JS 設 cursor（CSS !important 不夠穩定，Leaflet 會覆寫）
+  const ev = NAPSG_EVENTS[typeKey];
+  if (!ev) return;
+  _placeMode = {
+    reportedBy:   el('place-report-unit').value || 'command',
+    type:         typeKey,
+    label:        ev.label,
+    icon:         ev.icon,
+    napsgGroup:   ev.group,
+    assignedUnit: ev.defaultAssigned,
+  };
+  el('map-panel').classList.add('placing');
   if (_currentMap === 'outdoor' && _leafletMap) {
     _leafletMap.getContainer().style.setProperty('cursor', 'crosshair', 'important');
   }
@@ -3429,17 +3492,161 @@ function onPlaceTypeChange() {
 
 function cancelPlaceMode() {
   _placeMode = null;
-  _placeGroup = null;
-  document.querySelectorAll('.place-grp').forEach(b => b.classList.remove('active'));
   _placeTypeValue = '';
-  el('place-type-label').textContent = '—';
-  el('place-type-panel').innerHTML = '';
+  el('place-type-label').textContent = '— 選危害類型 —';
+  el('place-type-panel').querySelectorAll('.csel-opt').forEach(d => d.classList.remove('active'));
   el('place-type-panel').classList.remove('open');
-  el('place-type-btn').classList.add('disabled');
   el('map-panel').classList.remove('placing');
   el('leaflet-map').classList.remove('placing');
-  // 還原 Leaflet cursor
   if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+}
+
+// ══════════════════════════════════════════════════════════════
+// 長按事件 popup（Leaflet outdoor 地圖）
+// ── 全部用 L.DomUtil + L.DomEvent.on 建立 DOM，
+//    避免 inline onclick 在 setContent 後失效的問題 ──
+// ══════════════════════════════════════════════════════════════
+let _evPopup = null;
+let _evPopupLatLng = null;  // { lat, lng }
+
+/** 建立 Level-1 群組選單 DOM */
+function _evPopupBuildGroups(mgrs, reportUnit) {
+  const wrap = L.DomUtil.create('div', 'ev-popup-inner');
+
+  // ── 回報單位列 ──
+  const row = L.DomUtil.create('div', 'ev-popup-reporter', wrap);
+  const lbl = L.DomUtil.create('label', '', row);
+  lbl.textContent = '回報：';
+  const sel = L.DomUtil.create('select', '', row);
+  sel.id = 'ev-popup-unit';
+  [['command','指揮部'],['forward','前進組'],['security','安全組'],
+   ['shelter','收容組'],['medical','醫療組']].forEach(([v, t]) => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = t;
+    if (v === reportUnit) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  L.DomEvent.on(sel, 'change', function() {
+    const bar = el('place-report-unit');
+    if (bar) bar.value = sel.value;
+  });
+
+  // ── 標題 ──
+  const title = L.DomUtil.create('div', 'ev-popup-title', wrap);
+  title.style.marginBottom = '8px';
+  title.textContent = `📍 ${mgrs}　選擇事件類別`;
+
+  // ── 群組按鈕 2×3 grid ──
+  const grid = L.DomUtil.create('div', 'ev-popup-groups', wrap);
+  Object.entries(NAPSG_GROUPS).forEach(([k, label]) => {
+    const btn = L.DomUtil.create('button', 'ev-popup-group-btn', grid);
+    btn.textContent = label;
+    L.DomEvent.on(btn, 'click', function(e) {
+      L.DomEvent.stopPropagation(e);
+      _evPopupGroup(k);
+    });
+  });
+
+  return wrap;
+}
+
+/** 建立 Level-2 事件類型清單 DOM */
+function _evPopupBuildTypes(groupKey, mgrs) {
+  const wrap = L.DomUtil.create('div', 'ev-popup-inner');
+
+  // ── 返回鈕 ──
+  const back = L.DomUtil.create('span', 'ev-popup-back', wrap);
+  back.textContent = '← 返回';
+  L.DomEvent.on(back, 'click', function(e) {
+    L.DomEvent.stopPropagation(e);
+    _evPopupBack();
+  });
+
+  // ── 標題 ──
+  const title = L.DomUtil.create('div', 'ev-popup-title', wrap);
+  title.style.marginBottom = '6px';
+  title.textContent = `📍 ${mgrs}　${NAPSG_GROUPS[groupKey] || groupKey}`;
+
+  // ── 類型清單 ──
+  const list = L.DomUtil.create('div', 'ev-popup-types', wrap);
+  Object.entries(NAPSG_EVENTS)
+    .filter(([, v]) => v.group === groupKey)
+    .forEach(([k, v]) => {
+      const btn = L.DomUtil.create('button', 'ev-popup-type-btn', list);
+      btn.textContent = v.label;
+      L.DomEvent.on(btn, 'click', function(e) {
+        L.DomEvent.stopPropagation(e);
+        _evPopupSubmit(k);
+      });
+    });
+
+  return wrap;
+}
+
+/** 開啟 popup（Level 1：群組選單） */
+function _openEventPopup(lat, lng) {
+  if (_evPopup) { _leafletMap.closePopup(_evPopup); _evPopup = null; }
+  _evPopupLatLng = { lat, lng };
+
+  const mgrs      = _latlngToMGRS(lat, lng, 5);
+  const reportUnit = el('place-report-unit').value || 'command';
+
+  _evPopup = L.popup({
+    className: 'ev-popup',
+    closeButton: true,
+    autoClose: false,
+    closeOnClick: false,
+    maxWidth: 280,
+    offset: [0, -6],
+  })
+    .setLatLng([lat, lng])
+    .setContent(_evPopupBuildGroups(mgrs, reportUnit))
+    .openOn(_leafletMap);
+
+  _evPopup.on('remove', () => { _evPopup = null; });
+}
+
+/** Level 1 → Level 2：切換為指定群組的事件類型清單 */
+function _evPopupGroup(groupKey) {
+  if (!_evPopup || !_evPopupLatLng) return;
+  const mgrs = _latlngToMGRS(_evPopupLatLng.lat, _evPopupLatLng.lng, 5);
+  _evPopup.setContent(_evPopupBuildTypes(groupKey, mgrs));
+}
+
+/** Level 2 → Level 1：返回群組選單 */
+function _evPopupBack() {
+  if (!_evPopupLatLng) return;
+  // 重新開啟同座標的 popup（保留 latlng）
+  const { lat, lng } = _evPopupLatLng;
+  _openEventPopup(lat, lng);
+}
+
+/** 選定事件類型 → 放置事件 marker */
+async function _evPopupSubmit(typeKey) {
+  if (!_evPopupLatLng) return;
+  const ev = NAPSG_EVENTS[typeKey];
+  if (!ev) return;
+
+  // 讀回報單位（優先 popup 內 select，fallback edit-bar）
+  const popupSel = document.getElementById('ev-popup-unit');
+  const reportedBy = popupSel ? popupSel.value : (el('place-report-unit')?.value || 'command');
+
+  _placeMode = {
+    reportedBy,
+    type:         typeKey,
+    label:        ev.label,
+    icon:         ev.icon,
+    napsgGroup:   ev.group,
+    assignedUnit: ev.defaultAssigned,
+  };
+
+  // 先把座標存下來再清除，避免 remove 事件干擾
+  const { lat, lng } = _evPopupLatLng;
+  _evPopupLatLng = null;
+
+  if (_evPopup) { _leafletMap.closePopup(_evPopup); _evPopup = null; }
+
+  await _placeOnLeaflet(lat, lng);
 }
 
 // 地圖點擊：放置事件 or 取消選取
@@ -3462,26 +3669,26 @@ el('map-panel').addEventListener('click', async function(e) {
   const zone = {
     id, label: _placeMode.label, sub: '',
     x_pct, y_pct,
-    node_type: _placeMode.group,
+    node_type: _placeMode.napsgGroup || 'ops',   // NAPSG 危害群組
     icon: _placeMode.icon,
   };
 
-  // 建立事件
-  // 無人機、疑似爆裂物、不明人士 → critical（10分鐘）；其餘 warning（30分鐘）
-  const _CRITICAL_TYPES = new Set(['drone', 'explosive', 'unknown']);
+  // 無人機、疑似爆裂物 → critical；其餘 warning
+  const _CRITICAL_TYPES = new Set(['drone', 'explosive']);
   const severity = _CRITICAL_TYPES.has(_placeMode.type) ? 'critical' : 'warning';
   try {
     const resp = await authFetch(API_BASE + '/api/events', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        reported_by_unit: _placeMode.group,
+        reported_by_unit: _placeMode.reportedBy || 'command',
         event_type: _placeMode.type,
         severity: severity,
         description: _placeMode.label,
         operator_name: _currentOperator(),
         location_zone_id: id,
         location_desc: _placeMode.label,
+        assigned_unit: _placeMode.assignedUnit || null,
         session_type: _sessionType,
       })
     });
@@ -3845,19 +4052,26 @@ function openEventForm(prefilledUnit, prefilledLocation, zoneId) {
   if (zoneId) el('ev-zone-id').value = zoneId;
   // 操作員預填登入帳號
   if (!el('ev-operator').value) el('ev-operator').value = _currentOperator();
-  // 用新的 EVENT_CATEGORIES 更新類型下拉
+  // 填入 NAPSG 危害類型下拉
   _updateEvTypeFromCategories();
   el('event-overlay').className = 'show';
 }
 
 function _updateEvTypeFromCategories() {
-  const unit = el('ev-unit').value;
+  // NAPSG 統一清單，不再依回報單位篩選
   const sel = el('ev-type');
   sel.innerHTML = '';
-  const cats = EVENT_CATEGORIES[unit] || EVENT_CATEGORIES['command'];
-  Object.entries(cats).forEach(([k, v]) => {
+  let prevGroup = null;
+  Object.entries(NAPSG_EVENTS).forEach(([k, v]) => {
+    if (v.group !== prevGroup) {
+      const grpOpt = document.createElement('option');
+      grpOpt.disabled = true;
+      grpOpt.textContent = `── ${NAPSG_GROUPS[v.group] || v.group} ──`;
+      sel.appendChild(grpOpt);
+      prevGroup = v.group;
+    }
     const opt = document.createElement('option');
-    opt.value = k; opt.textContent = v;
+    opt.value = k; opt.textContent = v.label;
     sel.appendChild(opt);
   });
 }
@@ -5080,6 +5294,8 @@ function toggleTTXMode() {
 }
 
 initMap();
+_populateNapsgCsel();     // 預填 NAPSG 危害類型下拉
+_updateEvTypeFromCategories(); // 預填事件表單類型下拉
 // 恢復展開狀態
 if (_expandedSection) _applyRightExpand(_expandedSection);
 

@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS events (
     needs_commander_decision INTEGER NOT NULL DEFAULT 0,   -- 0/1
     description             TEXT NOT NULL,
     related_person_name     TEXT,
-    assigned_to             TEXT,              -- 負責人
+    assigned_to             TEXT,              -- 負責人（個人）
+    assigned_unit           TEXT,              -- 指派處理單位（NAPSG：forward/security/shelter/medical/command）
     notes                   TEXT,              -- JSON array [{time, text, by}]
     occurred_at             TEXT NOT NULL,
     resolved_at             TEXT,
@@ -265,11 +266,21 @@ CREATE INDEX IF NOT EXISTS idx_ttx_injects_session
 """
 
 
+def _migrate_db(conn: sqlite3.Connection):
+    """向後相容遷移：對既有 DB 補上新欄位，避免刪 DB 才能升級 schema。"""
+    # events.assigned_unit（v0.9.9 新增）
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
+    if "assigned_unit" not in cols:
+        conn.execute("ALTER TABLE events ADD COLUMN assigned_unit TEXT")
+        conn.commit()
+
+
 def init_db():
-    """建立所有資料表（idempotent）+ seed 預設管理員帳號"""
+    """建立所有資料表（idempotent）+ 遷移舊欄位 + seed 預設管理員帳號"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        _migrate_db(conn)
 
     # Seed：若 accounts 空，建立預設 admin/1234（指揮官）
     with get_conn() as conn:
@@ -398,12 +409,12 @@ def create_event(data: dict, session_type: str = "real") -> dict:
             (id, event_code, reported_by_unit, location_desc, location_zone_id,
              event_type, severity, status, response_type, response_deadline,
              needs_commander_decision, description,
-             related_person_name, occurred_at, operator_name, created_at, session_type)
+             related_person_name, assigned_unit, occurred_at, operator_name, created_at, session_type)
         VALUES (?,
             (SELECT ? || printf('%03d',
                 COALESCE(MAX(CAST(SUBSTR(event_code, -3) AS INTEGER)), 0) + 1)
              FROM events WHERE event_code LIKE ?),
-            ?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?,?)
+            ?,?,?, ?,?,?,?, ?,?, ?,?,?, ?,?,?,?)
     """
 
     max_retries = 10
@@ -424,6 +435,7 @@ def create_event(data: dict, session_type: str = "real") -> dict:
                     1 if data.get("needs_commander_decision") else 0,
                     data["description"],
                     data.get("related_person_name"),
+                    data.get("assigned_unit"),
                     occurred,
                     data["operator_name"],
                     now,
@@ -467,6 +479,18 @@ def get_events(status: str | None = None, limit: int = 50, session_type: str = "
                 "SELECT * FROM events WHERE session_type=? ORDER BY occurred_at DESC LIMIT ?",
                 (session_type, limit)).fetchall()
     return [_row_to_dict(r) for r in rows]
+
+
+def patch_event(event_id: str, updates: dict):
+    """更新事件任意欄位（白名單：assigned_unit）"""
+    allowed = {"assigned_unit"}
+    safe = {k: v for k, v in updates.items() if k in allowed}
+    if not safe:
+        return
+    set_clause = ", ".join(f"{k}=?" for k in safe)
+    values = list(safe.values()) + [event_id]
+    with get_conn() as conn:
+        conn.execute(f"UPDATE events SET {set_clause} WHERE id=?", values)
 
 
 def update_event_status(event_id: str, status: str, operator: str, session_type: str = "real"):

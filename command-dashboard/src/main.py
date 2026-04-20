@@ -289,6 +289,7 @@ class EventIn(BaseModel):
     response_type:            Optional[str] = None
     needs_commander_decision: bool = False
     related_person_name:      Optional[str] = None
+    assigned_unit:            Optional[str] = None   # NAPSG：指派處理單位
     occurred_at:              Optional[str] = None
     session_type:             str = "real"
 
@@ -413,6 +414,22 @@ def post_event(ev: EventIn):
 @app.get("/api/events", tags=["事件"])
 def get_events(status: Optional[str] = None, limit: int = 50):
     return db.get_events(status, limit)
+
+
+class EventPatch(BaseModel):
+    assigned_unit: Optional[str] = None   # 指派處理單位
+
+
+@app.patch("/api/events/{event_id}", tags=["事件"])
+def patch_event(event_id: str, body: EventPatch):
+    """更新事件欄位（目前支援 assigned_unit）"""
+    updates = {}
+    if body.assigned_unit is not None:
+        updates["assigned_unit"] = body.assigned_unit if body.assigned_unit else None
+    if not updates:
+        return {"ok": True}
+    db.patch_event(event_id, updates)
+    return {"ok": True}
 
 
 @app.patch("/api/events/{event_id}/status", tags=["事件"])
