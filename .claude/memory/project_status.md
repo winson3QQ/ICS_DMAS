@@ -126,30 +126,27 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | push_queue 撐爆磁碟 | MAX_QUEUE_AGE=24hr 清除 | ✅ 已實作 |
 | Pi 本地資料外洩 | SQLCipher | defer |
 
-### Wave 4.5 地圖系統（進行中）
+### Wave 4+ 完成（cmd-v0.12.0～v0.12.1）
 
-| 項目 | 狀態 | 說明 |
+**已完成**：
+| 項目 | 版號 | 說明 |
 |------|------|------|
-| Step A：站外改 Leaflet、移除 OSM tab | ✅ 完成 | commit 6336759 |
-| Step B：站內平面圖動態載入（admin 上傳） | ✅ 完成 | `/api/map/upload-image`，session 權限驗證 |
-| Phase 1：Grayscale base map + MGRS 座標顯示 | ✅ 完成 | protomaps-leaflet + `_latlngToMGRS()` |
-| Phase 2：Event Point — zone + lat/lng、NAPSG 符號 | ✅ 完成 | 長按 popup 放置、NAPSG 22 類型、assigned_unit、座標面板持久顯示 |
-| Phase 2.5：MGRS 搜尋 + 固定節點放置 + severity 精細化 | ✅ 完成 | MGRS/WGS84 搜尋欄、三層自動補前綴；設定面板放置圓形/矩形永久節點（hover tooltip）；22 事件類型各自 severity（critical/warning/info）；底圖固定 Grayscale；節點統一深灰色 |
-| Phase 2.6：UI/UX 細節收尾 | ✅ 完成 | Popup/sidebar/卡片 severity 色條一致；sidebar expanded 30%；卡片加 assigned unit；節點 modal 事件頁雙來源（ICS+PWA）；改派自動記錄；z-index 修正；表單位置欄 MGRS；severity auto-sync；送出後即時刷新 |
-| Phase 2.7：地圖視覺調整 + 事件新增流程 | ✅ 完成 | 表單送出後可選擇在地圖點擊標記位置（_eventPinMode）；卡片標題統一 NAPSG label，描述另行斜體小字；info 事件菱形改深灰 #3a4149、節點改中灰 #6e7681；前進組/安全組方塊改正方形 28×28 |
-| Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | ✅ 完成 | 管制區/疏散範圍/集結點/危險區域/作業區；點擊繪製頂點，完成後表單填名稱/類型；儲存至 map_config polygons[]；點擊多邊形可刪除 |
-| Phase 4：NATO APP-6E 軍用符號 | 🔲 待做 | 友軍符號、Phase Line、SIDC |
-| Phase 5：MGRS 格線 overlay | ✅ 完成 | 像素密度自動決定間距（MIN_PX=60）；zoom 自動切換 100km/10km/1km/100m/10m/1m；標籤最少 3 位數；標籤用 pixel→UTM 換算固定距邊緣位置（Y 左 24px、X 底 60px）|
-| Phase 6：基礎設施/流向/路線/圖層面板 | ✅ 完成 | cmd-v0.12.0；INFRA_TYPES（H/S/P/F/U）+ 點擊地圖放置；FLOW_TYPES 流向箭頭（起點→終點中間放箭頭）；ROUTE_TYPES 疏散路線（click-to-draw，沿線間距箭頭）；圖層面板（☰）控制 6 個圖層開關 |
+| 雙浮島地圖工具列 | v0.12.0 | edit-bar 拆成右上 toolbar island + 底部中央 mgrs-island，左下 place-type-wrap |
+| 統一 tab active 樣式 | v0.12.0 | 站內/站外、態勢/資源 active 全改綠色（消除橘色不一致） |
+| MGRS/WGS84 座標切換（Option A） | v0.12.1 | 雙擊地圖→藍十字 MGRS 顯示，點右側 WGS84/MGRS 小標籤切換；`_coordDisplayMode` + `_coordToggleBtn()` + `_coordValueHTML()` + `_refreshCoordPanel()` 統一入口 |
+| coordPin 切回站外恢復 | v0.12.1 | `switchMap('indoor')` 不再呼叫 `_clearCoordPin()`，只隱藏面板，切回站外自動恢復 |
+| 方形節點標記縮小 | v0.12.1 | 前進組/安全組 square marker 從 28×28 縮至 24×24 |
+| 新事件樂觀更新 | v0.12.1 | `submitEvent()` 送出後立即插入 `_data.events`，不等 poll；補齊 `reported_by_unit`、`session_type` 等欄位 |
+| `_populateNapsgCsel` 初始化 crash 修復 | v0.12.1 | `el('place-type-panel')` null 導致整條初始化鏈中斷（無 polling、事件列表黑色）；重建 HTML 元素並加 null guard |
 
 ### Wave 5 待做項目（UI 收尾）
 
 | 項目 | 狀態 | 說明 |
 |------|------|------|
-| 重設 deadline 後端 API | ✅ 完成 | `PATCH /api/events/{id}/deadline`（delta_minutes）；前端 ±分鐘 UI；note 由前端寫入含本地時間 |
+| 重設 deadline 後端 API | 🔲 待做 | 前端 `_resetDeadline()` UI 已實作（只追加 note）；後端 `PATCH /api/events/{id}/deadline` 未建立，DB `response_deadline` 欄位未更新 |
 | 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
 | 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
-| 地圖流向箭頭 | ✅ 完成 | Phase 6 重新設計：flow 以 from_zone_id + to_zone_id 儲存，`_renderFlows()` 查 zone lat/lng，`_bearing()` 計算方位角，`_arrowIcon()` SVG 箭頭放中點 |
+| 地圖流向箭頭 | ⚠️ 部分完成 | `renderFlows()` 已實作（讀 `m.flows`，按 `calc.forward.units` red 傷亡數計算動態粗度）；無 `data_source` 欄位對應，直接用 calc 數值，功能可用 |
 
 ### Pi Push 技術細節
 
@@ -188,29 +185,14 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | heartbeat status check | 檢查 HTTP status code，403/401 正確顯示指揮部離線 |
 | Pi 斷線重設指揮部燈 | Pi 離線時指揮部燈同步變灰 |
 
-### 稽核日誌 ICS-214 合規備忘
-
-現有 audit_log 欄位：operator、action_type、target_table、target_id、detail（JSON）、created_at
-
-**與 ICS-214 Unit Log 的差距（待補）**：
-| 缺少 | 說明 | 優先 |
-|------|------|------|
-| Incident Name | 未綁定演練/事件名稱 | 中 |
-| Operational Period | 未記錄作業週期（D1/N1…） | 中 |
-| ICS Position | 只記 username，未記職稱（如「行動組長」） | 低 |
-| ICS-214 匯出 | 依 log 自動產出 ICS-214 格式（PDF/表格），演練後檢討用 | 低 |
-
-現狀定位較接近 **NIST SP 800-92** 技術稽核 trail，非 ICS 操作日誌。
-NATO MIP 要求的 `classification`（密級標記）亦尚未實作。
-
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.11.0`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.12.1`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.48`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
 - 測試資料：`python tests/gen_test_snapshots.py --batch`
-- DB schema 變更：`_migrate_db()` 自動 ALTER TABLE，**不再需要刪 `data/ics.db`**
+- DB schema 變更需刪除 `data/ics.db`
 - UI/UX 規格：`command-dashboard/docs/指揮部儀表板設計規格.md`
 
 ---

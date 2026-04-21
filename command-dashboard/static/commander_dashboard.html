@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.12.0';</script>
+<script>const CMD_VERSION='v0.12.1';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -76,15 +76,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   flex:1;position:relative;background:#111;overflow:hidden;
 }
 /* 工具列浮島（右側）*/
-#map-toolbar{right:8px;display:flex;align-items:center;gap:2px;padding:3px 5px;}
+#map-toolbar{right:8px;display:flex;align-items:center;gap:2px;padding:0;overflow:hidden;}
 #map-tabs{display:flex;gap:0;}
 .map-tab{
   padding:3px 11px;font-size:10px;font-weight:600;cursor:pointer;
-  background:transparent;color:rgba(255,255,255,.45);border-radius:4px;
+  background:transparent;color:var(--text3);
+  border:1px solid transparent;border-radius:4px;
   transition:all .2s;white-space:nowrap;
 }
-.map-tab:hover{color:rgba(255,255,255,.8);}
-.map-tab.active{background:rgba(240,136,62,.85);color:#fff;}
+.map-tab:hover{color:var(--text);}
+.map-tab.active{background:rgba(26,158,82,.2);color:#fff;border-color:var(--green);}
 .toolbar-sep{width:1px;height:18px;background:rgba(255,255,255,.15);margin:0 2px;flex-shrink:0;}
 #map-img{width:100%;height:100%;object-fit:contain;display:block;}
 #map-overlay{position:absolute;inset:0;pointer-events:none;}
@@ -156,12 +157,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .layer-check{width:13px;height:13px;border:1px solid var(--border);border-radius:3px;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px;}
 .layer-check.on{background:var(--green);border-color:var(--green);color:#fff;}
-#edit-bar{
-  position:absolute;bottom:0;left:0;right:0;z-index:10;
-  display:flex;padding:5px 10px;gap:6px;align-items:center;
-  background:rgba(22,27,34,.6);border-top:1px solid rgba(48,54,61,.5);
-  font-size:11px;color:var(--text2);
+/* MGRS 搜尋浮島（底部中央，站外才顯示）*/
+#mgrs-island{
+  position:absolute;top:auto;bottom:8px;left:50%;transform:translateX(-50%);
+  z-index:10;display:none;align-items:center;gap:4px;padding:4px 8px;
 }
+#mgrs-search-wrap{display:flex;align-items:center;gap:4px;}
 .place-grp{
   padding:5px 12px;font-size:10px;font-weight:600;cursor:pointer;
   color:#6e7681;border:1px solid #30363d;
@@ -181,12 +182,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .place-grp[data-grp="shelter"].active{background:#d4b200;color:#fff;border-color:#d4b200;}
 .place-grp[data-grp="medical"].active{background:#e03030;color:#fff;border-color:#e03030;}
 .place-grp[data-grp="command"].active{background:#22b05a;color:#fff;border-color:#22b05a;}
-#edit-bar input{
-  background:var(--surface2);border:1px solid var(--border);color:var(--text);
-  padding:3px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);width:100px;
-}
 /* MGRS 座標搜尋欄 */
-#mgrs-search-wrap{display:none;align-items:center;gap:4px;}
+#mgrs-search-wrap{display:flex;align-items:center;gap:4px;}
 #mgrs-search-input{
   width:200px;background:rgba(13,17,23,.9);border:1px solid rgba(255,255,255,.15);
   color:#e6edf3;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;
@@ -231,11 +228,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   margin-top:2px;pointer-events:none;
 }
 .csel-group-header:first-child{border-top:none;margin-top:0;}
-#edit-bar button:not(.place-grp){
-  background:var(--green);color:#fff;border:none;padding:4px 10px;border-radius:4px;
-  font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);
-}
-#edit-bar button.del{background:var(--red);}
 /* Wave 4：收容/醫療據點固定高亮 */
 .zone-marker.node-shelter .zone-dot{color:#f0883e;filter:drop-shadow(0 0 6px rgba(240,136,62,.6));}
 .zone-marker.node-shelter .zone-label{background:rgba(240,136,62,.85);font-weight:700;}
@@ -614,13 +606,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 }
 #map-coord-panel{
   left:50%;transform:translateX(-50%);
-  color:#e6edf3;padding:5px 14px;
+  z-index:1000;  /* 覆寫 .map-island 的 z-index:10，需高於 Leaflet tile pane(200+) */
+  color:#e6edf3;padding:5px 12px;
+  align-items:center;gap:2px;
   white-space:nowrap;letter-spacing:.03em;
   pointer-events:auto;display:none;
   transition:border-color .15s;
 }
-#map-coord-panel.clickable{cursor:pointer;color:#58a6ff;}
-#map-coord-panel.clickable:hover{border-color:rgba(88,166,255,.4);}
+#map-coord-panel.clickable{cursor:pointer;}
+#map-coord-panel.clickable:hover{border-color:rgba(88,166,255,.25);}
+#map-coord-panel span[onclick]:hover{color:var(--text);border-color:rgba(255,255,255,.3)!important;}
 /* 長按事件 popup ─────────────────────────────── */
 .ev-popup .leaflet-popup-content-wrapper{
   background:#161b22;border:1px solid rgba(255,255,255,.18);
@@ -904,6 +899,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   <div id="map-panel">
     <!-- 右側浮島：tab 切換 + 地圖工具 -->
     <div id="map-toolbar" class="map-island">
+      <!-- 據點調整按鈕：站內才顯示 -->
+      <button id="pin-edit-btn" onclick="togglePinEditMode()"
+        title="調整永久據點位置"
+        style="display:none;padding:0 10px;height:28px;font-size:10px;border-radius:4px;cursor:pointer;
+               border:none;background:transparent;color:var(--text2);font-family:var(--mono);
+               transition:all .15s;">✏ 調整據點</button>
       <div id="map-tabs">
         <div class="map-tab active" data-map="indoor" onclick="switchMap('indoor')">站內</div>
         <div class="map-tab" data-map="outdoor" onclick="switchMap('outdoor')">站外</div>
@@ -946,43 +947,27 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       <!-- 圖層面板 -->
       <div id="layer-panel" style="display:none;"></div>
     </div>
-    <div id="edit-bar">
-      <div style="display:flex;gap:6px;align-items:center;margin:0 auto;">
-        <!-- 回報單位（誰在回報，metadata only，不影響危害分類） -->
-        <!-- 回報單位狀態記憶（隱藏）：popup 的 _evPopupUnitChange 會同步回此值 -->
-        <select id="place-report-unit" style="display:none;">
-          <option value="command">指揮部</option>
-          <option value="forward">前進組</option>
-          <option value="security">安全組</option>
-          <option value="shelter">收容組</option>
-          <option value="medical">醫療組</option>
-        </select>
-        <!-- MGRS / WGS84 座標搜尋（站外限定） -->
-        <div id="mgrs-search-wrap">
-          <input id="mgrs-search-input" type="text"
-            placeholder="MGRS 或 lat, lng"
-            onkeydown="if(event.key==='Enter')_mgrsSearch()"
-            title="輸入 MGRS（如 51R TH 99717 46592）或 WGS84（如 24.82, 121.02），按 Enter 跳至位置並開啟事件 popup">
-          <button id="mgrs-search-btn" onclick="_mgrsSearch()" title="跳至座標">🔍</button>
-        </div>
-        <!-- NAPSG 危害類型：Leaflet outdoor 改用長按 popup；此 selector 保留供站內地圖使用 -->
-        <div class="csel-wrap" id="place-type-wrap" style="margin-left:0;display:none;">
-          <div class="csel-btn" id="place-type-btn" onclick="toggleCsel()">
-            <span id="place-type-label">— 選危害類型 —</span>
-          </div>
-          <div class="csel-panel" id="place-type-panel"></div>
-        </div>
-        <!-- 基礎設施新增（站外限定）-->
-        <button id="infra-add-btn" onclick="_openInfraForm()"
-          title="新增基礎設施標記（醫院/收容所/警察/消防）"
-          style="display:none;padding:3px 10px;font-size:10px;border-radius:4px;cursor:pointer;
-                 border:1px solid var(--border);background:var(--surface2);color:var(--text2);
-                 transition:all .15s;">＋設施</button>
-        <button id="pin-edit-btn" onclick="togglePinEditMode()"
-          title="調整永久據點位置"
-          style="padding:3px 10px;font-size:10px;border-radius:4px;cursor:pointer;
-                 border:1px solid var(--border);background:var(--surface2);color:var(--text2);
-                 transition:all .15s;display:none;">✏ 調整據點</button>
+    <!-- 站內地圖：NAPSG 危害類型選擇器（放置模式用，左下浮島）-->
+    <div id="place-type-wrap" class="csel-wrap" style="display:none;position:absolute;bottom:8px;left:8px;z-index:100;">
+      <button id="place-type-label" class="csel-btn" onclick="toggleCsel()">— 選危害類型 —</button>
+      <div id="place-type-panel" class="csel-panel"></div>
+    </div>
+    <!-- MGRS 搜尋浮島（底部中央，站外才顯示）-->
+    <div id="mgrs-island" class="map-island">
+      <!-- 回報單位 metadata（隱藏）-->
+      <select id="place-report-unit" style="display:none;">
+        <option value="command">指揮部</option>
+        <option value="forward">前進組</option>
+        <option value="security">安全組</option>
+        <option value="shelter">收容組</option>
+        <option value="medical">醫療組</option>
+      </select>
+      <div id="mgrs-search-wrap">
+        <input id="mgrs-search-input" type="text"
+          placeholder="MGRS 或 lat, lng"
+          onkeydown="if(event.key==='Enter')_mgrsSearch()"
+          title="輸入 MGRS 或 WGS84（lat, lng），按 Enter 跳至位置">
+        <button id="mgrs-search-btn" onclick="_mgrsSearch()" title="跳至座標">🔍</button>
       </div>
     </div>
   </div>
@@ -2404,12 +2389,12 @@ function switchMap(key) {
   el('map-img').style.display    = isLeaflet ? 'none' : '';
   el('map-overlay').style.display = isLeaflet ? 'none' : '';
   el('leaflet-map').classList.toggle('active', isLeaflet);
-  // edit-bar 兩種模式都顯示
-  el('edit-bar').style.display = '';
-  // MGRS 搜尋欄、設施按鈕：站外才顯示
-  el('mgrs-search-wrap').style.display = isLeaflet ? 'flex' : 'none';
-  const infraBtn = el('infra-add-btn');
-  if (infraBtn) infraBtn.style.display = isLeaflet ? '' : 'none';
+  // MGRS 搜尋浮島：站外才顯示
+  const mgrsIsland = el('mgrs-island');
+  if (mgrsIsland) mgrsIsland.style.display = isLeaflet ? 'flex' : 'none';
+  // 類型選擇器：站外時隱藏（長按 popup 取代），站內放置模式下由 onPlaceTypeChange() 控制
+  const _ptw2 = el('place-type-wrap');
+  if (_ptw2 && isLeaflet) _ptw2.style.display = 'none';
   // 切到站內時關閉圖層面板
   if (!isLeaflet) {
     const lp = document.getElementById('layer-panel');
@@ -2432,14 +2417,17 @@ function switchMap(key) {
   _currentMap = key;
   sessionStorage.setItem('_currentMap', key);
 
-  // 切離站外地圖時清除座標 pin 和 cursor
+  // 切離站外地圖時：只隱藏面板與 cursor，保留 _coordPin 物件讓切回時能恢復
   if (!isLeaflet) {
-    _clearCoordPin();
+    const _cp = document.getElementById('map-coord-panel');
+    if (_cp) _cp.style.display = 'none';
     if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
   }
 
   if (isLeaflet) {
     _initLeafletMap();  // _leafletMap 在此函式中被建立或刷新
+    // 切回站外：若有 coordPin 就恢復顯示座標面板
+    _refreshCoordPanel();
     // 若已在放置模式中切換到站外，補設 crosshair
     if (_placeMode && _leafletMap) {
       _leafletMap.getContainer().style.setProperty('cursor', 'crosshair', 'important');
@@ -2871,17 +2859,19 @@ async function _deletePolygon(polyId) {
 function _toggleLayerPanel() {
   const panel = document.getElementById('layer-panel');
   if (!panel) return;
-  const isOpen = panel.style.display !== 'none';
-  if (isOpen) {
-    panel.style.display = 'none';
-    const btn = document.getElementById('btn-layer-panel');
-    if (btn) btn.classList.remove('active');
+  if (panel.style.display !== 'none') {
+    _closeLayerPanel();
   } else {
     _rebuildLayerPanel();
     panel.style.display = 'block';
-    const btn = document.getElementById('btn-layer-panel');
-    if (btn) btn.classList.add('active');
+    document.getElementById('btn-layer-panel')?.classList.add('active');
   }
+}
+
+function _closeLayerPanel() {
+  const panel = document.getElementById('layer-panel');
+  if (panel) panel.style.display = 'none';
+  document.getElementById('btn-layer-panel')?.classList.remove('active');
 }
 
 function _rebuildLayerPanel() {
@@ -2905,6 +2895,10 @@ function _rebuildLayerPanel() {
     html += `<span style="font-size:11px;color:${on?'var(--text)':'var(--text3)'};">${l.icon} ${l.label}</span>`;
     html += `</div>`;
   });
+  // 地圖設定區（預備期操作）
+  html += `<div style="border-top:1px solid var(--border);margin:4px 0 2px;padding:4px 12px 2px;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;">地圖設定</div>`;
+  html += `<div class="layer-row" onclick="_openInfraForm();_closeLayerPanel();">`;
+  html += `<span style="font-size:11px;color:var(--text2);">＋ 新增設施</span></div>`;
   panel.innerHTML = html;
 }
 
@@ -3524,13 +3518,13 @@ function _napsgIcon(nodeType, severity, isEvent) {
   const abbr = _NODE_ABBR[nodeType] || '?';
   const c = _NODE_COLORS[nodeType] || '#8b949e';
   if (nodeType === 'forward' || nodeType === 'security') {
-    // 正方形（NAPSG Unit / Mobile Resource）
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-      <rect x="1" y="1" width="26" height="26" rx="2" fill="${c}" stroke="#fff" stroke-width="2"/>
-      <text x="14" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="#fff"
+    // 正方形（NAPSG Unit / Mobile Resource）— 縮小至 24×24，與圓形視覺相當
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+      <rect x="1" y="1" width="22" height="22" rx="2" fill="${c}" stroke="#fff" stroke-width="2"/>
+      <text x="12" y="16" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
             font-family="sans-serif">${abbr}</text>
     </svg>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [28,28], iconAnchor: [14,14] });
+    return L.divIcon({ html: svg, className: '', iconSize: [24,24], iconAnchor: [12,12] });
   }
   // 圓形（NAPSG Operations Node — shelter / medical / command）
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
@@ -3589,15 +3583,8 @@ function _initLeafletMap() {
 
   // ── 雙擊地圖：放置藍色十字座標 pin ──
   _leafletMap.on('dblclick', function(e) {
-    const lat = e.latlng.lat, lng = e.latlng.lng;
-    const mgrs = _latlngToMGRS(lat, lng, 5);
-    _showCoordPin(lat, lng);
-    _coordPanel.style.display = 'block';
-    _coordPanel.classList.add('clickable');
-    _coordPanel.innerHTML =
-      `<span style="color:#58a6ff">✛</span> <b>${mgrs}</b>` +
-      `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
-      `${lat.toFixed(6)}°N, ${lng.toFixed(6)}°E`;
+    _showCoordPin(e.latlng.lat, e.latlng.lng);
+    _refreshCoordPanel();  // 統一由 _refreshCoordPanel 渲染，支援 MGRS/WGS84 toggle
   });
 
   // ── 長按地圖（650ms）：開啟事件回報 popup ──
@@ -3724,9 +3711,9 @@ function _renderLeafletMarkers() {
       saveMapConfig();
       // 顯示新座標
       const coordPanel = document.getElementById('map-coord-panel');
-      coordPanel.style.display = 'block';
+      coordPanel.style.display = 'flex';
       coordPanel.innerHTML =
-        `<span style="color:#8b949e">移動至</span> <b>${mgrs}</b>` +
+        `<span style="color:#8b949e">移動至</span>&nbsp;<b>${mgrs}</b>` +
         `<span style="color:#56d364;margin-left:10px">✓ 已儲存</span>`;
       setTimeout(() => _refreshCoordPanel(), 2500);
       // 若為事件 marker，將新座標寫入處置紀錄
@@ -3787,18 +3774,33 @@ function _clearCoordPin() {
 function _refreshCoordPanel() {
   const coordPanel = document.getElementById('map-coord-panel');
   if (!coordPanel) return;
+
+  // ① 藍色十字 coordPin 優先
   if (_coordPin) {
     const ll = _coordPin.getLatLng();
-    const mgrs = _latlngToMGRS(ll.lat, ll.lng, 5);
-    coordPanel.style.display = 'block';
+    coordPanel.style.display = 'flex';
+    coordPanel.style.alignItems = 'center';
     coordPanel.classList.add('clickable');
     coordPanel.innerHTML =
-      `<span style="color:#58a6ff">✛</span> <b>${mgrs}</b>` +
-      `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
-      `${ll.lat.toFixed(6)}°N, ${ll.lng.toFixed(6)}°E`;
+      `<span style="color:#58a6ff;flex-shrink:0;">✛</span>&nbsp;${_coordValueHTML(ll.lat, ll.lng)}${_coordToggleBtn()}`;
     return;
   }
-  // 沒有 coordPin：隱藏（event highlight 有自己的顯示邏輯）
+
+  // ② 事件 highlight（從右側事件欄長按卡片）
+  if (_highlightedEventId && _mapConfig) {
+    const zone = (_mapConfig.maps['outdoor']?.zones || []).find(z => z.event_id === _highlightedEventId);
+    if (zone?.lat != null) {
+      const codeLabel = zone.event_code ? `<b>${zone.event_code}</b>` : `<b>${zone.label}</b>`;
+      coordPanel.style.display = 'flex';
+      coordPanel.style.alignItems = 'center';
+      coordPanel.classList.add('clickable');
+      coordPanel.innerHTML =
+        `<span style="color:#3fb950;flex-shrink:0;">📍</span>&nbsp;${codeLabel}&nbsp;${_coordValueHTML(zone.lat, zone.lng)}${_coordToggleBtn()}`;
+      return;
+    }
+  }
+
+  // ③ 都沒有：隱藏
   coordPanel.style.display = 'none';
   coordPanel.classList.remove('clickable');
 }
@@ -3862,16 +3864,16 @@ async function _placeOnLeaflet(lat, lng) {
     _renderLeafletMarkers();
     // 顯示放置成功的 MGRS 座標
     const coordPanel = document.getElementById('map-coord-panel');
-    coordPanel.style.display = 'block';
+    coordPanel.style.display = 'flex';
     coordPanel.innerHTML =
-      `<span style="color:#3fb950">✓ 放置</span> <b>${zone.event_code}</b>` +
-      `<span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
+      `<span style="color:#3fb950">✓ 放置</span>&nbsp;<b>${zone.event_code}</b>` +
+      `<span style="color:#8b949e;margin-left:8px">MGRS</span>&nbsp;${mgrs}`;
     setTimeout(() => _refreshCoordPanel(), 3000);
   } else {
     console.warn('[PLACE-LEAFLET] 事件建立失敗，不放置 marker');
     // 在座標面板顯示失敗提示，3 秒後消失
     const _errPanel = document.getElementById('map-coord-panel');
-    _errPanel.style.display = 'block';
+    _errPanel.style.display = 'flex';
     _errPanel.innerHTML = `<span style="color:#f85149">✗ 放置失敗</span><span style="color:#8b949e;margin-left:8px">請查看 console（F12）</span>`;
     setTimeout(() => { _errPanel.style.display = 'none'; }, 4000);
   }
@@ -4644,6 +4646,31 @@ async function saveMapConfig() {
 // 事件 highlight（長按事件卡片 → 地圖定位）
 // ══════════════════════════════════════════════════════════════
 let _highlightedEventId = null;
+let _coordDisplayMode = 'mgrs';  // 'mgrs' | 'wgs84'
+
+/** 切換座標顯示模式（MGRS ↔ WGS84），點擊小標籤時呼叫 */
+function _toggleCoordMode() {
+  _coordDisplayMode = (_coordDisplayMode === 'mgrs') ? 'wgs84' : 'mgrs';
+  _refreshCoordPanel();
+}
+
+/** 產生切換按鈕 HTML（顯示「可切換到」的那個系統名稱）*/
+function _coordToggleBtn() {
+  const next = _coordDisplayMode === 'mgrs' ? 'WGS84' : 'MGRS';
+  return `<span onclick="event.stopPropagation();_toggleCoordMode()"
+    style="font-size:9px;color:var(--text3);border:1px solid var(--border);border-radius:3px;
+    padding:1px 5px;margin-left:8px;cursor:pointer;flex-shrink:0;white-space:nowrap;"
+    title="切換座標系統">${next}</span>`;
+}
+
+/** 依目前模式產生座標值 HTML（兩種模式都有前綴標籤，視覺一致）*/
+function _coordValueHTML(lat, lng) {
+  const lbl = `<span style="color:#8b949e;font-size:9px;flex-shrink:0;">`;
+  if (_coordDisplayMode === 'wgs84') {
+    return `${lbl}WGS84</span>&nbsp;${lat.toFixed(6)}°N,&nbsp;${lng.toFixed(6)}°E`;
+  }
+  return `${lbl}MGRS</span>&nbsp;<b>${_latlngToMGRS(lat, lng, 5)}</b>`;
+}
 
 function _highlightEvent(eventId) {
   if (!_mapConfig) return;
@@ -4654,19 +4681,10 @@ function _highlightEvent(eventId) {
       _highlightedEventId = eventId;
       if (mapKey === 'outdoor') {
         _renderLeafletMarkers();
-        // Pan to marker + 顯示事件座標
+        // Pan to marker + 顯示事件座標（透過 _refreshCoordPanel 統一渲染，支援 toggle）
         if (zone.lat != null && zone.lng != null && _leafletMap) {
           _leafletMap.panTo([zone.lat, zone.lng]);
-          const mgrs = _latlngToMGRS(zone.lat, zone.lng, 5);
-          const coordPanel = document.getElementById('map-coord-panel');
-          const codeLabel = zone.event_code ? `<b>${zone.event_code}</b>` : `<b>${zone.label}</b>`;
-          coordPanel.style.display = 'block';
-          coordPanel.classList.add('clickable');
-          coordPanel.innerHTML =
-            `<span style="color:#3fb950">📍 事件</span> ${codeLabel}` +
-            `<span style="color:#8b949e;margin-left:12px">MGRS</span> <b>${mgrs}</b>` +
-            `<span style="color:#8b949e;margin-left:12px">WGS84</span> ` +
-            `${zone.lat.toFixed(6)}°N, ${zone.lng.toFixed(6)}°E`;
+          _refreshCoordPanel();
         }
       } else {
         renderMapOverlay();
@@ -4764,11 +4782,15 @@ function _closeCsel(e) {
 }
 function _pickCsel(value, label) {
   _placeTypeValue = value;
-  el('place-type-label').textContent = label || '— 選危害類型 —';
-  el('place-type-panel').classList.remove('open');
-  el('place-type-panel').querySelectorAll('.csel-opt').forEach(d => {
-    d.classList.toggle('active', d.dataset.value === value);
-  });
+  const _ptl2 = el('place-type-label');
+  if (_ptl2) _ptl2.textContent = label || '— 選危害類型 —';
+  const _ptp2 = el('place-type-panel');
+  if (_ptp2) {
+    _ptp2.classList.remove('open');
+    _ptp2.querySelectorAll('.csel-opt').forEach(d => {
+      d.classList.toggle('active', d.dataset.value === value);
+    });
+  }
   onPlaceTypeChange();
 }
 
@@ -4777,6 +4799,8 @@ function onPlaceTypeChange() {
   if (!typeKey) {
     _placeMode = null;
     el('map-panel').classList.remove('placing');
+    const _ptw3 = el('place-type-wrap');
+    if (_ptw3) _ptw3.style.display = 'none';
     if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
     return;
   }
@@ -4791,6 +4815,9 @@ function onPlaceTypeChange() {
     assignedUnit: ev.defaultAssigned,
   };
   el('map-panel').classList.add('placing');
+  // 站內地圖才顯示類型選擇器浮島
+  const _ptw = el('place-type-wrap');
+  if (_ptw) _ptw.style.display = (_currentMap === 'indoor') ? 'block' : 'none';
   if (_currentMap === 'outdoor' && _leafletMap) {
     _leafletMap.getContainer().style.setProperty('cursor', 'crosshair', 'important');
   }
@@ -4799,9 +4826,15 @@ function onPlaceTypeChange() {
 function cancelPlaceMode() {
   _placeMode = null;
   _placeTypeValue = '';
-  el('place-type-label').textContent = '— 選危害類型 —';
-  el('place-type-panel').querySelectorAll('.csel-opt').forEach(d => d.classList.remove('active'));
-  el('place-type-panel').classList.remove('open');
+  const _ptl = el('place-type-label');
+  if (_ptl) _ptl.textContent = '— 選危害類型 —';
+  const _ptp = el('place-type-panel');
+  if (_ptp) {
+    _ptp.querySelectorAll('.csel-opt').forEach(d => d.classList.remove('active'));
+    _ptp.classList.remove('open');
+  }
+  const _ptw = el('place-type-wrap');
+  if (_ptw) _ptw.style.display = 'none';
   el('map-panel').classList.remove('placing');
   el('leaflet-map').classList.remove('placing');
   if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
@@ -5041,10 +5074,10 @@ async function _pinEventOnMap(lat, lng) {
 
   // 座標面板顯示確認
   const coordPanel = document.getElementById('map-coord-panel');
-  coordPanel.style.display = 'block';
+  coordPanel.style.display = 'flex';
   coordPanel.innerHTML =
-    `<span style="color:#3fb950">✓ 標記</span> <b>${eventCode||eventId}</b>` +
-    `<span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
+    `<span style="color:#3fb950">✓ 標記</span>&nbsp;<b>${eventCode||eventId}</b>` +
+    `<span style="color:#8b949e;margin-left:8px">MGRS</span>&nbsp;${mgrs}`;
   setTimeout(() => _refreshCoordPanel(), 3000);
 
   await poll();
@@ -5073,15 +5106,15 @@ async function _saveNodePosition(lat, lng) {
   // 短暫顯示確認
   const coordPanel = el('map-coord-panel');
   const mgrs = _latlngToMGRS(lat, lng, 5);
-  coordPanel.style.display = 'block';
-  coordPanel.innerHTML = `<span style="color:#3fb950">✓ ${label}</span><span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
+  coordPanel.style.display = 'flex';
+  coordPanel.innerHTML = `<span style="color:#3fb950">✓ ${label}</span><span style="color:#8b949e;margin-left:8px">MGRS</span>&nbsp;${mgrs}`;
   setTimeout(() => _refreshCoordPanel(), 3000);
 }
 
 // 地圖點擊：放置事件 or 取消選取
 el('map-panel').addEventListener('click', async function(e) {
   // 點到 marker、edit-bar、map-tabs 不處理
-  if (e.target.closest('.zone-marker') || e.target.closest('#edit-bar') || e.target.closest('#map-tabs')) return;
+  if (e.target.closest('.zone-marker') || e.target.closest('#mgrs-island') || e.target.closest('#map-tabs')) return;
   // 站外（Leaflet）：由 Leaflet click handler 處理，這裡不重複觸發
   if (_currentMap === 'outdoor') return;
   // 非放置模式：點空白地圖取消選取
@@ -5612,6 +5645,7 @@ async function submitEvent() {
     location_desc: el('ev-location').value || null,
     needs_commander_decision: el('ev-decision').checked,
     location_zone_id: el('ev-zone-id').value || null,
+    session_type: _sessionType,   // 補上 session_type，與 _placeOnLeaflet 一致
   };
   if (!body.description) { el('ev-desc').focus(); return; }
   try {
@@ -5623,12 +5657,43 @@ async function submitEvent() {
     if (resp.ok) {
       const created = await resp.json();
       closeEventForm();
-      await poll(); // 立即刷新
-      // modal 若仍開著（從節點事件頁送出），重繪事件頁
-      if (_zoneModalZone && el('overlay').className === 'show') {
-        _zoneModalTab = 'events';
-        _renderZoneModal();
+
+      // ── 樂觀更新：合併前端 body + 伺服端回傳，補齊 reported_by_unit 等欄位 ──
+      // db.create_event 只回傳 {id, event_code, response_deadline}，需自行補全
+      if (_data?.events) {
+        const now = new Date().toISOString();
+        const optimisticEvent = {
+          // 前端已知欄位
+          reported_by_unit:          body.reported_by_unit,
+          event_type:                body.event_type,
+          severity:                  body.severity,
+          description:               body.description,
+          operator_name:             body.operator_name,
+          location_desc:             body.location_desc || null,
+          location_zone_id:          body.location_zone_id || null,
+          assigned_unit:             null,
+          status:                    'open',
+          occurred_at:               now,
+          created_at:                now,
+          notes:                     null,
+          // 伺服端回傳欄位（覆蓋）
+          ...created,
+        };
+        if (!_data.events.find(e => e.id === optimisticEvent.id)) {
+          _data.events.unshift(optimisticEvent); // 插最前面，馬上可見
+        }
+        // 即時更新右側事件欄
+        renderZoneC(getSeries());
+        // 若 zone modal 還開著（從節點事件頁送出），重繪事件頁
+        if (_zoneModalZone && el('overlay').className === 'show') {
+          _zoneModalTab = 'events';
+          _renderZoneModal();
+        }
       }
+
+      // 背景 poll 取完整 server 資料（覆蓋樂觀資料，含 notes 等欄位）
+      poll();
+
       // 詢問是否在地圖標記位置（進入 _eventPinMode）
       _startEventPin(
         created.id,

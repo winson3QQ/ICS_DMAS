@@ -17,8 +17,8 @@
           "id": "zone_medical",
           "label": "醫療組",
           "sub": "A 棟",
-          "x_pct": 87,
-          "y_pct": 85.5,
+          "x_pct": 94.9,
+          "y_pct": 73.9,
           "node_type": "medical",
           "icon": "pin"
         }
@@ -35,8 +35,8 @@
           "sub": "",
           "node_type": "shelter",
           "icon": "pin",
-          "lat": 24.821333,
-          "lng": 121.019479
+          "lat": 24.820977,
+          "lng": 121.020348
         },
         {
           "id": "node_medical",
@@ -44,8 +44,8 @@
           "sub": "",
           "node_type": "medical",
           "icon": "pin",
-          "lat": 24.821328,
-          "lng": 121.019447
+          "lat": 24.821133,
+          "lng": 121.017494
         },
         {
           "id": "node_command",
@@ -73,10 +73,23 @@
           "icon": "pin",
           "lat": 24.820742,
           "lng": 121.020595
+        },
+        {
+          "id": "evt_1776754276734",
+          "label": "unknown disease",
+          "sub": "",
+          "lat": 24.82313,
+          "lng": 121.017838,
+          "node_type": "medical",
+          "icon": "event",
+          "event_id": "199992ff-5760-41dc-8b68-9fda13a35c63",
+          "event_code": "EV-0421-034"
         }
       ],
       "flows": [],
-      "polygons": []
+      "polygons": [],
+      "routes": [],
+      "infrastructure": []
     }
   }
 }
