@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.12.1';</script>
+<script>const CMD_VERSION='v0.12.2';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -5346,47 +5346,42 @@ function _zoneEventsTab(zone) {
   const unit = zone.node_type || '';
   const allEvents = _data?.events || [];
 
-  // 本組回報（自己發現的）+ 本組負責處理（別組回報但 assigned 給本組）
-  // 去重：同一事件可能兩者都符合
-  const reported = unit ? allEvents.filter(e => e.reported_by_unit === unit) : allEvents;
-  const assigned = unit ? allEvents.filter(e => e.assigned_unit === unit && e.reported_by_unit !== unit) : [];
+  // ── 聯集去重：本組回報 OR 指派給本組，每筆事件只出現一次 ──
+  const seen = new Set();
+  const events = (unit
+    ? allEvents.filter(e => e.reported_by_unit === unit || e.assigned_unit === unit)
+    : allEvents
+  ).filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
 
-  const isOpen  = e => e.status !== 'resolved' && e.status !== 'closed';
-  const isClosed = e => !isOpen(e);
+  const isOpen   = e => e.status !== 'resolved' && e.status !== 'closed';
+  const openEvs   = events.filter(isOpen);
+  const closedEvs = events.filter(e => !isOpen(e));
 
-  // 若節點有地圖座標，計算 MGRS 傳入表單
-  const _zoneMgrs = (zone.lat != null && zone.lng != null)
-    ? _latlngToMGRS(zone.lat, zone.lng, 5) : '';
-  let html = `<div style="margin-bottom:8px;display:flex;gap:6px;">`;
+  let html = `<div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">`;
   html += `<button onclick="openEventForm('${unit}',{lat:${zone.lat||'null'},lng:${zone.lng||'null'}},'${zone.id}')" style="padding:4px 12px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">📝 新增事件</button>`;
+  // 事件總數（唯一值）
+  if (events.length > 0) {
+    html += `<span style="font-size:10px;color:var(--text3);">${openEvs.length} 筆進行中`;
+    if (closedEvs.length > 0) html += `・${closedEvs.length} 筆已結案`;
+    html += `</span>`;
+  }
   html += `</div>`;
 
-  // ── 本組負責處理（assigned，別組回報）── 優先顯示
-  const assignedOpen   = assigned.filter(isOpen);
-  const assignedClosed = assigned.filter(isClosed);
-  if (assigned.length > 0) {
-    html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin-bottom:4px;">本組處理中</div>`;
-    assignedOpen.forEach(ev => { html += _eventCardHTML(ev, false); });
-    assignedClosed.forEach(ev => { html += _eventCardHTML(ev, true); });
-  }
-
-  // ── 本組回報（ICS）──
-  const reportedOpen   = reported.filter(isOpen);
-  const reportedClosed = reported.filter(isClosed);
-  if (reported.length > 0) {
-    const topMargin = assigned.length > 0 ? '10px' : '0';
-    html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin:${topMargin} 0 4px;">本組回報</div>`;
-    reportedOpen.forEach(ev => { html += _eventCardHTML(ev, false); });
-    reportedClosed.forEach(ev => { html += _eventCardHTML(ev, true); });
-  }
-
-  if (assigned.length === 0 && reported.length === 0) {
+  if (events.length === 0) {
     html += '<div style="color:var(--text3);font-size:11px;margin-bottom:8px;">無 ICS 事件記錄</div>';
+  } else {
+    // 進行中
+    openEvs.forEach(ev => { html += _eventCardHTML(ev, false, unit); });
+    // 已結案（折疊顯示）
+    if (closedEvs.length > 0) {
+      html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin:8px 0 4px;">已結案</div>`;
+      closedEvs.forEach(ev => { html += _eventCardHTML(ev, true, unit); });
+    }
   }
 
   // ── PWA 組內事件（shelter / medical）── 非同步載入
   if (unit === 'shelter' || unit === 'medical') {
-    const topMargin = (assigned.length + reported.length) > 0 ? '10px' : '0';
+    const topMargin = events.length > 0 ? '10px' : '0';
     html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin:${topMargin} 0 4px;">PWA 組內事件</div>`;
     html += `<div id="pwa-incidents-container"><span style="color:var(--text3);font-size:10px;">載入中...</span></div>`;
     html += `<div class="pwa-incidents-loader" data-unit="${unit}" style="display:none;"></div>`;
@@ -5438,18 +5433,35 @@ async function _loadPwaIncidents(unitId) {
   }
 }
 
-function _eventCardHTML(ev, dimmed) {
+function _eventCardHTML(ev, dimmed, viewUnit) {
   const sevC = ev.severity==='critical'?'var(--red)':ev.severity==='warning'?'var(--yellow)':'var(--text3)';
   const statusLabel = {open:'未結',in_progress:'處理中',resolved:'已結案',closed:'已關閉'}[ev.status]||ev.status;
   const statusC = (ev.status==='resolved'||ev.status==='closed')?'var(--green)':'var(--yellow)';
   const notes = _parseNotes(ev.notes);
   const isOpen = ev.status === 'open' || ev.status === 'in_progress';
 
+  // ── 角色 tag（EOC 模式：顯示本組與事件的關係，不重複計算事件數）──
+  const _uLabel = {'command':'指揮部','forward':'前進組','security':'安全組','shelter':'收容組','medical':'醫療組'};
+  let roleTag = '';
+  if (viewUnit) {
+    const iReporter = ev.reported_by_unit === viewUnit;
+    const iAssigned = ev.assigned_unit === viewUnit;
+    if (iReporter && iAssigned) {
+      roleTag = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,139,253,.15);color:#58a6ff;border:1px solid rgba(56,139,253,.3);white-space:nowrap;">回報・承辦</span>`;
+    } else if (iReporter) {
+      const assignee = ev.assigned_unit ? `→ ${_uLabel[ev.assigned_unit]||ev.assigned_unit}` : '';
+      roleTag = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,139,253,.15);color:#58a6ff;border:1px solid rgba(56,139,253,.3);white-space:nowrap;">回報${assignee}</span>`;
+    } else if (iAssigned) {
+      const reporter = ev.reported_by_unit ? `${_uLabel[ev.reported_by_unit]||ev.reported_by_unit} →` : '';
+      roleTag = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(210,153,34,.15);color:#e3b341;border:1px solid rgba(210,153,34,.3);white-space:nowrap;">${reporter} 指派協助</span>`;
+    }
+  }
+
   let html = `<div style="padding:8px 10px;margin-bottom:6px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevC};${dimmed?'opacity:.5;':''}">`;
   // 標題列
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-  html += `<span style="font-size:12px;font-weight:700;">${ev.description || ev.event_type}</span>`;
-  html += `<span style="font-size:10px;color:${statusC};font-weight:600;">${statusLabel}</span>`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">`;
+  html += `<span style="font-size:12px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ev.description || ev.event_type}</span>`;
+  html += `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">${roleTag}<span style="font-size:10px;color:${statusC};font-weight:600;">${statusLabel}</span></div>`;
   html += `</div>`;
   html += `<div style="font-size:10px;color:var(--text3);margin-top:3px;">回報：${ev.operator_name}　${_decisionAge(ev.occurred_at||ev.created_at)}</div>`;
 
