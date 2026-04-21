@@ -140,6 +140,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | ✅ 完成 | 管制區/疏散範圍/集結點/危險區域/作業區；點擊繪製頂點，完成後表單填名稱/類型；儲存至 map_config polygons[]；點擊多邊形可刪除 |
 | Phase 4：NATO APP-6E 軍用符號 | 🔲 待做 | 友軍符號、Phase Line、SIDC |
 | Phase 5：MGRS 格線 overlay | ✅ 完成 | 像素密度自動決定間距（MIN_PX=60）；zoom 自動切換 100km/10km/1km/100m/10m/1m；標籤最少 3 位數；標籤用 pixel→UTM 換算固定距邊緣位置（Y 左 24px、X 底 60px）|
+| Phase 6：基礎設施/流向/路線/圖層面板 | ✅ 完成 | cmd-v0.12.0；INFRA_TYPES（H/S/P/F/U）+ 點擊地圖放置；FLOW_TYPES 流向箭頭（起點→終點中間放箭頭）；ROUTE_TYPES 疏散路線（click-to-draw，沿線間距箭頭）；圖層面板（☰）控制 6 個圖層開關 |
 
 ### Wave 5 待做項目（UI 收尾）
 
@@ -148,7 +149,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | 重設 deadline 後端 API | ✅ 完成 | `PATCH /api/events/{id}/deadline`（delta_minutes）；前端 ±分鐘 UI；note 由前端寫入含本地時間 |
 | 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
 | 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
-| 地圖流向箭頭 | ⚠️ 部分完成 | `renderFlows()` 已實作（讀 `m.flows`，按 `calc.forward.units` red 傷亡數計算動態粗度）；無 `data_source` 欄位對應，直接用 calc 數值，功能可用 |
+| 地圖流向箭頭 | ✅ 完成 | Phase 6 重新設計：flow 以 from_zone_id + to_zone_id 儲存，`_renderFlows()` 查 zone lat/lng，`_bearing()` 計算方位角，`_arrowIcon()` SVG 箭頭放中點 |
 
 ### Pi Push 技術細節
 

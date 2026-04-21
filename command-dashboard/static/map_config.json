@@ -44,8 +44,8 @@
           "sub": "",
           "node_type": "medical",
           "icon": "pin",
-          "lat": 24.821064,
-          "lng": 121.019779
+          "lat": 24.821328,
+          "lng": 121.019447
         },
         {
           "id": "node_command",
@@ -62,8 +62,8 @@
           "sub": "",
           "node_type": "forward",
           "icon": "pin",
-          "lat": 24.820429,
-          "lng": 121.019404
+          "lat": 24.820225,
+          "lng": 121.019329
         },
         {
           "id": "node_security",
@@ -75,7 +75,8 @@
           "lng": 121.020595
         }
       ],
-      "flows": []
+      "flows": [],
+      "polygons": []
     }
   }
 }

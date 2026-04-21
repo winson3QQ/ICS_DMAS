@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.11.0';</script>
+<script>const CMD_VERSION='v0.12.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -136,6 +136,28 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #poly-draw-banner button{background:transparent;border:1px solid var(--border);color:var(--text2);
   padding:2px 10px;border-radius:10px;font-size:11px;cursor:pointer;}
 #poly-draw-banner button.ok{background:var(--green);color:#fff;border-color:var(--green);}
+/* 路線繪製 banner */
+#route-draw-banner{display:none;position:absolute;top:48px;left:50%;transform:translateX(-50%);z-index:1001;
+  background:rgba(14,22,29,.92);border:1px solid var(--border);border-radius:20px;
+  padding:6px 14px;font-size:12px;align-items:center;gap:12px;white-space:nowrap;pointer-events:auto;}
+#route-draw-banner button{background:transparent;border:1px solid var(--border);color:var(--text2);
+  padding:2px 10px;border-radius:10px;font-size:11px;cursor:pointer;}
+#route-draw-banner button.ok{background:var(--green);color:#fff;border-color:var(--green);}
+/* 圖層面板（Layer Panel）*/
+#layer-panel{
+  position:absolute;top:44px;right:44px;z-index:20;
+  background:rgba(22,27,34,.96);border:1px solid var(--border);
+  border-radius:8px;padding:6px 0;min-width:148px;
+  font-family:var(--mono);
+  box-shadow:0 4px 16px rgba(0,0,0,.45);
+}
+#layer-panel h4{padding:3px 12px 6px;font-size:9px;color:var(--text3);letter-spacing:.1em;
+  border-bottom:1px solid var(--border);margin-bottom:2px;text-transform:uppercase;}
+.layer-row{display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;transition:background .15s;}
+.layer-row:hover{background:rgba(255,255,255,.05);}
+.layer-check{width:13px;height:13px;border:1px solid var(--border);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px;}
+.layer-check.on{background:var(--green);border-color:var(--green);color:#fff;}
 #edit-bar{
   position:absolute;bottom:0;left:0;right:0;z-index:10;
   display:flex;padding:5px 10px;gap:6px;align-items:center;
@@ -905,6 +927,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
         <button id="poly-finish-btn" class="ok" onclick="_finishPolyDraw()" disabled>完成</button>
         <button onclick="_cancelPolyDraw()">取消</button>
       </div>
+      <!-- 路線繪製 banner -->
+      <div id="route-draw-banner">
+        <span>↗ 繪製路線　點擊新增節點</span>
+        <button id="route-finish-btn" class="ok" onclick="_finishRouteDraw()" disabled>完成</button>
+        <button onclick="_cancelRouteDraw()">取消</button>
+      </div>
+      <!-- 圖層面板 -->
+      <div id="layer-panel" style="display:none;"></div>
     </div>
     <div id="edit-bar">
       <div style="display:flex;gap:6px;align-items:center;margin:0 auto;">
@@ -932,6 +962,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
           </div>
           <div class="csel-panel" id="place-type-panel"></div>
         </div>
+        <!-- 基礎設施新增（站外限定）-->
+        <button id="infra-add-btn" onclick="_openInfraForm()"
+          title="新增基礎設施標記（醫院/收容所/警察/消防）"
+          style="display:none;padding:3px 10px;font-size:10px;border-radius:4px;cursor:pointer;
+                 border:1px solid var(--border);background:var(--surface2);color:var(--text2);
+                 transition:all .15s;">＋設施</button>
         <button id="pin-edit-btn" onclick="togglePinEditMode()"
           title="調整永久據點位置"
           style="padding:3px 10px;font-size:10px;border-radius:4px;cursor:pointer;
@@ -2360,8 +2396,20 @@ function switchMap(key) {
   el('leaflet-map').classList.toggle('active', isLeaflet);
   // edit-bar 兩種模式都顯示
   el('edit-bar').style.display = '';
-  // MGRS 搜尋欄：站外才顯示
+  // MGRS 搜尋欄、設施按鈕：站外才顯示
   el('mgrs-search-wrap').style.display = isLeaflet ? 'flex' : 'none';
+  const infraBtn = el('infra-add-btn');
+  if (infraBtn) infraBtn.style.display = isLeaflet ? '' : 'none';
+  // 切到站內時關閉圖層面板
+  if (!isLeaflet) {
+    const lp = document.getElementById('layer-panel');
+    if (lp) lp.style.display = 'none';
+    const lpBtn = document.getElementById('btn-layer-panel');
+    if (lpBtn) lpBtn.classList.remove('active');
+    // 清除路線繪製狀態
+    if (_routeDrawState) _cancelRouteDraw();
+    if (_infraPlaceMode) { _infraPlaceMode = null; }
+  }
   // 調整據點按鈕：站內才顯示；切到站外時退出調整模式
   const pinBtn = el('pin-edit-btn');
   if (isLeaflet) {
@@ -2634,6 +2682,29 @@ const POLY_TYPES = {
   ops:        { label:'作業區',   color:'#58a6ff', dash:false },
 };
 
+// 基礎設施類型（NAPSG COP 常見圖層）
+const INFRA_TYPES = {
+  hospital: { label:'醫院',     color:'#e05555', abbr:'H' },
+  shelter:  { label:'收容所',   color:'#e3b341', abbr:'S' },
+  police:   { label:'警察局',   color:'#58a6ff', abbr:'P' },
+  fire:     { label:'消防站',   color:'#ff7f50', abbr:'F' },
+  utility:  { label:'公用設施', color:'#8b949e', abbr:'U' },
+};
+
+// 疏散路線類型
+const ROUTE_TYPES = {
+  primary:   { label:'主要疏散路線', color:'#56d364', dash:false },
+  secondary: { label:'次要路線',     color:'#e3b341', dash:true  },
+  emergency: { label:'緊急通道',     color:'#e05555', dash:false },
+};
+
+// 傷患/資源流向類型
+const FLOW_TYPES = {
+  casualty:   { label:'傷患流向', color:'#e05555' },
+  evacuation: { label:'疏散人員', color:'#e3b341' },
+  resource:   { label:'資源調度', color:'#56d364' },
+};
+
 function _startPolyDraw() {
   if (_polyDrawState) _cancelPolyDraw();
   _polyDrawState = { latlngs: [], markers: [], previewPoly: null };
@@ -2736,6 +2807,7 @@ function _renderPolygons() {
   if (!_leafletMap) return;
   if (!_polygonLayer) _polygonLayer = L.layerGroup().addTo(_leafletMap);
   _polygonLayer.clearLayers();
+  if (!_layerVis.polygons) return;
   const polys = _mapConfig?.maps?.['outdoor']?.polygons || [];
   polys.forEach(poly => {
     const dash = poly.dash ? '8 5' : null;
@@ -2780,6 +2852,455 @@ async function _deletePolygon(polyId) {
   await saveMapConfig();
   closeModal();
   _renderPolygons();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 圖層面板（Layer Panel）
+// ══════════════════════════════════════════════════════════════
+
+function _toggleLayerPanel() {
+  const panel = document.getElementById('layer-panel');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  if (isOpen) {
+    panel.style.display = 'none';
+    const btn = document.getElementById('btn-layer-panel');
+    if (btn) btn.classList.remove('active');
+  } else {
+    _rebuildLayerPanel();
+    panel.style.display = 'block';
+    const btn = document.getElementById('btn-layer-panel');
+    if (btn) btn.classList.add('active');
+  }
+}
+
+function _rebuildLayerPanel() {
+  const panel = document.getElementById('layer-panel');
+  if (!panel) return;
+  // MGRS 狀態與 _mgrsGridVisible 同步
+  _layerVis.mgrs = _mgrsGridVisible;
+  const layers = [
+    { key:'zones',    icon:'◆', label:'節點' },
+    { key:'polygons', icon:'▱', label:'範圍' },
+    { key:'infra',    icon:'＋', label:'設施' },
+    { key:'flows',    icon:'→', label:'流向' },
+    { key:'routes',   icon:'↗', label:'路線' },
+    { key:'mgrs',     icon:'⊞', label:'MGRS格線' },
+  ];
+  let html = '<h4>圖層</h4>';
+  layers.forEach(l => {
+    const on = _layerVis[l.key];
+    html += `<div class="layer-row" onclick="_toggleLayer('${l.key}')">`;
+    html += `<div class="layer-check${on?' on':''}">${on?'✓':''}</div>`;
+    html += `<span style="font-size:11px;color:${on?'var(--text)':'var(--text3)'};">${l.icon} ${l.label}</span>`;
+    html += `</div>`;
+  });
+  panel.innerHTML = html;
+}
+
+function _toggleLayer(key) {
+  if (key === 'mgrs') {
+    // MGRS 由 _toggleMgrsGrid 管理
+    _toggleMgrsGrid();
+    _rebuildLayerPanel();
+    return;
+  }
+  _layerVis[key] = !_layerVis[key];
+  if (key === 'zones')    _renderLeafletMarkers();
+  else if (key === 'polygons') _renderPolygons();
+  else if (key === 'infra')    _renderInfra();
+  else if (key === 'flows')    _renderFlows();
+  else if (key === 'routes')   _renderRoutes();
+  _rebuildLayerPanel();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 基礎設施（Infrastructure Markers）
+// ══════════════════════════════════════════════════════════════
+
+/** 產生基礎設施 SVG divIcon */
+function _infraIcon(infraType) {
+  const def = INFRA_TYPES[infraType] || INFRA_TYPES.utility;
+  const c = def.color;
+  // 圓形底 + 白字縮寫（NAPSG Point Feature 風格）
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2" opacity=".92"/>
+    <text x="14" y="18.5" text-anchor="middle" font-size="11" font-weight="700"
+          font-family="sans-serif" fill="#fff">${def.abbr}</text>
+  </svg>`;
+  return L.divIcon({ html: svg, className:'', iconSize:[28,28], iconAnchor:[14,14] });
+}
+
+function _renderInfra() {
+  if (!_leafletMap) return;
+  if (!_infraLayer) _infraLayer = L.layerGroup().addTo(_leafletMap);
+  _infraLayer.clearLayers();
+  if (!_layerVis.infra) return;
+  const items = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
+  items.forEach(item => {
+    const marker = L.marker([item.lat, item.lng], {
+      icon: _infraIcon(item.infra_type),
+      title: item.label,
+      zIndexOffset: -100,
+    });
+    const def = INFRA_TYPES[item.infra_type] || INFRA_TYPES.utility;
+    marker.bindTooltip(`<span style="color:${def.color}">${def.label}</span> ${item.label}`, {
+      className:'napsg-tooltip', direction:'top', offset:[0,-16]
+    });
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      _showInfraInfo(item);
+    });
+    marker.addTo(_infraLayer);
+  });
+}
+
+function _showInfraInfo(item) {
+  const def = INFRA_TYPES[item.infra_type] || {};
+  let html = `<div style="margin-bottom:12px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${def.color}22;color:${def.color};border:1px solid ${def.color}44;">${def.label||item.infra_type}</span>`;
+  html += `</div>`;
+  html += `<button onclick="_deleteInfra('${item.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此設施</button>`;
+  el('modal-title').textContent = `${def.abbr||'＋'} ${item.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _deleteInfra(id) {
+  if (!_mapConfig.maps['outdoor'].infrastructure) return;
+  _mapConfig.maps['outdoor'].infrastructure = _mapConfig.maps['outdoor'].infrastructure.filter(i => i.id !== id);
+  await saveMapConfig();
+  closeModal();
+  _renderInfra();
+}
+
+/** 選擇設施類型後點擊地圖放置 */
+function _openInfraForm() {
+  const typeOpts = Object.entries(INFRA_TYPES).map(([k,v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  let html = '';
+  html += `<div style="margin-bottom:12px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="infra-type-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select>`;
+  html += `</div>`;
+  html += `<div style="margin-bottom:16px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">名稱</label>`;
+  html += `<input id="infra-name" placeholder="例：新竹馬偕" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">`;
+  html += `</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">確認後點擊地圖放置位置</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_startInfraPlace()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">點擊地圖放置 →</button>`;
+  html += `</div>`;
+  el('modal-title').textContent = '＋ 新增設施';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+function _startInfraPlace() {
+  const typeVal  = document.getElementById('infra-type-sel')?.value || 'utility';
+  const nameVal  = (document.getElementById('infra-name')?.value || '').trim();
+  if (!nameVal) {
+    document.getElementById('infra-name')?.focus();
+    return;
+  }
+  closeModal();
+  _infraPlaceMode = { infra_type: typeVal, label: nameVal };
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+}
+
+async function _saveInfraPosition(lat, lng) {
+  if (!_infraPlaceMode) return;
+  const item = {
+    id: 'infra_' + Date.now(),
+    infra_type: _infraPlaceMode.infra_type,
+    label: _infraPlaceMode.label,
+    lat, lng,
+  };
+  if (!_mapConfig.maps['outdoor'].infrastructure) _mapConfig.maps['outdoor'].infrastructure = [];
+  _mapConfig.maps['outdoor'].infrastructure.push(item);
+  await saveMapConfig();
+  _infraPlaceMode = null;
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  _renderInfra();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 傷患流向（Flows）
+// ══════════════════════════════════════════════════════════════
+
+/** 計算兩點方位角（度，北=0，順時針） */
+function _bearing(lat1, lng1, lat2, lng2) {
+  const r = Math.PI / 180;
+  const dL = (lng2 - lng1) * r;
+  const y  = Math.sin(dL) * Math.cos(lat2 * r);
+  const x  = Math.cos(lat1 * r) * Math.sin(lat2 * r) -
+              Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dL);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+/** 箭頭 divIcon（指向 bearing 方向） */
+function _arrowIcon(angle, color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="-11 -11 22 22">
+    <polygon points="0,-9 5,4 0,1 -5,4" fill="${color}" stroke="rgba(14,22,29,.6)" stroke-width="1"
+      transform="rotate(${angle})"/>
+  </svg>`;
+  return L.divIcon({ html:svg, className:'', iconSize:[22,22], iconAnchor:[11,11] });
+}
+
+function _renderFlows() {
+  if (!_leafletMap) return;
+  if (!_flowLayer) _flowLayer = L.layerGroup().addTo(_leafletMap);
+  _flowLayer.clearLayers();
+  if (!_layerVis.flows) return;
+  const flows = _mapConfig?.maps?.['outdoor']?.flows || [];
+  const zones = _mapConfig?.maps?.['outdoor']?.zones  || [];
+  flows.forEach(flow => {
+    const fromZ = zones.find(z => z.id === flow.from_zone_id);
+    const toZ   = zones.find(z => z.id === flow.to_zone_id);
+    if (!fromZ?.lat || !toZ?.lat) return;
+    const def = FLOW_TYPES[flow.flow_type] || FLOW_TYPES.casualty;
+    // 折線
+    const line = L.polyline([[fromZ.lat, fromZ.lng],[toZ.lat, toZ.lng]], {
+      color: def.color, weight: 2.5, opacity: 0.85,
+    }).addTo(_flowLayer);
+    line.on('click', () => _showFlowInfo(flow));
+    // 中點箭頭
+    const midLat = (fromZ.lat + toZ.lat) / 2;
+    const midLng = (fromZ.lng + toZ.lng) / 2;
+    const ang = _bearing(fromZ.lat, fromZ.lng, toZ.lat, toZ.lng);
+    L.marker([midLat, midLng], {
+      icon: _arrowIcon(ang, def.color), interactive:false, zIndexOffset: 50
+    }).addTo(_flowLayer);
+    // 標籤
+    if (flow.label) {
+      L.marker([midLat, midLng], {
+        icon: L.divIcon({
+          html:`<div style="font-size:9px;color:${def.color};background:rgba(14,22,29,.8);padding:1px 4px;border-radius:2px;white-space:nowrap;margin-top:14px;">${flow.label}</div>`,
+          className:'', iconSize:[80,14], iconAnchor:[40,0]
+        }), interactive:false
+      }).addTo(_flowLayer);
+    }
+  });
+}
+
+function _showFlowInfo(flow) {
+  const def  = FLOW_TYPES[flow.flow_type] || {};
+  const zones = _mapConfig?.maps?.['outdoor']?.zones || [];
+  const fromZ = zones.find(z => z.id === flow.from_zone_id);
+  const toZ   = zones.find(z => z.id === flow.to_zone_id);
+  let html = `<div style="margin-bottom:10px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${def.color||'#e05555'}22;color:${def.color||'#e05555'};border:1px solid ${def.color||'#e05555'}44;">${def.label||flow.flow_type}</span>`;
+  html += `</div>`;
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${fromZ?.label||flow.from_zone_id} → ${toZ?.label||flow.to_zone_id}</div>`;
+  html += `<button onclick="_deleteFlow('${flow.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此流向</button>`;
+  el('modal-title').textContent = `→ ${flow.label || def.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _deleteFlow(id) {
+  if (!_mapConfig.maps['outdoor'].flows) return;
+  _mapConfig.maps['outdoor'].flows = _mapConfig.maps['outdoor'].flows.filter(f => f.id !== id);
+  await saveMapConfig();
+  closeModal();
+  _renderFlows();
+}
+
+function _openFlowForm() {
+  const zones = _mapConfig?.maps?.['outdoor']?.zones?.filter(z => z.lat != null) || [];
+  if (zones.length < 2) {
+    el('modal-title').textContent = '→ 新增流向';
+    el('modal-body').innerHTML = `<div style="color:var(--text2);font-size:12px;padding:12px 0;">需要至少兩個已定位的節點才能建立流向。</div>`;
+    el('overlay').className = 'show';
+    return;
+  }
+  const zoneOpts = zones.map(z => `<option value="${z.id}">${z.label}</option>`).join('');
+  const typeOpts = Object.entries(FLOW_TYPES).map(([k,v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  let html = '';
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">流向類型</label>`;
+  html += `<select id="flow-type-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">起點節點</label>`;
+  html += `<select id="flow-from-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${zoneOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">終點節點</label>`;
+  html += `<select id="flow-to-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${zoneOpts}</select></div>`;
+  html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">標籤（可選）</label>`;
+  html += `<input id="flow-label" placeholder="例：傷患後送路徑" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;"></div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_saveFlow()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">儲存</button>`;
+  html += `</div>`;
+  el('modal-title').textContent = '→ 新增流向';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _saveFlow() {
+  const typeVal  = document.getElementById('flow-type-sel')?.value  || 'casualty';
+  const fromVal  = document.getElementById('flow-from-sel')?.value  || '';
+  const toVal    = document.getElementById('flow-to-sel')?.value    || '';
+  const labelVal = (document.getElementById('flow-label')?.value || '').trim();
+  if (!fromVal || !toVal || fromVal === toVal) return;
+  const flow = {
+    id: 'flow_' + Date.now(),
+    flow_type: typeVal,
+    from_zone_id: fromVal,
+    to_zone_id: toVal,
+    label: labelVal,
+  };
+  if (!_mapConfig.maps['outdoor'].flows) _mapConfig.maps['outdoor'].flows = [];
+  _mapConfig.maps['outdoor'].flows.push(flow);
+  await saveMapConfig();
+  closeModal();
+  _renderFlows();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 疏散路線（Evacuation Routes）
+// ══════════════════════════════════════════════════════════════
+
+function _startRouteDraw() {
+  if (_routeDrawState) _cancelRouteDraw();
+  _routeDrawState = { latlngs:[], markers:[], previewLine:null };
+  document.getElementById('route-draw-banner').style.display = 'flex';
+  el('map-coord-panel').style.display = 'none';
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+  const btn = document.getElementById('btn-route-draw');
+  if (btn) btn.classList.add('active');
+}
+
+function _cancelRouteDraw() {
+  if (!_routeDrawState) return;
+  _routeDrawState.markers.forEach(m => m.remove());
+  if (_routeDrawState.previewLine) _routeDrawState.previewLine.remove();
+  _routeDrawState = null;
+  document.getElementById('route-draw-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  const btn = document.getElementById('btn-route-draw');
+  if (btn) btn.classList.remove('active');
+}
+
+function _addRouteVertex(lat, lng) {
+  if (!_routeDrawState) return;
+  _routeDrawState.latlngs.push([lat, lng]);
+  const m = L.circleMarker([lat, lng], {
+    radius:4, color:'#fff', weight:2, fillColor:'#56d364', fillOpacity:1, interactive:false
+  }).addTo(_leafletMap);
+  _routeDrawState.markers.push(m);
+  if (_routeDrawState.previewLine) _routeDrawState.previewLine.remove();
+  if (_routeDrawState.latlngs.length >= 2) {
+    _routeDrawState.previewLine = L.polyline(_routeDrawState.latlngs, {
+      color:'#56d364', weight:2, dashArray:'6 3', opacity:0.7, interactive:false
+    }).addTo(_leafletMap);
+  }
+  const finBtn = document.getElementById('route-finish-btn');
+  if (finBtn) finBtn.disabled = _routeDrawState.latlngs.length < 2;
+}
+
+function _finishRouteDraw() {
+  if (!_routeDrawState || _routeDrawState.latlngs.length < 2) return;
+  const latlngs = [..._routeDrawState.latlngs];
+  _cancelRouteDraw();
+  _openRouteForm(latlngs);
+}
+
+function _openRouteForm(latlngs) {
+  const typeOpts = Object.entries(ROUTE_TYPES).map(([k,v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  let html = '';
+  html += `<div style="margin-bottom:12px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">路線名稱</label>`;
+  html += `<input id="route-name" placeholder="例：北側主疏散路線" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;"></div>`;
+  html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="route-type-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select></div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">${latlngs.length} 個節點</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_saveRoute()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">儲存</button>`;
+  html += `</div>`;
+  window._pendingRouteLatlngs = latlngs;
+  el('modal-title').textContent = '↗ 新增路線';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _saveRoute() {
+  const name    = (document.getElementById('route-name')?.value || '').trim();
+  const typeKey = document.getElementById('route-type-sel')?.value || 'primary';
+  const latlngs = window._pendingRouteLatlngs;
+  if (!name || !latlngs) return;
+  const def = ROUTE_TYPES[typeKey];
+  const route = {
+    id: 'route_' + Date.now(),
+    route_type: typeKey,
+    label: name,
+    color: def.color,
+    dash: def.dash,
+    latlngs,
+  };
+  if (!_mapConfig.maps['outdoor'].routes) _mapConfig.maps['outdoor'].routes = [];
+  _mapConfig.maps['outdoor'].routes.push(route);
+  await saveMapConfig();
+  closeModal();
+  _renderRoutes();
+}
+
+function _renderRoutes() {
+  if (!_leafletMap) return;
+  if (!_routeLayer) _routeLayer = L.layerGroup().addTo(_leafletMap);
+  _routeLayer.clearLayers();
+  if (!_layerVis.routes) return;
+  const routes = _mapConfig?.maps?.['outdoor']?.routes || [];
+  routes.forEach(route => {
+    const dash = route.dash ? '8 5' : null;
+    const line = L.polyline(route.latlngs, {
+      color: route.color, weight: 3, dashArray: dash, opacity: 0.9,
+    }).addTo(_routeLayer);
+    line.on('click', () => _showRouteInfo(route));
+    // 沿線每段中間放箭頭
+    for (let i = 0; i < route.latlngs.length - 1; i++) {
+      const [lat1, lng1] = route.latlngs[i];
+      const [lat2, lng2] = route.latlngs[i + 1];
+      const midLat = (lat1 + lat2) / 2;
+      const midLng = (lng1 + lng2) / 2;
+      const ang = _bearing(lat1, lng1, lat2, lng2);
+      L.marker([midLat, midLng], {
+        icon: _arrowIcon(ang, route.color), interactive:false, zIndexOffset: 50
+      }).addTo(_routeLayer);
+    }
+    // 起點標籤
+    if (route.label && route.latlngs.length > 0) {
+      const [lat0, lng0] = route.latlngs[0];
+      L.marker([lat0, lng0], {
+        icon: L.divIcon({
+          html:`<div style="font-size:10px;font-weight:700;color:${route.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;margin-top:-20px;">${route.label}</div>`,
+          className:'', iconSize:[100,14], iconAnchor:[0,14]
+        }), interactive:false
+      }).addTo(_routeLayer);
+    }
+  });
+}
+
+function _showRouteInfo(route) {
+  const def = ROUTE_TYPES[route.route_type] || {};
+  let html = `<div style="margin-bottom:12px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${route.color}22;color:${route.color};border:1px solid ${route.color}44;">${def.label||route.route_type}</span>`;
+  html += `</div>`;
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${route.latlngs.length} 個節點</div>`;
+  html += `<button onclick="_deleteRoute('${route.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此路線</button>`;
+  el('modal-title').textContent = `↗ ${route.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _deleteRoute(id) {
+  if (!_mapConfig.maps['outdoor'].routes) return;
+  _mapConfig.maps['outdoor'].routes = _mapConfig.maps['outdoor'].routes.filter(r => r.id !== id);
+  await saveMapConfig();
+  closeModal();
+  _renderRoutes();
 }
 
 // ── MGRS → WGS84（解析 "51R TH 99717 46592" 等格式）─────────
@@ -2864,15 +3385,19 @@ function _currentMgrsGzd() {
 /** 動態更新 MGRS 搜尋欄的 placeholder
  *  顯示 "TH 00000 00000"（省略 zone designator，因為會自動補）
  */
-// 注入站外地圖工具列按鈕
+// 注入站外地圖工具列按鈕（☰ 圖層 | ▱ 範圍 | ↗ 路線 | → 流向）
 function _initMapTools() {
   const tools = document.getElementById('map-tools');
   if (!tools) return;
   tools.innerHTML =
-    `<button class="map-btn${_mgrsGridVisible?' active':''}" id="btn-mgrs-grid"
-       onclick="_toggleMgrsGrid()" title="MGRS 格線（Phase 5）" style="font-size:12px;font-family:var(--mono);">⊞</button>
+    `<button class="map-btn" id="btn-layer-panel"
+       onclick="_toggleLayerPanel()" title="圖層面板" style="font-size:14px;">☰</button>
      <button class="map-btn" id="btn-poly-draw"
-       onclick="_startPolyDraw()" title="繪製範圍（Phase 3）" style="font-size:16px;">▱</button>`;
+       onclick="_startPolyDraw()" title="繪製範圍" style="font-size:16px;">▱</button>
+     <button class="map-btn" id="btn-route-draw"
+       onclick="_startRouteDraw()" title="繪製疏散路線" style="font-size:14px;">↗</button>
+     <button class="map-btn" id="btn-flow-add"
+       onclick="_openFlowForm()" title="新增流向" style="font-size:14px;">→</button>`;
 }
 
 function _updateMgrsPlaceholder() {
@@ -2993,9 +3518,17 @@ function _initLeafletMap() {
   const _coordPanel = document.getElementById('map-coord-panel');
   _leafletMap.on('click', function(e) {
     const lat = e.latlng.lat, lng = e.latlng.lng;
-    // Phase 3: 繪製範圍模式最優先
+    // 優先順序：繪製範圍 > 繪製路線 > 放置設施 > 據點定位 > 事件標記 > 事件放置
     if (_polyDrawState) {
       _addPolyVertex(lat, lng);
+      return;
+    }
+    if (_routeDrawState) {
+      _addRouteVertex(lat, lng);
+      return;
+    }
+    if (_infraPlaceMode) {
+      _saveInfraPosition(lat, lng);
       return;
     }
     if (_nodePlaceMode) {
@@ -3071,9 +3604,8 @@ function _initLeafletMap() {
     _drawMgrsGrid();  // Phase 5: 格線跟隨地圖移動/縮放
   });
 
-  // 初始化後渲染 marker + polygon + 格線
-  _renderLeafletMarkers();
-  _renderPolygons();
+  // 初始化後渲染各圖層 + 格線
+  _renderLeafletMarkers();  // 內部已呼叫 _renderPolygons/Infra/Flows/Routes
   _drawMgrsGrid();
   _updateMgrsPlaceholder();
   _initMapTools();  // 注入工具列按鈕
@@ -3085,6 +3617,14 @@ function _renderLeafletMarkers() {
   // 清除舊 marker
   _leafletMarkers.forEach(m => _leafletMap.removeLayer(m));
   _leafletMarkers = [];
+
+  // 其他圖層也一併刷新
+  _renderPolygons();
+  _renderInfra();
+  _renderFlows();
+  _renderRoutes();
+
+  if (!_layerVis.zones) return;  // 節點圖層已關閉
 
   const m = _mapConfig.maps['outdoor'];
   if (!m?.zones) return;
@@ -3175,8 +3715,6 @@ function _renderLeafletMarkers() {
     _leafletMarkers.push(marker);
   });
 
-  // Phase 3: 重新渲染多邊形（在 markers 之後，確保 z-order 正確）
-  _renderPolygons();
 }
 
 // ── 座標指示 pin（藍色十字，非事件 marker）────────────────────
@@ -4134,6 +4672,14 @@ let _mgrsGridVisible = false;
 // Phase 3: 繪製範圍
 let _polyDrawState  = null;  // null 或 { latlngs, markers, previewPoly }
 let _polygonLayer   = null;
+// 基礎設施 / 流向 / 路線 圖層
+let _infraLayer     = null;
+let _flowLayer      = null;
+let _routeLayer     = null;
+let _routeDrawState = null;  // null 或 { latlngs, markers, previewLine }
+let _infraPlaceMode = null;  // null 或 { infra_type }（點擊地圖放置設施）
+// 圖層可見性（預設全開，MGRS 例外）
+const _layerVis = { zones:true, polygons:true, infra:true, flows:true, routes:true, mgrs:false };
 let _placeTypeValue = '';
 
 // ── NAPSG 危害類型 csel 初始化（頁面載入後呼叫一次）────────────
