@@ -73,28 +73,6 @@
           "icon": "pin",
           "lat": 24.820568,
           "lng": 121.020777
-        },
-        {
-          "id": "evt_1776763280602",
-          "label": "疑似爆裂物",
-          "sub": "",
-          "lat": 24.819358,
-          "lng": 121.019275,
-          "node_type": "security",
-          "icon": "explosive",
-          "event_id": "dad86c66-fe08-4bba-9aa7-70f61e48573b",
-          "event_code": "EV-0421-016"
-        },
-        {
-          "id": "evt_1776763289359",
-          "label": "QRF 出動",
-          "sub": "",
-          "lat": 24.819156,
-          "lng": 121.015627,
-          "node_type": "rescue",
-          "icon": "run",
-          "event_id": "63e917b8-3363-4658-8231-e920c24392ff",
-          "event_code": "EV-0421-017"
         }
       ],
       "flows": [],
