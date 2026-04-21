@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.9.9';</script>
+<script>const CMD_VERSION='v0.10.1';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -156,6 +156,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   background:var(--surface2);border:1px solid var(--border);color:var(--text);
   padding:3px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);width:100px;
 }
+/* MGRS 座標搜尋欄 */
+#mgrs-search-wrap{display:none;align-items:center;gap:4px;}
+#mgrs-search-input{
+  width:200px;background:rgba(13,17,23,.9);border:1px solid rgba(255,255,255,.15);
+  color:#e6edf3;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;
+  outline:none;transition:border-color .15s,background .15s;
+}
+#mgrs-search-input::placeholder{color:#484f58;}
+#mgrs-search-input:focus{border-color:rgba(88,166,255,.5);background:rgba(13,17,23,1);}
+#mgrs-search-input.error{border-color:rgba(248,81,73,.6);background:rgba(248,81,73,.07);}
+#mgrs-search-btn{
+  padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  color:#8b949e;transition:all .12s;
+}
+#mgrs-search-btn:hover{background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.4);color:#e6edf3;}
 /* 自訂事件類型下拉 */
 .csel-wrap{position:relative;margin-left:6px;}
 .csel-btn{
@@ -557,11 +573,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .napsg-tooltip{background:rgba(13,17,23,.85);border:1px solid rgba(255,255,255,.15);color:#e6edf3;font-size:10px;padding:2px 7px;border-radius:3px;white-space:nowrap;}
 .napsg-highlighted{animation:napsg-pulse .9s ease-in-out infinite alternate;transform-origin:center;display:block;}
 @keyframes napsg-pulse{from{filter:drop-shadow(0 0 4px #3fb950);transform:scale(1);}to{filter:drop-shadow(0 0 14px #3fb950);transform:scale(1.35);}}
-.leaflet-layer-control{font-family:var(--mono);font-size:10px;}
-/* 抑制 Leaflet layer toggle 圖示 404（我們用暗色主題，圖示不顯示也可接受） */
-.leaflet-retina .leaflet-control-layers-toggle{background-image:none!important;}
-.leaflet-control-layers-toggle{background-image:none!important;font-size:18px;line-height:36px;}
-.leaflet-control-layers-toggle::after{content:'⊞';}
+/* 底圖 layer control 已移除；Phase 3/5 加 operational overlays 後再恢復 */
 /* 座標顯示面板 */
 #map-coord-panel{
   position:absolute;top:8px;left:50%;transform:translateX(-50%);
@@ -854,19 +866,35 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     <div id="edit-coords"></div>
     <img id="map-img" src="" alt="地圖載入中">
     <div id="map-overlay"></div>
-    <div id="leaflet-map"><div id="map-coord-panel" onclick="_panToCoordTarget(event)"></div></div>
+    <div id="leaflet-map">
+      <div id="map-coord-panel" onclick="_panToCoordTarget(event)"></div>
+      <!-- 據點定位提示 banner（點地圖設定單位位置時顯示） -->
+      <div id="node-place-banner" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);
+        z-index:1001;background:rgba(210,144,0,.92);color:#fff;font-family:var(--mono);font-size:11px;
+        padding:5px 14px;border-radius:5px;white-space:nowrap;display:none;align-items:center;gap:10px;">
+        <span>📍 點擊地圖設定「<b id="node-place-label"></b>」駐守位置</span>
+        <span onclick="_cancelNodePlace()" style="cursor:pointer;opacity:.8;font-size:13px;" title="取消">✕</span>
+      </div>
+    </div>
     <div id="edit-bar">
       <div style="display:flex;gap:6px;align-items:center;margin:0 auto;">
         <!-- 回報單位（誰在回報，metadata only，不影響危害分類） -->
-        <select id="place-report-unit" title="回報單位"
-          style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);
-                 padding:3px 6px;border-radius:4px;font-size:10px;font-family:var(--mono);">
+        <!-- 回報單位狀態記憶（隱藏）：popup 的 _evPopupUnitChange 會同步回此值 -->
+        <select id="place-report-unit" style="display:none;">
           <option value="command">指揮部</option>
           <option value="forward">前進組</option>
           <option value="security">安全組</option>
           <option value="shelter">收容組</option>
           <option value="medical">醫療組</option>
         </select>
+        <!-- MGRS / WGS84 座標搜尋（站外限定） -->
+        <div id="mgrs-search-wrap">
+          <input id="mgrs-search-input" type="text"
+            placeholder="MGRS 或 lat, lng"
+            onkeydown="if(event.key==='Enter')_mgrsSearch()"
+            title="輸入 MGRS（如 51R TH 99717 46592）或 WGS84（如 24.82, 121.02），按 Enter 跳至位置並開啟事件 popup">
+          <button id="mgrs-search-btn" onclick="_mgrsSearch()" title="跳至座標">🔍</button>
+        </div>
         <!-- NAPSG 危害類型：Leaflet outdoor 改用長按 popup；此 selector 保留供站內地圖使用 -->
         <div class="csel-wrap" id="place-type-wrap" style="margin-left:0;display:none;">
           <div class="csel-btn" id="place-type-btn" onclick="toggleCsel()">
@@ -1449,27 +1477,64 @@ function admShowTab(tab) {
   if (tab === 'log') admLoadLog();
 }
 
+// 5 個固定單位定義（outdoor 永久節點）
+const _PERM_NODES = [
+  { id:'node_shelter',  label:'收容組', node_type:'shelter',  icon:'pin' },
+  { id:'node_medical',  label:'醫療組', node_type:'medical',  icon:'pin' },
+  { id:'node_command',  label:'指揮部', node_type:'command',  icon:'pin' },
+  { id:'node_forward',  label:'前進組', node_type:'forward',  icon:'pin' },
+  { id:'node_security', label:'安全組', node_type:'security', icon:'pin' },
+];
+
 function openMapConfigPanel() {
   const currentImage = _mapConfig?.maps?.indoor?.image || null;
   const currentLabel = currentImage
     ? `<span style="color:var(--yellow);font-family:var(--mono);">${currentImage}</span>`
     : `<span style="color:var(--text3);">（未設定）</span>`;
-  const bodyHtml = `
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div style="font-size:11px;color:var(--text2);">目前圖檔：${currentLabel}</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <label style="font-size:11px;color:var(--text3);">上傳新圖檔（JPG / PNG / SVG）</label>
-        <input type="file" id="adm-map-file" accept=".jpg,.jpeg,.png,.webp,.svg"
-          style="font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;">
-      </div>
-      <div id="adm-map-msg" style="font-size:11px;min-height:16px;"></div>
+
+  // ── 站外據點狀態列 ──
+  const outdoorZones = _mapConfig?.maps?.outdoor?.zones || [];
+  const nodeRows = _PERM_NODES.map(n => {
+    const existing = outdoorZones.find(z => z.id === n.id);
+    const posLabel = (existing?.lat != null)
+      ? `<span style="color:var(--green);font-family:var(--mono);font-size:9px;">${_latlngToMGRS(existing.lat, existing.lng, 5)}</span>`
+      : `<span style="color:var(--text3);font-size:10px;">未設定</span>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:11px;color:var(--text2);min-width:48px;">${n.label}</span>
+      <span style="flex:1;">${posLabel}</span>
+      <button onclick="closeModal();_startNodePlace('${n.id}')"
+        style="font-size:10px;padding:3px 10px;border-radius:4px;cursor:pointer;
+               border:1px solid var(--border);background:var(--surface2);color:var(--text2);">
+        ${existing?.lat != null ? '重新定位' : '定位'}</button>
     </div>`;
+  }).join('');
+
+  const bodyHtml = `
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.06em;margin-bottom:8px;">站內平面圖</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">目前圖檔：${currentLabel}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="font-size:11px;color:var(--text3);">上傳新圖檔（JPG / PNG / SVG）</label>
+          <input type="file" id="adm-map-file" accept=".jpg,.jpeg,.png,.webp,.svg"
+            style="font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;">
+        </div>
+        <div id="adm-map-msg" style="font-size:11px;min-height:16px;margin-top:6px;"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.06em;margin-bottom:6px;">站外據點設置</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">點「定位」後在站外地圖上點擊設定各單位駐守位置</div>
+        ${nodeRows}
+      </div>
+    </div>`;
+
   const footerHtml =
     (currentImage
       ? `<button onclick="admRemoveMapImage()" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;margin-right:auto;">移除圖檔</button>`
       : '') +
-    `<button class="adm-btn" onclick="closeModal()">取消</button>` +
+    `<button class="adm-btn" onclick="closeModal()">關閉</button>` +
     `<button class="login-btn" style="width:auto;padding:6px 18px;" onclick="admUploadMapImage()">上傳並套用</button>`;
+
   openModal('地圖設定', bodyHtml, footerHtml);
 }
 
@@ -2185,33 +2250,33 @@ const SVG_ICONS = {
 // ══════════════════════════════════════════════════════════════
 const NAPSG_EVENTS = {
   // ── 安全威脅 ──────────────────────────────────────────────────
-  explosive:    { label: '疑似爆裂物', group: 'security', icon: 'explosive', abbr: '爆', defaultAssigned: 'forward'  },
-  drone:        { label: '無人機威脅', group: 'security', icon: 'drone',     abbr: '機', defaultAssigned: 'security' },
-  unknown_person:{ label: '不明人士',  group: 'security', icon: 'eye',       abbr: '人', defaultAssigned: 'security' },
-  perimeter:    { label: '管制區異常', group: 'security', icon: 'shield',    abbr: '域', defaultAssigned: 'security' },
-  crowd:        { label: '秩序問題',   group: 'security', icon: 'shield',    abbr: '眾', defaultAssigned: 'security' },
-  violent:      { label: '暴力事件',   group: 'security', icon: 'shield',    abbr: '暴', defaultAssigned: 'security' },
+  explosive:    { label: '疑似爆裂物', group: 'security', icon: 'explosive', abbr: '爆', defaultAssigned: 'forward',  severity: 'critical' },
+  drone:        { label: '無人機威脅', group: 'security', icon: 'drone',     abbr: '機', defaultAssigned: 'security', severity: 'critical' },
+  violent:      { label: '暴力事件',   group: 'security', icon: 'shield',    abbr: '暴', defaultAssigned: 'security', severity: 'critical' },
+  unknown_person:{ label: '不明人士',  group: 'security', icon: 'eye',       abbr: '人', defaultAssigned: 'security', severity: 'warning'  },
+  perimeter:    { label: '管制區異常', group: 'security', icon: 'shield',    abbr: '域', defaultAssigned: 'security', severity: 'warning'  },
+  crowd:        { label: '秩序問題',   group: 'security', icon: 'shield',    abbr: '眾', defaultAssigned: 'security', severity: 'warning'  },
   // ── 搜救行動 ──────────────────────────────────────────────────
-  rescue:       { label: '受困救援',   group: 'rescue',   icon: 'run',       abbr: '救', defaultAssigned: 'forward'  },
-  qrf:          { label: 'QRF 出動',   group: 'rescue',   icon: 'run',       abbr: 'QR', defaultAssigned: 'forward'  },
+  rescue:       { label: '受困救援',   group: 'rescue',   icon: 'run',       abbr: '救', defaultAssigned: 'forward',  severity: 'warning'  },
+  qrf:          { label: 'QRF 出動',   group: 'rescue',   icon: 'run',       abbr: 'QR', defaultAssigned: 'forward',  severity: 'warning'  },
   // ── 醫療緊急 ──────────────────────────────────────────────────
-  mci:          { label: '大量傷亡',   group: 'medical',  icon: 'event',     abbr: 'MCI', defaultAssigned: 'medical' },
-  emergency:    { label: '緊急病症',   group: 'medical',  icon: 'event',     abbr: '急', defaultAssigned: 'medical'  },
-  infectious:   { label: '傳染疑慮',   group: 'medical',  icon: 'event',     abbr: '疫', defaultAssigned: 'medical'  },
+  mci:          { label: '大量傷亡',   group: 'medical',  icon: 'event',     abbr: 'MCI', defaultAssigned: 'medical', severity: 'critical' },
+  emergency:    { label: '緊急病症',   group: 'medical',  icon: 'event',     abbr: '急', defaultAssigned: 'medical',  severity: 'critical' },
+  infectious:   { label: '傳染疑慮',   group: 'medical',  icon: 'event',     abbr: '疫', defaultAssigned: 'medical',  severity: 'warning'  },
   // ── 收容照護 ──────────────────────────────────────────────────
-  capacity:     { label: '量能超載',   group: 'care',     icon: 'event',     abbr: '滿', defaultAssigned: 'shelter'  },
-  person_need:  { label: '人員狀況',   group: 'care',     icon: 'person',    abbr: '護', defaultAssigned: 'shelter'  },
-  isolation:    { label: '隔離事件',   group: 'care',     icon: 'shield',    abbr: '隔', defaultAssigned: 'shelter'  },
+  capacity:     { label: '量能超載',   group: 'care',     icon: 'event',     abbr: '滿', defaultAssigned: 'shelter',  severity: 'warning'  },
+  isolation:    { label: '隔離事件',   group: 'care',     icon: 'shield',    abbr: '隔', defaultAssigned: 'shelter',  severity: 'warning'  },
+  person_need:  { label: '人員狀況',   group: 'care',     icon: 'person',    abbr: '護', defaultAssigned: 'shelter',  severity: 'info'     },
   // ── 基礎設施 ──────────────────────────────────────────────────
-  facility:     { label: '設施異常',   group: 'infra',    icon: 'event',     abbr: '設', defaultAssigned: 'command'  },
-  equipment:    { label: '設備故障',   group: 'infra',    icon: 'event',     abbr: '器', defaultAssigned: 'command'  },
-  comm_fail:    { label: '通訊異常',   group: 'infra',    icon: 'event',     abbr: '訊', defaultAssigned: 'command'  },
+  comm_fail:    { label: '通訊異常',   group: 'infra',    icon: 'event',     abbr: '訊', defaultAssigned: 'command',  severity: 'warning'  },
+  facility:     { label: '設施異常',   group: 'infra',    icon: 'event',     abbr: '設', defaultAssigned: 'command',  severity: 'info'     },
+  equipment:    { label: '設備故障',   group: 'infra',    icon: 'event',     abbr: '器', defaultAssigned: 'command',  severity: 'info'     },
   // ── 行動管理 ──────────────────────────────────────────────────
-  evacuation:   { label: '撤離',       group: 'ops',      icon: 'run',       abbr: '疏', defaultAssigned: 'command'  },
-  resource:     { label: '資源調度',   group: 'ops',      icon: 'event',     abbr: '物', defaultAssigned: 'command'  },
-  situation:    { label: '現場變化',   group: 'ops',      icon: 'event',     abbr: '況', defaultAssigned: null       },
-  hazard:       { label: '危害回報',   group: 'ops',      icon: 'event',     abbr: '危', defaultAssigned: null       },
-  other:        { label: '其他',       group: 'ops',      icon: 'event',     abbr: '他', defaultAssigned: null       },
+  evacuation:   { label: '撤離',       group: 'ops',      icon: 'run',       abbr: '疏', defaultAssigned: 'command',  severity: 'warning'  },
+  resource:     { label: '資源調度',   group: 'ops',      icon: 'event',     abbr: '物', defaultAssigned: 'command',  severity: 'info'     },
+  situation:    { label: '現場變化',   group: 'ops',      icon: 'event',     abbr: '況', defaultAssigned: null,        severity: 'info'     },
+  hazard:       { label: '危害回報',   group: 'ops',      icon: 'event',     abbr: '危', defaultAssigned: null,        severity: 'info'     },
+  other:        { label: '其他',       group: 'ops',      icon: 'event',     abbr: '他', defaultAssigned: null,        severity: 'info'     },
 };
 
 const NAPSG_GROUPS = {
@@ -2263,8 +2328,10 @@ function switchMap(key) {
   el('map-img').style.display    = isLeaflet ? 'none' : '';
   el('map-overlay').style.display = isLeaflet ? 'none' : '';
   el('leaflet-map').classList.toggle('active', isLeaflet);
-  // edit-bar 兩種模式都顯示（站外的放置互動在 Phase 2 實作）
+  // edit-bar 兩種模式都顯示
   el('edit-bar').style.display = '';
+  // MGRS 搜尋欄：站外才顯示
+  el('mgrs-search-wrap').style.display = isLeaflet ? 'flex' : 'none';
   // 調整據點按鈕：站內才顯示；切到站外時退出調整模式
   const pinBtn = el('pin-edit-btn');
   if (isLeaflet) {
@@ -2355,11 +2422,172 @@ function _latlngToMGRS(lat, lng, precision) {
   return `${zoneNum}${latBand} ${colLetter}${rowLetter} ${ep} ${np}`;
 }
 
+// ── UTM → WGS84 逆投影（供 MGRS 解析使用）────────────────────
+function _utmToLatLng(zoneNum, E, N) {
+  const a = 6378137.0, f = 1/298.257223563;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a), ep2 = e2/(1-e2), k0 = 0.9996;
+  const e1 = (1 - Math.sqrt(1-e2)) / (1 + Math.sqrt(1-e2));
+  const x = E - 500000;
+  const M = N / k0;
+  const μ = M / (a*(1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256));
+  const φ1 = μ
+    + (3*e1/2   - 27*e1*e1*e1/32)    * Math.sin(2*μ)
+    + (21*e1*e1/16 - 55*e1*e1*e1*e1/32) * Math.sin(4*μ)
+    + (151*e1*e1*e1/96)               * Math.sin(6*μ)
+    + (1097*e1*e1*e1*e1/512)          * Math.sin(8*μ);
+  const sinφ1 = Math.sin(φ1), cosφ1 = Math.cos(φ1), tanφ1 = Math.tan(φ1);
+  const N1 = a / Math.sqrt(1 - e2*sinφ1*sinφ1);
+  const T1 = tanφ1*tanφ1, C1 = ep2*cosφ1*cosφ1;
+  const R1 = a*(1-e2) / Math.pow(1 - e2*sinφ1*sinφ1, 1.5);
+  const D = x / (N1*k0);
+  const latRad = φ1 - (N1*tanφ1/R1) * (
+    D*D/2
+    - (5 + 3*T1 + 10*C1 - 4*C1*C1 - 9*ep2)*D*D*D*D/24
+    + (61 + 90*T1 + 298*C1 + 45*T1*T1 - 252*ep2 - 3*C1*C1)*D*D*D*D*D*D/720
+  );
+  const lngRad = (D
+    - (1 + 2*T1 + C1)*D*D*D/6
+    + (5 - 2*C1 + 28*T1 - 3*C1*C1 + 8*ep2 + 24*T1*T1)*D*D*D*D*D/120
+  ) / cosφ1;
+  const λ0 = ((zoneNum-1)*6 - 180 + 3) * Math.PI / 180;
+  return { lat: latRad*180/Math.PI, lng: (λ0 + lngRad)*180/Math.PI };
+}
+
+// ── MGRS → WGS84（解析 "51R TH 99717 46592" 等格式）─────────
+function _mgrsToLatLng(mgrsStr) {
+  // 正規化：大寫、去多餘空白
+  const s = mgrsStr.trim().toUpperCase().replace(/\s+/g, '');
+  // 格式：ZoneNum(1~2) + LatBand(C-X,無IO) + ColLetter + RowLetter + 偶數位數(2~10)
+  const m = s.match(/^(\d{1,2})([C-HJ-NP-X])([A-HJ-NP-Z])([A-HJ-NP-V])(\d{2,10})$/);
+  if (!m) return null;
+  const zoneNum  = parseInt(m[1]);
+  const latBand  = m[2];
+  const colLtr   = m[3];
+  const rowLtr   = m[4];
+  const digits   = m[5];
+  if (digits.length % 2 !== 0) return null;
+
+  const half  = digits.length / 2;
+  const scale = Math.pow(10, 5 - half);
+  const eOff  = parseInt(digits.substring(0, half)) * scale;
+  const nOff  = parseInt(digits.substring(half))    * scale;
+
+  // 欄字母 → UTM easting 的 100km 區塊
+  const colSets = ['ABCDEFGH','JKLMNPQR','STUVWXYZ'];
+  const colSet  = colSets[(zoneNum-1) % 3];
+  const colIdx  = colSet.indexOf(colLtr);
+  if (colIdx < 0) return null;
+  const utmE = (colIdx + 1) * 100000 + eOff;
+
+  // 列字母 → northing 的 100km 區塊（需配合緯度帶消歧義）
+  const rowOdd  = 'ABCDEFGHJKLMNPQRSTUV';
+  const rowEven = 'FGHJKLMNPQRSTUVABCDE';
+  const rowSet  = (zoneNum % 2 === 1) ? rowOdd : rowEven;
+  const rowIdx  = rowSet.indexOf(rowLtr);
+  if (rowIdx < 0) return null;
+
+  // 用緯度帶中心點計算近似 northing，再對齊到最近的 100km 行
+  const latBands   = 'CDEFGHJKLMNPQRSTUVWX';
+  const bandIdx    = latBands.indexOf(latBand);
+  if (bandIdx < 0) return null;
+  const approxLat  = (bandIdx * 8 - 80) + 4;
+  const a = 6378137.0, f = 1/298.257223563;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a), k0 = 0.9996;
+  const φ = approxLat * Math.PI / 180;
+  const Mapprox = a*(
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256)*φ
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024)*Math.sin(2*φ)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024)*Math.sin(4*φ)
+    - (35*e2*e2*e2/3072)*Math.sin(6*φ));
+  let approxNn = k0 * Mapprox;
+  if (approxLat < 0) approxNn += 10000000;
+  let nBand = Math.floor(approxNn / 100000);
+  const approxRowIdx = nBand % 20;
+  let diff = (rowIdx - approxRowIdx + 20) % 20;
+  if (diff > 10) diff -= 20;
+  nBand += diff;
+  const utmN = nBand * 100000 + nOff;
+
+  return _utmToLatLng(zoneNum, utmE, utmN);
+}
+
+// ── WGS84 字串解析（"lat, lng" 或 "lat lng"）──────────────────
+function _parseWgs84(str) {
+  const m = str.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+// ── MGRS 搜尋入口 ─────────────────────────────────────────────
+/** 從目前地圖中心取 GZD 前綴（如 "51RTH"）供自動補全 */
+function _currentMgrsGzd() {
+  if (!_leafletMap) return null;
+  const c = _leafletMap.getCenter();
+  const full = _latlngToMGRS(c.lat, c.lng, 5);
+  // "51R TH 99717 46592" → "51RTH"
+  const m = full.match(/^(\d+[A-Z])\s+([A-Z]{2})/);
+  return m ? m[1] + m[2] : null;
+}
+
+/** 動態更新 MGRS 搜尋欄的 placeholder
+ *  顯示 "TH 00000 00000"（省略 zone designator，因為會自動補）
+ */
+function _updateMgrsPlaceholder() {
+  const input = el('mgrs-search-input');
+  if (!input) return;
+  const gzd = _currentMgrsGzd();  // e.g. "51RTH"
+  // 只顯示 100km 方格字母，讓使用者知道 zone 已自動判斷
+  input.placeholder = gzd ? `${gzd.slice(3)} 00000 00000` : 'MGRS 或 lat, lng';
+  input.title = gzd
+    ? `目前方格：${gzd.slice(0,3)} ${gzd.slice(3)}（自動補全）\n`
+      + `・只輸入數字 → 補 ${gzd}\n`
+      + `・輸入 2字母+數字（跨方格）→ 補 ${gzd.slice(0,3)}\n`
+      + `・完整 MGRS 或 lat, lng → 直接解析`
+    : 'MGRS 或 WGS84（lat, lng）';
+}
+
+function _mgrsSearch() {
+  const input = el('mgrs-search-input');
+  let val = input.value.trim().toUpperCase();
+  if (!val) return;
+  input.classList.remove('error');
+
+  // ── 三段式自動補前綴 ──────────────────────────────────────────
+  // 1. 只有數字（含空白）→ 補完整 GZD（zone+band+2字母，如 51RTH）
+  if (/^[\d\s]+$/.test(val)) {
+    const gzd = _currentMgrsGzd();
+    if (gzd) val = gzd + val.replace(/\s/g, '');
+  }
+  // 2. 2個字母＋數字（如 "SH 12345 67890"，跨 100km 方格）→ 只補 zone+band（如 51R）
+  else if (/^[A-Z]{2}[\d\s]+$/.test(val)) {
+    const gzd = _currentMgrsGzd();
+    if (gzd) val = gzd.slice(0, 3) + val.replace(/\s/g, '');
+  }
+  // 3. 其他（完整 MGRS 或 WGS84）→ 原樣解析
+
+  // MGRS 優先，失敗則嘗試 WGS84
+  const ll = _mgrsToLatLng(val) || _parseWgs84(val);
+  if (!ll) {
+    input.classList.add('error');
+    input.animate([{transform:'translateX(-4px)'},{transform:'translateX(4px)'},
+                   {transform:'translateX(-2px)'},{transform:'translateX(0)'}],
+                  {duration:200, easing:'ease-out'});
+    return;
+  }
+
+  _leafletMap.setView([ll.lat, ll.lng], Math.max(_leafletMap.getZoom(), 16));
+  _openEventPopup(ll.lat, ll.lng);
+  input.value = '';
+}
+
 // ── NAPSG 色彩系統 ──────────────────────────────────────────────
-// 節點色：各組別固定色
+// 節點色：永久據點統一深灰（中性背景資訊），顏色只留給事件菱形的嚴重度
 const _NODE_COLORS = {
-  shelter: '#f0883e', medical: '#e05555', forward: '#58a6ff',
-  security: '#bc8cff', command: '#d49000'
+  shelter: '#3a4149', medical: '#3a4149', forward: '#3a4149',
+  security: '#3a4149', command: '#3a4149'
 };
 // 事件嚴重度色：stop-light
 const _SEV_COLORS = { critical: '#e05555', warning: '#e3b341', info: '#3fb950' };
@@ -2417,34 +2645,18 @@ function _initLeafletMap() {
 
   const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
 
-  // ── Base layers ──
-  const rasterLayer     = L.tileLayer('/tiles/hsinchu/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    minZoom: 10, maxZoom: 19, maxNativeZoom: 16
-  });
-  const vectorLight     = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'light' });
-  const vectorDark      = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'dark' });
-  const vectorGrayscale = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' });
-  const vectorWhite     = protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'white' });
+  // ── 底圖：固定 Vector Grayscale（EOC 標準，NAPSG 符號對比最佳）──
+  // overlays（MGRS 格線、管制區等）待 Phase 3/5 實作後加入 L.control.layers 的 overlays 欄
+  protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' }).addTo(_leafletMap);
 
-  vectorGrayscale.addTo(_leafletMap);
-
-  L.control.layers(
-    {
-      'Vector Grayscale（離線）': vectorGrayscale,
-      'Vector Light（離線）':     vectorLight,
-      'Vector Dark（離線）':      vectorDark,
-      'Vector White（離線）':     vectorWhite,
-      'OSM Raster（離線）':       rasterLayer,
-    },
-    {},
-    { position: 'topright', collapsed: true }
-  ).addTo(_leafletMap);
-
-  // ── 單擊地圖：放置模式 → 放置 event marker ──
+  // ── 單擊地圖：據點定位模式 優先，其次事件放置模式 ──
   const _coordPanel = document.getElementById('map-coord-panel');
   _leafletMap.on('click', function(e) {
     const lat = e.latlng.lat, lng = e.latlng.lng;
+    if (_nodePlaceMode) {
+      _saveNodePosition(lat, lng);
+      return;
+    }
     if (_placeMode && _currentMap === 'outdoor') {
       _placeOnLeaflet(lat, lng);
     }
@@ -2473,7 +2685,7 @@ function _initLeafletMap() {
     const latlng = { lat: e.latlng.lat, lng: e.latlng.lng };
     _lpTimer = setTimeout(() => {
       _lpTimer = null;
-      if (!_lpMoved) _openEventPopup(latlng.lat, latlng.lng);
+      if (!_lpMoved && !_nodePlaceMode) _openEventPopup(latlng.lat, latlng.lng);
     }, 650);
   });
   _leafletMap.on('mousemove', function() {
@@ -2506,10 +2718,12 @@ function _initLeafletMap() {
       lng: Math.round(c.lng * 100000) / 100000,
       zoom: _leafletMap.getZoom()
     }));
+    _updateMgrsPlaceholder();  // 地圖移動後同步更新 placeholder
   });
 
-  // 初始化後渲染 marker
+  // 初始化後渲染 marker，並設定初始 placeholder
   _renderLeafletMarkers();
+  _updateMgrsPlaceholder();
 }
 
 // ── 渲染 outdoor Leaflet markers（NAPSG 符號）──────────────────
@@ -2555,7 +2769,7 @@ function _renderLeafletMarkers() {
       className: 'napsg-tooltip',
       direction: 'top',
       offset: [0, -16],
-      permanent: !isEvent,  // 永久節點常駐標籤；事件 hover 才顯示
+      permanent: false,  // 全部改 hover 顯示，地圖保持簡潔
     });
 
     // 單擊：開 modal
@@ -2680,8 +2894,7 @@ async function _placeOnLeaflet(lat, lng) {
     icon: _placeMode.icon,
   };
 
-  const _CRITICAL_TYPES = new Set(['drone', 'explosive']);
-  const severity = _CRITICAL_TYPES.has(_placeMode.type) ? 'critical' : 'warning';
+  const severity = NAPSG_EVENTS[_placeMode.type]?.severity || 'warning';
 
   try {
     const resp = await authFetch(API_BASE + '/api/events', {
@@ -3416,7 +3629,8 @@ function _toggleEvtGroup() {
 // ══════════════════════════════════════════════════════════════
 // 放置模式（事件快速放置到地圖）
 // ══════════════════════════════════════════════════════════════
-let _placeMode = null; // null 或 { reportedBy, type, label, icon, assignedUnit }
+let _placeMode = null;     // null 或 { reportedBy, type, label, icon, assignedUnit }
+let _nodePlaceMode = null; // null 或 { id, label, node_type, icon }（據點定位模式）
 let _placeTypeValue = '';
 
 // ── NAPSG 危害類型 csel 初始化（頁面載入後呼叫一次）────────────
@@ -3649,6 +3863,63 @@ async function _evPopupSubmit(typeKey) {
   await _placeOnLeaflet(lat, lng);
 }
 
+// ══════════════════════════════════════════════════════════════
+// 站外永久節點定位模式
+// ══════════════════════════════════════════════════════════════
+
+/** 開始為指定單位定位（從設定頁呼叫） */
+function _startNodePlace(nodeId) {
+  const def = _PERM_NODES.find(n => n.id === nodeId);
+  if (!def) return;
+  _nodePlaceMode = { ...def };
+
+  // 切換到站外地圖
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+
+  // 顯示提示 banner
+  const banner = el('node-place-banner');
+  el('node-place-label').textContent = def.label;
+  banner.style.display = 'flex';
+
+  // 游標改為十字
+  if (_leafletMap) _leafletMap.getContainer().style.setProperty('cursor','crosshair','important');
+}
+
+/** 取消據點定位模式 */
+function _cancelNodePlace() {
+  _nodePlaceMode = null;
+  el('node-place-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+}
+
+/** 儲存據點位置到 map_config，重繪 marker */
+async function _saveNodePosition(lat, lng) {
+  if (!_nodePlaceMode || !_mapConfig) return;
+  const { id, label, node_type, icon } = _nodePlaceMode;
+
+  // 找或建 outdoor zones 裡的永久節點
+  const zones = _mapConfig.maps['outdoor'].zones || [];
+  const existing = zones.find(z => z.id === id);
+  if (existing) {
+    existing.lat = Math.round(lat * 1000000) / 1000000;
+    existing.lng = Math.round(lng * 1000000) / 1000000;
+  } else {
+    zones.push({ id, label, sub: '', node_type, icon, lat: Math.round(lat*1e6)/1e6, lng: Math.round(lng*1e6)/1e6 });
+    _mapConfig.maps['outdoor'].zones = zones;
+  }
+
+  _cancelNodePlace();
+  await saveMapConfig();
+  _renderLeafletMarkers();
+
+  // 短暫顯示確認
+  const coordPanel = el('map-coord-panel');
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  coordPanel.style.display = 'block';
+  coordPanel.innerHTML = `<span style="color:#3fb950">✓ ${label}</span><span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
+  setTimeout(() => _refreshCoordPanel(), 3000);
+}
+
 // 地圖點擊：放置事件 or 取消選取
 el('map-panel').addEventListener('click', async function(e) {
   // 點到 marker、edit-bar、map-tabs 不處理
@@ -3673,9 +3944,8 @@ el('map-panel').addEventListener('click', async function(e) {
     icon: _placeMode.icon,
   };
 
-  // 無人機、疑似爆裂物 → critical；其餘 warning
-  const _CRITICAL_TYPES = new Set(['drone', 'explosive']);
-  const severity = _CRITICAL_TYPES.has(_placeMode.type) ? 'critical' : 'warning';
+  // severity 由 NAPSG_EVENTS[type].severity 決定，不再硬編碼
+  const severity = NAPSG_EVENTS[_placeMode.type]?.severity || 'warning';
   try {
     const resp = await authFetch(API_BASE + '/api/events', {
       method: 'POST',

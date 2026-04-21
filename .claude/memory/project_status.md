@@ -134,7 +134,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | Step B：站內平面圖動態載入（admin 上傳） | ✅ 完成 | `/api/map/upload-image`，session 權限驗證 |
 | Phase 1：Grayscale base map + MGRS 座標顯示 | ✅ 完成 | protomaps-leaflet + `_latlngToMGRS()` |
 | Phase 2：Event Point — zone + lat/lng、NAPSG 符號 | ✅ 完成 | 長按 popup 放置、NAPSG 22 類型、assigned_unit、座標面板持久顯示 |
-| Phase 2.5：MGRS 搜尋輸入框 | 🔲 待做 | 獨立搜尋欄（非座標面板雙用途）；輸入 MGRS 或 WGS84 → panTo + 開啟事件 popup；設計已定 |
+| Phase 2.5：MGRS 搜尋 + 固定節點放置 + severity 精細化 | ✅ 完成 | MGRS/WGS84 搜尋欄、三層自動補前綴；設定面板放置圓形/矩形永久節點（hover tooltip）；22 事件類型各自 severity（critical/warning/info）；底圖固定 Grayscale；節點統一深灰色 |
 | Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | 🔲 待做 | 繪製管制區、疏散範圍；後端儲存 |
 | Phase 4：NATO APP-6E 軍用符號 | 🔲 待做 | 友軍符號、Phase Line、SIDC |
 | Phase 5：MGRS 格線 overlay | 🔲 待做 | zoom 自動調整、格線標注 |
@@ -202,7 +202,7 @@ NATO MIP 要求的 `classification`（密級標記）亦尚未實作。
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.9.9`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.10.1`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.48`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`

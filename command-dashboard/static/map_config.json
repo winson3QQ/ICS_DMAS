@@ -30,136 +30,148 @@
       "label": "站外",
       "zones": [
         {
-          "id": "evt_1776679275243",
-          "label": "QRF 出動",
-          "sub": "",
-          "lat": 24.820225,
-          "lng": 121.018009,
-          "node_type": "rescue",
-          "icon": "run",
-          "event_id": "972146b0-540e-4a25-bf17-1de89ef3a864",
-          "event_code": "EV-0420-001"
-        },
-        {
-          "id": "evt_1776679300202",
-          "label": "QRF 出動",
-          "sub": "",
-          "lat": 24.816279,
-          "lng": 121.01523,
-          "node_type": "rescue",
-          "icon": "run",
-          "event_id": "8843e226-5e55-456b-a069-e9b657bf9431",
-          "event_code": "EV-0420-002"
-        },
-        {
-          "id": "evt_1776679338439",
-          "label": "不明人士",
-          "sub": "",
-          "lat": 24.819418,
-          "lng": 121.018782,
-          "node_type": "security",
-          "icon": "eye",
-          "event_id": "25bb0c19-a167-4e84-aabd-111ef6a8f9a5",
-          "event_code": "EV-0420-003"
-        },
-        {
-          "id": "evt_1776679394851",
-          "label": "設施異常",
-          "sub": "",
-          "lat": 24.819261,
-          "lng": 121.016968,
-          "node_type": "infra",
-          "icon": "event",
-          "event_id": "9b458894-a443-49d1-a093-7372270117ed",
-          "event_code": "EV-0420-004"
-        },
-        {
-          "id": "evt_1776679412088",
-          "label": "無人機威脅",
-          "sub": "",
-          "lat": 24.82006,
-          "lng": 121.018717,
-          "node_type": "security",
-          "icon": "drone",
-          "event_id": "e881e2b9-1e67-4805-8d9f-8d6d6fbb9596",
-          "event_code": "EV-0420-005"
-        },
-        {
-          "id": "evt_1776679417776",
-          "label": "不明人士",
-          "sub": "",
-          "lat": 24.821044,
-          "lng": 121.016228,
-          "node_type": "security",
-          "icon": "eye",
-          "event_id": "81c89e73-8454-4415-8558-fb34eecfa479",
-          "event_code": "EV-0420-006"
-        },
-        {
-          "id": "evt_1776679446132",
-          "label": "資源調度",
-          "sub": "",
-          "lat": 24.819064,
-          "lng": 121.021314,
-          "node_type": "ops",
-          "icon": "event",
-          "event_id": "98f049f4-5dff-4fff-83ae-eeeb22bb9091",
-          "event_code": "EV-0420-007"
-        },
-        {
           "id": "evt_1776679457225",
           "label": "受困救援",
           "sub": "",
-          "lat": 24.821795,
-          "lng": 121.022687,
+          "lat": 24.820216,
+          "lng": 121.019028,
           "node_type": "rescue",
           "icon": "run",
           "event_id": "205c8aa3-ce0c-4b8b-b0fd-fa5495aae449",
           "event_code": "EV-0420-008"
         },
         {
-          "id": "evt_1776679516161",
-          "label": "量能超載",
+          "id": "evt_1776729514818",
+          "label": "疑似爆裂物",
           "sub": "",
-          "lat": 24.820022,
-          "lng": 121.02185,
-          "node_type": "care",
-          "icon": "event",
-          "event_id": "d1450c8d-d534-45b9-887d-8746eca13e47",
-          "event_code": "EV-0420-009"
+          "lat": 24.820262,
+          "lng": 121.018416,
+          "node_type": "security",
+          "icon": "explosive",
+          "event_id": "849e71fa-0124-48b4-8bda-7c7f5f823fe4",
+          "event_code": "EV-0420-013"
         },
         {
-          "id": "evt_1776679618266",
+          "id": "evt_1776729740194",
+          "label": "無人機威脅",
+          "sub": "",
+          "lat": 24.819826,
+          "lng": 121.017344,
+          "node_type": "security",
+          "icon": "drone",
+          "event_id": "7d74f575-eda6-4084-8f00-891b99e64a9d",
+          "event_code": "EV-0421-001"
+        },
+        {
+          "id": "node_shelter",
+          "label": "收容組",
+          "sub": "",
+          "node_type": "shelter",
+          "icon": "pin",
+          "lat": 24.821512,
+          "lng": 121.020198
+        },
+        {
+          "id": "node_medical",
+          "label": "醫療組",
+          "sub": "",
+          "node_type": "medical",
+          "icon": "pin",
+          "lat": 24.821064,
+          "lng": 121.019779
+        },
+        {
+          "id": "node_command",
+          "label": "指揮部",
+          "sub": "",
+          "node_type": "command",
+          "icon": "pin",
+          "lat": 24.820684,
+          "lng": 121.019919
+        },
+        {
+          "id": "node_forward",
+          "label": "前進組",
+          "sub": "",
+          "node_type": "forward",
+          "icon": "pin",
+          "lat": 24.820429,
+          "lng": 121.019404
+        },
+        {
+          "id": "node_security",
+          "label": "安全組",
+          "sub": "",
+          "node_type": "security",
+          "icon": "pin",
+          "lat": 24.820742,
+          "lng": 121.020595
+        },
+        {
+          "id": "evt_1776731154332",
+          "label": "暴力事件",
+          "sub": "",
+          "lat": 24.820479,
+          "lng": 121.017365,
+          "node_type": "security",
+          "icon": "shield",
+          "event_id": "f4057b4c-1d9f-4f7f-b613-78528e1bc1e7",
+          "event_code": "EV-0421-002"
+        },
+        {
+          "id": "evt_1776731162052",
+          "label": "無人機威脅",
+          "sub": "",
+          "lat": 24.820431,
+          "lng": 121.017526,
+          "node_type": "security",
+          "icon": "drone",
+          "event_id": "e6cd7279-d2e7-4f16-923c-42388db4ad46",
+          "event_code": "EV-0421-003"
+        },
+        {
+          "id": "evt_1776731200797",
+          "label": "暴力事件",
+          "sub": "",
+          "lat": 24.820897,
+          "lng": 121.017387,
+          "node_type": "security",
+          "icon": "shield",
+          "event_id": "c796bdc7-13d2-4aa1-846f-7bd2e67b9c75",
+          "event_code": "EV-0421-004"
+        },
+        {
+          "id": "evt_1776731220266",
+          "label": "人員狀況",
+          "sub": "",
+          "lat": 24.821541,
+          "lng": 121.017215,
+          "node_type": "care",
+          "icon": "person",
+          "event_id": "a710f412-1172-4a6a-9dd1-2df929c7e5b5",
+          "event_code": "EV-0421-005"
+        },
+        {
+          "id": "evt_1776731229806",
           "label": "設施異常",
           "sub": "",
-          "lat": 24.817719,
-          "lng": 121.020713,
+          "lat": 24.821843,
+          "lng": 121.017516,
           "node_type": "infra",
           "icon": "event",
-          "event_id": "abc1b36b-5a60-4dab-aebb-c92d4ee890ab",
-          "event_code": "EV-0420-010"
+          "event_id": "d201bcfa-6f0f-44dd-bdcf-800dd8e220a8",
+          "event_code": "EV-0421-006"
         },
         {
-          "id": "evt_1776679672071",
+          "id": "evt_1776731235432",
           "label": "大量傷亡",
           "sub": "",
-          "lat": 24.820931,
-          "lng": 121.020927,
+          "lat": 24.822135,
+          "lng": 121.018063,
           "node_type": "medical",
           "icon": "event",
-          "event_id": "2c839289-2f94-4732-89da-6984746baf34",
-          "event_code": "EV-0420-011"
-        },
-        {
-          "id": "evt_1776679718871",
-          "label": "現場變化",
-          "sub": "",
-          "lat": 24.818601,
-          "lng": 121.019275,
-          "node_type": "ops",
-          "icon": "event",
-          "event_id": "3b4738e7-425e-4a1e-9e28-64c1588bf7de",
-          "event_code": "EV-0420-012"
+          "event_id": "17c4a501-7239-40f6-8c9c-db0d8e4f26e4",
+          "event_code": "EV-0421-007"
         }
       ],
       "flows": []
