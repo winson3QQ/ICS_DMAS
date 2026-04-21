@@ -4201,53 +4201,9 @@ function renderMapOverlay() {
     overlay.appendChild(marker);
   });
 
-  // 流向箭頭
-  renderFlows();
-
   // 事件 marker 已統一由 zone marker 處理（v0.4.3+），不再另外渲染
 }
 
-// ══════════════════════════════════════════════════════════════
-// 地圖流向箭頭
-// ══════════════════════════════════════════════════════════════
-function renderFlows() {
-  // 移除舊箭頭
-  document.querySelectorAll('.flow-arrow').forEach(e => e.remove());
-  if (!_mapConfig) return;
-  const m = _mapConfig.maps[_currentMap];
-  if (!m || !m.flows || !m.flows.length) return;
-  const overlay = el('map-overlay');
-  const calc = _data?.calc || {};
-
-  m.flows.forEach(f => {
-    const fromZ = m.zones.find(z => z.id === f.from);
-    const toZ = m.zones.find(z => z.id === f.to);
-    if (!fromZ || !toZ) return;
-
-    // 計算流量（用於粗度）
-    let volume = 1;
-    if (f.from && calc.forward?.units) {
-      const totalR = (calc.forward.units || []).reduce((s,u) => s + ((u.casualties||{}).red||0), 0);
-      volume = Math.max(1, totalR);
-    }
-
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.classList.add('flow-arrow');
-    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;';
-    svg.innerHTML = `
-      <defs>
-        <marker id="arrowhead-${f.from}" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="rgba(240,136,62,.8)"/>
-        </marker>
-      </defs>
-      <line x1="${fromZ.x_pct}%" y1="${fromZ.y_pct}%" x2="${toZ.x_pct}%" y2="${toZ.y_pct}%"
-        stroke="rgba(240,136,62,.6)" stroke-width="${Math.min(volume + 1, 5)}"
-        stroke-dasharray="8 4" marker-end="url(#arrowhead-${f.from})"
-        class="flow-line"/>
-    `;
-    overlay.appendChild(svg);
-  });
-}
 
 // ══════════════════════════════════════════════════════════════
 // 事件詳情 Modal + 狀態更新

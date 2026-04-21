@@ -155,7 +155,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | 重設 deadline 後端 API | 🔲 待做 | 前端 `_resetDeadline()` UI 已實作（只追加 note）；後端 `PATCH /api/events/{id}/deadline` 未建立，DB `response_deadline` 欄位未更新 |
 | 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
 | 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
-| 地圖流向箭頭 | ⚠️ 部分完成 | `renderFlows()` 已實作（讀 `m.flows`，按 `calc.forward.units` red 傷亡數計算動態粗度）；無 `data_source` 欄位對應，直接用 calc 數值，功能可用 |
+| 地圖流向箭頭 | ✅ 完成 | 舊 SVG overlay `renderFlows()` 已移除；現由 Leaflet `_renderFlows()` 統一處理 |
 
 ---
 
