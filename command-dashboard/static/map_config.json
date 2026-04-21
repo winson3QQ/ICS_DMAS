@@ -30,46 +30,13 @@
       "label": "站外",
       "zones": [
         {
-          "id": "evt_1776679457225",
-          "label": "受困救援",
-          "sub": "",
-          "lat": 24.820216,
-          "lng": 121.019028,
-          "node_type": "rescue",
-          "icon": "run",
-          "event_id": "205c8aa3-ce0c-4b8b-b0fd-fa5495aae449",
-          "event_code": "EV-0420-008"
-        },
-        {
-          "id": "evt_1776729514818",
-          "label": "疑似爆裂物",
-          "sub": "",
-          "lat": 24.820262,
-          "lng": 121.018416,
-          "node_type": "security",
-          "icon": "explosive",
-          "event_id": "849e71fa-0124-48b4-8bda-7c7f5f823fe4",
-          "event_code": "EV-0420-013"
-        },
-        {
-          "id": "evt_1776729740194",
-          "label": "無人機威脅",
-          "sub": "",
-          "lat": 24.819826,
-          "lng": 121.017344,
-          "node_type": "security",
-          "icon": "drone",
-          "event_id": "7d74f575-eda6-4084-8f00-891b99e64a9d",
-          "event_code": "EV-0421-001"
-        },
-        {
           "id": "node_shelter",
           "label": "收容組",
           "sub": "",
           "node_type": "shelter",
           "icon": "pin",
-          "lat": 24.821512,
-          "lng": 121.020198
+          "lat": 24.821333,
+          "lng": 121.019479
         },
         {
           "id": "node_medical",
@@ -108,125 +75,26 @@
           "lng": 121.020595
         },
         {
-          "id": "evt_1776731154332",
-          "label": "暴力事件",
-          "sub": "",
-          "lat": 24.820479,
-          "lng": 121.017365,
-          "node_type": "security",
-          "icon": "shield",
-          "event_id": "f4057b4c-1d9f-4f7f-b613-78528e1bc1e7",
-          "event_code": "EV-0421-002"
-        },
-        {
-          "id": "evt_1776731162052",
-          "label": "無人機威脅",
-          "sub": "",
-          "lat": 24.820431,
-          "lng": 121.017526,
-          "node_type": "security",
-          "icon": "drone",
-          "event_id": "e6cd7279-d2e7-4f16-923c-42388db4ad46",
-          "event_code": "EV-0421-003"
-        },
-        {
-          "id": "evt_1776731200797",
-          "label": "暴力事件",
-          "sub": "",
-          "lat": 24.820897,
-          "lng": 121.017387,
-          "node_type": "security",
-          "icon": "shield",
-          "event_id": "c796bdc7-13d2-4aa1-846f-7bd2e67b9c75",
-          "event_code": "EV-0421-004"
-        },
-        {
-          "id": "evt_1776731220266",
-          "label": "人員狀況",
-          "sub": "",
-          "lat": 24.821541,
-          "lng": 121.017215,
-          "node_type": "care",
-          "icon": "person",
-          "event_id": "a710f412-1172-4a6a-9dd1-2df929c7e5b5",
-          "event_code": "EV-0421-005"
-        },
-        {
-          "id": "evt_1776731229806",
+          "id": "evt_1776737206737",
           "label": "設施異常",
           "sub": "",
-          "lat": 24.821843,
-          "lng": 121.017516,
-          "node_type": "infra",
-          "icon": "event",
-          "event_id": "d201bcfa-6f0f-44dd-bdcf-800dd8e220a8",
-          "event_code": "EV-0421-006"
-        },
-        {
-          "id": "evt_1776731235432",
-          "label": "大量傷亡",
-          "sub": "",
-          "lat": 24.822135,
-          "lng": 121.018063,
-          "node_type": "medical",
-          "icon": "event",
-          "event_id": "17c4a501-7239-40f6-8c9c-db0d8e4f26e4",
-          "event_code": "EV-0421-007"
-        },
-        {
-          "id": "evt_1776731337100",
-          "label": "暴力事件",
-          "sub": "",
-          "lat": 24.819426,
-          "lng": 121.018428,
-          "node_type": "security",
-          "icon": "shield",
-          "event_id": "2c306955-1eb5-42a0-8105-be5fe558d330",
-          "event_code": "EV-0421-008"
-        },
-        {
-          "id": "evt_1776731341509",
-          "label": "受困救援",
-          "sub": "",
-          "lat": 24.819309,
-          "lng": 121.019286,
-          "node_type": "rescue",
-          "icon": "run",
-          "event_id": "a5b1296d-731e-4370-a224-27a899de075e",
-          "event_code": "EV-0421-009"
-        },
-        {
-          "id": "evt_1776731443569",
-          "label": "暴力事件",
-          "sub": "",
-          "lat": 24.821166,
-          "lng": 121.017339,
-          "node_type": "security",
-          "icon": "shield",
-          "event_id": "9fe4391f-58ae-4a89-aa6a-bf9b9193d468",
-          "event_code": "EV-0421-010"
-        },
-        {
-          "id": "evt_1776731717179",
-          "label": "設施異常",
-          "sub": "",
-          "lat": 24.821328,
-          "lng": 121.018374,
-          "node_type": "infra",
-          "icon": "event",
-          "event_id": "de9e09fa-2294-45fd-85e6-cc5d770a73ac",
-          "event_code": "EV-0421-011"
-        },
-        {
-          "id": "evt_1776731722671",
-          "label": "設備故障",
-          "sub": "",
-          "lat": 24.820977,
+          "lat": 24.820059,
           "lng": 121.018385,
           "node_type": "infra",
           "icon": "event",
-          "event_id": "5775226e-eccf-4006-83ea-1104de7300e0",
-          "event_code": "EV-0421-012"
+          "event_id": "eb00f3bf-dfe8-4168-bb65-9981b4c5624e",
+          "event_code": "EV-0421-022"
+        },
+        {
+          "id": "evt_1776737623915",
+          "label": "暴力事件",
+          "sub": "",
+          "lat": 24.820839,
+          "lng": 121.017108,
+          "node_type": "security",
+          "icon": "shield",
+          "event_id": "c0fdcfc6-b488-487e-bc20-15247671b35e",
+          "event_code": "EV-0421-023"
         }
       ],
       "flows": []

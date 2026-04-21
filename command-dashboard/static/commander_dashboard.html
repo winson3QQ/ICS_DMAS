@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.10.2';</script>
+<script>const CMD_VERSION='v0.10.3';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -882,6 +882,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
         padding:5px 14px;border-radius:5px;white-space:nowrap;display:none;align-items:center;gap:10px;">
         <span>📍 點擊地圖設定「<b id="node-place-label"></b>」駐守位置</span>
         <span onclick="_cancelNodePlace()" style="cursor:pointer;opacity:.8;font-size:13px;" title="取消">✕</span>
+      </div>
+      <!-- 事件地圖標記提示 banner（從表單送出後，詢問是否標記位置） -->
+      <div id="event-pin-banner" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);
+        z-index:1001;background:rgba(13,17,23,.95);border:1px solid rgba(255,255,255,.18);color:#e6edf3;font-family:var(--mono);font-size:11px;
+        padding:6px 14px;border-radius:6px;white-space:nowrap;align-items:center;gap:10px;">
+        <span>📋 <b id="event-pin-code"></b> 已建立　點擊地圖標記位置</span>
+        <span onclick="_cancelEventPin()" style="cursor:pointer;color:#8b949e;font-size:13px;" title="略過">略過 ✕</span>
       </div>
     </div>
     <div id="edit-bar">
@@ -2594,11 +2601,11 @@ function _mgrsSearch() {
 // ── NAPSG 色彩系統 ──────────────────────────────────────────────
 // 節點色：永久據點統一深灰（中性背景資訊），顏色只留給事件菱形的嚴重度
 const _NODE_COLORS = {
-  shelter: '#3a4149', medical: '#3a4149', forward: '#3a4149',
-  security: '#3a4149', command: '#3a4149'
+  shelter: '#6e7681', medical: '#6e7681', forward: '#6e7681',
+  security: '#6e7681', command: '#6e7681'
 };
-// 事件嚴重度色：stop-light
-const _SEV_COLORS = { critical: '#e05555', warning: '#e3b341', info: '#3fb950' };
+// 事件嚴重度色：stop-light（info 用深灰，確保在淺灰底圖上可見）
+const _SEV_COLORS = { critical: '#e05555', warning: '#e3b341', info: '#3a4149' };
 // 節點縮寫
 const _NODE_ABBR = { shelter:'收', medical:'醫', forward:'前', security:'安', command:'指' };
 
@@ -2624,13 +2631,13 @@ function _napsgIcon(nodeType, severity, isEvent) {
   const abbr = _NODE_ABBR[nodeType] || '?';
   const c = _NODE_COLORS[nodeType] || '#8b949e';
   if (nodeType === 'forward' || nodeType === 'security') {
-    // 矩形（NAPSG Unit / Mobile Resource）
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="22" viewBox="0 0 32 22">
-      <rect x="1" y="1" width="30" height="20" rx="2" fill="${c}" stroke="#fff" stroke-width="2"/>
-      <text x="16" y="15" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
+    // 正方形（NAPSG Unit / Mobile Resource）
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+      <rect x="1" y="1" width="26" height="26" rx="2" fill="${c}" stroke="#fff" stroke-width="2"/>
+      <text x="14" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="#fff"
             font-family="sans-serif">${abbr}</text>
     </svg>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [32,22], iconAnchor: [16,11] });
+    return L.divIcon({ html: svg, className: '', iconSize: [28,28], iconAnchor: [14,14] });
   }
   // 圓形（NAPSG Operations Node — shelter / medical / command）
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
@@ -2657,12 +2664,16 @@ function _initLeafletMap() {
   // overlays（MGRS 格線、管制區等）待 Phase 3/5 實作後加入 L.control.layers 的 overlays 欄
   protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' }).addTo(_leafletMap);
 
-  // ── 單擊地圖：據點定位模式 優先，其次事件放置模式 ──
+  // ── 單擊地圖：據點定位 > 事件標記（表單） > 事件放置（長按） ──
   const _coordPanel = document.getElementById('map-coord-panel');
   _leafletMap.on('click', function(e) {
     const lat = e.latlng.lat, lng = e.latlng.lng;
     if (_nodePlaceMode) {
       _saveNodePosition(lat, lng);
+      return;
+    }
+    if (_eventPinMode && _currentMap === 'outdoor') {
+      _pinEventOnMap(lat, lng);
       return;
     }
     if (_placeMode && _currentMap === 'outdoor') {
@@ -3657,6 +3668,7 @@ function _toggleEvtGroup() {
 // ══════════════════════════════════════════════════════════════
 let _placeMode = null;     // null 或 { reportedBy, type, label, icon, assignedUnit }
 let _nodePlaceMode = null; // null 或 { id, label, node_type, icon }（據點定位模式）
+let _eventPinMode = null;  // null 或 { eventId, eventCode, label, type, severity }（表單送出後標記位置）
 let _placeTypeValue = '';
 
 // ── NAPSG 危害類型 csel 初始化（頁面載入後呼叫一次）────────────
@@ -3917,6 +3929,71 @@ function _cancelNodePlace() {
   _nodePlaceMode = null;
   el('node-place-banner').style.display = 'none';
   if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+}
+
+// ── 事件標記模式（從表單送出後，讓使用者在地圖點一下標記位置）────────
+/** 進入標記模式：顯示 banner，切換到戶外地圖，crosshair cursor */
+function _startEventPin(eventId, eventCode, label, type, severity) {
+  _eventPinMode = { eventId, eventCode, label, type, severity };
+  el('event-pin-code').textContent = eventCode || eventId;
+  el('event-pin-banner').style.display = 'flex';
+  // 隱藏座標面板，避免與 banner 重疊
+  el('map-coord-panel').style.display = 'none';
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+}
+
+/** 取消標記模式 */
+function _cancelEventPin() {
+  _eventPinMode = null;
+  el('event-pin-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+}
+
+/** 地圖點擊：在選定位置建立 zone，PATCH 事件的 location_desc */
+async function _pinEventOnMap(lat, lng) {
+  if (!_eventPinMode || !_mapConfig) return;
+  const { eventId, eventCode, label, type, severity } = _eventPinMode;
+  _cancelEventPin();
+
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  const zoneId = 'evt_' + Date.now();
+  const napsgDef = NAPSG_EVENTS[type] || {};
+  const zone = {
+    id: zoneId,
+    label,
+    sub: '',
+    lat: Math.round(lat * 1000000) / 1000000,
+    lng: Math.round(lng * 1000000) / 1000000,
+    node_type: napsgDef.group || 'ops',
+    icon: napsgDef.icon || 'event',
+    event_id: eventId,
+    event_code: eventCode,
+  };
+
+  // 寫入 map_config
+  _mapConfig.maps['outdoor'].zones.push(zone);
+  saveMapConfig();
+  _renderLeafletMarkers();
+
+  // PATCH 事件補 location_desc + location_zone_id
+  try {
+    await authFetch(API_BASE + '/api/events/' + eventId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ location_desc: mgrs, location_zone_id: zoneId }),
+    });
+  } catch(e) { console.error('[PIN-EVENT]', e); }
+
+  // 座標面板顯示確認
+  const coordPanel = document.getElementById('map-coord-panel');
+  coordPanel.style.display = 'block';
+  coordPanel.innerHTML =
+    `<span style="color:#3fb950">✓ 標記</span> <b>${eventCode||eventId}</b>` +
+    `<span style="color:#8b949e;margin-left:8px">MGRS</span> ${mgrs}`;
+  setTimeout(() => _refreshCoordPanel(), 3000);
+
+  await poll();
 }
 
 /** 儲存據點位置到 map_config，重繪 marker */
@@ -4490,6 +4567,7 @@ async function submitEvent() {
       body: JSON.stringify(body)
     });
     if (resp.ok) {
+      const created = await resp.json();
       closeEventForm();
       await poll(); // 立即刷新
       // modal 若仍開著（從節點事件頁送出），重繪事件頁
@@ -4497,6 +4575,14 @@ async function submitEvent() {
         _zoneModalTab = 'events';
         _renderZoneModal();
       }
+      // 詢問是否在地圖標記位置（進入 _eventPinMode）
+      _startEventPin(
+        created.id,
+        created.event_code,
+        body.description || NAPSG_EVENTS[body.event_type]?.label || body.event_type,
+        body.event_type,
+        body.severity,
+      );
     } else {
       alert('送出失敗：' + resp.status);
     }
@@ -5324,13 +5410,18 @@ function renderZoneC(d) {
       const asgKey = ev.assigned_unit;
       const asgName = asgKey && asgKey !== ev.reported_by_unit ? (unitNames[asgKey] || asgKey) : '';
       const overdueAnim = _isOverdue ? 'animation:pulse 1s infinite;' : '';
+      // 標題：統一用 NAPSG 類型標籤；使用者描述若不同則小字附注
+      const typeLabel = NAPSG_EVENTS[ev.event_type]?.label || ev.event_type || ev.description;
+      const extraDesc = ev.description && ev.description !== typeLabel ? ev.description : '';
       let h = '';
       h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor};" onclick="_openEventByCode('${ev.id}')" onmousedown="_evtCardDown('${ev.id}')" onmouseup="_evtCardUp()" onmouseleave="_evtCardUp()" ontouchstart="_evtCardDown('${ev.id}')" ontouchend="_evtCardUp()">`;
       h += `<div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">`;
-      h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${ev.description||ev.event_type}</span>`;
+      h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${typeLabel}</span>`;
       h += `<span style="font-size:9px;font-weight:700;color:${tagColor};flex-shrink:0;${overdueAnim}">${cd}</span>`;
       h += `</div>`;
-      // 第二行：回報單位 → assigned unit（中間自然展開） → EV 編號
+      // 使用者備注（若有）
+      if (extraDesc) h += `<div style="font-size:9px;color:var(--text3);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;font-style:italic;">${extraDesc}</div>`;
+      // 末行：回報單位 → assigned unit → EV 編號
       h += `<div style="display:flex;align-items:center;margin-top:2px;gap:0;">`;
       h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">${uName}</span>`;
       h += `<span style="font-size:9px;color:var(--text3);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;opacity:.7;">${asgName ? '→ ' + asgName : ''}</span>`;
@@ -5366,12 +5457,15 @@ function renderZoneC(d) {
         const uName  = unitNames[ev.reported_by_unit] || '';
         const asgKey = ev.assigned_unit;
         const asgName = asgKey && asgKey !== ev.reported_by_unit ? (unitNames[asgKey] || asgKey) : '';
+        const typeLabel = NAPSG_EVENTS[ev.event_type]?.label || ev.event_type || ev.description;
+        const extraDesc = ev.description && ev.description !== typeLabel ? ev.description : '';
         let h = '';
         h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor};opacity:.45;" onclick="_openEventByCode('${ev.id}')">`;
         h += `<div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">`;
-        h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${ev.description||ev.event_type}</span>`;
+        h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${typeLabel}</span>`;
         h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">已結案</span>`;
         h += `</div>`;
+        if (extraDesc) h += `<div style="font-size:9px;color:var(--text3);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;font-style:italic;">${extraDesc}</div>`;
         h += `<div style="display:flex;align-items:center;margin-top:2px;gap:0;">`;
         h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">${uName}</span>`;
         h += `<span style="font-size:9px;color:var(--text3);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;opacity:.7;">${asgName ? '→ ' + asgName : ''}</span>`;
