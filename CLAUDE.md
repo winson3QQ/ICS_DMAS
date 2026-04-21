@@ -86,18 +86,29 @@
 
 ## Memory 同步（跨機器）
 
-Memory 檔案存放在 repo 的 `.claude/memory/` 目錄，**每次在新機器 clone 後**需執行以下指令，將 memory 複製到 Claude Code 實際讀取的位置：
+Memory 檔案存放在 repo 的 `.claude/memory/` 目錄，**每次在新機器 clone 後**需執行以下指令，將 memory 複製到 Claude Code 實際讀取的位置。
+
+路徑因機器不同，使用動態指令自動偵測：
 
 ```bash
-# Mac（主開發機）
-cp ~/研究計畫/ICS_DMAS/.claude/memory/* ~/.claude/projects/Users-yello------ICS-DMAS/memory/
-
-# Windows (Git Bash)
-cp "c:/Users/yello/研究計畫/ICS_DMAS/.claude/memory/"* "C:/Users/yello/.claude/projects/c--Users-yello------ICS-DMAS/memory/"
+# Mac / Linux（在 repo 根目錄執行）
+REPO=$(git rev-parse --show-toplevel)
+PROJECT_DIR=$(echo "$REPO" | sed 's|^/||; s|[^a-zA-Z0-9]|-|g')
+mkdir -p ~/.claude/projects/$PROJECT_DIR/memory
+cp "$REPO/.claude/memory/"* ~/.claude/projects/$PROJECT_DIR/memory/
 ```
 
-> **路徑編碼規則**：Claude Code 將絕對路徑的每個非英數字元（`/`、`\`、`:`、中文、`_`）全部換成 `-`，並去掉開頭的 `-`。
-> 第一次使用前可用 `ls ~/.claude/projects/ | grep ICS` 確認目錄名稱是否一致。
+```powershell
+# Windows（PowerShell，在 repo 根目錄執行）
+$repo = git rev-parse --show-toplevel
+$encoded = ($repo -replace '^/', '' -replace '[^a-zA-Z0-9]', '-')
+$dest = "$env:USERPROFILE\.claude\projects\$encoded\memory"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Copy-Item "$repo\.claude\memory\*" $dest
+```
+
+> **路徑編碼規則**：Claude Code 將絕對路徑的每個非英數字元（`/`、`\`、`:`、空格、`_` 等）全部換成 `-`，並去掉開頭的 `-`。
+> 執行前可用 `ls ~/.claude/projects/ | grep ICS`（Mac）確認目錄名稱。
 
 若在該機器新增了 memory，記得也要 commit `.claude/memory/` 回 repo，讓其他機器能同步。
 
