@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.10.1';</script>
+<script>const CMD_VERSION='v0.10.2';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -68,7 +68,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   border-right:1px solid var(--border);
 }
 .side-panel.right{border-right:none;border-left:1px solid var(--border);transition:flex-basis .25s;}
-.side-panel.right.expanded{flex-basis:40%;}
+.side-panel.right.expanded{flex-basis:30%;}
 .side-panel.collapsed{display:none !important;}
 
 /* 中：地圖 */
@@ -301,7 +301,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #modal-footer:empty{display:none;}
 
 /* ═══ 事件表單 OVERLAY ═══ */
-#event-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+#event-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:220;align-items:center;justify-content:center;}
 #event-overlay.show{display:flex;}
 #event-modal{background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(480px,94vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;color:var(--text);}
 #event-modal input, #event-modal select, #event-modal textarea {
@@ -313,7 +313,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #event-modal textarea {resize:vertical;}
 
 /* ═══ 裁示 OVERLAY ═══ */
-#decision-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+#decision-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:220;align-items:center;justify-content:center;}
 #decision-overlay.show{display:flex;}
 #decision-modal{background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(560px,94vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;color:var(--text);}
 
@@ -604,11 +604,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .ev-popup-group-btn:hover{background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.4);}
 .ev-popup-types{display:flex;flex-direction:column;gap:3px;}
 .ev-popup-type-btn{
-  padding:6px 10px;border-radius:4px;border:1px solid transparent;
+  padding:6px 10px;border-radius:4px;
+  border:1px solid transparent;border-left-width:3px;
   background:rgba(255,255,255,.04);color:#e6edf3;font-size:11px;font-family:var(--mono);
-  cursor:pointer;text-align:left;transition:background .1s;
+  cursor:pointer;text-align:left;transition:background .1s,border-color .1s;
 }
-.ev-popup-type-btn:hover{background:rgba(88,166,255,.18);border-color:rgba(88,166,255,.35);}
+.ev-popup-type-btn:hover{background:rgba(88,166,255,.12);}
+/* severity 左色條 */
+.ev-popup-type-btn.sev-critical{ border-left-color:#f85149; }
+.ev-popup-type-btn.sev-critical:hover{ background:rgba(248,81,73,.12); }
+.ev-popup-type-btn.sev-warning { border-left-color:#e3b341; }
+.ev-popup-type-btn.sev-warning:hover { background:rgba(227,179,65,.10); }
+.ev-popup-type-btn.sev-info    { border-left-color:#6e7681; }
+.ev-popup-type-btn.sev-info:hover    { background:rgba(110,118,129,.12); }
 .ev-popup-back{display:inline-block;margin-bottom:7px;font-size:10px;color:#58a6ff;cursor:pointer;padding:2px 0;}
 .ev-popup-back:hover{text-decoration:underline;}
 .ev-popup-reporter{
@@ -1009,7 +1017,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       </div>
       <div style="margin-bottom:10px;">
         <label>危害類型（NAPSG）</label>
-        <select id="ev-type"></select>
+        <select id="ev-type" onchange="_syncEvSeverity()"></select>
       </div>
       <div style="margin-bottom:10px;">
         <label>嚴重度</label>
@@ -3376,13 +3384,31 @@ async function _autoSaveAndAction(eventId, action) {
   } catch(e) { alert('更新失敗：' + e.message); }
 }
 
-// 指派事件處理單位
-async function _setAssignedUnit(eventId, unit) {
+// 指派事件處理單位（變更時自動寫一筆協調紀錄）
+async function _setAssignedUnit(eventId, newUnit) {
+  const unitLabels = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
+  // 取得變更前的舊值
+  const ev = (_data?.events || []).find(e => e.id === eventId);
+  const oldUnit = ev?.assigned_unit || null;
+  // 新舊相同則不動作
+  if ((oldUnit || '') === (newUnit || '')) return;
   try {
+    // 1. 更新 assigned_unit
     await authFetch(API_BASE + '/api/events/' + eventId, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ assigned_unit: unit || null }),
+      body: JSON.stringify({ assigned_unit: newUnit || null }),
+    });
+    // 2. 自動寫協調紀錄
+    const from = oldUnit ? (unitLabels[oldUnit] || oldUnit) : '—';
+    const to   = newUnit ? (unitLabels[newUnit] || newUnit) : '—';
+    await authFetch(API_BASE + '/api/events/' + eventId + '/notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        text: `指派變更：${from} → ${to}`,
+        operator: _currentOperator(),
+      }),
     });
     await poll();
     const zone = _findZoneByEventId(eventId);
@@ -3786,7 +3812,8 @@ function _evPopupBuildTypes(groupKey, mgrs) {
   Object.entries(NAPSG_EVENTS)
     .filter(([, v]) => v.group === groupKey)
     .forEach(([k, v]) => {
-      const btn = L.DomUtil.create('button', 'ev-popup-type-btn', list);
+      const sev = v.severity || 'info';
+      const btn = L.DomUtil.create('button', `ev-popup-type-btn sev-${sev}`, list);
       btn.textContent = v.label;
       L.DomEvent.on(btn, 'click', function(e) {
         L.DomEvent.stopPropagation(e);
@@ -4118,12 +4145,18 @@ function _renderZoneModal() {
   el('modal-title').innerHTML = `${iconHtml} ${zone.label} <span style="font-size:10px;color:${freshColor};margin-left:6px;">${freshLabel}</span>`;
   el('modal-body').innerHTML = tabsHtml + body;
   el('overlay').className = 'show';
-  // Wave 4：自動載入 Pi push 資料
+  // Wave 4：自動載入 Pi push 資料（數據頁）
   const autoEl = el('modal-body').querySelector('.l3-autoload');
   if (autoEl) {
     const unit = autoEl.dataset.unit;
     autoEl.id = 'l3-container';
     setTimeout(() => loadL3Records(unit), 50);
+  }
+  // 事件頁：shelter / medical PWA incidents 非同步載入
+  const pwaLoader = el('modal-body').querySelector('.pwa-incidents-loader');
+  if (pwaLoader) {
+    const unit = pwaLoader.dataset.unit;
+    setTimeout(() => _loadPwaIncidents(unit), 80);
   }
 }
 
@@ -4148,30 +4181,97 @@ function _zoneDataTab(zone) {
 function _zoneEventsTab(zone) {
   const unit = zone.node_type || '';
   const allEvents = _data?.events || [];
-  const filtered = unit ? allEvents.filter(e => e.reported_by_unit === unit) : allEvents;
-  const open = filtered.filter(e => e.status !== 'resolved' && e.status !== 'closed');
-  const closed = filtered.filter(e => e.status === 'resolved' || e.status === 'closed');
 
+  // 本組回報（自己發現的）+ 本組負責處理（別組回報但 assigned 給本組）
+  // 去重：同一事件可能兩者都符合
+  const reported = unit ? allEvents.filter(e => e.reported_by_unit === unit) : allEvents;
+  const assigned = unit ? allEvents.filter(e => e.assigned_unit === unit && e.reported_by_unit !== unit) : [];
+
+  const isOpen  = e => e.status !== 'resolved' && e.status !== 'closed';
+  const isClosed = e => !isOpen(e);
+
+  // 若節點有地圖座標，計算 MGRS 傳入表單
+  const _zoneMgrs = (zone.lat != null && zone.lng != null)
+    ? _latlngToMGRS(zone.lat, zone.lng, 5) : '';
   let html = `<div style="margin-bottom:8px;display:flex;gap:6px;">`;
-  html += `<button onclick="openEventForm('${unit}','${zone.label}','${zone.id}')" style="padding:4px 12px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">📝 新增事件</button>`;
+  html += `<button onclick="openEventForm('${unit}',{lat:${zone.lat||'null'},lng:${zone.lng||'null'}},'${zone.id}')" style="padding:4px 12px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">📝 新增事件</button>`;
   html += `</div>`;
 
-  if (filtered.length === 0) {
-    html += '<div style="color:var(--text3);font-size:11px;">無事件記錄</div>';
-    return html;
+  // ── 本組負責處理（assigned，別組回報）── 優先顯示
+  const assignedOpen   = assigned.filter(isOpen);
+  const assignedClosed = assigned.filter(isClosed);
+  if (assigned.length > 0) {
+    html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin-bottom:4px;">本組處理中</div>`;
+    assignedOpen.forEach(ev => { html += _eventCardHTML(ev, false); });
+    assignedClosed.forEach(ev => { html += _eventCardHTML(ev, true); });
   }
 
-  // 未結案事件（可操作）
-  if (open.length > 0) {
-    html += `<div style="font-size:10px;color:var(--text3);margin-bottom:4px;">🔴 開放中 (${open.length})</div>`;
-    open.forEach(ev => { html += _eventCardHTML(ev, false); });
+  // ── 本組回報（ICS）──
+  const reportedOpen   = reported.filter(isOpen);
+  const reportedClosed = reported.filter(isClosed);
+  if (reported.length > 0) {
+    const topMargin = assigned.length > 0 ? '10px' : '0';
+    html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin:${topMargin} 0 4px;">本組回報</div>`;
+    reportedOpen.forEach(ev => { html += _eventCardHTML(ev, false); });
+    reportedClosed.forEach(ev => { html += _eventCardHTML(ev, true); });
   }
-  // 已結案（摺疊）
-  if (closed.length > 0) {
-    html += `<div style="font-size:10px;color:var(--text3);margin:8px 0 4px;">✅ 已結案 (${closed.length})</div>`;
-    closed.forEach(ev => { html += _eventCardHTML(ev, true); });
+
+  if (assigned.length === 0 && reported.length === 0) {
+    html += '<div style="color:var(--text3);font-size:11px;margin-bottom:8px;">無 ICS 事件記錄</div>';
   }
+
+  // ── PWA 組內事件（shelter / medical）── 非同步載入
+  if (unit === 'shelter' || unit === 'medical') {
+    const topMargin = (assigned.length + reported.length) > 0 ? '10px' : '0';
+    html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin:${topMargin} 0 4px;">PWA 組內事件</div>`;
+    html += `<div id="pwa-incidents-container"><span style="color:var(--text3);font-size:10px;">載入中...</span></div>`;
+    html += `<div class="pwa-incidents-loader" data-unit="${unit}" style="display:none;"></div>`;
+  }
+
   return html;
+}
+
+/** 非同步載入 PWA incidents，填入 #pwa-incidents-container */
+async function _loadPwaIncidents(unitId) {
+  const container = document.getElementById('pwa-incidents-container');
+  if (!container) return;
+  try {
+    const resp = await authFetch(API_BASE + `/api/pi-data/${unitId}/list`);
+    if (!resp.ok) { container.innerHTML = '<span style="color:var(--text3);font-size:10px;">無法取得資料</span>'; return; }
+    const data = await resp.json();
+    if (data.offline) {
+      container.innerHTML = '<span style="color:var(--yellow);font-size:10px;">⚠ Pi 節點離線</span>';
+      return;
+    }
+    const incLabels = {
+      security_threat:'安全威脅', infectious_risk:'傳染疑慮', resource_shortage:'物資短缺',
+      capacity_overload:'量能超載', medication_mgmt:'藥品管理', language_assist:'語言協助',
+      noise_disturbance:'災民喧嘩', other:'其他',
+    };
+    const incidents = (data.grouped?.incidents || []).map(r => r.record || {});
+    if (incidents.length === 0) {
+      container.innerHTML = '<span style="color:var(--text3);font-size:10px;">無組內事件</span>';
+      return;
+    }
+    const sevColor = s => s === '高' ? 'var(--red)' : s === '中' ? 'var(--yellow)' : 'var(--text3)';
+    const stColor  = s => (s === '已結案' || s === 'closed') ? 'var(--green)' : 'var(--yellow)';
+    let html = '';
+    incidents.forEach(inc => {
+      const label  = incLabels[inc.type] || inc.type || '事件';
+      const sev    = inc.severity || '';
+      const st     = inc.status   || '';
+      const desc   = inc.description ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">${inc.description.slice(0,60)}</div>` : '';
+      const dimmed = (st === '已結案' || st === 'closed') ? 'opacity:.5;' : '';
+      html += `<div style="padding:6px 10px;margin-bottom:4px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor(sev)};${dimmed}">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
+      html += `<span style="font-size:10px;font-weight:600;">${label}</span>`;
+      html += `<span style="font-size:9px;color:${stColor(st)};font-weight:600;">${st}</span>`;
+      html += `</div>${desc}</div>`;
+    });
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<span style="color:var(--text3);font-size:10px;">載入失敗</span>';
+  }
 }
 
 function _eventCardHTML(ev, dimmed) {
@@ -4318,13 +4418,28 @@ function _renderDecisionList(decs) {
 
 function openEventForm(prefilledUnit, prefilledLocation, zoneId) {
   if (prefilledUnit) el('ev-unit').value = prefilledUnit;
-  if (prefilledLocation) el('ev-location').value = prefilledLocation;
+  // 位置：優先使用 MGRS（若傳入 lat/lng 物件），否則用文字描述（非單位名稱）
+  if (prefilledLocation && typeof prefilledLocation === 'object' && prefilledLocation.lat != null) {
+    el('ev-location').value = _latlngToMGRS(prefilledLocation.lat, prefilledLocation.lng, 5);
+  } else if (prefilledLocation && typeof prefilledLocation === 'string') {
+    // 避免把單位名稱誤填為位置（openEventForm 從節點 modal 呼叫時舊行為）
+    el('ev-location').value = '';
+  }
   if (zoneId) el('ev-zone-id').value = zoneId;
   // 操作員預填登入帳號
   if (!el('ev-operator').value) el('ev-operator').value = _currentOperator();
-  // 填入 NAPSG 危害類型下拉
+  // 填入 NAPSG 危害類型下拉，並同步嚴重度
   _updateEvTypeFromCategories();
+  _syncEvSeverity();
   el('event-overlay').className = 'show';
+}
+
+/** 危害類型切換時，自動同步嚴重度 radio */
+function _syncEvSeverity() {
+  const typeKey = el('ev-type').value;
+  const sev = NAPSG_EVENTS[typeKey]?.severity || 'warning';
+  const radio = document.querySelector(`input[name="ev-sev"][value="${sev}"]`);
+  if (radio) radio.checked = true;
 }
 
 function _updateEvTypeFromCategories() {
@@ -4376,7 +4491,12 @@ async function submitEvent() {
     });
     if (resp.ok) {
       closeEventForm();
-      poll(); // 立即刷新
+      await poll(); // 立即刷新
+      // modal 若仍開著（從節點事件頁送出），重繪事件頁
+      if (_zoneModalZone && el('overlay').className === 'show') {
+        _zoneModalTab = 'events';
+        _renderZoneModal();
+      }
     } else {
       alert('送出失敗：' + resp.status);
     }
@@ -5198,18 +5318,23 @@ function renderZoneC(d) {
           if ((dl - now) < (dl - cr) * 0.5) tagColor = '#e67e22';
         }
       }
-      const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
-      const uName = unitNames[ev.reported_by_unit] || '';
+      // 左色條：severity（紅/黃/灰）
+      const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
+      const uName  = unitNames[ev.reported_by_unit] || '';
+      const asgKey = ev.assigned_unit;
+      const asgName = asgKey && asgKey !== ev.reported_by_unit ? (unitNames[asgKey] || asgKey) : '';
       const overdueAnim = _isOverdue ? 'animation:pulse 1s infinite;' : '';
       let h = '';
-      h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor};" onclick="_openEventByCode('${ev.id}')" onmousedown="_evtCardDown('${ev.id}')" onmouseup="_evtCardUp()" onmouseleave="_evtCardUp()" ontouchstart="_evtCardDown('${ev.id}')" ontouchend="_evtCardUp()">`;
-      h += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-      h += `<span style="font-size:10px;font-weight:600;">${ev.description||ev.event_type}</span>`;
-      h += `<span style="font-size:9px;font-weight:700;color:${tagColor};${overdueAnim}">${cd}</span>`;
+      h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor};" onclick="_openEventByCode('${ev.id}')" onmousedown="_evtCardDown('${ev.id}')" onmouseup="_evtCardUp()" onmouseleave="_evtCardUp()" ontouchstart="_evtCardDown('${ev.id}')" ontouchend="_evtCardUp()">`;
+      h += `<div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">`;
+      h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${ev.description||ev.event_type}</span>`;
+      h += `<span style="font-size:9px;font-weight:700;color:${tagColor};flex-shrink:0;${overdueAnim}">${cd}</span>`;
       h += `</div>`;
-      h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1px;">`;
-      h += `<span style="font-size:9px;color:var(--text3);">${uName}</span>`;
-      h += `<span style="font-size:8px;color:var(--text3);">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
+      // 第二行：回報單位 → assigned unit（中間自然展開） → EV 編號
+      h += `<div style="display:flex;align-items:center;margin-top:2px;gap:0;">`;
+      h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">${uName}</span>`;
+      h += `<span style="font-size:9px;color:var(--text3);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;opacity:.7;">${asgName ? '→ ' + asgName : ''}</span>`;
+      h += `<span style="font-size:8px;color:var(--text3);flex-shrink:0;">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
       h += `</div>`;
       h += `</div>`;
       return h;
@@ -5226,9 +5351,8 @@ function renderZoneC(d) {
       });
       unitOrder.forEach(u => {
         if (!groups[u] || groups[u].length === 0) return;
-        const uColor = unitColors[u] || 'var(--text3)';
         const uName = unitNames[u] || u;
-        evtHtml += `<div style="font-size:9px;color:${uColor};padding:6px 0 2px;font-weight:700;border-bottom:1px solid ${uColor}33;">── ${uName} ──</div>`;
+        evtHtml += `<div style="font-size:9px;color:var(--text3);padding:6px 0 2px;font-weight:600;border-bottom:1px solid var(--border);">── ${uName} ──</div>`;
         groups[u].forEach(ev => { evtHtml += _evtCardHtml(ev); });
       });
     } else {
@@ -5237,17 +5361,21 @@ function renderZoneC(d) {
     // 已結案
     if (filteredResolved.length > 0) {
       const _resolvedCard = (ev) => {
-        const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
-        const uName = unitNames[ev.reported_by_unit] || '';
+        // 左色條：severity（淡化版）
+        const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
+        const uName  = unitNames[ev.reported_by_unit] || '';
+        const asgKey = ev.assigned_unit;
+        const asgName = asgKey && asgKey !== ev.reported_by_unit ? (unitNames[asgKey] || asgKey) : '';
         let h = '';
-        h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor}55;opacity:.55;" onclick="_openEventByCode('${ev.id}')">`;
-        h += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-        h += `<span style="font-size:10px;font-weight:600;">${ev.description||ev.event_type}</span>`;
-        h += `<span style="font-size:9px;color:var(--text3);">已結案</span>`;
+        h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor};opacity:.45;" onclick="_openEventByCode('${ev.id}')">`;
+        h += `<div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">`;
+        h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${ev.description||ev.event_type}</span>`;
+        h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">已結案</span>`;
         h += `</div>`;
-        h += `<div style="display:flex;justify-content:space-between;margin-top:1px;">`;
-        h += `<span style="font-size:9px;color:var(--text3);">${uName}</span>`;
-        h += `<span style="font-size:8px;color:var(--text3);">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
+        h += `<div style="display:flex;align-items:center;margin-top:2px;gap:0;">`;
+        h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">${uName}</span>`;
+        h += `<span style="font-size:9px;color:var(--text3);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;opacity:.7;">${asgName ? '→ ' + asgName : ''}</span>`;
+        h += `<span style="font-size:8px;color:var(--text3);flex-shrink:0;">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
         h += `</div>`;
         h += `</div>`;
         return h;
@@ -5264,9 +5392,8 @@ function renderZoneC(d) {
         });
         unitOrder.forEach(u => {
           if (!rGroups[u] || rGroups[u].length === 0) return;
-          const uColor = unitColors[u] || 'var(--text3)';
           const uName = unitNames[u] || u;
-          evtHtml += `<div style="font-size:9px;color:${uColor};padding:4px 0 2px;font-weight:700;border-bottom:1px solid ${uColor}33;opacity:.6;">── ${uName} ──</div>`;
+          evtHtml += `<div style="font-size:9px;color:var(--text3);padding:4px 0 2px;font-weight:600;border-bottom:1px solid var(--border);opacity:.6;">── ${uName} ──</div>`;
           rGroups[u].forEach(ev => { evtHtml += _resolvedCard(ev); });
         });
       } else {
