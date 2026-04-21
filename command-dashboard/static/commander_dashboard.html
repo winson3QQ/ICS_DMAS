@@ -75,8 +75,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #map-panel{
   flex:1;position:relative;background:#111;overflow:hidden;
 }
-/* HUD 右側：tabs + tools（在 #map-hud 內，margin-left:auto 推至右側）*/
-#map-tabs{display:flex;gap:0;margin-left:auto;}
+/* 工具列浮島（右側）*/
+#map-toolbar{right:8px;display:flex;align-items:center;gap:2px;padding:3px 5px;}
+#map-tabs{display:flex;gap:0;}
 .map-tab{
   padding:3px 11px;font-size:10px;font-weight:600;cursor:pointer;
   background:transparent;color:rgba(255,255,255,.45);border-radius:4px;
@@ -142,7 +143,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #route-draw-banner button.ok{background:var(--green);color:#fff;border-color:var(--green);}
 /* 圖層面板（Layer Panel）*/
 #layer-panel{
-  position:absolute;top:42px;right:8px;z-index:1010;
+  position:absolute;top:50px;right:8px;z-index:1010;
   background:rgba(22,27,34,.96);border:1px solid var(--border);
   border-radius:8px;padding:6px 0;min-width:148px;
   font-family:var(--mono);
@@ -603,25 +604,23 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 @keyframes napsg-pulse{from{filter:drop-shadow(0 0 4px #3fb950);transform:scale(1);}to{filter:drop-shadow(0 0 14px #3fb950);transform:scale(1.35);}}
 /* 底圖 layer control 已移除；Phase 3/5 加 operational overlays 後再恢復 */
 /* 座標顯示面板 */
-/* 地圖頂部 HUD 全寬列 */
-#map-hud{
-  position:absolute;top:0;left:0;right:0;z-index:10;
-  display:flex;align-items:center;padding:0 10px;height:40px;gap:6px;
-  background:rgba(13,17,23,.68);
-  border-bottom:1px solid rgba(255,255,255,.08);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-  pointer-events:none;  /* 讓地圖點擊穿透空白區域 */
+/* 浮島共用樣式（座標 + 工具列一致）*/
+.map-island{
+  position:absolute;top:8px;z-index:10;
+  background:rgba(13,17,23,.82);border:1px solid rgba(255,255,255,.1);
+  border-radius:6px;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  font-family:var(--mono);font-size:11px;
 }
-#map-hud > *{pointer-events:auto;}
 #map-coord-panel{
-  flex:1;min-width:0;
-  color:#e6edf3;font-family:var(--mono);font-size:11px;
-  letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  display:none;  /* JS 切換 display:block */
-  transition:opacity .15s;
+  left:50%;transform:translateX(-50%);
+  color:#e6edf3;padding:5px 14px;
+  white-space:nowrap;letter-spacing:.03em;
+  pointer-events:auto;display:none;
+  transition:border-color .15s;
 }
 #map-coord-panel.clickable{cursor:pointer;color:#58a6ff;}
-#map-coord-panel.clickable:hover{opacity:.75;}
+#map-coord-panel.clickable:hover{border-color:rgba(88,166,255,.4);}
 /* 長按事件 popup ─────────────────────────────── */
 .ev-popup .leaflet-popup-content-wrapper{
   background:#161b22;border:1px solid rgba(255,255,255,.18);
@@ -903,9 +902,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
   <!-- 中：互動地圖 -->
   <div id="map-panel">
-    <!-- 地圖 HUD 全寬列：座標（左）＋ tabs + tools（右）-->
-    <div id="map-hud">
-      <div id="map-coord-panel" onclick="_panToCoordTarget(event)"></div>
+    <!-- 右側浮島：tab 切換 + 地圖工具 -->
+    <div id="map-toolbar" class="map-island">
       <div id="map-tabs">
         <div class="map-tab active" data-map="indoor" onclick="switchMap('indoor')">站內</div>
         <div class="map-tab" data-map="outdoor" onclick="switchMap('outdoor')">站外</div>
@@ -917,15 +915,17 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
     <img id="map-img" src="" alt="地圖載入中">
     <div id="map-overlay"></div>
     <div id="leaflet-map">
+      <!-- 中央浮島：座標顯示 -->
+      <div id="map-coord-panel" class="map-island" onclick="_panToCoordTarget(event)"></div>
       <!-- 據點定位提示 banner（點地圖設定單位位置時顯示） -->
-      <div id="node-place-banner" style="display:none;position:absolute;top:50px;left:50%;transform:translateX(-50%);
+      <div id="node-place-banner" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);
         z-index:1001;background:rgba(210,144,0,.92);color:#fff;font-family:var(--mono);font-size:11px;
         padding:5px 14px;border-radius:5px;white-space:nowrap;display:none;align-items:center;gap:10px;">
         <span>📍 點擊地圖設定「<b id="node-place-label"></b>」駐守位置</span>
         <span onclick="_cancelNodePlace()" style="cursor:pointer;opacity:.8;font-size:13px;" title="取消">✕</span>
       </div>
       <!-- 事件地圖標記提示 banner（從表單送出後，詢問是否標記位置） -->
-      <div id="event-pin-banner" style="display:none;position:absolute;top:50px;left:50%;transform:translateX(-50%);
+      <div id="event-pin-banner" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);
         z-index:1001;background:rgba(13,17,23,.95);border:1px solid rgba(255,255,255,.18);color:#e6edf3;font-family:var(--mono);font-size:11px;
         padding:6px 14px;border-radius:6px;white-space:nowrap;align-items:center;gap:10px;">
         <span>📋 <b id="event-pin-code"></b> 已建立　點擊地圖標記位置</span>
