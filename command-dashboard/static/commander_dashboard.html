@@ -3117,7 +3117,6 @@ function _openFlowForm() {
     return;
   }
   // 節點 + 基礎設施合併，用 "zone:id" / "infra:id" 前綴區分
-  const infras = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
   const SEL_STYLE = 'width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;';
   const endpointOpts =
     (zones.length  ? `<optgroup label="── ICS 節點">` + zones.map(z =>
