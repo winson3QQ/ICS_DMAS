@@ -73,28 +73,6 @@
           "icon": "pin",
           "lat": 24.820742,
           "lng": 121.020595
-        },
-        {
-          "id": "evt_1776737206737",
-          "label": "設施異常",
-          "sub": "",
-          "lat": 24.820059,
-          "lng": 121.018385,
-          "node_type": "infra",
-          "icon": "event",
-          "event_id": "eb00f3bf-dfe8-4168-bb65-9981b4c5624e",
-          "event_code": "EV-0421-022"
-        },
-        {
-          "id": "evt_1776737623915",
-          "label": "暴力事件",
-          "sub": "",
-          "lat": 24.820839,
-          "lng": 121.017108,
-          "node_type": "security",
-          "icon": "shield",
-          "event_id": "c0fdcfc6-b488-487e-bc20-15247671b35e",
-          "event_code": "EV-0421-023"
         }
       ],
       "flows": []

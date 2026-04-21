@@ -459,9 +459,7 @@ def patch_event_deadline(event_id: str, body: DeadlinePatch):
         base = datetime.now(timezone.utc)
     new_deadline = (base + timedelta(minutes=body.delta_minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
     db.patch_event(event_id, {"response_deadline": new_deadline})
-    direction = "延長" if body.delta_minutes > 0 else "提前"
-    note_text = f"期限{direction} {abs(body.delta_minutes)} 分鐘（新期限：{new_deadline[:16].replace('T', ' ')}）"
-    db.add_event_note(event_id, note_text, body.operator)
+    # note 由前端寫入（前端可轉本地時間格式，避免 UTC 顯示不一致）
     return {"ok": True, "new_deadline": new_deadline}
 
 

@@ -3234,6 +3234,16 @@ async function updateEventStatus(eventId, status) {
 // 事件處置 Modal（從地圖 marker 雙擊開啟）
 // ══════════════════════════════════════════════════════════════
 
+// UTC ISO → 本地時間字串（timeOnly=true 只回 HH:MM）
+function _fmtLocal(iso, timeOnly) {
+  if (!iso) return '';
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  const pad = n => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (timeOnly) return time;
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${time}`;
+}
+
 function _countdownStr(deadline) {
   if (!deadline) return '';
   const ts = deadline.endsWith('Z') ? deadline : deadline + 'Z';
@@ -3300,7 +3310,7 @@ function showEventProcessModal(zone) {
     html += `<option value="${u}" ${ev.assigned_unit===u?'selected':''}>${unitLabels[u]}</option>`;
   });
   html += `</select></span><br>`;
-  html += `發生：${(ev.occurred_at||'').slice(0,16).replace('T',' ')}　期限：${(ev.response_deadline||'').slice(0,16).replace('T',' ')}`;
+  html += `發生：${_fmtLocal(ev.occurred_at)}　期限：${_fmtLocal(ev.response_deadline)}`;
   html += `</div>`;
 
   // 處置紀錄
@@ -3309,7 +3319,7 @@ function showEventProcessModal(zone) {
   if (notes.length > 0) {
     notes.forEach(n => {
       html += `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
-      html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
+      html += `<span style="color:var(--text3);">${_fmtLocal(n.time, true)}</span>`;
       html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
@@ -3427,47 +3437,127 @@ async function _setAssignedUnit(eventId, newUnit) {
   } catch(e) { console.error('[SET-ASSIGNED]', e); }
 }
 
-// 重設事件 deadline 選單（正數延長、負數提前）
-function _resetDeadlineMenu(eventId) {
-  const shrink = [
-    {label: '−30 分', delta: -30, color: 'var(--red)'},
-    {label: '−10 分', delta: -10, color: 'var(--red)'},
-  ];
-  const extend = [
-    {label: '+10 分', delta: 10,  color: 'var(--yellow)'},
-    {label: '+30 分', delta: 30,  color: 'var(--green)'},
-    {label: '+60 分', delta: 60,  color: 'var(--green)'},
-  ];
+// ── 調整期限 dialog 狀態 ────────────────────────────
+let _dlState = { sign: 1, minutes: 30, eventId: null, baseDeadline: null };
 
-  const btnStyle = (c) =>
-    `flex:1;padding:10px 6px;background:${c}22;color:${c};border:1px solid ${c}44;` +
-    `border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;` +
-    `font-family:var(--mono);transition:background .15s;`;
+function _resetDeadlineMenu(eventId) {
+  const ev = (_data?.events || []).find(e => e.id === eventId);
+  const base = ev?.response_deadline || new Date().toISOString();
+  _dlState = { sign: 1, minutes: 30, eventId, baseDeadline: base };
+
+  // 調整期限 dialog 的顯示格式（MM/DD HH:MM）
+  const fmtDlg = (iso) => {
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getMonth()+1)}/${pad(d.getDate())}  ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const nowLocal  = fmtDlg(new Date().toISOString());
+  const baseLocal = fmtDlg(base);
+
+  const segBase = `padding:7px 18px;font-size:15px;font-weight:700;cursor:pointer;border:none;transition:background .15s,color .15s;`;
+  const cellStyle = `flex:1;text-align:center;padding:10px 12px;background:var(--bg3);border-radius:8px;`;
+  const labelStyle = `font-size:10px;color:var(--text3);letter-spacing:.06em;margin-bottom:5px;`;
+  const valStyle   = `font-size:16px;font-weight:700;font-family:var(--mono);color:var(--text1);`;
 
   let html = '';
-  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">提前（縮短）</div>';
-  html += '<div style="display:flex;gap:6px;margin-bottom:12px;">';
-  shrink.forEach(c => {
-    html += `<button onclick="_resetDeadline('${eventId}',${c.delta})"
-      style="${btnStyle(c.color)}"
-      onmouseenter="this.style.background='${c.color}44'"
-      onmouseleave="this.style.background='${c.color}22'">${c.label}</button>`;
+
+  // 現在時間 ＋ 現有期限（並排）
+  html += `<div style="display:flex;gap:10px;margin-bottom:16px;">`;
+  html += `<div style="${cellStyle}"><div style="${labelStyle}">現在時間</div><div style="${valStyle}">${nowLocal}</div></div>`;
+  html += `<div style="${cellStyle}"><div style="${labelStyle}">現有期限</div><div style="${valStyle}">${baseLocal}</div></div>`;
+  html += `</div>`;
+
+  // 分隔線
+  html += `<div style="border-top:1px solid var(--border);margin-bottom:14px;"></div>`;
+
+  // 正負選擇 + 分鐘步進
+  html += `<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;">`;
+
+  // 正負 segmented control
+  html += `<div style="display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--border);">`;
+  html += `<button id="dl-btn-minus" onclick="_dlSetSign(-1)"
+    style="${segBase}background:var(--bg3);color:var(--text3);">−</button>`;
+  html += `<button id="dl-btn-plus" onclick="_dlSetSign(1)"
+    style="${segBase}background:var(--green);color:#fff;">＋</button>`;
+  html += `</div>`;
+
+  // 分鐘步進器
+  const stepBtn = `width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:14px;font-weight:700;cursor:pointer;line-height:1;`;
+  html += `<div style="display:flex;align-items:center;gap:6px;">`;
+  html += `<button onclick="_dlAdjust(-10)" style="${stepBtn}">‹</button>`;
+  html += `<div id="dl-min-display" style="font-size:30px;font-weight:700;font-family:var(--mono);min-width:52px;text-align:center;color:var(--text1);">30</div>`;
+  html += `<button onclick="_dlAdjust(10)" style="${stepBtn}">›</button>`;
+  html += `</div>`;
+  html += `<div style="font-size:13px;color:var(--text2);">分鐘</div>`;
+  html += `</div>`;
+
+  // 快捷分鐘 chips
+  html += `<div style="display:flex;justify-content:center;gap:8px;margin-bottom:14px;">`;
+  [10, 30, 60, 120].forEach(m => {
+    html += `<button onclick="_dlSetMin(${m})"
+      style="padding:3px 13px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);
+             color:var(--text2);font-size:11px;font-family:var(--mono);cursor:pointer;transition:background .12s;"
+      onmouseenter="this.style.background='var(--border)'"
+      onmouseleave="this.style.background='var(--bg3)'">${m}</button>`;
   });
-  html += '</div>';
-  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">延長</div>';
-  html += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
-  extend.forEach(c => {
-    html += `<button onclick="_resetDeadline('${eventId}',${c.delta})"
-      style="${btnStyle(c.color)}"
-      onmouseenter="this.style.background='${c.color}44'"
-      onmouseleave="this.style.background='${c.color}22'">${c.label}</button>`;
-  });
-  html += '</div>';
-  html += '<div style="font-size:10px;color:var(--text3);text-align:center;">以現有期限為基準調整</div>';
+  html += `</div>`;
+
+  // 分隔線
+  html += `<div style="border-top:1px solid var(--border);margin-bottom:12px;"></div>`;
+
+  // 調整後預覽 + 套用並排
+  html += `<div style="display:flex;align-items:center;gap:12px;">`;
+  html += `<div style="flex:1;text-align:center;">`;
+  html += `<div style="${labelStyle}">調整後期限</div>`;
+  html += `<div id="dl-new-display" style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--green);">—</div>`;
+  html += `</div>`;
+  html += `<button onclick="_applyDeadline()"
+    style="padding:10px 28px;border-radius:8px;border:none;background:var(--green);
+           color:#fff;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .15s;"
+    onmouseenter="this.style.opacity='.85'" onmouseleave="this.style.opacity='1'">套用</button>`;
+  html += `</div>`;
 
   el('modal-title').textContent = '⏱ 調整期限';
   el('modal-body').innerHTML = html;
   el('overlay').className = 'show';
+  _dlUpdatePreview();
+}
+
+function _dlSetSign(sign) {
+  _dlState.sign = sign;
+  const mBtn = document.getElementById('dl-btn-minus');
+  const pBtn = document.getElementById('dl-btn-plus');
+  if (mBtn) { mBtn.style.background = sign === -1 ? 'var(--red)' : 'var(--bg3)'; mBtn.style.color = sign === -1 ? '#fff' : 'var(--text3)'; }
+  if (pBtn) { pBtn.style.background = sign ===  1 ? 'var(--green)' : 'var(--bg3)'; pBtn.style.color = sign ===  1 ? '#fff' : 'var(--text3)'; }
+  _dlUpdatePreview();
+}
+
+function _dlAdjust(delta) {
+  _dlState.minutes = Math.max(5, Math.min(240, _dlState.minutes + delta));
+  const d = document.getElementById('dl-min-display');
+  if (d) d.textContent = _dlState.minutes;
+  _dlUpdatePreview();
+}
+
+function _dlSetMin(m) {
+  _dlState.minutes = m;
+  const d = document.getElementById('dl-min-display');
+  if (d) d.textContent = m;
+  _dlUpdatePreview();
+}
+
+function _dlUpdatePreview() {
+  const d = document.getElementById('dl-new-display');
+  if (!d || !_dlState.baseDeadline) return;
+  const newDl = new Date(new Date(_dlState.baseDeadline).getTime() + _dlState.sign * _dlState.minutes * 60000);
+  const pad = n => String(n).padStart(2, '0');
+  d.textContent = `${pad(newDl.getMonth()+1)}/${pad(newDl.getDate())}  ${pad(newDl.getHours())}:${pad(newDl.getMinutes())}`;
+  d.style.color = _dlState.sign === -1 ? 'var(--red)' : 'var(--green)';
+}
+
+async function _applyDeadline() {
+  const { eventId, sign, minutes } = _dlState;
+  await _resetDeadline(eventId, sign * minutes);
 }
 
 async function _resetDeadline(eventId, deltaMins) {
@@ -3478,6 +3568,18 @@ async function _resetDeadline(eventId, deltaMins) {
       body: JSON.stringify({ delta_minutes: deltaMins, operator: _currentOperator() }),
     });
     if (!resp.ok) throw new Error(await resp.text());
+    const { new_deadline } = await resp.json();
+    // 用本地時間寫 note，避免 UTC 顯示不一致
+    const direction = deltaMins > 0 ? '延長' : '提前';
+    const localStr = _fmtLocal(new_deadline);   // 已轉本地
+    await authFetch(API_BASE + '/api/events/' + eventId + '/notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        text: `期限${direction} ${Math.abs(deltaMins)} 分鐘（新期限：${localStr}）`,
+        operator: _currentOperator(),
+      }),
+    });
     closeModal();
     await poll();
     const zone = _findZoneByEventId(eventId);
@@ -4392,7 +4494,7 @@ function _eventCardHTML(ev, dimmed) {
     html += `<div style="font-size:9px;color:var(--text3);margin-bottom:2px;">處置紀錄</div>`;
     notes.forEach(n => {
       html += `<div style="font-size:10px;padding:2px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
-      html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
+      html += `<span style="color:var(--text3);">${_fmtLocal(n.time, true)}</span>`;
       html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
