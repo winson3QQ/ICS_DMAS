@@ -417,19 +417,52 @@ def get_events(status: Optional[str] = None, limit: int = 50):
 
 
 class EventPatch(BaseModel):
-    assigned_unit: Optional[str] = None   # 指派處理單位
+    assigned_unit: Optional[str] = None      # 指派處理單位
+    location_desc: Optional[str] = None      # 位置描述（MGRS）
+    location_zone_id: Optional[str] = None   # 地圖圖層 zone id
 
 
 @app.patch("/api/events/{event_id}", tags=["事件"])
 def patch_event(event_id: str, body: EventPatch):
-    """更新事件欄位（目前支援 assigned_unit）"""
+    """更新事件欄位（支援 assigned_unit, location_desc, location_zone_id）"""
     updates = {}
     if body.assigned_unit is not None:
         updates["assigned_unit"] = body.assigned_unit if body.assigned_unit else None
+    if body.location_desc is not None:
+        updates["location_desc"] = body.location_desc
+    if body.location_zone_id is not None:
+        updates["location_zone_id"] = body.location_zone_id
     if not updates:
         return {"ok": True}
     db.patch_event(event_id, updates)
     return {"ok": True}
+
+
+class DeadlinePatch(BaseModel):
+    delta_minutes: int          # 正數延長，負數提前
+    operator: str
+
+
+@app.patch("/api/events/{event_id}/deadline", tags=["事件"])
+def patch_event_deadline(event_id: str, body: DeadlinePatch):
+    """調整事件的 response_deadline（正數延長、負數提前）"""
+    events = db.get_events()
+    ev = next((e for e in events if e["id"] == event_id), None)
+    if not ev:
+        raise HTTPException(404, "event not found")
+    current = ev.get("response_deadline")
+    if current:
+        from datetime import datetime, timezone, timedelta
+        base = datetime.fromisoformat(current.replace("Z", "+00:00"))
+    else:
+        from datetime import datetime, timezone, timedelta
+        base = datetime.now(timezone.utc)
+    new_deadline = (base + timedelta(minutes=body.delta_minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    db.patch_event(event_id, {"response_deadline": new_deadline})
+    direction = "延長" if body.delta_minutes > 0 else "提前"
+    note_text = f"期限{direction} {abs(body.delta_minutes)} 分鐘（新期限：{new_deadline[:16].replace('T', ' ')}）"
+    db.add_event_note(event_id, note_text, body.operator)
+    return {"ok": True, "new_deadline": new_deadline}
 
 
 @app.patch("/api/events/{event_id}/status", tags=["事件"])

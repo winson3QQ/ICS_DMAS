@@ -482,8 +482,8 @@ def get_events(status: str | None = None, limit: int = 50, session_type: str = "
 
 
 def patch_event(event_id: str, updates: dict):
-    """更新事件任意欄位（白名單：assigned_unit）"""
-    allowed = {"assigned_unit"}
+    """更新事件任意欄位（白名單：assigned_unit, response_deadline, location_desc, location_zone_id）"""
+    allowed = {"assigned_unit", "response_deadline", "location_desc", "location_zone_id"}
     safe = {k: v for k, v in updates.items() if k in allowed}
     if not safe:
         return
