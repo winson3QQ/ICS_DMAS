@@ -145,7 +145,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 #route-draw-banner button.ok{background:var(--green);color:#fff;border-color:var(--green);}
 /* 圖層面板（Layer Panel）*/
 #layer-panel{
-  position:absolute;top:44px;right:44px;z-index:20;
+  position:absolute;top:80px;right:8px;z-index:1010;
   background:rgba(22,27,34,.96);border:1px solid var(--border);
   border-radius:8px;padding:6px 0;min-width:148px;
   font-family:var(--mono);
@@ -3055,21 +3055,21 @@ function _renderFlows() {
   _flowLayer.clearLayers();
   if (!_layerVis.flows) return;
   const flows = _mapConfig?.maps?.['outdoor']?.flows || [];
-  const zones = _mapConfig?.maps?.['outdoor']?.zones  || [];
   flows.forEach(flow => {
-    const fromZ = zones.find(z => z.id === flow.from_zone_id);
-    const toZ   = zones.find(z => z.id === flow.to_zone_id);
-    if (!fromZ?.lat || !toZ?.lat) return;
+    // 支援新格式 from_ref/to_ref 及舊格式 from_zone_id/to_zone_id
+    const fromPt = _resolveFlowRef(flow.from_ref || (flow.from_zone_id ? 'zone:'+flow.from_zone_id : null), flow);
+    const toPt   = _resolveFlowRef(flow.to_ref   || (flow.to_zone_id   ? 'zone:'+flow.to_zone_id   : null), flow);
+    if (!fromPt?.lat || !toPt?.lat) return;
     const def = FLOW_TYPES[flow.flow_type] || FLOW_TYPES.casualty;
     // 折線
-    const line = L.polyline([[fromZ.lat, fromZ.lng],[toZ.lat, toZ.lng]], {
+    const line = L.polyline([[fromPt.lat, fromPt.lng],[toPt.lat, toPt.lng]], {
       color: def.color, weight: 2.5, opacity: 0.85,
     }).addTo(_flowLayer);
     line.on('click', () => _showFlowInfo(flow));
     // 中點箭頭
-    const midLat = (fromZ.lat + toZ.lat) / 2;
-    const midLng = (fromZ.lng + toZ.lng) / 2;
-    const ang = _bearing(fromZ.lat, fromZ.lng, toZ.lat, toZ.lng);
+    const midLat = (fromPt.lat + toPt.lat) / 2;
+    const midLng = (fromPt.lng + toPt.lng) / 2;
+    const ang = _bearing(fromPt.lat, fromPt.lng, toPt.lat, toPt.lng);
     L.marker([midLat, midLng], {
       icon: _arrowIcon(ang, def.color), interactive:false, zIndexOffset: 50
     }).addTo(_flowLayer);
@@ -3086,14 +3086,13 @@ function _renderFlows() {
 }
 
 function _showFlowInfo(flow) {
-  const def  = FLOW_TYPES[flow.flow_type] || {};
-  const zones = _mapConfig?.maps?.['outdoor']?.zones || [];
-  const fromZ = zones.find(z => z.id === flow.from_zone_id);
-  const toZ   = zones.find(z => z.id === flow.to_zone_id);
+  const def   = FLOW_TYPES[flow.flow_type] || {};
+  const fromPt = _resolveFlowRef(flow.from_ref || (flow.from_zone_id ? 'zone:'+flow.from_zone_id : null), flow);
+  const toPt   = _resolveFlowRef(flow.to_ref   || (flow.to_zone_id   ? 'zone:'+flow.to_zone_id   : null), flow);
   let html = `<div style="margin-bottom:10px;">`;
   html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${def.color||'#e05555'}22;color:${def.color||'#e05555'};border:1px solid ${def.color||'#e05555'}44;">${def.label||flow.flow_type}</span>`;
   html += `</div>`;
-  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${fromZ?.label||flow.from_zone_id} → ${toZ?.label||flow.to_zone_id}</div>`;
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${fromPt?.label||'?'} → ${toPt?.label||'?'}</div>`;
   html += `<button onclick="_deleteFlow('${flow.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此流向</button>`;
   el('modal-title').textContent = `→ ${flow.label || def.label}`;
   el('modal-body').innerHTML = html;
@@ -3109,23 +3108,33 @@ async function _deleteFlow(id) {
 }
 
 function _openFlowForm() {
-  const zones = _mapConfig?.maps?.['outdoor']?.zones?.filter(z => z.lat != null) || [];
-  if (zones.length < 2) {
+  const zones  = _mapConfig?.maps?.['outdoor']?.zones?.filter(z => z.lat != null) || [];
+  const infras = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
+  if (zones.length + infras.length < 2) {
     el('modal-title').textContent = '→ 新增流向';
-    el('modal-body').innerHTML = `<div style="color:var(--text2);font-size:12px;padding:12px 0;">需要至少兩個已定位的節點才能建立流向。</div>`;
+    el('modal-body').innerHTML = `<div style="color:var(--text2);font-size:12px;padding:12px 0;">需要至少兩個已定位的節點（或設施）才能建立流向。</div>`;
     el('overlay').className = 'show';
     return;
   }
-  const zoneOpts = zones.map(z => `<option value="${z.id}">${z.label}</option>`).join('');
+  // 節點 + 基礎設施合併，用 "zone:id" / "infra:id" 前綴區分
+  const infras = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
+  const SEL_STYLE = 'width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;';
+  const endpointOpts =
+    (zones.length  ? `<optgroup label="── ICS 節點">` + zones.map(z =>
+      `<option value="zone:${z.id}">${z.label}</option>`).join('') + `</optgroup>` : '') +
+    (infras.length ? `<optgroup label="── 基礎設施">` + infras.map(i => {
+      const def = INFRA_TYPES[i.infra_type] || {};
+      return `<option value="infra:${i.id}">${def.abbr||'+'} ${i.label}</option>`;
+    }).join('') + `</optgroup>` : '');
   const typeOpts = Object.entries(FLOW_TYPES).map(([k,v]) =>
     `<option value="${k}">${v.label}</option>`).join('');
   let html = '';
   html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">流向類型</label>`;
-  html += `<select id="flow-type-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select></div>`;
-  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">起點節點</label>`;
-  html += `<select id="flow-from-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${zoneOpts}</select></div>`;
-  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">終點節點</label>`;
-  html += `<select id="flow-to-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${zoneOpts}</select></div>`;
+  html += `<select id="flow-type-sel" style="${SEL_STYLE}">${typeOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">起點</label>`;
+  html += `<select id="flow-from-sel" style="${SEL_STYLE}">${endpointOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">終點</label>`;
+  html += `<select id="flow-to-sel" style="${SEL_STYLE}">${endpointOpts}</select></div>`;
   html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">標籤（可選）</label>`;
   html += `<input id="flow-label" placeholder="例：傷患後送路徑" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;"></div>`;
   html += `<div style="display:flex;gap:8px;">`;
@@ -3139,15 +3148,15 @@ function _openFlowForm() {
 
 async function _saveFlow() {
   const typeVal  = document.getElementById('flow-type-sel')?.value  || 'casualty';
-  const fromVal  = document.getElementById('flow-from-sel')?.value  || '';
-  const toVal    = document.getElementById('flow-to-sel')?.value    || '';
+  const fromRef  = document.getElementById('flow-from-sel')?.value  || '';
+  const toRef    = document.getElementById('flow-to-sel')?.value    || '';
   const labelVal = (document.getElementById('flow-label')?.value || '').trim();
-  if (!fromVal || !toVal || fromVal === toVal) return;
+  if (!fromRef || !toRef || fromRef === toRef) return;
   const flow = {
     id: 'flow_' + Date.now(),
     flow_type: typeVal,
-    from_zone_id: fromVal,
-    to_zone_id: toVal,
+    from_ref: fromRef,   // "zone:id" 或 "infra:id"
+    to_ref:   toRef,
     label: labelVal,
   };
   if (!_mapConfig.maps['outdoor'].flows) _mapConfig.maps['outdoor'].flows = [];
@@ -3155,6 +3164,31 @@ async function _saveFlow() {
   await saveMapConfig();
   closeModal();
   _renderFlows();
+}
+
+/** 解析 "zone:xxx" 或 "infra:xxx" 前綴，回傳 { lat, lng, label } */
+function _resolveFlowRef(ref, flow) {
+  // 向下相容舊格式（無前綴 = zone id）
+  if (!ref) {
+    // 嘗試舊欄位
+    const zoneId = flow?.from_zone_id || flow?.to_zone_id;
+    if (!zoneId) return null;
+    ref = 'zone:' + zoneId;
+  }
+  const sep = ref.indexOf(':');
+  const type = sep > 0 ? ref.slice(0, sep) : 'zone';
+  const id   = sep > 0 ? ref.slice(sep + 1) : ref;
+  const zones  = _mapConfig?.maps?.['outdoor']?.zones  || [];
+  const infras = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
+  if (type === 'zone') {
+    const z = zones.find(z => z.id === id);
+    return z ? { lat: z.lat, lng: z.lng, label: z.label } : null;
+  } else {
+    const i = infras.find(i => i.id === id);
+    if (!i) return null;
+    const def = INFRA_TYPES[i.infra_type] || {};
+    return { lat: i.lat, lng: i.lng, label: `${def.label} ${i.label}` };
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
