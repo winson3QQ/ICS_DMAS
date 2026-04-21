@@ -162,6 +162,8 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 ### Wave 7：TAK 整合
 
 > 細節待定。前進組／安全組使用 ATAK，需與 Command Console 整合。
+> 前進組可能與軍方對接，地圖需支援 MIL-STD-2525 軍用符號渲染。
+> TAK CoT `type` 欄位本身即為 MIL-STD-2525 代碼（如 `a-f-G-U-C`），TAK 整合與符號渲染為同一 Wave。
 
 ---
 
