@@ -126,7 +126,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | push_queue 撐爆磁碟 | MAX_QUEUE_AGE=24hr 清除 | ✅ 已實作 |
 | Pi 本地資料外洩 | SQLCipher | defer |
 
-### Wave 4+ 完成（cmd-v0.12.0～v0.12.1）
+### Wave 4+ 完成（cmd-v0.12.0～v0.12.3）
 
 **已完成**：
 | 項目 | 版號 | 說明 |
@@ -138,6 +138,13 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | 方形節點標記縮小 | v0.12.1 | 前進組/安全組 square marker 從 28×28 縮至 24×24 |
 | 新事件樂觀更新 | v0.12.1 | `submitEvent()` 送出後立即插入 `_data.events`，不等 poll；補齊 `reported_by_unit`、`session_type` 等欄位 |
 | `_populateNapsgCsel` 初始化 crash 修復 | v0.12.1 | `el('place-type-panel')` null 導致整條初始化鏈中斷（無 polling、事件列表黑色）；重建 HTML 元素並加 null guard |
+| zone modal 事件去重（EOC 模式） | v0.12.2 | 回報＋指派聯集去重，單一列表依狀態分組，卡片顯示角色 tag（回報・承辦/指派協助）|
+| 事件組別分類改版 | v0.12.3 | 右側事件欄改為「回報」/「處理」雙按鈕互斥切換，預設按處理組別（`assigned_unit`）分組；未指派獨立群 |
+| 事件名稱統一 | v0.12.3 | `_evTypeLabel()` helper 統一所有顯示入口，優先用 NAPSG 中文類型名；description 作副標題 |
+| 事件 popup 優化 | v0.12.3 | 回報單位＋MGRS 合併為單行 header，移除冗餘標題文字，縮小 inner padding |
+| 流向/路線改名 | v0.12.3 | 「新增流向」→「新增調度指示」，「傷患流向」→「傷患後送」；flow/route 工具列按鈕改用 SVG icon |
+| 流向表單選項分組 | v0.12.3 | 起終點選單分 ICS 節點 / 事件標記 / 基礎設施三個 optgroup；事件標記顯示 NAPSG 類型名＋事件編號 |
+| 路線/區域標籤可拖曳 | v0.12.3 | 路線標籤預設路線中點，區域標籤預設重心；拖曳後存 `label_anchor`；modal 可重設至自動位置；阻止冒泡防觸發長按事件 |
 
 ### Wave 5 待做項目（UI 收尾）
 
@@ -187,7 +194,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.12.1`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.12.3`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.48`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`
