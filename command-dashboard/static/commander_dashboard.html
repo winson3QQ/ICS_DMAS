@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.9.2';</script>
+<script>const CMD_VERSION='v0.12.3';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -68,24 +68,25 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   border-right:1px solid var(--border);
 }
 .side-panel.right{border-right:none;border-left:1px solid var(--border);transition:flex-basis .25s;}
-.side-panel.right.expanded{flex-basis:40%;}
+.side-panel.right.expanded{flex-basis:30%;}
 .side-panel.collapsed{display:none !important;}
 
 /* 中：地圖 */
 #map-panel{
   flex:1;position:relative;background:#111;overflow:hidden;
 }
-#map-tabs{
-  position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:0;
-}
+/* 工具列浮島（右側）*/
+#map-toolbar{right:8px;display:flex;align-items:center;gap:2px;padding:0;overflow:hidden;}
+#map-tabs{display:flex;gap:0;}
 .map-tab{
-  padding:3px 12px;font-size:10px;font-weight:600;cursor:pointer;
-  background:rgba(0,0,0,.5);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.15);
-  transition:all .2s;
+  padding:3px 11px;font-size:10px;font-weight:600;cursor:pointer;
+  background:transparent;color:var(--text3);
+  border:1px solid transparent;border-radius:4px;
+  transition:all .2s;white-space:nowrap;
 }
-.map-tab:first-child{border-radius:4px 0 0 4px;}
-.map-tab:last-child{border-radius:0 4px 4px 0;}
-.map-tab.active{background:rgba(240,136,62,.85);color:#fff;border-color:#f0883e;}
+.map-tab:hover{color:var(--text);}
+.map-tab.active{background:rgba(26,158,82,.2);color:#fff;border-color:var(--green);}
+.toolbar-sep{width:1px;height:18px;background:rgba(255,255,255,.15);margin:0 2px;flex-shrink:0;}
 #map-img{width:100%;height:100%;object-fit:contain;display:block;}
 #map-overlay{position:absolute;inset:0;pointer-events:none;}
 .zone-marker{
@@ -116,23 +117,52 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
   white-space:nowrap;background:rgba(0,0,0,.6);padding:1px 5px;border-radius:3px;
 }
 
-/* 地圖編輯模式 */
-#map-tools{
-  position:absolute;top:8px;right:8px;z-index:10;display:flex;gap:4px;
-}
+/* 工具按鈕（在 #map-hud 內） */
+#map-tools{display:flex;gap:2px;}
 .map-btn{
-  width:30px;height:30px;border-radius:5px;border:1px solid var(--border);
-  background:rgba(22,27,34,.85);color:var(--text2);font-size:14px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;transition:all .2s;
+  width:28px;height:28px;border-radius:4px;border:none;
+  background:transparent;color:var(--text2);font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
 }
-.map-btn:hover{background:rgba(22,27,34,1);color:#fff;}
-.map-btn.active{background:rgba(26,158,82,.3);color:#fff;border-color:var(--green);}
-#edit-bar{
-  position:absolute;bottom:0;left:0;right:0;z-index:10;
-  display:flex;padding:5px 10px;gap:6px;align-items:center;
-  background:rgba(22,27,34,.6);border-top:1px solid rgba(48,54,61,.5);
-  font-size:11px;color:var(--text2);
+.map-btn:hover{background:rgba(255,255,255,.1);color:#fff;}
+.map-btn.active{background:rgba(26,158,82,.3);color:#fff;}
+/* Phase 5: MGRS 格線標籤 */
+.mgrs-gl{font-size:9px;font-weight:700;color:rgba(30,80,180,.9);background:rgba(255,255,255,.78);padding:1px 3px;border-radius:2px;white-space:nowrap;pointer-events:none;line-height:1.3;}
+/* Phase 3: 繪製範圍 banner */
+#poly-draw-banner{display:none;position:absolute;top:50px;left:50%;transform:translateX(-50%);z-index:1001;
+  background:rgba(14,22,29,.92);border:1px solid var(--border);border-radius:20px;
+  padding:6px 14px;font-size:12px;align-items:center;gap:12px;white-space:nowrap;pointer-events:auto;}
+#poly-draw-banner button{background:transparent;border:1px solid var(--border);color:var(--text2);
+  padding:2px 10px;border-radius:10px;font-size:11px;cursor:pointer;}
+#poly-draw-banner button.ok{background:var(--green);color:#fff;border-color:var(--green);}
+/* 路線繪製 banner */
+#route-draw-banner{display:none;position:absolute;top:50px;left:50%;transform:translateX(-50%);z-index:1001;
+  background:rgba(14,22,29,.92);border:1px solid var(--border);border-radius:20px;
+  padding:6px 14px;font-size:12px;align-items:center;gap:12px;white-space:nowrap;pointer-events:auto;}
+#route-draw-banner button{background:transparent;border:1px solid var(--border);color:var(--text2);
+  padding:2px 10px;border-radius:10px;font-size:11px;cursor:pointer;}
+#route-draw-banner button.ok{background:var(--green);color:#fff;border-color:var(--green);}
+/* 圖層面板（Layer Panel）*/
+#layer-panel{
+  position:absolute;top:50px;right:8px;z-index:1010;
+  background:rgba(22,27,34,.96);border:1px solid var(--border);
+  border-radius:8px;padding:6px 0;min-width:148px;
+  font-family:var(--mono);
+  box-shadow:0 4px 16px rgba(0,0,0,.45);
 }
+#layer-panel h4{padding:3px 12px 6px;font-size:9px;color:var(--text3);letter-spacing:.1em;
+  border-bottom:1px solid var(--border);margin-bottom:2px;text-transform:uppercase;}
+.layer-row{display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;transition:background .15s;}
+.layer-row:hover{background:rgba(255,255,255,.05);}
+.layer-check{width:13px;height:13px;border:1px solid var(--border);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px;}
+.layer-check.on{background:var(--green);border-color:var(--green);color:#fff;}
+/* MGRS 搜尋浮島（底部中央，站外才顯示）*/
+#mgrs-island{
+  position:absolute;top:auto;bottom:8px;left:50%;transform:translateX(-50%);
+  z-index:10;display:none;align-items:center;gap:4px;padding:4px 8px;
+}
+#mgrs-search-wrap{display:flex;align-items:center;gap:4px;}
 .place-grp{
   padding:5px 12px;font-size:10px;font-weight:600;cursor:pointer;
   color:#6e7681;border:1px solid #30363d;
@@ -152,10 +182,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .place-grp[data-grp="shelter"].active{background:#d4b200;color:#fff;border-color:#d4b200;}
 .place-grp[data-grp="medical"].active{background:#e03030;color:#fff;border-color:#e03030;}
 .place-grp[data-grp="command"].active{background:#22b05a;color:#fff;border-color:#22b05a;}
-#edit-bar input{
-  background:var(--surface2);border:1px solid var(--border);color:var(--text);
-  padding:3px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);width:100px;
+/* MGRS 座標搜尋欄 */
+#mgrs-search-wrap{display:flex;align-items:center;gap:4px;}
+#mgrs-search-input{
+  width:200px;background:rgba(13,17,23,.9);border:1px solid rgba(255,255,255,.15);
+  color:#e6edf3;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;
+  outline:none;transition:border-color .15s,background .15s;
 }
+#mgrs-search-input::placeholder{color:#484f58;}
+#mgrs-search-input:focus{border-color:rgba(88,166,255,.5);background:rgba(13,17,23,1);}
+#mgrs-search-input.error{border-color:rgba(248,81,73,.6);background:rgba(248,81,73,.07);}
+#mgrs-search-btn{
+  padding:3px 8px;font-size:11px;border-radius:4px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  color:#8b949e;transition:all .12s;
+}
+#mgrs-search-btn:hover{background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.4);color:#e6edf3;}
 /* 自訂事件類型下拉 */
 .csel-wrap{position:relative;margin-left:6px;}
 .csel-btn{
@@ -180,11 +222,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .csel-opt:hover{background:rgba(255,255,255,.07);}
 .csel-opt.active{color:var(--green);}
 .csel-opt.placeholder{color:var(--text3);}
-#edit-bar button:not(.place-grp){
-  background:var(--green);color:#fff;border:none;padding:4px 10px;border-radius:4px;
-  font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);
+.csel-group-header{
+  padding:4px 10px 2px;font-size:9px;font-weight:700;color:var(--text3);
+  letter-spacing:.08em;text-transform:uppercase;border-top:1px solid var(--border);
+  margin-top:2px;pointer-events:none;
 }
-#edit-bar button.del{background:var(--red);}
+.csel-group-header:first-child{border-top:none;margin-top:0;}
 /* Wave 4：收容/醫療據點固定高亮 */
 .zone-marker.node-shelter .zone-dot{color:#f0883e;filter:drop-shadow(0 0 6px rgba(240,136,62,.6));}
 .zone-marker.node-shelter .zone-label{background:rgba(240,136,62,.85);font-weight:700;}
@@ -224,7 +267,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .spark-rag.warn{background:var(--yellow);}
 .spark-rag.crit{background:var(--red);}
 .spark-body{flex:1;min-height:0;padding:0 2px 1px;}
-canvas{display:block;width:100%!important;height:100%!important;}
+.spark-body canvas{display:block;width:100%!important;height:100%!important;}
 
 /* sparkline 展開圖例 */
 .spark-detail{display:none;padding:2px 6px;}
@@ -267,7 +310,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
 /* （已移至右側面板，保留 CSS 供相容） */
 
 /* ═══ OVERLAY MODAL ═══ */
-#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:210;align-items:center;justify-content:center;}
 #overlay.show{display:flex;}
 #modal{background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(960px,94vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;color:var(--text);}
 #modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
@@ -275,9 +318,11 @@ canvas{display:block;width:100%!important;height:100%!important;}
 #modal-close{font-size:18px;cursor:pointer;color:var(--text3);background:none;border:none;padding:2px 6px;border-radius:3px;}
 #modal-close:hover{background:var(--bg);}
 #modal-body{flex:1;overflow-y:auto;padding:16px;}
+#modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--border);background:var(--surface2);flex-shrink:0;}
+#modal-footer:empty{display:none;}
 
 /* ═══ 事件表單 OVERLAY ═══ */
-#event-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+#event-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:220;align-items:center;justify-content:center;}
 #event-overlay.show{display:flex;}
 #event-modal{background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(480px,94vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;color:var(--text);}
 #event-modal input, #event-modal select, #event-modal textarea {
@@ -289,7 +334,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
 #event-modal textarea {resize:vertical;}
 
 /* ═══ 裁示 OVERLAY ═══ */
-#decision-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+#decision-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:220;align-items:center;justify-content:center;}
 #decision-overlay.show{display:flex;}
 #decision-modal{background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(560px,94vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;color:var(--text);}
 
@@ -534,6 +579,92 @@ canvas{display:block;width:100%!important;height:100%!important;}
 }
 </style>
 <script src="chart_utils.js"></script>
+<link rel="stylesheet" href="lib/leaflet.min.css">
+<script src="lib/leaflet.min.js"></script>
+<script src="lib/protomaps-leaflet.js"></script>
+<style>
+#leaflet-map{position:absolute;inset:0;z-index:1;display:none;}
+#leaflet-map.active{display:block;}
+#leaflet-map.placing .leaflet-container,
+#leaflet-map.placing .leaflet-container .leaflet-pane,
+#leaflet-map.placing .leaflet-container .leaflet-tile-pane,
+#leaflet-map.placing .leaflet-container .leaflet-grab,
+#leaflet-map.placing .leaflet-container .leaflet-touch-drag{cursor:crosshair!important;}
+#leaflet-map.placing .leaflet-container .leaflet-marker-icon{cursor:crosshair!important;}
+.napsg-tooltip{background:rgba(13,17,23,.85);border:1px solid rgba(255,255,255,.15);color:#e6edf3;font-size:10px;padding:2px 7px;border-radius:3px;white-space:nowrap;}
+.napsg-highlighted{animation:napsg-pulse .9s ease-in-out infinite alternate;transform-origin:center;display:block;}
+@keyframes napsg-pulse{from{filter:drop-shadow(0 0 4px #3fb950);transform:scale(1);}to{filter:drop-shadow(0 0 14px #3fb950);transform:scale(1.35);}}
+/* 底圖 layer control 已移除；Phase 3/5 加 operational overlays 後再恢復 */
+/* 座標顯示面板 */
+/* 浮島共用樣式（座標 + 工具列一致）*/
+.map-island{
+  position:absolute;top:8px;z-index:10;
+  background:rgba(13,17,23,.82);border:1px solid rgba(255,255,255,.1);
+  border-radius:6px;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  font-family:var(--mono);font-size:11px;
+}
+#map-coord-panel{
+  left:50%;transform:translateX(-50%);
+  z-index:1000;  /* 覆寫 .map-island 的 z-index:10，需高於 Leaflet tile pane(200+) */
+  color:#e6edf3;padding:5px 12px;
+  align-items:center;gap:2px;
+  white-space:nowrap;letter-spacing:.03em;
+  pointer-events:auto;display:none;
+  transition:border-color .15s;
+}
+#map-coord-panel.clickable{cursor:pointer;}
+#map-coord-panel.clickable:hover{border-color:rgba(88,166,255,.25);}
+#map-coord-panel span[onclick]:hover{color:var(--text);border-color:rgba(255,255,255,.3)!important;}
+/* 長按事件 popup ─────────────────────────────── */
+.ev-popup .leaflet-popup-content-wrapper{
+  background:#161b22;border:1px solid rgba(255,255,255,.18);
+  border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.72);padding:0;
+}
+.ev-popup .leaflet-popup-tip{background:#161b22;}
+.ev-popup .leaflet-popup-content{margin:0;}
+.ev-popup .leaflet-popup-close-button{color:#8b949e!important;top:6px;right:8px;font-size:16px;line-height:1;}
+.ev-popup-inner{padding:8px 28px 8px 10px;min-width:200px;}/* 右側 28px 讓開 Leaflet × 按鈕 */
+/* header：回報單位（左）+ MGRS（右）合併為一行 */
+.ev-popup-header{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.ev-popup-reporter-wrap{display:flex;align-items:center;gap:4px;}
+.ev-popup-reporter-wrap label{font-size:9px;color:#8b949e;font-family:var(--mono);white-space:nowrap;}
+.ev-popup-reporter-wrap select{
+  background:#0d1117;border:1px solid rgba(255,255,255,.12);color:#c9d1d9;
+  font-size:10px;font-family:var(--mono);padding:2px 4px;border-radius:3px;
+}
+.ev-popup-mgrs{font-size:9px;color:#8b949e;font-family:var(--mono);white-space:nowrap;letter-spacing:.03em;}
+/* 群組按鈕 */
+.ev-popup-groups{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.ev-popup-group-btn{
+  padding:6px 4px;border-radius:5px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.05);color:#c9d1d9;font-size:10px;font-family:var(--mono);
+  cursor:pointer;text-align:center;transition:background .12s,border-color .12s;
+}
+.ev-popup-group-btn:hover{background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.4);}
+/* Level-2 類型列表 */
+.ev-popup-types{display:flex;flex-direction:column;gap:3px;}
+.ev-popup-type-btn{
+  padding:5px 10px;border-radius:4px;
+  border:1px solid transparent;border-left-width:3px;
+  background:rgba(255,255,255,.04);color:#e6edf3;font-size:11px;font-family:var(--mono);
+  cursor:pointer;text-align:left;transition:background .1s,border-color .1s;
+}
+.ev-popup-type-btn:hover{background:rgba(88,166,255,.12);}
+.ev-popup-type-btn.sev-critical{ border-left-color:#f85149; }
+.ev-popup-type-btn.sev-critical:hover{ background:rgba(248,81,73,.12); }
+.ev-popup-type-btn.sev-warning { border-left-color:#e3b341; }
+.ev-popup-type-btn.sev-warning:hover { background:rgba(227,179,65,.10); }
+.ev-popup-type-btn.sev-info    { border-left-color:#6e7681; }
+.ev-popup-type-btn.sev-info:hover    { background:rgba(110,118,129,.12); }
+.ev-popup-back{display:inline-block;margin-bottom:6px;font-size:10px;color:#58a6ff;cursor:pointer;padding:2px 0;}
+.ev-popup-back:hover{text-decoration:underline;}
+/* 舊 .ev-popup-reporter 保留，避免其他地方引用報錯 */
+.ev-popup-reporter{display:none;}
+</style>
 </head>
 <body>
 
@@ -574,6 +705,11 @@ canvas{display:block;width:100%!important;height:100%!important;}
       <div class="stg-item" onclick="openConfigModal()">
         <span class="si-icon">&#9881;</span>
         <div class="si-text"><div class="si-title">指揮部設定</div><div class="si-sub">名稱、位置</div></div>
+        <span class="si-arrow">&#x203A;</span>
+      </div>
+      <div class="stg-item" onclick="openMapConfigPanel()">
+        <span class="si-icon">&#128506;</span>
+        <div class="si-text"><div class="si-title">地圖設定</div><div class="si-sub">載入站內平面圖</div></div>
         <span class="si-arrow">&#x203A;</span>
       </div>
     </div>
@@ -632,6 +768,16 @@ canvas{display:block;width:100%!important;height:100%!important;}
     <div class="adm-panel-body" id="adm-panel-pi" style="display:none;"></div>
     <div class="adm-panel-body" id="adm-panel-log" style="display:none;"></div>
   </div>
+</div>
+
+<!-- ═══════ 地圖設定面板 ═══════ -->
+<div id="map-config-overlay" onclick="closeMapConfigPanel()" style="position:fixed;inset:0;z-index:290;background:rgba(0,0,0,.55);display:none;"></div>
+<div id="map-config-panel" style="position:fixed;bottom:-100%;left:0;right:0;z-index:291;background:var(--surface);border-top:1px solid var(--border);border-radius:12px 12px 0 0;padding:16px;transition:bottom .3s;max-height:60vh;overflow-y:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <span style="font-size:13px;font-weight:600;">地圖設定</span>
+    <button onclick="closeMapConfigPanel()" style="background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;line-height:1;">&times;</button>
+  </div>
+  <div id="map-config-body"></div>
 </div>
 
 <!-- ═══════ ZONE A — 態勢速讀 ═══════ -->
@@ -700,7 +846,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
       </div>
       <div class="spark-card" id="sp-flow" onclick="expandSpark('sp-flow')">
         <div class="spark-hdr">
-          <span class="spark-title">傷患流向</span>
+          <span class="spark-title">傷患後送</span>
           <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-flow-v">—</span><span class="spark-rag ok" id="sp-flow-rag"></span></span>
         </div>
         <div class="spark-detail" id="sp-flow-detail">
@@ -756,27 +902,77 @@ canvas{display:block;width:100%!important;height:100%!important;}
 
   <!-- 中：互動地圖 -->
   <div id="map-panel">
-    <div id="map-tabs">
-      <div class="map-tab active" data-map="indoor" onclick="switchMap('indoor')">站內</div>
-      <div class="map-tab" data-map="outdoor" onclick="switchMap('outdoor')">站外</div>
+    <!-- 右側浮島：tab 切換 + 地圖工具 -->
+    <div id="map-toolbar" class="map-island">
+      <!-- 據點調整按鈕：站內才顯示 -->
+      <button id="pin-edit-btn" onclick="togglePinEditMode()"
+        title="調整永久據點位置"
+        style="display:none;padding:0 10px;height:28px;font-size:10px;border-radius:4px;cursor:pointer;
+               border:none;background:transparent;color:var(--text2);font-family:var(--mono);
+               transition:all .15s;">✏ 調整據點</button>
+      <div id="map-tabs">
+        <div class="map-tab active" data-map="indoor" onclick="switchMap('indoor')">站內</div>
+        <div class="map-tab" data-map="outdoor" onclick="switchMap('outdoor')">站外</div>
+      </div>
+      <div class="toolbar-sep"></div>
+      <div id="map-tools"></div>
     </div>
-    <div id="map-tools"></div>
     <div id="edit-coords"></div>
     <img id="map-img" src="" alt="地圖載入中">
     <div id="map-overlay"></div>
-    <div id="edit-bar">
-      <div style="display:flex;gap:0;align-items:center;margin:0 auto;">
-        <button class="place-grp" data-grp="forward" onclick="selectPlaceGroup('forward')">前進</button>
-        <button class="place-grp" data-grp="security" onclick="selectPlaceGroup('security')">安全</button>
-        <button class="place-grp" data-grp="shelter" onclick="selectPlaceGroup('shelter')">收容</button>
-        <button class="place-grp" data-grp="medical" onclick="selectPlaceGroup('medical')">醫療</button>
-        <button class="place-grp" data-grp="command" onclick="selectPlaceGroup('command')">指揮部</button>
-        <div class="csel-wrap" id="place-type-wrap">
-          <div class="csel-btn disabled" id="place-type-btn" onclick="toggleCsel()">
-            <span id="place-type-label">—</span>
-          </div>
-          <div class="csel-panel" id="place-type-panel"></div>
-        </div>
+    <div id="leaflet-map">
+      <!-- 中央浮島：座標顯示 -->
+      <div id="map-coord-panel" class="map-island" onclick="_panToCoordTarget(event)"></div>
+      <!-- 據點定位提示 banner（點地圖設定單位位置時顯示） -->
+      <div id="node-place-banner" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);
+        z-index:1001;background:rgba(210,144,0,.92);color:#fff;font-family:var(--mono);font-size:11px;
+        padding:5px 14px;border-radius:5px;white-space:nowrap;display:none;align-items:center;gap:10px;">
+        <span>📍 點擊地圖設定「<b id="node-place-label"></b>」駐守位置</span>
+        <span onclick="_cancelNodePlace()" style="cursor:pointer;opacity:.8;font-size:13px;" title="取消">✕</span>
+      </div>
+      <!-- 事件地圖標記提示 banner（從表單送出後，詢問是否標記位置） -->
+      <div id="event-pin-banner" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);
+        z-index:1001;background:rgba(13,17,23,.95);border:1px solid rgba(255,255,255,.18);color:#e6edf3;font-family:var(--mono);font-size:11px;
+        padding:6px 14px;border-radius:6px;white-space:nowrap;align-items:center;gap:10px;">
+        <span>📋 <b id="event-pin-code"></b> 已建立　點擊地圖標記位置</span>
+        <span onclick="_cancelEventPin()" style="cursor:pointer;color:#8b949e;font-size:13px;" title="略過">略過 ✕</span>
+      </div>
+      <!-- Phase 3：繪製範圍模式 banner -->
+      <div id="poly-draw-banner">
+        <span>✏ 繪製範圍　點擊新增頂點</span>
+        <button id="poly-finish-btn" class="ok" onclick="_finishPolyDraw()" disabled>完成</button>
+        <button onclick="_cancelPolyDraw()">取消</button>
+      </div>
+      <!-- 路線繪製 banner -->
+      <div id="route-draw-banner">
+        <span>↗ 繪製路線　點擊新增節點</span>
+        <button id="route-finish-btn" class="ok" onclick="_finishRouteDraw()" disabled>完成</button>
+        <button onclick="_cancelRouteDraw()">取消</button>
+      </div>
+      <!-- 圖層面板 -->
+      <div id="layer-panel" style="display:none;"></div>
+    </div>
+    <!-- 站內地圖：NAPSG 危害類型選擇器（放置模式用，左下浮島）-->
+    <div id="place-type-wrap" class="csel-wrap" style="display:none;position:absolute;bottom:8px;left:8px;z-index:100;">
+      <button id="place-type-label" class="csel-btn" onclick="toggleCsel()">— 選危害類型 —</button>
+      <div id="place-type-panel" class="csel-panel"></div>
+    </div>
+    <!-- MGRS 搜尋浮島（底部中央，站外才顯示）-->
+    <div id="mgrs-island" class="map-island">
+      <!-- 回報單位 metadata（隱藏）-->
+      <select id="place-report-unit" style="display:none;">
+        <option value="command">指揮部</option>
+        <option value="forward">前進組</option>
+        <option value="security">安全組</option>
+        <option value="shelter">收容組</option>
+        <option value="medical">醫療組</option>
+      </select>
+      <div id="mgrs-search-wrap">
+        <input id="mgrs-search-input" type="text"
+          placeholder="MGRS 或 lat, lng"
+          onkeydown="if(event.key==='Enter')_mgrsSearch()"
+          title="輸入 MGRS 或 WGS84（lat, lng），按 Enter 跳至位置">
+        <button id="mgrs-search-btn" onclick="_mgrsSearch()" title="跳至座標">🔍</button>
       </div>
     </div>
   </div>
@@ -788,7 +984,12 @@ canvas{display:block;width:100%!important;height:100%!important;}
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;flex-shrink:0;border-bottom:1px solid var(--border);">
         <span style="display:flex;align-items:center;gap:4px;">
           <span id="evt-expand-arrow" style="font-size:8px;color:var(--text3);cursor:pointer;padding:2px;" onclick="toggleRightExpand('events')">▶</span>
-          <span style="font-size:10px;font-weight:600;color:var(--text3);cursor:pointer;" onclick="_toggleEvtGroup()">事件追蹤 <span id="evt-open-total" style="font-size:9px;color:var(--yellow);"></span> <span id="evt-overdue" style="font-size:9px;"></span></span>
+          <span style="font-size:10px;font-weight:600;color:var(--text3);">事件追蹤 <span id="evt-open-total" style="font-size:9px;color:var(--yellow);"></span> <span id="evt-overdue" style="font-size:9px;"></span></span>
+          <!-- 分組模式：回報 / 處理，互斥，可點擊取消 -->
+          <span id="evt-grp-reported" onclick="_setEvtGroupMode('reported')"
+            style="font-size:9px;padding:1px 5px;border-radius:3px;border:1px solid var(--border);color:var(--text3);cursor:pointer;transition:all .15s;">回報</span>
+          <span id="evt-grp-assigned" onclick="_setEvtGroupMode('assigned')"
+            style="font-size:9px;padding:1px 5px;border-radius:3px;border:1px solid var(--border);color:var(--text3);cursor:pointer;transition:all .15s;">處理</span>
         </span>
         <span id="evt-stats" style="font-size:9px;color:var(--text3);"></span>
       </div>
@@ -836,7 +1037,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
 </div>
 
 <!-- ═══════ 確認 OVERLAY ═══════ -->
-<div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;">
+<div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:220;align-items:center;justify-content:center;">
   <div style="background:var(--surface);border-radius:10px;border:1px solid var(--border);width:min(340px,90vw);overflow:hidden;">
     <div style="padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;font-weight:700;" id="confirm-title"></div>
     <div style="padding:20px 16px;font-size:12px;color:var(--text);" id="confirm-msg"></div>
@@ -855,6 +1056,7 @@ canvas{display:block;width:100%!important;height:100%!important;}
       <button id="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div id="modal-body"></div>
+    <div id="modal-footer"></div>
   </div>
 </div>
 
@@ -867,24 +1069,18 @@ canvas{display:block;width:100%!important;height:100%!important;}
     </div>
     <div style="padding:16px;overflow-y:auto;">
       <div style="margin-bottom:10px;">
-        <label>回報組別</label>
-        <select id="ev-unit" onchange="_updateEvTypeFromCategories()">
+        <label>回報單位（誰在回報）</label>
+        <select id="ev-unit">
+          <option value="command">指揮部</option>
           <option value="forward">前進組</option>
           <option value="security">安全組</option>
-          <option value="command">指揮部</option>
+          <option value="shelter">收容組</option>
+          <option value="medical">醫療組</option>
         </select>
       </div>
       <div style="margin-bottom:10px;">
-        <label>事件類型</label>
-        <select id="ev-type">
-          <option value="supply_shortage">物資短缺</option>
-          <option value="capacity_warning">容量警告</option>
-          <option value="medical_emergency">醫療緊急</option>
-          <option value="security_incident">安全事件</option>
-          <option value="personnel_issue">人員問題</option>
-          <option value="comm_failure">通訊異常</option>
-          <option value="other">其他</option>
-        </select>
+        <label>危害類型（NAPSG）</label>
+        <select id="ev-type" onchange="_syncEvSeverity()"></select>
       </div>
       <div style="margin-bottom:10px;">
         <label>嚴重度</label>
@@ -932,6 +1128,7 @@ const _pinnedZones = new Set();
 let _startTime = Date.now();
 let _selectedZoneId = null;
 let _dragState = null;
+let _pinEditMode = false;  // 據點調整模式（允許拖動永久 pin）
 let _currentDecisionId = null;
 let _decTab = 'pending';
 
@@ -1153,7 +1350,6 @@ function closeSettings() {
 }
 
 function openConfigModal() {
-  closeSettings();
   // 讀取目前設定
   Promise.all([
     authFetch(API_BASE + '/api/config/command_post_name').then(r => r.ok ? r.json() : {value:null}),
@@ -1190,21 +1386,117 @@ function exportDashboardJSON() {
 }
 
 async function showAuditLog() {
-  closeSettings();
-  const resp = await authFetch(API_BASE + '/api/audit_log?limit=100');
+  const resp = await authFetch(API_BASE + '/api/audit_log?limit=200');
   if (!resp.ok) return;
   const logs = await resp.json();
-  let html = '<div style="max-height:60vh;overflow-y:auto;">';
-  for (const log of logs) {
-    html += '<div class="adm-log-entry">' +
-      '<span class="adm-log-time">' + (log.created_at || '').replace('T',' ').slice(0,19) + '</span> ' +
-      '<span class="adm-log-action">' + (log.action_type || '') + '</span> ' +
-      '<span style="color:var(--text2);">' + (log.operator || '') + '</span> ' +
-      '<span style="color:var(--text3);font-size:10px;">' + (log.target_table || '') + '/' + (log.target_id || '').slice(0,8) + '</span>' +
-    '</div>';
+  _auditRenderModal(logs, 'all');
+}
+
+// UTC → 本地時間格式化（audit log 用）
+function _fmtLocalDT(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z');
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// action badge 定義
+const _AUDIT_BADGE = {
+  'login':                  { c:'#388bfd', zh:'登入' },
+  'logout':                 { c:'#8b949e', zh:'登出' },
+  'event_created':          { c:'#3fb950', zh:'新增事件' },
+  'event_status_updated':   { c:'#e3b341', zh:'更新狀態' },
+  'event_note_added':       { c:'#79c0ff', zh:'補充備註' },
+  'decision_created':       { c:'#d2a8ff', zh:'新增裁示' },
+  'decision_made':          { c:'#ff7b72', zh:'裁示決定' },
+  'snapshot_received':      { c:'#56d364', zh:'收快照' },
+  'db_reset':               { c:'#f85149', zh:'重設DB' },
+  'exercise_reset':         { c:'#f85149', zh:'重設演練' },
+  'account_created':        { c:'#388bfd', zh:'建立帳號' },
+  'account_status_updated': { c:'#e3b341', zh:'帳號狀態' },
+  'account_pin_reset':      { c:'#e3b341', zh:'重設PIN' },
+  'account_role_updated':   { c:'#d2a8ff', zh:'更新角色' },
+  'account_deleted':        { c:'#f85149', zh:'刪除帳號' },
+  'config_updated':         { c:'#8b949e', zh:'更新設定' },
+  'three_pass_sync':        { c:'#79c0ff', zh:'三通同步' },
+  'conflict_resolved':      { c:'#56d364', zh:'衝突解決' },
+  'manual_input':           { c:'#56d364', zh:'手動輸入' },
+  'pi_node_created':        { c:'#388bfd', zh:'新增Pi節點' },
+  'pi_node_deleted':        { c:'#f85149', zh:'刪除Pi節點' },
+};
+
+// 取事件可讀標籤（優先 JOIN 回來的欄位，fallback detail.event_code）
+function _auditEventLabel(log) {
+  if (log._event_desc) return log._event_desc.length > 28 ? log._event_desc.slice(0,26)+'…' : log._event_desc;
+  try {
+    const d = JSON.parse(log.detail || '{}');
+    if (d.event_code) return d.event_code;
+  } catch(e) {}
+  return (log.target_id || '').slice(0,8) || '—';
+}
+
+// 篩選類別群組
+const _AUDIT_FILTERS = [
+  { key:'all',     zh:'全部' },
+  { key:'account', zh:'帳號', match: a => a.startsWith('login') || a.startsWith('logout') || a.startsWith('account') },
+  { key:'event',   zh:'事件', match: a => a.startsWith('event') || a.startsWith('decision') },
+  { key:'system',  zh:'系統', match: a => ['snapshot_received','db_reset','exercise_reset','config_updated','three_pass_sync','conflict_resolved','pi_node_created','pi_node_deleted','manual_input'].includes(a) },
+];
+
+function _auditRenderModal(logs, activeFilter) {
+  const filtered = activeFilter === 'all' ? logs
+    : logs.filter(l => {
+        const def = _AUDIT_FILTERS.find(f => f.key === activeFilter);
+        return def?.match?.(l.action_type || '');
+      });
+
+  // 篩選列
+  const chips = _AUDIT_FILTERS.map(f =>
+    `<span onclick="_auditRenderModal(${JSON.stringify(logs).replace(/"/g,'&quot;')},'${f.key}')"
+      style="cursor:pointer;padding:3px 10px;border-radius:12px;font-size:10px;white-space:nowrap;
+             background:${f.key===activeFilter?'var(--yellow)':'var(--surface2)'};
+             color:${f.key===activeFilter?'#000':'var(--text2)'};border:1px solid var(--border);">${f.zh}</span>`
+  ).join('');
+
+  // 日誌列表（按日期分組）
+  let lastDate = '';
+  let rows = '';
+  for (const log of filtered) {
+    const dt = _fmtLocalDT(log.created_at);   // UTC → 本地時間
+    const dateStr = dt.slice(0,10);
+    if (dateStr !== lastDate) {
+      lastDate = dateStr;
+      rows += `<div style="font-size:10px;color:var(--text3);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:4px;">${dateStr}</div>`;
+    }
+
+    const badge = _AUDIT_BADGE[log.action_type] || { c:'#8b949e', zh: log.action_type };
+    const badgeHtml = `<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:${badge.c}22;color:${badge.c};border:1px solid ${badge.c}55;white-space:nowrap;">${badge.zh}</span>`;
+
+    // 目標標籤
+    let targetHtml = '';
+    if (log.target_table === 'events') {
+      targetHtml = `<span style="color:var(--text2);font-size:11px;">${_auditEventLabel(log)}</span>`;
+    } else if (log.target_table === 'accounts') {
+      targetHtml = `<span style="color:var(--text2);font-size:11px;">${log.target_id || ''}</span>`;
+    } else if (log.target_table) {
+      targetHtml = `<span style="color:var(--text3);font-size:10px;">${log.target_table}</span>`;
+    }
+
+    rows += `<div style="display:grid;grid-template-columns:90px 88px 80px 1fr;gap:6px;align-items:center;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.04);">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text3);">${dt.slice(11)}</span>
+      ${badgeHtml}
+      <span style="font-size:11px;color:var(--text3);">${log.operator || '—'}</span>
+      ${targetHtml}
+    </div>`;
   }
-  html += '</div>';
-  openModal('稽核日誌', html, '<button class="adm-btn" onclick="closeModal()">關閉</button>');
+
+  if (!rows) rows = `<div style="color:var(--text3);font-size:11px;padding:20px 0;text-align:center;">（無紀錄）</div>`;
+
+  const bodyHtml = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">${chips}</div>
+    <div style="max-height:55vh;overflow-y:auto;">${rows}</div>`;
+
+  openModal('稽核日誌', bodyHtml, `<button class="adm-btn" onclick="closeModal()">關閉</button>`);
 }
 
 /* --- Admin 面板 --- */
@@ -1254,6 +1546,140 @@ function admShowTab(tab) {
   if (tab === 'add') admShowAddForm();
   if (tab === 'pi') admLoadPiNodes();
   if (tab === 'log') admLoadLog();
+}
+
+// 5 個固定單位定義（outdoor 永久節點）
+const _PERM_NODES = [
+  { id:'node_shelter',  label:'收容組', node_type:'shelter',  icon:'pin' },
+  { id:'node_medical',  label:'醫療組', node_type:'medical',  icon:'pin' },
+  { id:'node_command',  label:'指揮部', node_type:'command',  icon:'pin' },
+  { id:'node_forward',  label:'前進組', node_type:'forward',  icon:'pin' },
+  { id:'node_security', label:'安全組', node_type:'security', icon:'pin' },
+];
+
+function openMapConfigPanel() {
+  const currentImage = _mapConfig?.maps?.indoor?.image || null;
+  const currentLabel = currentImage
+    ? `<span style="color:var(--yellow);font-family:var(--mono);">${currentImage}</span>`
+    : `<span style="color:var(--text3);">（未設定）</span>`;
+
+  // ── 站外據點狀態列 ──
+  const outdoorZones = _mapConfig?.maps?.outdoor?.zones || [];
+  const nodeRows = _PERM_NODES.map(n => {
+    const existing = outdoorZones.find(z => z.id === n.id);
+    const posLabel = (existing?.lat != null)
+      ? `<span style="color:var(--green);font-family:var(--mono);font-size:9px;">${_latlngToMGRS(existing.lat, existing.lng, 5)}</span>`
+      : `<span style="color:var(--text3);font-size:10px;">未設定</span>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:11px;color:var(--text2);min-width:48px;">${n.label}</span>
+      <span style="flex:1;">${posLabel}</span>
+      <button onclick="closeModal();_startNodePlace('${n.id}')"
+        style="font-size:10px;padding:3px 10px;border-radius:4px;cursor:pointer;
+               border:1px solid var(--border);background:var(--surface2);color:var(--text2);">
+        ${existing?.lat != null ? '重新定位' : '定位'}</button>
+    </div>`;
+  }).join('');
+
+  const bodyHtml = `
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.06em;margin-bottom:8px;">站內平面圖</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">目前圖檔：${currentLabel}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="font-size:11px;color:var(--text3);">上傳新圖檔（JPG / PNG / SVG）</label>
+          <input type="file" id="adm-map-file" accept=".jpg,.jpeg,.png,.webp,.svg"
+            style="font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px;">
+        </div>
+        <div id="adm-map-msg" style="font-size:11px;min-height:16px;margin-top:6px;"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.06em;margin-bottom:6px;">站外據點設置</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">點「定位」後在站外地圖上點擊設定各單位駐守位置</div>
+        ${nodeRows}
+      </div>
+    </div>`;
+
+  const footerHtml =
+    (currentImage
+      ? `<button onclick="admRemoveMapImage()" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;margin-right:auto;">移除圖檔</button>`
+      : '') +
+    `<button class="adm-btn" onclick="closeModal()">關閉</button>` +
+    `<button class="login-btn" style="width:auto;padding:6px 18px;" onclick="admUploadMapImage()">上傳並套用</button>`;
+
+  openModal('地圖設定', bodyHtml, footerHtml);
+}
+
+async function admUploadMapImage() {
+  const fileInput = el('adm-map-file');
+  const msg = el('adm-map-msg');
+  if (!fileInput.files.length) { msg.style.color='var(--red)'; msg.textContent='請先選擇圖檔'; return; }
+  const file = fileInput.files[0];
+  msg.style.color='var(--text3)'; msg.textContent='上傳中…';
+  try {
+    // Step 1：上傳圖檔
+    const formData = new FormData();
+    formData.append('file', file);
+    const resp = await authFetch(API_BASE + '/api/map/upload-image', {
+      method: 'POST', body: formData
+    });
+    console.log('[admUploadMapImage] upload status:', resp.status);
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => resp.status);
+      msg.style.color='var(--red)'; msg.textContent='上傳失敗：' + errText; return;
+    }
+    const uploadResult = await resp.json();
+    console.log('[admUploadMapImage] upload result:', uploadResult);
+    const filename = uploadResult.filename;
+    if (!filename) { msg.style.color='var(--red)'; msg.textContent='伺服器未回傳檔名'; return; }
+
+    // Step 2：更新 map_config.json
+    if (!_mapConfig) { msg.style.color='var(--red)'; msg.textContent='地圖設定未載入，請重新整理'; return; }
+    const newConfig = JSON.parse(JSON.stringify(_mapConfig));
+    newConfig.maps.indoor.image = filename;
+    const saveResp = await authFetch(API_BASE + '/api/map_config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(newConfig)
+    });
+    console.log('[admUploadMapImage] saveConfig status:', saveResp.status);
+    if (!saveResp.ok) {
+      const saveErr = await saveResp.text().catch(() => saveResp.status);
+      msg.style.color='var(--red)'; msg.textContent='設定儲存失敗：' + saveErr; return;
+    }
+
+    // Step 3：套用
+    _mapConfig = newConfig;
+    msg.style.color='var(--green)'; msg.textContent=`✓ 已套用：${filename}`;
+    console.log('[admUploadMapImage] 完成，套用圖檔:', filename);
+    if (_currentMap === 'indoor') switchMap('indoor');
+
+  } catch(e) {
+    console.error('[admUploadMapImage] 例外:', e);
+    msg.style.color='var(--red)'; msg.textContent='發生錯誤：' + e.message;
+  }
+}
+
+async function admRemoveMapImage() {
+  const msg = el('adm-map-msg');
+  msg.style.color = 'var(--text3)'; msg.textContent = '移除中…';
+  try {
+    if (!_mapConfig) { msg.style.color='var(--red)'; msg.textContent='地圖設定未載入'; return; }
+    const newConfig = JSON.parse(JSON.stringify(_mapConfig));
+    newConfig.maps.indoor.image = null;
+    const saveResp = await authFetch(API_BASE + '/api/map_config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(newConfig)
+    });
+    if (!saveResp.ok) { msg.style.color='var(--red)'; msg.textContent='儲存失敗：' + saveResp.status; return; }
+    _mapConfig = newConfig;
+    msg.style.color='var(--green)'; msg.textContent='✓ 已移除圖檔';
+    // 800ms 後重開 modal（讓「移除」按鈕消失、圖檔狀態更新）
+    setTimeout(() => openMapConfigPanel(), 800);
+    if (_currentMap === 'indoor') switchMap('indoor');
+  } catch(e) {
+    msg.style.color='var(--red)'; msg.textContent='發生錯誤：' + e.message;
+  }
 }
 
 async function admLoadAccounts() {
@@ -1889,73 +2315,52 @@ const SVG_ICONS = {
   pin_medical: `<svg width="22" height="22" viewBox="0 0 20 20"><path d="M10 1C6.7 1 4 3.7 4 7c0 5 6 12 6 12s6-7 6-12c0-3.3-2.7-6-6-6z" fill="#e05555"/><circle cx="10" cy="7" r="2.5" fill="#fff"/></svg>`,
 };
 
-// 事件類型歸納（指揮部地圖用，非 PWA 的細項）
-const EVENT_CATEGORIES = {
-  forward: {
-    qrf:         'QRF 出動',    // 從安全組移入
-    hazard:      '危害回報',
-    rescue:      '受困救援',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    unknown:     '不明人士',
-    situation:   '現場變化',
-  },
-  security: {
-    suspect:     '不明人員',    // 原可疑人員
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    perimeter:   '管制區異常',
-    crowd:       '秩序問題',
-    isolation:   '隔離事件',
-  },
-  shelter: {
-    unknown:     '不明人士',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    infectious:  '傳染疑慮',
-    capacity:    '量能超載',
-    security:    '安全威脅',
-    facility:    '設施異常',
-    person:      '人員狀況',
-    other:       '其他',
-  },
-  medical: {
-    unknown:     '不明人士',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    infectious:  '傳染疑慮',
-    violent:     '暴力傷患',
-    emergency:   '緊急病症',
-    mci:         '大量傷亡',
-    equipment:   '設備故障',
-    evacuation:  '撤退',
-  },
-  command: {
-    unknown:     '不明人士',
-    explosive:   '疑似爆裂物',
-    drone:       '無人機',
-    comm_fail:   '通訊異常',
-    handover:    '指揮交接',
-    resource:    '資源調度',
-    escalation:  '升降級',
-    evacuation:  '撤離',
-    other:       '其他',
-  },
+// ══════════════════════════════════════════════════════════════
+// NAPSG 危害事件類型（取代舊的 EVENT_CATEGORIES 按組分類）
+// 回報者≠處理者：任何人都可回報任何危害，分類依危害性質而非組別
+// ══════════════════════════════════════════════════════════════
+const NAPSG_EVENTS = {
+  // ── 安全威脅 ──────────────────────────────────────────────────
+  explosive:    { label: '疑似爆裂物', group: 'security', icon: 'explosive', abbr: '爆', defaultAssigned: 'forward',  severity: 'critical' },
+  drone:        { label: '無人機威脅', group: 'security', icon: 'drone',     abbr: '機', defaultAssigned: 'security', severity: 'critical' },
+  violent:      { label: '暴力事件',   group: 'security', icon: 'shield',    abbr: '暴', defaultAssigned: 'security', severity: 'critical' },
+  unknown_person:{ label: '不明人士',  group: 'security', icon: 'eye',       abbr: '人', defaultAssigned: 'security', severity: 'warning'  },
+  perimeter:    { label: '管制區異常', group: 'security', icon: 'shield',    abbr: '域', defaultAssigned: 'security', severity: 'warning'  },
+  crowd:        { label: '秩序問題',   group: 'security', icon: 'shield',    abbr: '眾', defaultAssigned: 'security', severity: 'warning'  },
+  // ── 搜救行動 ──────────────────────────────────────────────────
+  rescue:       { label: '受困救援',   group: 'rescue',   icon: 'run',       abbr: '救', defaultAssigned: 'forward',  severity: 'warning'  },
+  qrf:          { label: 'QRF 出動',   group: 'rescue',   icon: 'run',       abbr: 'QR', defaultAssigned: 'forward',  severity: 'warning'  },
+  // ── 醫療緊急 ──────────────────────────────────────────────────
+  mci:          { label: '大量傷亡',   group: 'medical',  icon: 'event',     abbr: 'MCI', defaultAssigned: 'medical', severity: 'critical' },
+  emergency:    { label: '緊急病症',   group: 'medical',  icon: 'event',     abbr: '急', defaultAssigned: 'medical',  severity: 'critical' },
+  infectious:   { label: '傳染疑慮',   group: 'medical',  icon: 'event',     abbr: '疫', defaultAssigned: 'medical',  severity: 'warning'  },
+  // ── 收容照護 ──────────────────────────────────────────────────
+  capacity:     { label: '量能超載',   group: 'care',     icon: 'event',     abbr: '滿', defaultAssigned: 'shelter',  severity: 'warning'  },
+  isolation:    { label: '隔離事件',   group: 'care',     icon: 'shield',    abbr: '隔', defaultAssigned: 'shelter',  severity: 'warning'  },
+  person_need:  { label: '人員狀況',   group: 'care',     icon: 'person',    abbr: '護', defaultAssigned: 'shelter',  severity: 'info'     },
+  // ── 基礎設施 ──────────────────────────────────────────────────
+  comm_fail:    { label: '通訊異常',   group: 'infra',    icon: 'event',     abbr: '訊', defaultAssigned: 'command',  severity: 'warning'  },
+  facility:     { label: '設施異常',   group: 'infra',    icon: 'event',     abbr: '設', defaultAssigned: 'command',  severity: 'info'     },
+  equipment:    { label: '設備故障',   group: 'infra',    icon: 'event',     abbr: '器', defaultAssigned: 'command',  severity: 'info'     },
+  // ── 行動管理 ──────────────────────────────────────────────────
+  evacuation:   { label: '撤離',       group: 'ops',      icon: 'run',       abbr: '疏', defaultAssigned: 'command',  severity: 'warning'  },
+  resource:     { label: '資源調度',   group: 'ops',      icon: 'event',     abbr: '物', defaultAssigned: 'command',  severity: 'info'     },
+  situation:    { label: '現場變化',   group: 'ops',      icon: 'event',     abbr: '況', defaultAssigned: null,        severity: 'info'     },
+  hazard:       { label: '危害回報',   group: 'ops',      icon: 'event',     abbr: '危', defaultAssigned: null,        severity: 'info'     },
+  other:        { label: '其他',       group: 'ops',      icon: 'event',     abbr: '他', defaultAssigned: null,        severity: 'info'     },
 };
 
-// 事件類型 → icon key
-// 未列出的類型全部預設 'event'（警告三角）
-const EVENT_ICON_MAP = {
-  explosive: 'explosive',   // 疑似爆裂物
-  drone:     'drone',       // 無人機
-  suspect:   'person',      // 不明人員（安全組）
-  qrf:       'run',         // QRF 出動
-  isolation: 'shield',      // 隔離事件
-  security:  'shield',      // 安全威脅（收容組）
-  handover:  'handshake',   // 指揮交接
-  unknown:   'person',      // 不明人士（人形）
-  person:    'person',      // 人員狀況（收容組，同人形）
+const NAPSG_GROUPS = {
+  security: '安全威脅',
+  rescue:   '搜救行動',
+  medical:  '醫療緊急',
+  care:     '收容照護',
+  infra:    '基礎設施',
+  ops:      '行動管理',
 };
+
+// 地圖菱形 marker 內的群組縮寫
+const _NAPSG_GROUP_ABBR = { security:'安', rescue:'救', medical:'醫', care:'護', infra:'設', ops:'行' };
 
 // emoji → SVG key 對應（向下相容舊 map_config）
 const EMOJI_TO_SVG = {'📌':'pin','🚑':'pin','⚠️':'event','👤':'threat'};
@@ -1981,16 +2386,1625 @@ async function initMap() {
 }
 
 function switchMap(key) {
-  if (!_mapConfig || !_mapConfig.maps[key]) return;
-  _currentMap = key;
-  sessionStorage.setItem('_currentMap', key);
-  const m = _mapConfig.maps[key];
-  el('map-img').src = '/static/' + m.image;
-  // tab 切換
+  // 舊版 session 可能存了 'osm'，自動導向 outdoor
+  if (key === 'osm') key = 'outdoor';
+  const isLeaflet = key === 'outdoor';  // 站外 = Leaflet 向量地圖
+
+  // tab 高亮
   document.querySelectorAll('.map-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.map === key);
   });
+
+  // 靜態地圖元素（站內）vs Leaflet（站外）
+  el('map-img').style.display    = isLeaflet ? 'none' : '';
+  el('map-overlay').style.display = isLeaflet ? 'none' : '';
+  el('leaflet-map').classList.toggle('active', isLeaflet);
+  // MGRS 搜尋浮島：站外才顯示
+  const mgrsIsland = el('mgrs-island');
+  if (mgrsIsland) mgrsIsland.style.display = isLeaflet ? 'flex' : 'none';
+  // 類型選擇器：站外時隱藏（長按 popup 取代），站內放置模式下由 onPlaceTypeChange() 控制
+  const _ptw2 = el('place-type-wrap');
+  if (_ptw2 && isLeaflet) _ptw2.style.display = 'none';
+  // 切到站內時關閉圖層面板
+  if (!isLeaflet) {
+    const lp = document.getElementById('layer-panel');
+    if (lp) lp.style.display = 'none';
+    const lpBtn = document.getElementById('btn-layer-panel');
+    if (lpBtn) lpBtn.classList.remove('active');
+    // 清除路線繪製狀態
+    if (_routeDrawState) _cancelRouteDraw();
+    if (_infraPlaceMode) { _infraPlaceMode = null; }
+  }
+  // 調整據點按鈕：站內才顯示；切到站外時退出調整模式
+  const pinBtn = el('pin-edit-btn');
+  if (isLeaflet) {
+    pinBtn.style.display = 'none';
+    if (_pinEditMode) { _pinEditMode = false; pinBtn.style.background='var(--surface2)'; pinBtn.style.color='var(--text2)'; pinBtn.style.borderColor='var(--border)'; pinBtn.textContent='✏ 調整據點'; }
+  } else {
+    pinBtn.style.display = '';
+  }
+
+  _currentMap = key;
+  sessionStorage.setItem('_currentMap', key);
+
+  // 切離站外地圖時：只隱藏面板與 cursor，保留 _coordPin 物件讓切回時能恢復
+  if (!isLeaflet) {
+    const _cp = document.getElementById('map-coord-panel');
+    if (_cp) _cp.style.display = 'none';
+    if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  }
+
+  if (isLeaflet) {
+    _initLeafletMap();  // _leafletMap 在此函式中被建立或刷新
+    // 切回站外：若有 coordPin 就恢復顯示座標面板
+    _refreshCoordPanel();
+    // 若已在放置模式中切換到站外，補設 crosshair
+    if (_placeMode && _leafletMap) {
+      _leafletMap.getContainer().style.setProperty('cursor', 'crosshair', 'important');
+    }
+    return;
+  }
+
+  // 站內：載入靜態平面圖
+  if (!_mapConfig || !_mapConfig.maps[key]) return;
+  const m = _mapConfig.maps[key];
+  if (m.image) {
+    el('map-img').src = '/static/' + m.image;
+    el('map-img').style.display = '';
+  } else {
+    // 未設定圖檔：顯示空白佔位
+    el('map-img').removeAttribute('src');
+    el('map-img').style.display = 'none';
+  }
   renderMapOverlay();
+}
+
+// ── Leaflet 站外地圖 ───────────────────────────────────────────────────────────
+let _leafletMap = null;
+let _leafletMarkers = [];
+let _coordPin = null;    // 點擊地圖後放置的藍色十字位置指示（非事件 marker）
+
+const _HSINCHU_CENTER = [24.8283, 121.0149]; // 竹北體育場
+const _HSINCHU_ZOOM = 15;
+
+// ── MGRS 座標轉換（WGS84 → MGRS，依 DMA TM 8358.2 規格）──
+function _latlngToMGRS(lat, lng, precision) {
+  precision = (precision === undefined) ? 5 : precision;
+  // UTM 帶號
+  let zoneNum = Math.floor((lng + 180) / 6) + 1;
+  // 緯度帶（C-X，跳過 I、O）
+  const latBands = 'CDEFGHJKLMNPQRSTUVWX';
+  const latBand  = latBands[Math.min(Math.floor((lat + 80) / 8), 19)];
+  // WGS84 橢球參數
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const b = a * (1 - f), e2 = 1 - (b * b) / (a * a), ep2 = e2 / (1 - e2), k0 = 0.9996;
+  const φ = lat * Math.PI / 180, λ = lng * Math.PI / 180;
+  const λ0 = ((zoneNum - 1) * 6 - 180 + 3) * Math.PI / 180;
+  const sinφ = Math.sin(φ), cosφ = Math.cos(φ), tanφ = Math.tan(φ);
+  const N = a / Math.sqrt(1 - e2 * sinφ * sinφ);
+  const T = tanφ * tanφ, C = ep2 * cosφ * cosφ, A = cosφ * (λ - λ0);
+  const M = a * (
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * φ
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*φ)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*φ)
+    - (35*e2*e2*e2/3072) * Math.sin(6*φ));
+  let E = k0*N*(A+(1-T+C)*A*A*A/6+(5-18*T+T*T+72*C-58*ep2)*A*A*A*A*A/120)+500000;
+  let Nn = k0*(M+N*tanφ*(A*A/2+(5-T+9*C+4*C*C)*A*A*A*A/24
+    +(61-58*T+T*T+600*C-330*ep2)*A*A*A*A*A*A/720));
+  if (lat < 0) Nn += 10000000;
+  // 100km 格方字母（欄）
+  const colSets = ['ABCDEFGH','JKLMNPQR','STUVWXYZ'];
+  // 100km 格方字母（列），奇數帶由 A 起，偶數帶由 F 起
+  const rowOdd  = 'ABCDEFGHJKLMNPQRSTUV';
+  const rowEven = 'FGHJKLMNPQRSTUVABCDE';
+  const colIdx = Math.floor(E  / 100000) - 1;
+  const rowIdx = Math.floor(Nn / 100000) % 20;
+  if (colIdx < 0 || colIdx > 7) return `${zoneNum}${latBand} ??`;
+  const colLetter = colSets[(zoneNum-1)%3][colIdx];
+  const rowLetter = (zoneNum % 2 === 1 ? rowOdd : rowEven)[rowIdx];
+  // 數字部分
+  const ep = String(Math.round(E  % 100000)).padStart(5,'0').substring(0, precision);
+  const np = String(Math.round(Nn % 100000)).padStart(5,'0').substring(0, precision);
+  return `${zoneNum}${latBand} ${colLetter}${rowLetter} ${ep} ${np}`;
+}
+
+// ── UTM → WGS84 逆投影（供 MGRS 解析使用）────────────────────
+function _utmToLatLng(zoneNum, E, N) {
+  const a = 6378137.0, f = 1/298.257223563;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a), ep2 = e2/(1-e2), k0 = 0.9996;
+  const e1 = (1 - Math.sqrt(1-e2)) / (1 + Math.sqrt(1-e2));
+  const x = E - 500000;
+  const M = N / k0;
+  const μ = M / (a*(1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256));
+  const φ1 = μ
+    + (3*e1/2   - 27*e1*e1*e1/32)    * Math.sin(2*μ)
+    + (21*e1*e1/16 - 55*e1*e1*e1*e1/32) * Math.sin(4*μ)
+    + (151*e1*e1*e1/96)               * Math.sin(6*μ)
+    + (1097*e1*e1*e1*e1/512)          * Math.sin(8*μ);
+  const sinφ1 = Math.sin(φ1), cosφ1 = Math.cos(φ1), tanφ1 = Math.tan(φ1);
+  const N1 = a / Math.sqrt(1 - e2*sinφ1*sinφ1);
+  const T1 = tanφ1*tanφ1, C1 = ep2*cosφ1*cosφ1;
+  const R1 = a*(1-e2) / Math.pow(1 - e2*sinφ1*sinφ1, 1.5);
+  const D = x / (N1*k0);
+  const latRad = φ1 - (N1*tanφ1/R1) * (
+    D*D/2
+    - (5 + 3*T1 + 10*C1 - 4*C1*C1 - 9*ep2)*D*D*D*D/24
+    + (61 + 90*T1 + 298*C1 + 45*T1*T1 - 252*ep2 - 3*C1*C1)*D*D*D*D*D*D/720
+  );
+  const lngRad = (D
+    - (1 + 2*T1 + C1)*D*D*D/6
+    + (5 - 2*C1 + 28*T1 - 3*C1*C1 + 8*ep2 + 24*T1*T1)*D*D*D*D*D/120
+  ) / cosφ1;
+  const λ0 = ((zoneNum-1)*6 - 180 + 3) * Math.PI / 180;
+  return { lat: latRad*180/Math.PI, lng: (λ0 + lngRad)*180/Math.PI };
+}
+
+// ── WGS84 → UTM（供 MGRS 格線計算）───────────────────────────
+function _latlngToUtm(lat, lng) {
+  const a = 6378137.0, f = 1/298.257223563;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a), ep2 = e2/(1-e2), k0 = 0.9996;
+  const zoneNum = Math.floor((lng + 180) / 6) + 1;
+  const φ = lat*Math.PI/180, λ = lng*Math.PI/180;
+  const λ0 = ((zoneNum-1)*6 - 180 + 3)*Math.PI/180;
+  const sinφ = Math.sin(φ), cosφ = Math.cos(φ), tanφ = Math.tan(φ);
+  const N = a / Math.sqrt(1 - e2*sinφ*sinφ);
+  const T = tanφ*tanφ, C = ep2*cosφ*cosφ, A = cosφ*(λ - λ0);
+  const M = a*(
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256)*φ
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024)*Math.sin(2*φ)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024)*Math.sin(4*φ)
+    - (35*e2*e2*e2/3072)*Math.sin(6*φ));
+  let E = k0*N*(A+(1-T+C)*A*A*A/6+(5-18*T+T*T+72*C-58*ep2)*A*A*A*A*A/120) + 500000;
+  let Nn = k0*(M + N*tanφ*(A*A/2 + (5-T+9*C+4*C*C)*A*A*A*A/24
+    + (61-58*T+T*T+600*C-330*ep2)*A*A*A*A*A*A/720));
+  if (lat < 0) Nn += 10000000;
+  return { zoneNum, easting: E, northing: Nn };
+}
+
+// ══════════════════════════════════════════════════════════════
+// Phase 5: MGRS 格線 overlay
+// ══════════════════════════════════════════════════════════════
+
+function _mgrsGridSpacing() {
+  // 用實際像素密度決定間距：保證格線之間至少 MIN_PX 像素
+  // 不用 zoom level，避免不同螢幕/視窗大小下格線過密
+  const MIN_PX = 60;
+  const zoom = _leafletMap.getZoom();
+  const lat  = _leafletMap.getCenter().lat;
+  // Leaflet Mercator：每像素公尺數（考慮緯度縮放）
+  const metersPerPx = (40075016.686 / (256 * Math.pow(2, zoom)))
+                    / Math.cos(lat * Math.PI / 180);
+  const minMeters = metersPerPx * MIN_PX;
+  // 選最近的 MGRS 標準間距（1, 10, 100, 1000, 10000, 100000 m）
+  const levels = [1, 10, 100, 1000, 10000, 100000];
+  return levels.find(s => s >= minMeters) || 100000;
+}
+
+function _mgrsGridLabel(val, spacing) {
+  // 位數 = log10(100000 / spacing)：10km→1位, 1km→2位, 100m→3位, 10m→4位
+  const digits  = Math.max(3, Math.round(Math.log10(100000 / spacing)));
+  const divisor = Math.pow(10, 5 - digits);
+  const v = Math.round(val % 100000);
+  return String(Math.floor(v / divisor)).padStart(digits, '0');
+}
+
+function _mgrsLabelIconW(spacing) {
+  // chip 寬度隨位數調整：1位=22px, 2位=28px, 3位=34px, 4位=40px
+  const digits = Math.max(1, Math.round(Math.log10(100000 / spacing)));
+  return 16 + digits * 6;
+}
+
+function _drawMgrsGrid() {
+  if (!_leafletMap) return;
+  if (!_mgrsGridLayer) _mgrsGridLayer = L.layerGroup();
+  _mgrsGridLayer.clearLayers();
+  if (!_mgrsGridVisible) {
+    if (_mgrsGridLayer._map) _mgrsGridLayer.remove();
+    return;
+  }
+  if (!_mgrsGridLayer._map) _mgrsGridLayer.addTo(_leafletMap);
+
+  const zoom = _leafletMap.getZoom();
+  const sp = _mgrsGridSpacing();   // 由像素密度自動決定
+  const b = _leafletMap.getBounds();
+  // 用地圖中心的 UTM 帶號，避免跨帶問題（Taiwan 主要在 51R）
+  const ctr = _latlngToUtm(b.getCenter().lat, b.getCenter().lng);
+  const sw  = _latlngToUtm(b.getSouth(), b.getWest());
+  const ne  = _latlngToUtm(b.getNorth(), b.getEast());
+  const zn  = ctr.zoneNum;
+
+  const lineOpt = { color:'rgba(90,150,215,.55)', weight:1, interactive:false };
+
+  // 用 Leaflet pixel→LatLng 換算，將標籤固定在距邊緣 N px 的螢幕位置
+  // 避免 UI 元件（搜尋欄、座標面板、tab bar）遮蓋
+  const mapW = _leafletMap.getContainer().offsetWidth;
+  const mapH = _leafletMap.getContainer().offsetHeight;
+  const leftPx   = 24;  // 左側：標籤寬 36px，中心錨點 18px，需 ≥18px 才不超出邊界
+  const bottomPx = 60;  // 下側：距底部 60px（避開搜尋欄+edit bar ~55px）
+  const llLeft   = _leafletMap.containerPointToLatLng(L.point(leftPx,   mapH / 2));
+  const llBottom = _leafletMap.containerPointToLatLng(L.point(mapW / 2, mapH - bottomPx));
+  const labelE = _latlngToUtm(llLeft.lat,   llLeft.lng).easting;    // Y 標籤的 X 位置
+  const labelN = _latlngToUtm(llBottom.lat, llBottom.lng).northing; // X 標籤的 Y 位置
+
+  // Northing 線（東西向）—— Y 軸標籤貼左側
+  const n0 = Math.floor(sw.northing / sp) * sp;
+  const n1 = Math.ceil(ne.northing  / sp) * sp;
+  for (let n = n0; n <= n1; n += sp) {
+    const p1 = _utmToLatLng(zn, sw.easting - sp, n);
+    const p2 = _utmToLatLng(zn, ne.easting + sp, n);
+    if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
+    L.polyline([[p1.lat, p1.lng],[p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
+    // 左側 Y 標籤
+    const ll = _utmToLatLng(zn, labelE, n);
+    if (isFinite(ll.lat)) {
+      const w = _mgrsLabelIconW(sp);
+      L.marker([ll.lat, ll.lng], {
+        icon: L.divIcon({
+          html: `<div class="mgrs-gl">${_mgrsGridLabel(n, sp)}</div>`,
+          className:'', iconSize:[w, 14], iconAnchor:[w/2, 7]
+        }),
+        interactive:false, zIndexOffset:-900
+      }).addTo(_mgrsGridLayer);
+    }
+  }
+
+  // Easting 線（南北向）—— X 軸標籤貼下側
+  const e0 = Math.floor(sw.easting / sp) * sp;
+  const e1 = Math.ceil(ne.easting  / sp) * sp;
+  for (let e = e0; e <= e1; e += sp) {
+    const p1 = _utmToLatLng(zn, e, sw.northing - sp);
+    const p2 = _utmToLatLng(zn, e, ne.northing + sp);
+    if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
+    L.polyline([[p1.lat, p1.lng],[p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
+    // 下側 X 標籤：固定距底部 60px（搜尋欄上方）
+    const ll = _utmToLatLng(zn, e, labelN);
+    if (isFinite(ll.lat)) {
+      const w = _mgrsLabelIconW(sp);
+      L.marker([ll.lat, ll.lng], {
+        icon: L.divIcon({
+          html: `<div class="mgrs-gl">${_mgrsGridLabel(e, sp)}</div>`,
+          className:'', iconSize:[w, 14], iconAnchor:[w/2, 7]
+        }),
+        interactive:false, zIndexOffset:-900
+      }).addTo(_mgrsGridLayer);
+    }
+  }
+}
+
+function _toggleMgrsGrid() {
+  _mgrsGridVisible = !_mgrsGridVisible;
+  const btn = document.getElementById('btn-mgrs-grid');
+  if (btn) btn.classList.toggle('active', _mgrsGridVisible);
+  _drawMgrsGrid();
+}
+
+// ══════════════════════════════════════════════════════════════
+// Phase 3: 繪製範圍（Polygon）
+// ══════════════════════════════════════════════════════════════
+
+const POLY_TYPES = {
+  control:    { label:'管制區',   color:'#e05555', dash:true  },
+  evacuation: { label:'疏散範圍', color:'#e3b341', dash:true  },
+  assembly:   { label:'集結點',   color:'#3fb950', dash:false },
+  danger:     { label:'危險區域', color:'#c0392b', dash:false },
+  ops:        { label:'作業區',   color:'#58a6ff', dash:false },
+};
+
+// 基礎設施類型（NAPSG COP 常見圖層）
+const INFRA_TYPES = {
+  hospital: { label:'醫院',     color:'#e05555', abbr:'H' },
+  shelter:  { label:'收容所',   color:'#e3b341', abbr:'S' },
+  police:   { label:'警察局',   color:'#58a6ff', abbr:'P' },
+  fire:     { label:'消防站',   color:'#ff7f50', abbr:'F' },
+  utility:  { label:'公用設施', color:'#8b949e', abbr:'U' },
+};
+
+// 疏散路線類型
+const ROUTE_TYPES = {
+  primary:   { label:'主要疏散路線', color:'#56d364', dash:false },
+  secondary: { label:'次要路線',     color:'#e3b341', dash:true  },
+  emergency: { label:'緊急通道',     color:'#e05555', dash:false },
+};
+
+// 傷患/資源流向類型
+const FLOW_TYPES = {
+  casualty:   { label:'傷患後送', color:'#e05555' },
+  evacuation: { label:'疏散人員', color:'#e3b341' },
+  resource:   { label:'資源調度', color:'#56d364' },
+};
+
+function _startPolyDraw() {
+  if (_polyDrawState) _cancelPolyDraw();
+  _polyDrawState = { latlngs: [], markers: [], previewPoly: null };
+  const banner = document.getElementById('poly-draw-banner');
+  banner.style.display = 'flex';
+  el('map-coord-panel').style.display = 'none';
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+  const btn = document.getElementById('btn-poly-draw');
+  if (btn) btn.classList.add('active');
+}
+
+function _cancelPolyDraw() {
+  if (!_polyDrawState) return;
+  // 清除頂點 markers 和 preview
+  _polyDrawState.markers.forEach(m => m.remove());
+  if (_polyDrawState.previewPoly) _polyDrawState.previewPoly.remove();
+  _polyDrawState = null;
+  document.getElementById('poly-draw-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  const btn = document.getElementById('btn-poly-draw');
+  if (btn) btn.classList.remove('active');
+}
+
+function _addPolyVertex(lat, lng) {
+  if (!_polyDrawState) return;
+  _polyDrawState.latlngs.push([lat, lng]);
+  // 頂點小圓點
+  const m = L.circleMarker([lat, lng], {
+    radius:4, color:'#fff', weight:2, fillColor:'#58a6ff', fillOpacity:1, interactive:false
+  }).addTo(_leafletMap);
+  _polyDrawState.markers.push(m);
+  // 更新 preview 多邊形
+  if (_polyDrawState.previewPoly) _polyDrawState.previewPoly.remove();
+  if (_polyDrawState.latlngs.length >= 2) {
+    _polyDrawState.previewPoly = L.polygon(_polyDrawState.latlngs, {
+      color:'#58a6ff', weight:1.5, dashArray:'6 3', fillOpacity:0.08, interactive:false
+    }).addTo(_leafletMap);
+  }
+  // 3 個頂點後才能完成
+  const finBtn = document.getElementById('poly-finish-btn');
+  if (finBtn) finBtn.disabled = _polyDrawState.latlngs.length < 3;
+}
+
+function _finishPolyDraw() {
+  if (!_polyDrawState || _polyDrawState.latlngs.length < 3) return;
+  const latlngs = [..._polyDrawState.latlngs];
+  _cancelPolyDraw();  // 清理 draw 狀態（但先取出 latlngs）
+  _openPolyForm(latlngs);
+}
+
+function _openPolyForm(latlngs) {
+  const typeOpts = Object.entries(POLY_TYPES).map(([k, v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+
+  let html = '';
+  html += `<div style="margin-bottom:12px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">範圍名稱</label>`;
+  html += `<input id="poly-name" placeholder="例：北側管制區" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">`;
+  html += `</div>`;
+  html += `<div style="margin-bottom:16px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="poly-type" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select>`;
+  html += `</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">${latlngs.length} 個頂點</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_savePolygon()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">儲存</button>`;
+  html += `</div>`;
+
+  // 暫存 latlngs 供 _savePolygon 使用
+  window._pendingPolyLatlngs = latlngs;
+  el('modal-title').textContent = '✏ 新增範圍';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _savePolygon() {
+  const name = (document.getElementById('poly-name')?.value || '').trim();
+  const typeKey = document.getElementById('poly-type')?.value || 'ops';
+  const latlngs = window._pendingPolyLatlngs;
+  if (!name || !latlngs) return;
+  const def = POLY_TYPES[typeKey];
+  const poly = {
+    id: 'poly_' + Date.now(),
+    label: name,
+    poly_type: typeKey,
+    color: def.color,
+    dash: def.dash,
+    latlngs,
+  };
+  if (!_mapConfig.maps['outdoor'].polygons) _mapConfig.maps['outdoor'].polygons = [];
+  _mapConfig.maps['outdoor'].polygons.push(poly);
+  await saveMapConfig();
+  closeModal();
+  _renderPolygons();
+}
+
+function _renderPolygons() {
+  if (!_leafletMap) return;
+  if (!_polygonLayer) _polygonLayer = L.layerGroup().addTo(_leafletMap);
+  _polygonLayer.clearLayers();
+  if (!_layerVis.polygons) return;
+  const polys = _mapConfig?.maps?.['outdoor']?.polygons || [];
+  polys.forEach(poly => {
+    const dash = poly.dash ? '8 5' : null;
+    const pl = L.polygon(poly.latlngs, {
+      color: poly.color, weight:2, dashArray: dash,
+      fillColor: poly.color, fillOpacity:0.12, interactive:true,
+    }).addTo(_polygonLayer);
+    pl.on('click', () => _showPolyInfo(poly));
+    // 標籤（可拖曳，預設重心；若已儲存 label_anchor 則用之）
+    if (poly.label) {
+      const labelPos = poly.label_anchor
+        ? [poly.label_anchor[0], poly.label_anchor[1]]
+        : _polyCentroid(poly.latlngs);
+      const polyLabelMarker = L.marker(labelPos, {
+        icon: L.divIcon({
+          html:`<div style="font-size:10px;font-weight:700;color:${poly.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;cursor:grab;user-select:none;padding:2px 4px;border-radius:3px;" title="拖曳可移動標籤位置">${poly.label}</div>`,
+          className:'', iconSize:[120,20], iconAnchor:[0,10]
+        }),
+        draggable: true,
+        zIndexOffset: 100,
+        bubblingMouseEvents: false,
+      }).addTo(_polygonLayer);
+
+      polyLabelMarker.on('mousedown touchstart', function(e) {
+        L.DomEvent.stopPropagation(e);
+      });
+      polyLabelMarker.on('dragend', async function() {
+        const ll = polyLabelMarker.getLatLng();
+        poly.label_anchor = [
+          Math.round(ll.lat * 1000000) / 1000000,
+          Math.round(ll.lng * 1000000) / 1000000,
+        ];
+        await saveMapConfig();
+      });
+    }
+  });
+}
+
+function _polyCentroid(latlngs) {
+  const lat = latlngs.reduce((s, p) => s + p[0], 0) / latlngs.length;
+  const lng = latlngs.reduce((s, p) => s + p[1], 0) / latlngs.length;
+  return [lat, lng];
+}
+
+function _showPolyInfo(poly) {
+  const def = POLY_TYPES[poly.poly_type] || {};
+  let html = `<div style="margin-bottom:12px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${poly.color}22;color:${poly.color};border:1px solid ${poly.color}44;">${def.label||poly.poly_type}</span>`;
+  html += `</div>`;
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${poly.latlngs.length} 個頂點</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:12px;">💡 直接在地圖上拖曳標籤文字可調整位置</div>`;
+  if (poly.label_anchor) {
+    html += `<button onclick="_resetPolyLabelAnchor('${poly.id}')" style="width:100%;padding:7px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;margin-bottom:8px;">↺ 重設標籤至自動位置</button>`;
+  }
+  html += `<button onclick="_deletePolygon('${poly.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此範圍</button>`;
+
+  el('modal-title').textContent = `▱ ${poly.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _resetPolyLabelAnchor(id) {
+  const poly = (_mapConfig?.maps?.['outdoor']?.polygons || []).find(p => p.id === id);
+  if (!poly) return;
+  delete poly.label_anchor;
+  await saveMapConfig();
+  closeModal();
+  _renderPolygons();
+}
+
+async function _deletePolygon(polyId) {
+  if (!_mapConfig.maps['outdoor'].polygons) return;
+  _mapConfig.maps['outdoor'].polygons = _mapConfig.maps['outdoor'].polygons.filter(p => p.id !== polyId);
+  await saveMapConfig();
+  closeModal();
+  _renderPolygons();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 圖層面板（Layer Panel）
+// ══════════════════════════════════════════════════════════════
+
+function _toggleLayerPanel() {
+  const panel = document.getElementById('layer-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') {
+    _closeLayerPanel();
+  } else {
+    _rebuildLayerPanel();
+    panel.style.display = 'block';
+    document.getElementById('btn-layer-panel')?.classList.add('active');
+  }
+}
+
+function _closeLayerPanel() {
+  const panel = document.getElementById('layer-panel');
+  if (panel) panel.style.display = 'none';
+  document.getElementById('btn-layer-panel')?.classList.remove('active');
+}
+
+function _rebuildLayerPanel() {
+  const panel = document.getElementById('layer-panel');
+  if (!panel) return;
+  // MGRS 狀態與 _mgrsGridVisible 同步
+  _layerVis.mgrs = _mgrsGridVisible;
+  const layers = [
+    { key:'zones',    icon:'◆', label:'節點' },
+    { key:'polygons', icon:'▱', label:'範圍' },
+    { key:'infra',    icon:'＋', label:'設施' },
+    { key:'flows',    icon:'→', label:'流向' },
+    { key:'routes',   icon:'↗', label:'路線' },
+    { key:'mgrs',     icon:'⊞', label:'MGRS格線' },
+  ];
+  let html = '<h4>圖層</h4>';
+  layers.forEach(l => {
+    const on = _layerVis[l.key];
+    html += `<div class="layer-row" onclick="_toggleLayer('${l.key}')">`;
+    html += `<div class="layer-check${on?' on':''}">${on?'✓':''}</div>`;
+    html += `<span style="font-size:11px;color:${on?'var(--text)':'var(--text3)'};">${l.icon} ${l.label}</span>`;
+    html += `</div>`;
+  });
+  // 地圖設定區（預備期操作）
+  html += `<div style="border-top:1px solid var(--border);margin:4px 0 2px;padding:4px 12px 2px;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;">地圖設定</div>`;
+  html += `<div class="layer-row" onclick="_openInfraForm();_closeLayerPanel();">`;
+  html += `<span style="font-size:11px;color:var(--text2);">＋ 新增設施</span></div>`;
+  panel.innerHTML = html;
+}
+
+function _toggleLayer(key) {
+  if (key === 'mgrs') {
+    // MGRS 由 _toggleMgrsGrid 管理
+    _toggleMgrsGrid();
+    _rebuildLayerPanel();
+    return;
+  }
+  _layerVis[key] = !_layerVis[key];
+  if (key === 'zones')    _renderLeafletMarkers();
+  else if (key === 'polygons') _renderPolygons();
+  else if (key === 'infra')    _renderInfra();
+  else if (key === 'flows')    _renderFlows();
+  else if (key === 'routes')   _renderRoutes();
+  _rebuildLayerPanel();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 基礎設施（Infrastructure Markers）
+// ══════════════════════════════════════════════════════════════
+
+/** 產生基礎設施 SVG divIcon */
+function _infraIcon(infraType) {
+  const def = INFRA_TYPES[infraType] || INFRA_TYPES.utility;
+  const c = def.color;
+  // 圓形底 + 白字縮寫（NAPSG Point Feature 風格）
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2" opacity=".92"/>
+    <text x="14" y="18.5" text-anchor="middle" font-size="11" font-weight="700"
+          font-family="sans-serif" fill="#fff">${def.abbr}</text>
+  </svg>`;
+  return L.divIcon({ html: svg, className:'', iconSize:[28,28], iconAnchor:[14,14] });
+}
+
+function _renderInfra() {
+  if (!_leafletMap) return;
+  if (!_infraLayer) _infraLayer = L.layerGroup().addTo(_leafletMap);
+  _infraLayer.clearLayers();
+  if (!_layerVis.infra) return;
+  const items = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
+  items.forEach(item => {
+    const marker = L.marker([item.lat, item.lng], {
+      icon: _infraIcon(item.infra_type),
+      title: item.label,
+      zIndexOffset: -100,
+    });
+    const def = INFRA_TYPES[item.infra_type] || INFRA_TYPES.utility;
+    marker.bindTooltip(`<span style="color:${def.color}">${def.label}</span> ${item.label}`, {
+      className:'napsg-tooltip', direction:'top', offset:[0,-16]
+    });
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      _showInfraInfo(item);
+    });
+    marker.addTo(_infraLayer);
+  });
+}
+
+function _showInfraInfo(item) {
+  const def = INFRA_TYPES[item.infra_type] || {};
+  let html = `<div style="margin-bottom:12px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${def.color}22;color:${def.color};border:1px solid ${def.color}44;">${def.label||item.infra_type}</span>`;
+  html += `</div>`;
+  html += `<button onclick="_deleteInfra('${item.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此設施</button>`;
+  el('modal-title').textContent = `${def.abbr||'＋'} ${item.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _deleteInfra(id) {
+  if (!_mapConfig.maps['outdoor'].infrastructure) return;
+  _mapConfig.maps['outdoor'].infrastructure = _mapConfig.maps['outdoor'].infrastructure.filter(i => i.id !== id);
+  await saveMapConfig();
+  closeModal();
+  _renderInfra();
+}
+
+/** 選擇設施類型後點擊地圖放置 */
+function _openInfraForm() {
+  const typeOpts = Object.entries(INFRA_TYPES).map(([k,v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  let html = '';
+  html += `<div style="margin-bottom:12px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="infra-type-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select>`;
+  html += `</div>`;
+  html += `<div style="margin-bottom:16px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">名稱</label>`;
+  html += `<input id="infra-name" placeholder="例：新竹馬偕" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">`;
+  html += `</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">確認後點擊地圖放置位置</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_startInfraPlace()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">點擊地圖放置 →</button>`;
+  html += `</div>`;
+  el('modal-title').textContent = '＋ 新增設施';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+function _startInfraPlace() {
+  const typeVal  = document.getElementById('infra-type-sel')?.value || 'utility';
+  const nameVal  = (document.getElementById('infra-name')?.value || '').trim();
+  if (!nameVal) {
+    document.getElementById('infra-name')?.focus();
+    return;
+  }
+  closeModal();
+  _infraPlaceMode = { infra_type: typeVal, label: nameVal };
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+}
+
+async function _saveInfraPosition(lat, lng) {
+  if (!_infraPlaceMode) return;
+  const item = {
+    id: 'infra_' + Date.now(),
+    infra_type: _infraPlaceMode.infra_type,
+    label: _infraPlaceMode.label,
+    lat, lng,
+  };
+  if (!_mapConfig.maps['outdoor'].infrastructure) _mapConfig.maps['outdoor'].infrastructure = [];
+  _mapConfig.maps['outdoor'].infrastructure.push(item);
+  await saveMapConfig();
+  _infraPlaceMode = null;
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  _renderInfra();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 傷患流向（Flows）
+// ══════════════════════════════════════════════════════════════
+
+/** 計算兩點方位角（度，北=0，順時針） */
+function _bearing(lat1, lng1, lat2, lng2) {
+  const r = Math.PI / 180;
+  const dL = (lng2 - lng1) * r;
+  const y  = Math.sin(dL) * Math.cos(lat2 * r);
+  const x  = Math.cos(lat1 * r) * Math.sin(lat2 * r) -
+              Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dL);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+/** 箭頭 divIcon（指向 bearing 方向） */
+function _arrowIcon(angle, color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="-11 -11 22 22">
+    <polygon points="0,-9 5,4 0,1 -5,4" fill="${color}" stroke="rgba(14,22,29,.6)" stroke-width="1"
+      transform="rotate(${angle})"/>
+  </svg>`;
+  return L.divIcon({ html:svg, className:'', iconSize:[22,22], iconAnchor:[11,11] });
+}
+
+function _renderFlows() {
+  if (!_leafletMap) return;
+  if (!_flowLayer) _flowLayer = L.layerGroup().addTo(_leafletMap);
+  _flowLayer.clearLayers();
+  if (!_layerVis.flows) return;
+  const flows = _mapConfig?.maps?.['outdoor']?.flows || [];
+  flows.forEach(flow => {
+    // 支援新格式 from_ref/to_ref 及舊格式 from_zone_id/to_zone_id
+    const fromPt = _resolveFlowRef(flow.from_ref || (flow.from_zone_id ? 'zone:'+flow.from_zone_id : null), flow);
+    const toPt   = _resolveFlowRef(flow.to_ref   || (flow.to_zone_id   ? 'zone:'+flow.to_zone_id   : null), flow);
+    if (!fromPt?.lat || !toPt?.lat) return;
+    const def = FLOW_TYPES[flow.flow_type] || FLOW_TYPES.casualty;
+    // 折線
+    const line = L.polyline([[fromPt.lat, fromPt.lng],[toPt.lat, toPt.lng]], {
+      color: def.color, weight: 2.5, opacity: 0.85,
+    }).addTo(_flowLayer);
+    line.on('click', () => _showFlowInfo(flow));
+    // 中點箭頭
+    const midLat = (fromPt.lat + toPt.lat) / 2;
+    const midLng = (fromPt.lng + toPt.lng) / 2;
+    const ang = _bearing(fromPt.lat, fromPt.lng, toPt.lat, toPt.lng);
+    L.marker([midLat, midLng], {
+      icon: _arrowIcon(ang, def.color), interactive:false, zIndexOffset: 50
+    }).addTo(_flowLayer);
+    // 標籤
+    if (flow.label) {
+      L.marker([midLat, midLng], {
+        icon: L.divIcon({
+          html:`<div style="font-size:9px;color:${def.color};background:rgba(14,22,29,.8);padding:1px 4px;border-radius:2px;white-space:nowrap;margin-top:14px;">${flow.label}</div>`,
+          className:'', iconSize:[80,14], iconAnchor:[40,0]
+        }), interactive:false
+      }).addTo(_flowLayer);
+    }
+  });
+}
+
+function _showFlowInfo(flow) {
+  const def   = FLOW_TYPES[flow.flow_type] || {};
+  const fromPt = _resolveFlowRef(flow.from_ref || (flow.from_zone_id ? 'zone:'+flow.from_zone_id : null), flow);
+  const toPt   = _resolveFlowRef(flow.to_ref   || (flow.to_zone_id   ? 'zone:'+flow.to_zone_id   : null), flow);
+  let html = `<div style="margin-bottom:10px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${def.color||'#e05555'}22;color:${def.color||'#e05555'};border:1px solid ${def.color||'#e05555'}44;">${def.label||flow.flow_type}</span>`;
+  html += `</div>`;
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${fromPt?.label||'?'} → ${toPt?.label||'?'}</div>`;
+  html += `<button onclick="_deleteFlow('${flow.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此流向</button>`;
+  el('modal-title').textContent = `→ ${flow.label || def.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _deleteFlow(id) {
+  if (!_mapConfig.maps['outdoor'].flows) return;
+  _mapConfig.maps['outdoor'].flows = _mapConfig.maps['outdoor'].flows.filter(f => f.id !== id);
+  await saveMapConfig();
+  closeModal();
+  _renderFlows();
+}
+
+function _openFlowForm() {
+  const zones  = _mapConfig?.maps?.['outdoor']?.zones?.filter(z => z.lat != null) || [];
+  const infras = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
+  if (zones.length + infras.length < 2) {
+    el('modal-title').textContent = '● → ● 新增調度指示';
+    el('modal-body').innerHTML = `<div style="color:var(--text2);font-size:12px;padding:12px 0;">需要至少兩個已定位的節點（或設施）才能建立流向。</div>`;
+    el('overlay').className = 'show';
+    return;
+  }
+  // 節點 + 基礎設施合併，用 "zone:id" / "infra:id" 前綴區分
+  const SEL_STYLE = 'width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;';
+  // 節點與事件標記分開：事件 zone 優先用 NAPSG 類型名，附上事件編號
+  const nodeZones  = zones.filter(z => !(z.event_id || z.event_code));
+  const eventZones = zones.filter(z =>  !!(z.event_id || z.event_code));
+  const endpointOpts =
+    (nodeZones.length  ? `<optgroup label="── ICS 節點">` +
+      nodeZones.map(z => `<option value="zone:${z.id}">${z.label}</option>`).join('') +
+      `</optgroup>` : '') +
+    (eventZones.length ? `<optgroup label="── 事件標記">` +
+      eventZones.map(z => {
+        const typeName = NAPSG_EVENTS[z.node_type]?.label || z.label;
+        const code = z.event_code ? ` · ${z.event_code.replace(/-\d{4}-/, '-')}` : '';
+        return `<option value="zone:${z.id}">${typeName}${code}</option>`;
+      }).join('') + `</optgroup>` : '') +
+    (infras.length ? `<optgroup label="── 基礎設施">` + infras.map(i => {
+      const def = INFRA_TYPES[i.infra_type] || {};
+      return `<option value="infra:${i.id}">${def.abbr||'+'} ${i.label}</option>`;
+    }).join('') + `</optgroup>` : '');
+  const typeOpts = Object.entries(FLOW_TYPES).map(([k,v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  let html = '';
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">流向類型</label>`;
+  html += `<select id="flow-type-sel" style="${SEL_STYLE}">${typeOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">起點</label>`;
+  html += `<select id="flow-from-sel" style="${SEL_STYLE}">${endpointOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">終點</label>`;
+  html += `<select id="flow-to-sel" style="${SEL_STYLE}">${endpointOpts}</select></div>`;
+  html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">標籤（可選）</label>`;
+  html += `<input id="flow-label" placeholder="例：傷患後送路徑" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;"></div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_saveFlow()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">儲存</button>`;
+  html += `</div>`;
+  el('modal-title').textContent = '● → ● 新增調度指示';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _saveFlow() {
+  const typeVal  = document.getElementById('flow-type-sel')?.value  || 'casualty';
+  const fromRef  = document.getElementById('flow-from-sel')?.value  || '';
+  const toRef    = document.getElementById('flow-to-sel')?.value    || '';
+  const labelVal = (document.getElementById('flow-label')?.value || '').trim();
+  if (!fromRef || !toRef || fromRef === toRef) return;
+  const flow = {
+    id: 'flow_' + Date.now(),
+    flow_type: typeVal,
+    from_ref: fromRef,   // "zone:id" 或 "infra:id"
+    to_ref:   toRef,
+    label: labelVal,
+  };
+  if (!_mapConfig.maps['outdoor'].flows) _mapConfig.maps['outdoor'].flows = [];
+  _mapConfig.maps['outdoor'].flows.push(flow);
+  await saveMapConfig();
+  closeModal();
+  _renderFlows();
+}
+
+/** 解析 "zone:xxx" 或 "infra:xxx" 前綴，回傳 { lat, lng, label } */
+function _resolveFlowRef(ref, flow) {
+  // 向下相容舊格式（無前綴 = zone id）
+  if (!ref) {
+    // 嘗試舊欄位
+    const zoneId = flow?.from_zone_id || flow?.to_zone_id;
+    if (!zoneId) return null;
+    ref = 'zone:' + zoneId;
+  }
+  const sep = ref.indexOf(':');
+  const type = sep > 0 ? ref.slice(0, sep) : 'zone';
+  const id   = sep > 0 ? ref.slice(sep + 1) : ref;
+  const zones  = _mapConfig?.maps?.['outdoor']?.zones  || [];
+  const infras = _mapConfig?.maps?.['outdoor']?.infrastructure || [];
+  if (type === 'zone') {
+    const z = zones.find(z => z.id === id);
+    return z ? { lat: z.lat, lng: z.lng, label: z.label } : null;
+  } else {
+    const i = infras.find(i => i.id === id);
+    if (!i) return null;
+    const def = INFRA_TYPES[i.infra_type] || {};
+    return { lat: i.lat, lng: i.lng, label: `${def.label} ${i.label}` };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 疏散路線（Evacuation Routes）
+// ══════════════════════════════════════════════════════════════
+
+function _startRouteDraw() {
+  if (_routeDrawState) _cancelRouteDraw();
+  _routeDrawState = { latlngs:[], markers:[], previewLine:null };
+  document.getElementById('route-draw-banner').style.display = 'flex';
+  el('map-coord-panel').style.display = 'none';
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+  const btn = document.getElementById('btn-route-draw');
+  if (btn) btn.classList.add('active');
+}
+
+function _cancelRouteDraw() {
+  if (!_routeDrawState) return;
+  _routeDrawState.markers.forEach(m => m.remove());
+  if (_routeDrawState.previewLine) _routeDrawState.previewLine.remove();
+  _routeDrawState = null;
+  document.getElementById('route-draw-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  const btn = document.getElementById('btn-route-draw');
+  if (btn) btn.classList.remove('active');
+}
+
+function _addRouteVertex(lat, lng) {
+  if (!_routeDrawState) return;
+  _routeDrawState.latlngs.push([lat, lng]);
+  const m = L.circleMarker([lat, lng], {
+    radius:4, color:'#fff', weight:2, fillColor:'#56d364', fillOpacity:1, interactive:false
+  }).addTo(_leafletMap);
+  _routeDrawState.markers.push(m);
+  if (_routeDrawState.previewLine) _routeDrawState.previewLine.remove();
+  if (_routeDrawState.latlngs.length >= 2) {
+    _routeDrawState.previewLine = L.polyline(_routeDrawState.latlngs, {
+      color:'#56d364', weight:2, dashArray:'6 3', opacity:0.7, interactive:false
+    }).addTo(_leafletMap);
+  }
+  const finBtn = document.getElementById('route-finish-btn');
+  if (finBtn) finBtn.disabled = _routeDrawState.latlngs.length < 2;
+}
+
+function _finishRouteDraw() {
+  if (!_routeDrawState || _routeDrawState.latlngs.length < 2) return;
+  const latlngs = [..._routeDrawState.latlngs];
+  _cancelRouteDraw();
+  _openRouteForm(latlngs);
+}
+
+function _openRouteForm(latlngs) {
+  const typeOpts = Object.entries(ROUTE_TYPES).map(([k,v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  let html = '';
+  html += `<div style="margin-bottom:12px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">路線名稱</label>`;
+  html += `<input id="route-name" placeholder="例：北側主疏散路線" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;"></div>`;
+  html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="route-type-sel" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select></div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">${latlngs.length} 個節點</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_saveRoute()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">儲存</button>`;
+  html += `</div>`;
+  window._pendingRouteLatlngs = latlngs;
+  el('modal-title').textContent = '↗ 新增路線';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _saveRoute() {
+  const name    = (document.getElementById('route-name')?.value || '').trim();
+  const typeKey = document.getElementById('route-type-sel')?.value || 'primary';
+  const latlngs = window._pendingRouteLatlngs;
+  if (!name || !latlngs) return;
+  const def = ROUTE_TYPES[typeKey];
+  const route = {
+    id: 'route_' + Date.now(),
+    route_type: typeKey,
+    label: name,
+    color: def.color,
+    dash: def.dash,
+    latlngs,
+  };
+  if (!_mapConfig.maps['outdoor'].routes) _mapConfig.maps['outdoor'].routes = [];
+  _mapConfig.maps['outdoor'].routes.push(route);
+  await saveMapConfig();
+  closeModal();
+  _renderRoutes();
+}
+
+function _renderRoutes() {
+  if (!_leafletMap) return;
+  if (!_routeLayer) _routeLayer = L.layerGroup().addTo(_leafletMap);
+  _routeLayer.clearLayers();
+  if (!_layerVis.routes) return;
+  const routes = _mapConfig?.maps?.['outdoor']?.routes || [];
+  routes.forEach(route => {
+    const dash = route.dash ? '8 5' : null;
+    const line = L.polyline(route.latlngs, {
+      color: route.color, weight: 3, dashArray: dash, opacity: 0.9,
+    }).addTo(_routeLayer);
+    line.on('click', () => _showRouteInfo(route));
+    // 沿線每段中間放箭頭
+    for (let i = 0; i < route.latlngs.length - 1; i++) {
+      const [lat1, lng1] = route.latlngs[i];
+      const [lat2, lng2] = route.latlngs[i + 1];
+      const midLat = (lat1 + lat2) / 2;
+      const midLng = (lng1 + lng2) / 2;
+      const ang = _bearing(lat1, lng1, lat2, lng2);
+      L.marker([midLat, midLng], {
+        icon: _arrowIcon(ang, route.color), interactive:false, zIndexOffset: 50
+      }).addTo(_routeLayer);
+    }
+    // 路線標籤（可拖曳，拖完自動存位置）
+    if (route.label && route.latlngs.length > 0) {
+      // 預設：路線中點；若已儲存 label_anchor 則用之
+      let labelPos;
+      if (route.label_anchor) {
+        labelPos = [route.label_anchor[0], route.label_anchor[1]];
+      } else {
+        const mid = Math.floor(route.latlngs.length / 2);
+        labelPos = route.latlngs[mid];
+      }
+      const labelMarker = L.marker(labelPos, {
+        icon: L.divIcon({
+          html: `<div style="font-size:10px;font-weight:700;color:${route.color};
+                   text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);
+                   white-space:nowrap;cursor:grab;user-select:none;
+                   padding:2px 4px;border-radius:3px;"
+                   title="拖曳可移動標籤位置">${route.label}</div>`,
+          className:'', iconSize:[120,20], iconAnchor:[0,10]
+        }),
+        draggable: true,
+        zIndexOffset: 100,
+        bubblingMouseEvents: false,  // 防止 click/dblclick 冒泡到地圖
+      }).addTo(_routeLayer);
+
+      // 阻止 mousedown / touchstart 冒泡，避免觸發地圖長按計時器
+      labelMarker.on('mousedown touchstart', function(e) {
+        L.DomEvent.stopPropagation(e);
+      });
+
+      labelMarker.on('dragend', async function() {
+        const ll = labelMarker.getLatLng();
+        route.label_anchor = [
+          Math.round(ll.lat * 1000000) / 1000000,
+          Math.round(ll.lng * 1000000) / 1000000,
+        ];
+        await saveMapConfig();
+      });
+    }
+  });
+}
+
+function _showRouteInfo(route) {
+  const def = ROUTE_TYPES[route.route_type] || {};
+  let html = `<div style="margin-bottom:12px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${route.color}22;color:${route.color};border:1px solid ${route.color}44;">${def.label||route.route_type}</span>`;
+  html += `</div>`;
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${route.latlngs.length} 個節點</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:12px;">💡 直接在地圖上拖曳標籤文字可調整位置</div>`;
+  if (route.label_anchor) {
+    html += `<button onclick="_resetRouteLabelAnchor('${route.id}')" style="width:100%;padding:7px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;margin-bottom:8px;">↺ 重設標籤至自動位置</button>`;
+  }
+  html += `<button onclick="_deleteRoute('${route.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此路線</button>`;
+  el('modal-title').textContent = `↗ ${route.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _deleteRoute(id) {
+  if (!_mapConfig.maps['outdoor'].routes) return;
+  _mapConfig.maps['outdoor'].routes = _mapConfig.maps['outdoor'].routes.filter(r => r.id !== id);
+  await saveMapConfig();
+  closeModal();
+  _renderRoutes();
+}
+
+/** 清除手動設定的標籤位置，回到自動中點 */
+async function _resetRouteLabelAnchor(id) {
+  const routes = _mapConfig?.maps?.['outdoor']?.routes || [];
+  const route = routes.find(r => r.id === id);
+  if (!route) return;
+  delete route.label_anchor;
+  await saveMapConfig();
+  closeModal();
+  _renderRoutes();
+}
+
+// ── MGRS → WGS84（解析 "51R TH 99717 46592" 等格式）─────────
+function _mgrsToLatLng(mgrsStr) {
+  // 正規化：大寫、去多餘空白
+  const s = mgrsStr.trim().toUpperCase().replace(/\s+/g, '');
+  // 格式：ZoneNum(1~2) + LatBand(C-X,無IO) + ColLetter + RowLetter + 偶數位數(2~10)
+  const m = s.match(/^(\d{1,2})([C-HJ-NP-X])([A-HJ-NP-Z])([A-HJ-NP-V])(\d{2,10})$/);
+  if (!m) return null;
+  const zoneNum  = parseInt(m[1]);
+  const latBand  = m[2];
+  const colLtr   = m[3];
+  const rowLtr   = m[4];
+  const digits   = m[5];
+  if (digits.length % 2 !== 0) return null;
+
+  const half  = digits.length / 2;
+  const scale = Math.pow(10, 5 - half);
+  const eOff  = parseInt(digits.substring(0, half)) * scale;
+  const nOff  = parseInt(digits.substring(half))    * scale;
+
+  // 欄字母 → UTM easting 的 100km 區塊
+  const colSets = ['ABCDEFGH','JKLMNPQR','STUVWXYZ'];
+  const colSet  = colSets[(zoneNum-1) % 3];
+  const colIdx  = colSet.indexOf(colLtr);
+  if (colIdx < 0) return null;
+  const utmE = (colIdx + 1) * 100000 + eOff;
+
+  // 列字母 → northing 的 100km 區塊（需配合緯度帶消歧義）
+  const rowOdd  = 'ABCDEFGHJKLMNPQRSTUV';
+  const rowEven = 'FGHJKLMNPQRSTUVABCDE';
+  const rowSet  = (zoneNum % 2 === 1) ? rowOdd : rowEven;
+  const rowIdx  = rowSet.indexOf(rowLtr);
+  if (rowIdx < 0) return null;
+
+  // 用緯度帶中心點計算近似 northing，再對齊到最近的 100km 行
+  const latBands   = 'CDEFGHJKLMNPQRSTUVWX';
+  const bandIdx    = latBands.indexOf(latBand);
+  if (bandIdx < 0) return null;
+  const approxLat  = (bandIdx * 8 - 80) + 4;
+  const a = 6378137.0, f = 1/298.257223563;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a), k0 = 0.9996;
+  const φ = approxLat * Math.PI / 180;
+  const Mapprox = a*(
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256)*φ
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024)*Math.sin(2*φ)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024)*Math.sin(4*φ)
+    - (35*e2*e2*e2/3072)*Math.sin(6*φ));
+  let approxNn = k0 * Mapprox;
+  if (approxLat < 0) approxNn += 10000000;
+  let nBand = Math.floor(approxNn / 100000);
+  const approxRowIdx = nBand % 20;
+  let diff = (rowIdx - approxRowIdx + 20) % 20;
+  if (diff > 10) diff -= 20;
+  nBand += diff;
+  const utmN = nBand * 100000 + nOff;
+
+  return _utmToLatLng(zoneNum, utmE, utmN);
+}
+
+// ── WGS84 字串解析（"lat, lng" 或 "lat lng"）──────────────────
+function _parseWgs84(str) {
+  const m = str.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+// ── MGRS 搜尋入口 ─────────────────────────────────────────────
+/** 從目前地圖中心取 GZD 前綴（如 "51RTH"）供自動補全 */
+function _currentMgrsGzd() {
+  if (!_leafletMap) return null;
+  const c = _leafletMap.getCenter();
+  const full = _latlngToMGRS(c.lat, c.lng, 5);
+  // "51R TH 99717 46592" → "51RTH"
+  const m = full.match(/^(\d+[A-Z])\s+([A-Z]{2})/);
+  return m ? m[1] + m[2] : null;
+}
+
+/** 動態更新 MGRS 搜尋欄的 placeholder
+ *  顯示 "TH 00000 00000"（省略 zone designator，因為會自動補）
+ */
+// 注入站外地圖工具列按鈕（☰ 圖層 | ▱ 範圍 | ↗ 路線 | → 流向）
+function _initMapTools() {
+  const tools = document.getElementById('map-tools');
+  if (!tools) return;
+  tools.innerHTML =
+    `<button class="map-btn" id="btn-layer-panel"
+       onclick="_toggleLayerPanel()" title="圖層面板" style="font-size:14px;">☰</button>
+     <button class="map-btn" id="btn-poly-draw"
+       onclick="_startPolyDraw()" title="繪製範圍" style="font-size:16px;">▱</button>
+     <button class="map-btn" id="btn-route-draw"
+       onclick="_startRouteDraw()" title="繪製疏散路線">
+       <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+         <!-- 起點節點 -->
+         <circle cx="2" cy="11" r="1.8" fill="currentColor"/>
+         <!-- 第一段：斜線到中繼點 -->
+         <line x1="3.2" y1="9.8" x2="6.2" y2="4.2"
+           stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+         <!-- 中繼節點（左移，拉開與箭頭的距離）-->
+         <circle cx="7" cy="3" r="1.8" fill="currentColor"/>
+         <!-- 第二段：拉長水平線 -->
+         <line x1="8.8" y1="3" x2="13" y2="3"
+           stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+         <!-- 終點箭頭 -->
+         <path d="M11.5,1 L15.5,3 L11.5,5"
+           stroke="currentColor" stroke-width="1.5" fill="none"
+           stroke-linecap="round" stroke-linejoin="round"/>
+       </svg>
+     </button>
+     <button class="map-btn" id="btn-flow-add"
+       onclick="_openFlowForm()" title="新增調度指示">
+       <svg width="18" height="12" viewBox="0 0 18 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+         <!-- 起點：空心圓（出發地）-->
+         <circle cx="2.5" cy="6" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+         <!-- 連線 -->
+         <line x1="4.5" y1="6" x2="12" y2="6"
+           stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+         <!-- 終點：實心箭頭（目的地）-->
+         <path d="M11,3 L15.5,6 L11,9"
+           stroke="currentColor" stroke-width="1.5" fill="currentColor"
+           stroke-linecap="round" stroke-linejoin="round"/>
+       </svg>
+     </button>`;
+}
+
+function _updateMgrsPlaceholder() {
+  const input = el('mgrs-search-input');
+  if (!input) return;
+  const gzd = _currentMgrsGzd();  // e.g. "51RTH"
+  // 只顯示 100km 方格字母，讓使用者知道 zone 已自動判斷
+  input.placeholder = gzd ? `${gzd.slice(3)} 00000 00000` : 'MGRS 或 lat, lng';
+  input.title = gzd
+    ? `目前方格：${gzd.slice(0,3)} ${gzd.slice(3)}（自動補全）\n`
+      + `・只輸入數字 → 補 ${gzd}\n`
+      + `・輸入 2字母+數字（跨方格）→ 補 ${gzd.slice(0,3)}\n`
+      + `・完整 MGRS 或 lat, lng → 直接解析`
+    : 'MGRS 或 WGS84（lat, lng）';
+}
+
+function _mgrsSearch() {
+  const input = el('mgrs-search-input');
+  let val = input.value.trim().toUpperCase();
+  if (!val) return;
+  input.classList.remove('error');
+
+  // ── 三段式自動補前綴 ──────────────────────────────────────────
+  // 1. 只有數字（含空白）→ 補完整 GZD（zone+band+2字母，如 51RTH）
+  if (/^[\d\s]+$/.test(val)) {
+    const gzd = _currentMgrsGzd();
+    if (gzd) val = gzd + val.replace(/\s/g, '');
+  }
+  // 2. 2個字母＋數字（如 "SH 12345 67890"，跨 100km 方格）→ 只補 zone+band（如 51R）
+  else if (/^[A-Z]{2}[\d\s]+$/.test(val)) {
+    const gzd = _currentMgrsGzd();
+    if (gzd) val = gzd.slice(0, 3) + val.replace(/\s/g, '');
+  }
+  // 3. 其他（完整 MGRS 或 WGS84）→ 原樣解析
+
+  // MGRS 優先，失敗則嘗試 WGS84
+  const ll = _mgrsToLatLng(val) || _parseWgs84(val);
+  if (!ll) {
+    input.classList.add('error');
+    input.animate([{transform:'translateX(-4px)'},{transform:'translateX(4px)'},
+                   {transform:'translateX(-2px)'},{transform:'translateX(0)'}],
+                  {duration:200, easing:'ease-out'});
+    return;
+  }
+
+  _leafletMap.setView([ll.lat, ll.lng], Math.max(_leafletMap.getZoom(), 16));
+  _openEventPopup(ll.lat, ll.lng);
+  input.value = '';
+}
+
+// ── NAPSG 色彩系統 ──────────────────────────────────────────────
+// 節點色：永久據點統一深灰（中性背景資訊），顏色只留給事件菱形的嚴重度
+const _NODE_COLORS = {
+  shelter: '#6e7681', medical: '#6e7681', forward: '#6e7681',
+  security: '#6e7681', command: '#6e7681'
+};
+// 事件嚴重度色：stop-light（info 用深灰，確保在淺灰底圖上可見）
+const _SEV_COLORS = { critical: '#e05555', warning: '#e3b341', info: '#3a4149' };
+// 節點縮寫
+const _NODE_ABBR = { shelter:'收', medical:'醫', forward:'前', security:'安', command:'指' };
+
+/**
+ * NAPSG-styled L.divIcon
+ * @param {string} nodeType  - shelter/medical/forward/security/command
+ * @param {string} severity  - critical/warning/info（事件用）
+ * @param {boolean} isEvent  - true=事件 marker（菱形），false=永久節點
+ */
+function _napsgIcon(nodeType, severity, isEvent) {
+  if (isEvent) {
+    // 菱形（NAPSG Hazard/Incident）
+    // nodeType 為 NAPSG group key：security/rescue/medical/care/infra/ops
+    const c = _SEV_COLORS[severity] || '#8b949e';
+    const abbr = _NAPSG_GROUP_ABBR[nodeType] || _NODE_ABBR[nodeType] || '?';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">
+      <polygon points="13,1 25,13 13,25 1,13" fill="${c}" stroke="#fff" stroke-width="2"/>
+      <text x="13" y="17" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
+            font-family="sans-serif">${abbr}</text>
+    </svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [26,26], iconAnchor: [13,13] });
+  }
+  const abbr = _NODE_ABBR[nodeType] || '?';
+  const c = _NODE_COLORS[nodeType] || '#8b949e';
+  if (nodeType === 'forward' || nodeType === 'security') {
+    // 正方形（NAPSG Unit / Mobile Resource）— 縮小至 24×24，與圓形視覺相當
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+      <rect x="1" y="1" width="22" height="22" rx="2" fill="${c}" stroke="#fff" stroke-width="2"/>
+      <text x="12" y="16" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
+            font-family="sans-serif">${abbr}</text>
+    </svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [24,24], iconAnchor: [12,12] });
+  }
+  // 圓形（NAPSG Operations Node — shelter / medical / command）
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" fill="${c}" stroke="#fff" stroke-width="2"/>
+    <text x="14" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="#fff"
+          font-family="sans-serif">${abbr}</text>
+  </svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [28,28], iconAnchor: [14,14] });
+}
+
+function _initLeafletMap() {
+  const container = el('leaflet-map');
+  if (_leafletMap) {
+    _leafletMap.invalidateSize();
+    _renderLeafletMarkers();   // 已存在的地圖也要刷新 marker
+    return;
+  }
+  _leafletMap = L.map(container, { zoomControl: true, attributionControl: true, doubleClickZoom: false })
+    .setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
+
+  const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
+
+  // ── 底圖：固定 Vector Grayscale（EOC 標準，NAPSG 符號對比最佳）──
+  // overlays（MGRS 格線、管制區等）待 Phase 3/5 實作後加入 L.control.layers 的 overlays 欄
+  protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' }).addTo(_leafletMap);
+
+  // ── 單擊地圖：據點定位 > 事件標記（表單） > 事件放置（長按） ──
+  const _coordPanel = document.getElementById('map-coord-panel');
+  _leafletMap.on('click', function(e) {
+    const lat = e.latlng.lat, lng = e.latlng.lng;
+    // 優先順序：繪製範圍 > 繪製路線 > 放置設施 > 據點定位 > 事件標記 > 事件放置
+    if (_polyDrawState) {
+      _addPolyVertex(lat, lng);
+      return;
+    }
+    if (_routeDrawState) {
+      _addRouteVertex(lat, lng);
+      return;
+    }
+    if (_infraPlaceMode) {
+      _saveInfraPosition(lat, lng);
+      return;
+    }
+    if (_nodePlaceMode) {
+      _saveNodePosition(lat, lng);
+      return;
+    }
+    if (_eventPinMode && _currentMap === 'outdoor') {
+      _pinEventOnMap(lat, lng);
+      return;
+    }
+    if (_placeMode && _currentMap === 'outdoor') {
+      _placeOnLeaflet(lat, lng);
+    }
+  });
+
+  // ── 雙擊地圖：放置藍色十字座標 pin ──
+  _leafletMap.on('dblclick', function(e) {
+    _showCoordPin(e.latlng.lat, e.latlng.lng);
+    _refreshCoordPanel();  // 統一由 _refreshCoordPanel 渲染，支援 MGRS/WGS84 toggle
+  });
+
+  // ── 長按地圖（650ms）：開啟事件回報 popup ──
+  let _lpTimer = null, _lpMoved = false;
+  _leafletMap.on('mousedown', function(e) {
+    // 右鍵、中鍵不觸發
+    if (e.originalEvent && e.originalEvent.button !== 0) return;
+    _lpMoved = false;
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+    const latlng = { lat: e.latlng.lat, lng: e.latlng.lng };
+    _lpTimer = setTimeout(() => {
+      _lpTimer = null;
+      if (!_lpMoved && !_nodePlaceMode) _openEventPopup(latlng.lat, latlng.lng);
+    }, 650);
+  });
+  _leafletMap.on('mousemove', function() {
+    _lpMoved = true;
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  });
+  _leafletMap.on('mouseup', function() {
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  });
+  // drag 開始時也要取消
+  _leafletMap.on('dragstart', function() {
+    _lpMoved = true;
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+  });
+
+  // 恢復上次位置（若有），否則預設竹北體育場
+  const _savedView = sessionStorage.getItem('_mapView');
+  if (_savedView) {
+    try {
+      const { lat, lng, zoom } = JSON.parse(_savedView);
+      _leafletMap.setView([lat, lng], zoom);
+    } catch(e) { _leafletMap.setView(_HSINCHU_CENTER, _HSINCHU_ZOOM); }
+  }
+
+  // 移動/縮放時記錄位置 + 重繪 MGRS 格線
+  _leafletMap.on('moveend zoomend', () => {
+    const c = _leafletMap.getCenter();
+    sessionStorage.setItem('_mapView', JSON.stringify({
+      lat: Math.round(c.lat * 100000) / 100000,
+      lng: Math.round(c.lng * 100000) / 100000,
+      zoom: _leafletMap.getZoom()
+    }));
+    _updateMgrsPlaceholder();
+    _drawMgrsGrid();  // Phase 5: 格線跟隨地圖移動/縮放
+  });
+
+  // 初始化後渲染各圖層 + 格線
+  _renderLeafletMarkers();  // 內部已呼叫 _renderPolygons/Infra/Flows/Routes
+  _drawMgrsGrid();
+  _updateMgrsPlaceholder();
+  _initMapTools();  // 注入工具列按鈕
+}
+
+// ── 渲染 outdoor Leaflet markers（NAPSG 符號）──────────────────
+function _renderLeafletMarkers() {
+  if (!_leafletMap || !_mapConfig) return;
+  // 清除舊 marker
+  _leafletMarkers.forEach(m => _leafletMap.removeLayer(m));
+  _leafletMarkers = [];
+
+  // 其他圖層也一併刷新
+  _renderPolygons();
+  _renderInfra();
+  _renderFlows();
+  _renderRoutes();
+
+  if (!_layerVis.zones) return;  // 節點圖層已關閉
+
+  const m = _mapConfig.maps['outdoor'];
+  if (!m?.zones) return;
+
+  const allEvts = _data?.events || [];
+
+  m.zones.forEach(zone => {
+    // 必須有 lat/lng 才能在 Leaflet 上渲染
+    if (zone.lat == null || zone.lng == null) return;
+
+    const isEvent = !!(zone.event_id || zone.event_code);
+    let severity = 'warning';
+
+    if (isEvent) {
+      const ev = allEvts.find(e => e.id === zone.event_id);
+      if (!ev) {
+        severity = 'info';  // 事件不存在（可能被清除）→ 灰顯
+      } else if (ev.status === 'resolved' || ev.status === 'closed') {
+        return;  // 已結案：不渲染
+      } else {
+        severity = ev.severity || 'warning';
+      }
+    }
+
+    const icon = _napsgIcon(zone.node_type, severity, isEvent);
+    const marker = L.marker([zone.lat, zone.lng], {
+      icon,
+      draggable: true,
+      title: zone.label,
+    });
+
+    // Tooltip（NAPSG 風格）
+    const tipHtml = `<span>${zone.label}</span>${zone.event_code ? ` <span style="color:var(--yellow)">${zone.event_code}</span>` : ''}`;
+    marker.bindTooltip(tipHtml, {
+      className: 'napsg-tooltip',
+      direction: 'top',
+      offset: [0, -16],
+      permanent: false,  // 全部改 hover 顯示，地圖保持簡潔
+    });
+
+    // 單擊：開 modal
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      if (isEvent) showEventProcessModal(zone);
+      else showZoneDetail(zone);
+    });
+
+    // 拖動結束：更新 lat/lng 並儲存（Method 2：拖動重定位）
+    marker.on('dragend', () => {
+      const ll = marker.getLatLng();
+      zone.lat = Math.round(ll.lat * 1000000) / 1000000;
+      zone.lng = Math.round(ll.lng * 1000000) / 1000000;
+      const mgrs = _latlngToMGRS(zone.lat, zone.lng, 5);
+      saveMapConfig();
+      // 顯示新座標
+      const coordPanel = document.getElementById('map-coord-panel');
+      coordPanel.style.display = 'flex';
+      coordPanel.innerHTML =
+        `<span style="color:#8b949e">移動至</span>&nbsp;<b>${mgrs}</b>` +
+        `<span style="color:#56d364;margin-left:10px">✓ 已儲存</span>`;
+      setTimeout(() => _refreshCoordPanel(), 2500);
+      // 若為事件 marker，將新座標寫入處置紀錄
+      if (zone.event_id) {
+        authFetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            text: `地圖位置已移動 → ${mgrs}`,
+            operator: _currentOperator()
+          })
+        }).then(() => poll()).catch(() => {});
+      }
+    });
+
+    marker.addTo(_leafletMap);
+    // highlight：長按事件卡片時閃爍（套在 svg 子元素，避免干擾 Leaflet wrapper 的 translate3d）
+    if (marker._icon) {
+      const svgEl = marker._icon.querySelector('svg');
+      if (svgEl) {
+        if (zone.event_id && zone.event_id === _highlightedEventId) {
+          svgEl.classList.add('napsg-highlighted');
+        } else if (_highlightedEventId) {
+          // 其他 marker dimmed
+          marker._icon.style.opacity = '0.3';
+        }
+      }
+    }
+    _leafletMarkers.push(marker);
+  });
+
+}
+
+// ── 座標指示 pin（藍色十字，非事件 marker）────────────────────
+function _showCoordPin(lat, lng) {
+  if (!_leafletMap) return;
+  if (_coordPin) { _leafletMap.removeLayer(_coordPin); _coordPin = null; }
+  const svg =
+    `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">` +
+    `<line x1="12" y1="1" x2="12" y2="23" stroke="#58a6ff" stroke-width="1.5" opacity=".9"/>` +
+    `<line x1="1" y1="12" x2="23" y2="12" stroke="#58a6ff" stroke-width="1.5" opacity=".9"/>` +
+    `<circle cx="12" cy="12" r="3.5" stroke="#58a6ff" stroke-width="1.5" fill="rgba(88,166,255,.18)"/>` +
+    `</svg>`;
+  _coordPin = L.marker([lat, lng], {
+    icon: L.divIcon({ html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12] }),
+    interactive: false,
+    zIndexOffset: -200,
+  });
+  _coordPin.addTo(_leafletMap);
+}
+
+function _clearCoordPin() {
+  if (_coordPin && _leafletMap) { _leafletMap.removeLayer(_coordPin); _coordPin = null; }
+  _refreshCoordPanel();
+}
+
+// 座標面板狀態管理：優先顯示 coordPin，其次 highlightedEvent，否則隱藏
+function _refreshCoordPanel() {
+  const coordPanel = document.getElementById('map-coord-panel');
+  if (!coordPanel) return;
+
+  // ① 藍色十字 coordPin 優先
+  if (_coordPin) {
+    const ll = _coordPin.getLatLng();
+    coordPanel.style.display = 'flex';
+    coordPanel.style.alignItems = 'center';
+    coordPanel.classList.add('clickable');
+    coordPanel.innerHTML =
+      `<span style="color:#58a6ff;flex-shrink:0;">✛</span>&nbsp;${_coordValueHTML(ll.lat, ll.lng)}${_coordToggleBtn()}`;
+    return;
+  }
+
+  // ② 事件 highlight（從右側事件欄長按卡片）
+  if (_highlightedEventId && _mapConfig) {
+    const zone = (_mapConfig.maps['outdoor']?.zones || []).find(z => z.event_id === _highlightedEventId);
+    if (zone?.lat != null) {
+      const codeLabel = zone.event_code ? `<b>${zone.event_code}</b>` : `<b>${zone.label}</b>`;
+      coordPanel.style.display = 'flex';
+      coordPanel.style.alignItems = 'center';
+      coordPanel.classList.add('clickable');
+      coordPanel.innerHTML =
+        `<span style="color:#3fb950;flex-shrink:0;">📍</span>&nbsp;${codeLabel}&nbsp;${_coordValueHTML(zone.lat, zone.lng)}${_coordToggleBtn()}`;
+      return;
+    }
+  }
+
+  // ③ 都沒有：隱藏
+  coordPanel.style.display = 'none';
+  coordPanel.classList.remove('clickable');
+}
+
+// 點座標面板 → 地圖回到藍色十字（或事件 marker）的位置
+function _panToCoordTarget(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (!_leafletMap) return;
+  if (_coordPin) {
+    _leafletMap.panTo(_coordPin.getLatLng());
+  } else if (_highlightedEventId && _mapConfig) {
+    const m = _mapConfig.maps['outdoor'];
+    const zone = m?.zones.find(z => z.event_id === _highlightedEventId);
+    if (zone?.lat != null) _leafletMap.panTo([zone.lat, zone.lng]);
+  }
+}
+
+// ── 站外放置模式：click → 建立 event zone（Method 1）──────────
+async function _placeOnLeaflet(lat, lng) {
+  if (!_placeMode || !_mapConfig) return;
+  const id = 'evt_' + Date.now();
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  const zone = {
+    id,
+    label: _placeMode.label,
+    sub: '',
+    lat: Math.round(lat * 1000000) / 1000000,
+    lng: Math.round(lng * 1000000) / 1000000,
+    node_type: _placeMode.napsgGroup || 'ops',   // NAPSG 危害群組
+    icon: _placeMode.icon,
+  };
+
+  const severity = NAPSG_EVENTS[_placeMode.type]?.severity || 'warning';
+
+  try {
+    const resp = await authFetch(API_BASE + '/api/events', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        reported_by_unit: _placeMode.reportedBy || 'command',
+        event_type: _placeMode.type,
+        severity,
+        description: _placeMode.label,
+        operator_name: _currentOperator(),
+        location_zone_id: id,
+        location_desc: mgrs,
+        assigned_unit: _placeMode.assignedUnit || null,
+        session_type: _sessionType,
+      })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      zone.event_id  = data.id;
+      zone.event_code = data.event_code;
+    }
+  } catch(e) { console.error('[PLACE-LEAFLET]', e); }
+
+  if (zone.event_id) {
+    _mapConfig.maps['outdoor'].zones.push(zone);
+    saveMapConfig();
+    _renderLeafletMarkers();
+    // 顯示放置成功的 MGRS 座標
+    const coordPanel = document.getElementById('map-coord-panel');
+    coordPanel.style.display = 'flex';
+    coordPanel.innerHTML =
+      `<span style="color:#3fb950">✓ 放置</span>&nbsp;<b>${zone.event_code}</b>` +
+      `<span style="color:#8b949e;margin-left:8px">MGRS</span>&nbsp;${mgrs}`;
+    setTimeout(() => _refreshCoordPanel(), 3000);
+  } else {
+    console.warn('[PLACE-LEAFLET] 事件建立失敗，不放置 marker');
+    // 在座標面板顯示失敗提示，3 秒後消失
+    const _errPanel = document.getElementById('map-coord-panel');
+    _errPanel.style.display = 'flex';
+    _errPanel.innerHTML = `<span style="color:#f85149">✗ 放置失敗</span><span style="color:#8b949e;margin-left:8px">請查看 console（F12）</span>`;
+    setTimeout(() => { _errPanel.style.display = 'none'; }, 4000);
+  }
+
+  cancelPlaceMode();
+  el('leaflet-map').classList.remove('placing');
+  poll();
 }
 
 function renderMapOverlay() {
@@ -2015,6 +4029,8 @@ function renderMapOverlay() {
     marker.style.left = z.x_pct + '%';
     marker.style.top = z.y_pct + '%';
     marker.style.pointerEvents = 'auto';
+    // 調整模式下：永久 pin 游標改為 grab
+    if (_pinEditMode && z.icon === 'pin') marker.style.cursor = 'grab';
 
     // 據點狀態
     let lvl = 'ok', statsText = '';
@@ -2185,53 +4201,9 @@ function renderMapOverlay() {
     overlay.appendChild(marker);
   });
 
-  // 流向箭頭
-  renderFlows();
-
   // 事件 marker 已統一由 zone marker 處理（v0.4.3+），不再另外渲染
 }
 
-// ══════════════════════════════════════════════════════════════
-// 地圖流向箭頭
-// ══════════════════════════════════════════════════════════════
-function renderFlows() {
-  // 移除舊箭頭
-  document.querySelectorAll('.flow-arrow').forEach(e => e.remove());
-  if (!_mapConfig) return;
-  const m = _mapConfig.maps[_currentMap];
-  if (!m || !m.flows || !m.flows.length) return;
-  const overlay = el('map-overlay');
-  const calc = _data?.calc || {};
-
-  m.flows.forEach(f => {
-    const fromZ = m.zones.find(z => z.id === f.from);
-    const toZ = m.zones.find(z => z.id === f.to);
-    if (!fromZ || !toZ) return;
-
-    // 計算流量（用於粗度）
-    let volume = 1;
-    if (f.from && calc.forward?.units) {
-      const totalR = (calc.forward.units || []).reduce((s,u) => s + ((u.casualties||{}).red||0), 0);
-      volume = Math.max(1, totalR);
-    }
-
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.classList.add('flow-arrow');
-    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;';
-    svg.innerHTML = `
-      <defs>
-        <marker id="arrowhead-${f.from}" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="rgba(240,136,62,.8)"/>
-        </marker>
-      </defs>
-      <line x1="${fromZ.x_pct}%" y1="${fromZ.y_pct}%" x2="${toZ.x_pct}%" y2="${toZ.y_pct}%"
-        stroke="rgba(240,136,62,.6)" stroke-width="${Math.min(volume + 1, 5)}"
-        stroke-dasharray="8 4" marker-end="url(#arrowhead-${f.from})"
-        class="flow-line"/>
-    `;
-    overlay.appendChild(svg);
-  });
-}
 
 // ══════════════════════════════════════════════════════════════
 // 事件詳情 Modal + 狀態更新
@@ -2239,7 +4211,7 @@ function renderFlows() {
 function showEventDetail(ev) {
   // 統一格式：與 showEventProcessModal 一致
   // 建一個虛擬 zone 物件讓 showEventProcessModal 可以處理
-  const fakeZone = { id: ev.location_zone_id || ev.id, event_id: ev.id, event_code: ev.event_code, label: ev.description || ev.event_type, icon: 'event' };
+  const fakeZone = { id: ev.location_zone_id || ev.id, event_id: ev.id, event_code: ev.event_code, label: _evTypeLabel(ev), icon: 'event' };
   sessionStorage.setItem('_openEventId', ev.id);
   showEventProcessModal(fakeZone);
 }
@@ -2261,6 +4233,16 @@ async function updateEventStatus(eventId, status) {
 // ══════════════════════════════════════════════════════════════
 // 事件處置 Modal（從地圖 marker 雙擊開啟）
 // ══════════════════════════════════════════════════════════════
+
+// UTC ISO → 本地時間字串（timeOnly=true 只回 HH:MM）
+function _fmtLocal(iso, timeOnly) {
+  if (!iso) return '';
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  const pad = n => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (timeOnly) return time;
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${time}`;
+}
 
 function _countdownStr(deadline) {
   if (!deadline) return '';
@@ -2299,7 +4281,7 @@ function showEventProcessModal(zone) {
 
   // — 標題列（header 區）—
   const iconHtml = `<span style="display:inline-flex;vertical-align:middle;margin-right:4px;">${renderIcon(zone.icon)}</span>`;
-  el('modal-title').innerHTML = `${iconHtml} ${(ev.event_code||'').replace(/-\d{4}-/, '-')}　${ev.description || ev.event_type}`;
+  el('modal-title').innerHTML = `${iconHtml} ${(ev.event_code||'').replace(/-\d{4}-/, '-')}　${_evTypeLabel(ev)}`;
 
   let html = '';
   // 狀態 + 倒數
@@ -2316,9 +4298,19 @@ function showEventProcessModal(zone) {
   html += `</div>`;
 
   // 事件資訊（精簡，不重複標題）
+  const unitLabels = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
+  const assignedLabel = unitLabels[ev.assigned_unit] || '—';
+  const assignedColor = ev.assigned_unit ? 'var(--green)' : 'var(--text3)';
   html += `<div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6;">`;
-  html += `${unitLabel}　回報：${ev.operator_name}<br>`;
-  html += `發生：${(ev.occurred_at||'').slice(0,16).replace('T',' ')}　期限：${(ev.response_deadline||'').slice(0,16).replace('T',' ')}`;
+  html += `回報：${unitLabel}　${ev.operator_name}<br>`;
+  html += `<span style="display:inline-flex;align-items:center;gap:6px;">指派處理：<span style="color:${assignedColor};font-weight:600;">${assignedLabel}</span>`;
+  html += `<select style="font-size:10px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;font-family:var(--mono);" onchange="_setAssignedUnit('${ev.id}', this.value)">`;
+  html += `<option value="">—</option>`;
+  ['forward','security','shelter','medical','command'].forEach(u => {
+    html += `<option value="${u}" ${ev.assigned_unit===u?'selected':''}>${unitLabels[u]}</option>`;
+  });
+  html += `</select></span><br>`;
+  html += `發生：${_fmtLocal(ev.occurred_at)}　期限：${_fmtLocal(ev.response_deadline)}`;
   html += `</div>`;
 
   // 處置紀錄
@@ -2327,7 +4319,7 @@ function showEventProcessModal(zone) {
   if (notes.length > 0) {
     notes.forEach(n => {
       html += `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
-      html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
+      html += `<span style="color:var(--text3);">${_fmtLocal(n.time, true)}</span>`;
       html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
@@ -2413,42 +4405,186 @@ async function _autoSaveAndAction(eventId, action) {
   } catch(e) { alert('更新失敗：' + e.message); }
 }
 
-// 重設事件 deadline 選單
-function _resetDeadlineMenu(eventId) {
-  const choices = [
-    {label: '+10 分', min: 10, color: 'var(--red)'},
-    {label: '+30 分', min: 30, color: 'var(--yellow)'},
-    {label: '+60 分', min: 60, color: 'var(--green)'},
-  ];
-  let html = '<div style="font-size:12px;font-weight:700;margin-bottom:12px;">延長處置期限</div>';
-  html += '<div style="display:flex;gap:8px;">';
-  choices.forEach(c => {
-    html += `<button onclick="_resetDeadline('${eventId}',${c.min})" style="flex:1;padding:10px 8px;background:${c.color}22;color:${c.color};border:1px solid ${c.color}44;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--mono);transition:background .15s;"
-      onmouseenter="this.style.background='${c.color}44'" onmouseleave="this.style.background='${c.color}22'">${c.label}</button>`;
-  });
-  html += '</div>';
-  html += '<div style="font-size:10px;color:var(--text3);margin-top:8px;text-align:center;">從現在起重新計算期限</div>';
-  el('modal-title').textContent = '⏱ 重設期限';
-  el('modal-body').innerHTML = html;
-  el('overlay').className = 'show';
-}
-
-async function _resetDeadline(eventId, minutes) {
-  const newDeadline = new Date(Date.now() + minutes * 60000).toISOString().replace(/\.\d+Z/, 'Z');
+// 指派事件處理單位（變更時自動寫一筆協調紀錄）
+async function _setAssignedUnit(eventId, newUnit) {
+  const unitLabels = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
+  // 取得變更前的舊值
+  const ev = (_data?.events || []).find(e => e.id === eventId);
+  const oldUnit = ev?.assigned_unit || null;
+  // 新舊相同則不動作
+  if ((oldUnit || '') === (newUnit || '')) return;
   try {
-    // 用追加紀錄 API 記錄重設，同時後端更新 deadline
+    // 1. 更新 assigned_unit
+    await authFetch(API_BASE + '/api/events/' + eventId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ assigned_unit: newUnit || null }),
+    });
+    // 2. 自動寫協調紀錄
+    const from = oldUnit ? (unitLabels[oldUnit] || oldUnit) : '—';
+    const to   = newUnit ? (unitLabels[newUnit] || newUnit) : '—';
     await authFetch(API_BASE + '/api/events/' + eventId + '/notes', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ text: '期限重設 +' + minutes + '分鐘', operator: _currentOperator() })
+      body: JSON.stringify({
+        text: `指派變更：${from} → ${to}`,
+        operator: _currentOperator(),
+      }),
     });
-    // 直接更新 DB 的 response_deadline（用 PATCH status 保持現狀 + 觸發 notes）
-    // 簡化做法：透過前端記錄新 deadline 到 _data 中，下次 poll 會刷新
+    await poll();
+    const zone = _findZoneByEventId(eventId);
+    if (zone) showEventProcessModal(zone);
+  } catch(e) { console.error('[SET-ASSIGNED]', e); }
+}
+
+// ── 調整期限 dialog 狀態 ────────────────────────────
+let _dlState = { sign: 1, minutes: 30, eventId: null, baseDeadline: null };
+
+function _resetDeadlineMenu(eventId) {
+  const ev = (_data?.events || []).find(e => e.id === eventId);
+  const base = ev?.response_deadline || new Date().toISOString();
+  _dlState = { sign: 1, minutes: 30, eventId, baseDeadline: base };
+
+  // 調整期限 dialog 的顯示格式（MM/DD HH:MM）
+  const fmtDlg = (iso) => {
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getMonth()+1)}/${pad(d.getDate())}  ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const nowLocal  = fmtDlg(new Date().toISOString());
+  const baseLocal = fmtDlg(base);
+
+  const segBase = `padding:7px 18px;font-size:15px;font-weight:700;cursor:pointer;border:none;transition:background .15s,color .15s;`;
+  const cellStyle = `flex:1;text-align:center;padding:10px 12px;background:var(--bg3);border-radius:8px;`;
+  const labelStyle = `font-size:10px;color:var(--text3);letter-spacing:.06em;margin-bottom:5px;`;
+  const valStyle   = `font-size:16px;font-weight:700;font-family:var(--mono);color:var(--text1);`;
+
+  let html = '';
+
+  // 現在時間 ＋ 現有期限（並排）
+  html += `<div style="display:flex;gap:10px;margin-bottom:16px;">`;
+  html += `<div style="${cellStyle}"><div style="${labelStyle}">現在時間</div><div style="${valStyle}">${nowLocal}</div></div>`;
+  html += `<div style="${cellStyle}"><div style="${labelStyle}">現有期限</div><div style="${valStyle}">${baseLocal}</div></div>`;
+  html += `</div>`;
+
+  // 分隔線
+  html += `<div style="border-top:1px solid var(--border);margin-bottom:14px;"></div>`;
+
+  // 正負選擇 + 分鐘步進
+  html += `<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;">`;
+
+  // 正負 segmented control
+  html += `<div style="display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--border);">`;
+  html += `<button id="dl-btn-minus" onclick="_dlSetSign(-1)"
+    style="${segBase}background:var(--bg3);color:var(--text3);">−</button>`;
+  html += `<button id="dl-btn-plus" onclick="_dlSetSign(1)"
+    style="${segBase}background:var(--green);color:#fff;">＋</button>`;
+  html += `</div>`;
+
+  // 分鐘步進器
+  const stepBtn = `width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:14px;font-weight:700;cursor:pointer;line-height:1;`;
+  html += `<div style="display:flex;align-items:center;gap:6px;">`;
+  html += `<button onclick="_dlAdjust(-10)" style="${stepBtn}">‹</button>`;
+  html += `<div id="dl-min-display" style="font-size:30px;font-weight:700;font-family:var(--mono);min-width:52px;text-align:center;color:var(--text1);">30</div>`;
+  html += `<button onclick="_dlAdjust(10)" style="${stepBtn}">›</button>`;
+  html += `</div>`;
+  html += `<div style="font-size:13px;color:var(--text2);">分鐘</div>`;
+  html += `</div>`;
+
+  // 快捷分鐘 chips
+  html += `<div style="display:flex;justify-content:center;gap:8px;margin-bottom:14px;">`;
+  [10, 30, 60, 120].forEach(m => {
+    html += `<button onclick="_dlSetMin(${m})"
+      style="padding:3px 13px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);
+             color:var(--text2);font-size:11px;font-family:var(--mono);cursor:pointer;transition:background .12s;"
+      onmouseenter="this.style.background='var(--border)'"
+      onmouseleave="this.style.background='var(--bg3)'">${m}</button>`;
+  });
+  html += `</div>`;
+
+  // 分隔線
+  html += `<div style="border-top:1px solid var(--border);margin-bottom:12px;"></div>`;
+
+  // 調整後預覽 + 套用並排
+  html += `<div style="display:flex;align-items:center;gap:12px;">`;
+  html += `<div style="flex:1;text-align:center;">`;
+  html += `<div style="${labelStyle}">調整後期限</div>`;
+  html += `<div id="dl-new-display" style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--green);">—</div>`;
+  html += `</div>`;
+  html += `<button onclick="_applyDeadline()"
+    style="padding:10px 28px;border-radius:8px;border:none;background:var(--green);
+           color:#fff;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .15s;"
+    onmouseenter="this.style.opacity='.85'" onmouseleave="this.style.opacity='1'">套用</button>`;
+  html += `</div>`;
+
+  el('modal-title').textContent = '⏱ 調整期限';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+  _dlUpdatePreview();
+}
+
+function _dlSetSign(sign) {
+  _dlState.sign = sign;
+  const mBtn = document.getElementById('dl-btn-minus');
+  const pBtn = document.getElementById('dl-btn-plus');
+  if (mBtn) { mBtn.style.background = sign === -1 ? 'var(--red)' : 'var(--bg3)'; mBtn.style.color = sign === -1 ? '#fff' : 'var(--text3)'; }
+  if (pBtn) { pBtn.style.background = sign ===  1 ? 'var(--green)' : 'var(--bg3)'; pBtn.style.color = sign ===  1 ? '#fff' : 'var(--text3)'; }
+  _dlUpdatePreview();
+}
+
+function _dlAdjust(delta) {
+  _dlState.minutes = Math.max(5, Math.min(240, _dlState.minutes + delta));
+  const d = document.getElementById('dl-min-display');
+  if (d) d.textContent = _dlState.minutes;
+  _dlUpdatePreview();
+}
+
+function _dlSetMin(m) {
+  _dlState.minutes = m;
+  const d = document.getElementById('dl-min-display');
+  if (d) d.textContent = m;
+  _dlUpdatePreview();
+}
+
+function _dlUpdatePreview() {
+  const d = document.getElementById('dl-new-display');
+  if (!d || !_dlState.baseDeadline) return;
+  const newDl = new Date(new Date(_dlState.baseDeadline).getTime() + _dlState.sign * _dlState.minutes * 60000);
+  const pad = n => String(n).padStart(2, '0');
+  d.textContent = `${pad(newDl.getMonth()+1)}/${pad(newDl.getDate())}  ${pad(newDl.getHours())}:${pad(newDl.getMinutes())}`;
+  d.style.color = _dlState.sign === -1 ? 'var(--red)' : 'var(--green)';
+}
+
+async function _applyDeadline() {
+  const { eventId, sign, minutes } = _dlState;
+  await _resetDeadline(eventId, sign * minutes);
+}
+
+async function _resetDeadline(eventId, deltaMins) {
+  try {
+    const resp = await authFetch(API_BASE + '/api/events/' + eventId + '/deadline', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ delta_minutes: deltaMins, operator: _currentOperator() }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const { new_deadline } = await resp.json();
+    // 用本地時間寫 note，避免 UTC 顯示不一致
+    const direction = deltaMins > 0 ? '延長' : '提前';
+    const localStr = _fmtLocal(new_deadline);   // 已轉本地
+    await authFetch(API_BASE + '/api/events/' + eventId + '/notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        text: `期限${direction} ${Math.abs(deltaMins)} 分鐘（新期限：${localStr}）`,
+        operator: _currentOperator(),
+      }),
+    });
     closeModal();
     await poll();
     const zone = _findZoneByEventId(eventId);
     if (zone) showEventProcessModal(zone);
-  } catch(e) { alert('重設失敗：' + e.message); }
+  } catch(e) { alert('調整失敗：' + e.message); }
 }
 
 function _findZoneByEventId(eventId) {
@@ -2492,9 +4628,36 @@ function _deselectMarker() {
   renderMapOverlay();
 }
 
+function togglePinEditMode() {
+  _pinEditMode = !_pinEditMode;
+  const btn = el('pin-edit-btn');
+  if (_pinEditMode) {
+    btn.style.background = 'var(--yellow)';
+    btn.style.color = '#000';
+    btn.style.borderColor = 'var(--yellow)';
+    btn.textContent = '✏ 調整中…';
+    // overlay 加提示框
+    const hint = document.createElement('div');
+    hint.id = 'pin-edit-hint';
+    hint.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
+      'background:rgba(13,17,23,.88);color:var(--yellow);font-size:11px;padding:6px 14px;' +
+      'border-radius:6px;border:1px solid var(--yellow);pointer-events:none;z-index:30;white-space:nowrap;';
+    hint.textContent = '長按據點即可拖動調整位置';
+    el('map-panel').appendChild(hint);
+    setTimeout(() => hint.remove(), 2500);
+  } else {
+    btn.style.background = 'var(--surface2)';
+    btn.style.color = 'var(--text2)';
+    btn.style.borderColor = 'var(--border)';
+    btn.textContent = '✏ 調整據點';
+    document.getElementById('pin-edit-hint')?.remove();
+  }
+  renderMapOverlay();  // 重繪讓據點顯示可拖狀態
+}
+
 function _startDrag(marker, zone, e) {
-  // 只有永久 pin 據點不可拖動；收容/醫療組的事件 marker 可拖
-  if (zone.icon === 'pin') return;
+  // 永久 pin 據點：只在調整模式下可拖
+  if (zone.icon === 'pin' && !_pinEditMode) return;
   e.preventDefault();
   e.stopPropagation();
   marker.classList.add('dragging');
@@ -2563,17 +4726,58 @@ async function saveMapConfig() {
 // 事件 highlight（長按事件卡片 → 地圖定位）
 // ══════════════════════════════════════════════════════════════
 let _highlightedEventId = null;
+let _coordDisplayMode = 'mgrs';  // 'mgrs' | 'wgs84'
+
+/**
+ * 統一事件主標題：優先用 NAPSG 定義的中文類型名，fallback event_type，再 fallback description
+ * 所有事件卡片、modal 標題、zone label 一律呼叫此函式，不得直接用 ev.description
+ */
+function _evTypeLabel(ev) {
+  if (!ev) return '';
+  return NAPSG_EVENTS[ev.event_type]?.label || ev.event_type || ev.description || '';
+}
+
+/** 切換座標顯示模式（MGRS ↔ WGS84），點擊小標籤時呼叫 */
+function _toggleCoordMode() {
+  _coordDisplayMode = (_coordDisplayMode === 'mgrs') ? 'wgs84' : 'mgrs';
+  _refreshCoordPanel();
+}
+
+/** 產生切換按鈕 HTML（顯示「可切換到」的那個系統名稱）*/
+function _coordToggleBtn() {
+  const next = _coordDisplayMode === 'mgrs' ? 'WGS84' : 'MGRS';
+  return `<span onclick="event.stopPropagation();_toggleCoordMode()"
+    style="font-size:9px;color:var(--text3);border:1px solid var(--border);border-radius:3px;
+    padding:1px 5px;margin-left:8px;cursor:pointer;flex-shrink:0;white-space:nowrap;"
+    title="切換座標系統">${next}</span>`;
+}
+
+/** 依目前模式產生座標值 HTML（兩種模式都有前綴標籤，視覺一致）*/
+function _coordValueHTML(lat, lng) {
+  const lbl = `<span style="color:#8b949e;font-size:9px;flex-shrink:0;">`;
+  if (_coordDisplayMode === 'wgs84') {
+    return `${lbl}WGS84</span>&nbsp;${lat.toFixed(6)}°N,&nbsp;${lng.toFixed(6)}°E`;
+  }
+  return `${lbl}MGRS</span>&nbsp;<b>${_latlngToMGRS(lat, lng, 5)}</b>`;
+}
 
 function _highlightEvent(eventId) {
-  // 找事件對應的 zone 和所在地圖
   if (!_mapConfig) return;
   for (const [mapKey, m] of Object.entries(_mapConfig.maps)) {
     const zone = m.zones.find(z => z.event_id === eventId);
     if (zone) {
-      // 切換到該地圖
       if (_currentMap !== mapKey) switchMap(mapKey);
       _highlightedEventId = eventId;
-      renderMapOverlay();
+      if (mapKey === 'outdoor') {
+        _renderLeafletMarkers();
+        // Pan to marker + 顯示事件座標（透過 _refreshCoordPanel 統一渲染，支援 toggle）
+        if (zone.lat != null && zone.lng != null && _leafletMap) {
+          _leafletMap.panTo([zone.lat, zone.lng]);
+          _refreshCoordPanel();
+        }
+      } else {
+        renderMapOverlay();
+      }
       return;
     }
   }
@@ -2583,13 +4787,16 @@ function _unhighlightEvent() {
   if (!_highlightedEventId) return;
   _highlightedEventId = null;
   renderMapOverlay();
+  if (_currentMap === 'outdoor') _renderLeafletMarkers();
+  // 清除事件 highlight 座標：若有 coordPin 就回復顯示十字座標，否則隱藏
+  _refreshCoordPanel();
 }
 
 // ══════════════════════════════════════════════════════════════
 // 事件篩選 + 組別分類
 // ══════════════════════════════════════════════════════════════
 let _evtFilter = null;      // null / 'overdue' / 'pending' / 'progress'
-let _evtGroupByUnit = false;
+let _evtGroupMode = 'assigned';  // 'assigned'（處理組別，預設）/ 'reported'（回報組別）/ null（時間序）
 
 function _toggleEvtFilter(filter) {
   _evtFilter = (_evtFilter === filter) ? null : filter;
@@ -2597,18 +4804,55 @@ function _toggleEvtFilter(filter) {
   renderZoneC(d);
 }
 
-function _toggleEvtGroup() {
-  _evtGroupByUnit = !_evtGroupByUnit;
-  const d = getSeries();
-  renderZoneC(d);
+/** 切換分組模式；再次點擊同一模式則取消分組 */
+function _setEvtGroupMode(mode) {
+  _evtGroupMode = (_evtGroupMode === mode) ? null : mode;
+  renderZoneC(getSeries());
 }
 
 // ══════════════════════════════════════════════════════════════
 // 放置模式（事件快速放置到地圖）
 // ══════════════════════════════════════════════════════════════
-let _placeMode = null; // null 或 { group, type, icon, label }
-let _placeGroup = null;
+let _placeMode = null;     // null 或 { reportedBy, type, label, icon, assignedUnit }
+let _nodePlaceMode = null; // null 或 { id, label, node_type, icon }（據點定位模式）
+let _eventPinMode = null;  // null 或 { eventId, eventCode, label, type, severity }（表單送出後標記位置）
+// Phase 5: MGRS 格線
+let _mgrsGridLayer   = null;
+let _mgrsGridVisible = false;
+// Phase 3: 繪製範圍
+let _polyDrawState  = null;  // null 或 { latlngs, markers, previewPoly }
+let _polygonLayer   = null;
+// 基礎設施 / 流向 / 路線 圖層
+let _infraLayer     = null;
+let _flowLayer      = null;
+let _routeLayer     = null;
+let _routeDrawState = null;  // null 或 { latlngs, markers, previewLine }
+let _infraPlaceMode = null;  // null 或 { infra_type }（點擊地圖放置設施）
+// 圖層可見性（預設全開，MGRS 例外）
+const _layerVis = { zones:true, polygons:true, infra:true, flows:true, routes:true, mgrs:false };
 let _placeTypeValue = '';
+
+// ── NAPSG 危害類型 csel 初始化（頁面載入後呼叫一次）────────────
+function _populateNapsgCsel() {
+  const panel = el('place-type-panel');
+  panel.innerHTML = '';
+  let prevGroup = null;
+  Object.entries(NAPSG_EVENTS).forEach(([k, v]) => {
+    if (v.group !== prevGroup) {
+      const hdr = document.createElement('div');
+      hdr.className = 'csel-group-header';
+      hdr.textContent = NAPSG_GROUPS[v.group] || v.group;
+      panel.appendChild(hdr);
+      prevGroup = v.group;
+    }
+    const d = document.createElement('div');
+    d.className = 'csel-opt';
+    d.textContent = v.label;
+    d.dataset.value = k;
+    d.onclick = () => _pickCsel(k, v.label);
+    panel.appendChild(d);
+  });
+}
 
 function toggleCsel() {
   const panel = el('place-type-panel');
@@ -2625,90 +4869,344 @@ function _closeCsel(e) {
     el('place-type-panel').classList.remove('open');
   }
 }
-function _setCselOptions(cats) {
-  // 先移除舊的 close listener，防止同一個 click 冒泡到 document 時把剛開的 panel 又關掉
-  document.removeEventListener('click', _closeCsel);
-  const panel = el('place-type-panel');
-  const btn   = el('place-type-btn');
-  const lbl   = el('place-type-label');
-  _placeTypeValue = '';
-  lbl.textContent = '— 選事件 —';
-  panel.innerHTML = '';
-  if (!cats || !Object.keys(cats).length) { btn.classList.add('disabled'); return; }
-  // 佔位項
-  const ph = document.createElement('div');
-  ph.className = 'csel-opt placeholder active';
-  ph.textContent = '— 選事件 —';
-  ph.onclick = () => _pickCsel('', '— 選事件 —');
-  panel.appendChild(ph);
-  Object.entries(cats).forEach(([k, v]) => {
-    const d = document.createElement('div');
-    d.className = 'csel-opt';
-    d.textContent = v;
-    d.dataset.value = k;
-    d.onclick = () => _pickCsel(k, v);
-    panel.appendChild(d);
-  });
-  btn.classList.remove('disabled');
-  // 自動向上彈出
-  panel.classList.add('open');
-  // click 冒泡結束後才掛 close listener
-  setTimeout(() => {
-    document.addEventListener('click', _closeCsel, { once: true });
-  }, 0);
-}
 function _pickCsel(value, label) {
   _placeTypeValue = value;
-  el('place-type-label').textContent = label || '— 選事件 —';
-  el('place-type-panel').classList.remove('open');
-  el('place-type-panel').querySelectorAll('.csel-opt').forEach(d => {
-    d.classList.toggle('active',
-      value === '' ? d.classList.contains('placeholder') : d.dataset.value === value);
-  });
+  const _ptl2 = el('place-type-label');
+  if (_ptl2) _ptl2.textContent = label || '— 選危害類型 —';
+  const _ptp2 = el('place-type-panel');
+  if (_ptp2) {
+    _ptp2.classList.remove('open');
+    _ptp2.querySelectorAll('.csel-opt').forEach(d => {
+      d.classList.toggle('active', d.dataset.value === value);
+    });
+  }
   onPlaceTypeChange();
-}
-
-function selectPlaceGroup(grp) {
-  // 選組別時取消已選取的 marker
-  if (_selectedZoneId) _deselectMarker();
-  _placeGroup = grp;
-  // 切換按鈕 active
-  document.querySelectorAll('.place-grp').forEach(b => b.classList.toggle('active', b.dataset.grp === grp));
-  // 填入自訂事件類型下拉並向上彈出
-  _setCselOptions(EVENT_CATEGORIES[grp] || {});
-  _placeMode = null;
-  el('map-panel').classList.remove('placing');
 }
 
 function onPlaceTypeChange() {
   const typeKey = _placeTypeValue;
-  if (!typeKey || !_placeGroup) {
+  if (!typeKey) {
     _placeMode = null;
     el('map-panel').classList.remove('placing');
+    const _ptw3 = el('place-type-wrap');
+    if (_ptw3) _ptw3.style.display = 'none';
+    if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
     return;
   }
-  const iconType = EVENT_ICON_MAP[typeKey] || 'event';
-  const label = EVENT_CATEGORIES[_placeGroup][typeKey];
-  _placeMode = { group: _placeGroup, type: typeKey, label, icon: iconType };
-  el('map-panel').classList.toggle('placing', !!_placeMode);
+  const ev = NAPSG_EVENTS[typeKey];
+  if (!ev) return;
+  _placeMode = {
+    reportedBy:   el('place-report-unit').value || 'command',
+    type:         typeKey,
+    label:        ev.label,
+    icon:         ev.icon,
+    napsgGroup:   ev.group,
+    assignedUnit: ev.defaultAssigned,
+  };
+  el('map-panel').classList.add('placing');
+  // 站內地圖才顯示類型選擇器浮島
+  const _ptw = el('place-type-wrap');
+  if (_ptw) _ptw.style.display = (_currentMap === 'indoor') ? 'block' : 'none';
+  if (_currentMap === 'outdoor' && _leafletMap) {
+    _leafletMap.getContainer().style.setProperty('cursor', 'crosshair', 'important');
+  }
 }
 
 function cancelPlaceMode() {
   _placeMode = null;
-  _placeGroup = null;
-  document.querySelectorAll('.place-grp').forEach(b => b.classList.remove('active'));
   _placeTypeValue = '';
-  el('place-type-label').textContent = '—';
-  el('place-type-panel').innerHTML = '';
-  el('place-type-panel').classList.remove('open');
-  el('place-type-btn').classList.add('disabled');
+  const _ptl = el('place-type-label');
+  if (_ptl) _ptl.textContent = '— 選危害類型 —';
+  const _ptp = el('place-type-panel');
+  if (_ptp) {
+    _ptp.querySelectorAll('.csel-opt').forEach(d => d.classList.remove('active'));
+    _ptp.classList.remove('open');
+  }
+  const _ptw = el('place-type-wrap');
+  if (_ptw) _ptw.style.display = 'none';
   el('map-panel').classList.remove('placing');
+  el('leaflet-map').classList.remove('placing');
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+}
+
+// ══════════════════════════════════════════════════════════════
+// 長按事件 popup（Leaflet outdoor 地圖）
+// ── 全部用 L.DomUtil + L.DomEvent.on 建立 DOM，
+//    避免 inline onclick 在 setContent 後失效的問題 ──
+// ══════════════════════════════════════════════════════════════
+let _evPopup = null;
+let _evPopupLatLng = null;  // { lat, lng }
+
+/** 建立 Level-1 群組選單 DOM */
+function _evPopupBuildGroups(mgrs, reportUnit) {
+  const wrap = L.DomUtil.create('div', 'ev-popup-inner');
+
+  // ── header：回報單位（左）+ MGRS（右）合一行 ──
+  const header = L.DomUtil.create('div', 'ev-popup-header', wrap);
+
+  const repWrap = L.DomUtil.create('div', 'ev-popup-reporter-wrap', header);
+  const lbl = L.DomUtil.create('label', '', repWrap);
+  lbl.textContent = '回報：';
+  const sel = L.DomUtil.create('select', '', repWrap);
+  sel.id = 'ev-popup-unit';
+  [['command','指揮部'],['forward','前進組'],['security','安全組'],
+   ['shelter','收容組'],['medical','醫療組']].forEach(([v, t]) => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = t;
+    if (v === reportUnit) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  L.DomEvent.on(sel, 'change', function() {
+    const bar = el('place-report-unit');
+    if (bar) bar.value = sel.value;
+  });
+
+  const mgrsSpan = L.DomUtil.create('span', 'ev-popup-mgrs', header);
+  mgrsSpan.textContent = `📍 ${mgrs}`;
+
+  // ── 群組按鈕 2×3 grid ──
+  const grid = L.DomUtil.create('div', 'ev-popup-groups', wrap);
+  Object.entries(NAPSG_GROUPS).forEach(([k, label]) => {
+    const btn = L.DomUtil.create('button', 'ev-popup-group-btn', grid);
+    btn.textContent = label;
+    L.DomEvent.on(btn, 'click', function(e) {
+      L.DomEvent.stopPropagation(e);
+      _evPopupGroup(k);
+    });
+  });
+
+  return wrap;
+}
+
+/** 建立 Level-2 事件類型清單 DOM */
+function _evPopupBuildTypes(groupKey, mgrs) {
+  const wrap = L.DomUtil.create('div', 'ev-popup-inner');
+
+  // ── header：返回（左）+ 群組名稱（右）合一行 ──
+  const header = L.DomUtil.create('div', 'ev-popup-header', wrap);
+
+  const back = L.DomUtil.create('span', 'ev-popup-back', header);
+  back.style.marginBottom = '0';  // 覆蓋預設 margin（在 header 內不需要）
+  back.textContent = '← 返回';
+  L.DomEvent.on(back, 'click', function(e) {
+    L.DomEvent.stopPropagation(e);
+    _evPopupBack();
+  });
+
+  const grpSpan = L.DomUtil.create('span', 'ev-popup-mgrs', header);
+  grpSpan.textContent = NAPSG_GROUPS[groupKey] || groupKey;
+
+  // ── 類型清單 ──
+  const list = L.DomUtil.create('div', 'ev-popup-types', wrap);
+  Object.entries(NAPSG_EVENTS)
+    .filter(([, v]) => v.group === groupKey)
+    .forEach(([k, v]) => {
+      const sev = v.severity || 'info';
+      const btn = L.DomUtil.create('button', `ev-popup-type-btn sev-${sev}`, list);
+      btn.textContent = v.label;
+      L.DomEvent.on(btn, 'click', function(e) {
+        L.DomEvent.stopPropagation(e);
+        _evPopupSubmit(k);
+      });
+    });
+
+  return wrap;
+}
+
+/** 開啟 popup（Level 1：群組選單） */
+function _openEventPopup(lat, lng) {
+  if (_evPopup) { _leafletMap.closePopup(_evPopup); _evPopup = null; }
+  _evPopupLatLng = { lat, lng };
+
+  const mgrs      = _latlngToMGRS(lat, lng, 5);
+  const reportUnit = el('place-report-unit').value || 'command';
+
+  _evPopup = L.popup({
+    className: 'ev-popup',
+    closeButton: true,
+    autoClose: false,
+    closeOnClick: false,
+    maxWidth: 280,
+    offset: [0, -6],
+  })
+    .setLatLng([lat, lng])
+    .setContent(_evPopupBuildGroups(mgrs, reportUnit))
+    .openOn(_leafletMap);
+
+  _evPopup.on('remove', () => { _evPopup = null; });
+}
+
+/** Level 1 → Level 2：切換為指定群組的事件類型清單 */
+function _evPopupGroup(groupKey) {
+  if (!_evPopup || !_evPopupLatLng) return;
+  const mgrs = _latlngToMGRS(_evPopupLatLng.lat, _evPopupLatLng.lng, 5);
+  _evPopup.setContent(_evPopupBuildTypes(groupKey, mgrs));
+}
+
+/** Level 2 → Level 1：返回群組選單 */
+function _evPopupBack() {
+  if (!_evPopupLatLng) return;
+  // 重新開啟同座標的 popup（保留 latlng）
+  const { lat, lng } = _evPopupLatLng;
+  _openEventPopup(lat, lng);
+}
+
+/** 選定事件類型 → 放置事件 marker */
+async function _evPopupSubmit(typeKey) {
+  if (!_evPopupLatLng) return;
+  const ev = NAPSG_EVENTS[typeKey];
+  if (!ev) return;
+
+  // 讀回報單位（優先 popup 內 select，fallback edit-bar）
+  const popupSel = document.getElementById('ev-popup-unit');
+  const reportedBy = popupSel ? popupSel.value : (el('place-report-unit')?.value || 'command');
+
+  _placeMode = {
+    reportedBy,
+    type:         typeKey,
+    label:        ev.label,
+    icon:         ev.icon,
+    napsgGroup:   ev.group,
+    assignedUnit: ev.defaultAssigned,
+  };
+
+  // 先把座標存下來再清除，避免 remove 事件干擾
+  const { lat, lng } = _evPopupLatLng;
+  _evPopupLatLng = null;
+
+  if (_evPopup) { _leafletMap.closePopup(_evPopup); _evPopup = null; }
+
+  await _placeOnLeaflet(lat, lng);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 站外永久節點定位模式
+// ══════════════════════════════════════════════════════════════
+
+/** 開始為指定單位定位（從設定頁呼叫） */
+function _startNodePlace(nodeId) {
+  const def = _PERM_NODES.find(n => n.id === nodeId);
+  if (!def) return;
+  _nodePlaceMode = { ...def };
+
+  // 切換到站外地圖
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+
+  // 顯示提示 banner
+  const banner = el('node-place-banner');
+  el('node-place-label').textContent = def.label;
+  banner.style.display = 'flex';
+
+  // 游標改為十字
+  if (_leafletMap) _leafletMap.getContainer().style.setProperty('cursor','crosshair','important');
+}
+
+/** 取消據點定位模式 */
+function _cancelNodePlace() {
+  _nodePlaceMode = null;
+  el('node-place-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+}
+
+// ── 事件標記模式（從表單送出後，讓使用者在地圖點一下標記位置）────────
+/** 進入標記模式：顯示 banner，切換到戶外地圖，crosshair cursor */
+function _startEventPin(eventId, eventCode, label, type, severity) {
+  _eventPinMode = { eventId, eventCode, label, type, severity };
+  el('event-pin-code').textContent = eventCode || eventId;
+  el('event-pin-banner').style.display = 'flex';
+  // 隱藏座標面板，避免與 banner 重疊
+  el('map-coord-panel').style.display = 'none';
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+}
+
+/** 取消標記模式 */
+function _cancelEventPin() {
+  _eventPinMode = null;
+  el('event-pin-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+}
+
+/** 地圖點擊：在選定位置建立 zone，PATCH 事件的 location_desc */
+async function _pinEventOnMap(lat, lng) {
+  if (!_eventPinMode || !_mapConfig) return;
+  const { eventId, eventCode, label, type, severity } = _eventPinMode;
+  _cancelEventPin();
+
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  const zoneId = 'evt_' + Date.now();
+  const napsgDef = NAPSG_EVENTS[type] || {};
+  const zone = {
+    id: zoneId,
+    label,
+    sub: '',
+    lat: Math.round(lat * 1000000) / 1000000,
+    lng: Math.round(lng * 1000000) / 1000000,
+    node_type: napsgDef.group || 'ops',
+    icon: napsgDef.icon || 'event',
+    event_id: eventId,
+    event_code: eventCode,
+  };
+
+  // 寫入 map_config
+  _mapConfig.maps['outdoor'].zones.push(zone);
+  saveMapConfig();
+  _renderLeafletMarkers();
+
+  // PATCH 事件補 location_desc + location_zone_id
+  try {
+    await authFetch(API_BASE + '/api/events/' + eventId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ location_desc: mgrs, location_zone_id: zoneId }),
+    });
+  } catch(e) { console.error('[PIN-EVENT]', e); }
+
+  // 座標面板顯示確認
+  const coordPanel = document.getElementById('map-coord-panel');
+  coordPanel.style.display = 'flex';
+  coordPanel.innerHTML =
+    `<span style="color:#3fb950">✓ 標記</span>&nbsp;<b>${eventCode||eventId}</b>` +
+    `<span style="color:#8b949e;margin-left:8px">MGRS</span>&nbsp;${mgrs}`;
+  setTimeout(() => _refreshCoordPanel(), 3000);
+
+  await poll();
+}
+
+/** 儲存據點位置到 map_config，重繪 marker */
+async function _saveNodePosition(lat, lng) {
+  if (!_nodePlaceMode || !_mapConfig) return;
+  const { id, label, node_type, icon } = _nodePlaceMode;
+
+  // 找或建 outdoor zones 裡的永久節點
+  const zones = _mapConfig.maps['outdoor'].zones || [];
+  const existing = zones.find(z => z.id === id);
+  if (existing) {
+    existing.lat = Math.round(lat * 1000000) / 1000000;
+    existing.lng = Math.round(lng * 1000000) / 1000000;
+  } else {
+    zones.push({ id, label, sub: '', node_type, icon, lat: Math.round(lat*1e6)/1e6, lng: Math.round(lng*1e6)/1e6 });
+    _mapConfig.maps['outdoor'].zones = zones;
+  }
+
+  _cancelNodePlace();
+  await saveMapConfig();
+  _renderLeafletMarkers();
+
+  // 短暫顯示確認
+  const coordPanel = el('map-coord-panel');
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  coordPanel.style.display = 'flex';
+  coordPanel.innerHTML = `<span style="color:#3fb950">✓ ${label}</span><span style="color:#8b949e;margin-left:8px">MGRS</span>&nbsp;${mgrs}`;
+  setTimeout(() => _refreshCoordPanel(), 3000);
 }
 
 // 地圖點擊：放置事件 or 取消選取
 el('map-panel').addEventListener('click', async function(e) {
   // 點到 marker、edit-bar、map-tabs 不處理
-  if (e.target.closest('.zone-marker') || e.target.closest('#edit-bar') || e.target.closest('#map-tabs')) return;
+  if (e.target.closest('.zone-marker') || e.target.closest('#mgrs-island') || e.target.closest('#map-tabs')) return;
+  // 站外（Leaflet）：由 Leaflet click handler 處理，這裡不重複觸發
+  if (_currentMap === 'outdoor') return;
   // 非放置模式：點空白地圖取消選取
   if (!_placeMode) {
     if (_selectedZoneId) _deselectMarker();
@@ -2723,26 +5221,25 @@ el('map-panel').addEventListener('click', async function(e) {
   const zone = {
     id, label: _placeMode.label, sub: '',
     x_pct, y_pct,
-    node_type: _placeMode.group,
+    node_type: _placeMode.napsgGroup || 'ops',   // NAPSG 危害群組
     icon: _placeMode.icon,
   };
 
-  // 建立事件
-  // 無人機、疑似爆裂物、不明人士 → critical（10分鐘）；其餘 warning（30分鐘）
-  const _CRITICAL_TYPES = new Set(['drone', 'explosive', 'unknown']);
-  const severity = _CRITICAL_TYPES.has(_placeMode.type) ? 'critical' : 'warning';
+  // severity 由 NAPSG_EVENTS[type].severity 決定，不再硬編碼
+  const severity = NAPSG_EVENTS[_placeMode.type]?.severity || 'warning';
   try {
     const resp = await authFetch(API_BASE + '/api/events', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        reported_by_unit: _placeMode.group,
+        reported_by_unit: _placeMode.reportedBy || 'command',
         event_type: _placeMode.type,
         severity: severity,
         description: _placeMode.label,
         operator_name: _currentOperator(),
         location_zone_id: id,
         location_desc: _placeMode.label,
+        assigned_unit: _placeMode.assignedUnit || null,
         session_type: _sessionType,
       })
     });
@@ -2902,12 +5399,18 @@ function _renderZoneModal() {
   el('modal-title').innerHTML = `${iconHtml} ${zone.label} <span style="font-size:10px;color:${freshColor};margin-left:6px;">${freshLabel}</span>`;
   el('modal-body').innerHTML = tabsHtml + body;
   el('overlay').className = 'show';
-  // Wave 4：自動載入 Pi push 資料
+  // Wave 4：自動載入 Pi push 資料（數據頁）
   const autoEl = el('modal-body').querySelector('.l3-autoload');
   if (autoEl) {
     const unit = autoEl.dataset.unit;
     autoEl.id = 'l3-container';
     setTimeout(() => loadL3Records(unit), 50);
+  }
+  // 事件頁：shelter / medical PWA incidents 非同步載入
+  const pwaLoader = el('modal-body').querySelector('.pwa-incidents-loader');
+  if (pwaLoader) {
+    const unit = pwaLoader.dataset.unit;
+    setTimeout(() => _loadPwaIncidents(unit), 80);
   }
 }
 
@@ -2932,45 +5435,129 @@ function _zoneDataTab(zone) {
 function _zoneEventsTab(zone) {
   const unit = zone.node_type || '';
   const allEvents = _data?.events || [];
-  const filtered = unit ? allEvents.filter(e => e.reported_by_unit === unit) : allEvents;
-  const open = filtered.filter(e => e.status !== 'resolved' && e.status !== 'closed');
-  const closed = filtered.filter(e => e.status === 'resolved' || e.status === 'closed');
 
-  let html = `<div style="margin-bottom:8px;display:flex;gap:6px;">`;
-  html += `<button onclick="openEventForm('${unit}','${zone.label}','${zone.id}')" style="padding:4px 12px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">📝 新增事件</button>`;
+  // ── 聯集去重：本組回報 OR 指派給本組，每筆事件只出現一次 ──
+  const seen = new Set();
+  const events = (unit
+    ? allEvents.filter(e => e.reported_by_unit === unit || e.assigned_unit === unit)
+    : allEvents
+  ).filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
+
+  const isOpen   = e => e.status !== 'resolved' && e.status !== 'closed';
+  const openEvs   = events.filter(isOpen);
+  const closedEvs = events.filter(e => !isOpen(e));
+
+  let html = `<div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">`;
+  html += `<button onclick="openEventForm('${unit}',{lat:${zone.lat||'null'},lng:${zone.lng||'null'}},'${zone.id}')" style="padding:4px 12px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">📝 新增事件</button>`;
+  // 事件總數（唯一值）
+  if (events.length > 0) {
+    html += `<span style="font-size:10px;color:var(--text3);">${openEvs.length} 筆進行中`;
+    if (closedEvs.length > 0) html += `・${closedEvs.length} 筆已結案`;
+    html += `</span>`;
+  }
   html += `</div>`;
 
-  if (filtered.length === 0) {
-    html += '<div style="color:var(--text3);font-size:11px;">無事件記錄</div>';
-    return html;
+  if (events.length === 0) {
+    html += '<div style="color:var(--text3);font-size:11px;margin-bottom:8px;">無 ICS 事件記錄</div>';
+  } else {
+    // 進行中
+    openEvs.forEach(ev => { html += _eventCardHTML(ev, false, unit); });
+    // 已結案（折疊顯示）
+    if (closedEvs.length > 0) {
+      html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin:8px 0 4px;">已結案</div>`;
+      closedEvs.forEach(ev => { html += _eventCardHTML(ev, true, unit); });
+    }
   }
 
-  // 未結案事件（可操作）
-  if (open.length > 0) {
-    html += `<div style="font-size:10px;color:var(--text3);margin-bottom:4px;">🔴 開放中 (${open.length})</div>`;
-    open.forEach(ev => { html += _eventCardHTML(ev, false); });
+  // ── PWA 組內事件（shelter / medical）── 非同步載入
+  if (unit === 'shelter' || unit === 'medical') {
+    const topMargin = events.length > 0 ? '10px' : '0';
+    html += `<div style="font-size:9px;color:var(--text3);padding:4px 0 3px;font-weight:600;border-bottom:1px solid var(--border);margin:${topMargin} 0 4px;">PWA 組內事件</div>`;
+    html += `<div id="pwa-incidents-container"><span style="color:var(--text3);font-size:10px;">載入中...</span></div>`;
+    html += `<div class="pwa-incidents-loader" data-unit="${unit}" style="display:none;"></div>`;
   }
-  // 已結案（摺疊）
-  if (closed.length > 0) {
-    html += `<div style="font-size:10px;color:var(--text3);margin:8px 0 4px;">✅ 已結案 (${closed.length})</div>`;
-    closed.forEach(ev => { html += _eventCardHTML(ev, true); });
-  }
+
   return html;
 }
 
-function _eventCardHTML(ev, dimmed) {
+/** 非同步載入 PWA incidents，填入 #pwa-incidents-container */
+async function _loadPwaIncidents(unitId) {
+  const container = document.getElementById('pwa-incidents-container');
+  if (!container) return;
+  try {
+    const resp = await authFetch(API_BASE + `/api/pi-data/${unitId}/list`);
+    if (!resp.ok) { container.innerHTML = '<span style="color:var(--text3);font-size:10px;">無法取得資料</span>'; return; }
+    const data = await resp.json();
+    if (data.offline) {
+      container.innerHTML = '<span style="color:var(--yellow);font-size:10px;">⚠ Pi 節點離線</span>';
+      return;
+    }
+    const incLabels = {
+      security_threat:'安全威脅', infectious_risk:'傳染疑慮', resource_shortage:'物資短缺',
+      capacity_overload:'量能超載', medication_mgmt:'藥品管理', language_assist:'語言協助',
+      noise_disturbance:'災民喧嘩', other:'其他',
+    };
+    const incidents = (data.grouped?.incidents || []).map(r => r.record || {});
+    if (incidents.length === 0) {
+      container.innerHTML = '<span style="color:var(--text3);font-size:10px;">無組內事件</span>';
+      return;
+    }
+    const sevColor = s => s === '高' ? 'var(--red)' : s === '中' ? 'var(--yellow)' : 'var(--text3)';
+    const stColor  = s => (s === '已結案' || s === 'closed') ? 'var(--green)' : 'var(--yellow)';
+    let html = '';
+    incidents.forEach(inc => {
+      const label  = incLabels[inc.type] || inc.type || '事件';
+      const sev    = inc.severity || '';
+      const st     = inc.status   || '';
+      const desc   = inc.description ? `<div style="font-size:9px;color:var(--text3);margin-top:2px;">${inc.description.slice(0,60)}</div>` : '';
+      const dimmed = (st === '已結案' || st === 'closed') ? 'opacity:.5;' : '';
+      html += `<div style="padding:6px 10px;margin-bottom:4px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor(sev)};${dimmed}">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
+      html += `<span style="font-size:10px;font-weight:600;">${label}</span>`;
+      html += `<span style="font-size:9px;color:${stColor(st)};font-weight:600;">${st}</span>`;
+      html += `</div>${desc}</div>`;
+    });
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<span style="color:var(--text3);font-size:10px;">載入失敗</span>';
+  }
+}
+
+function _eventCardHTML(ev, dimmed, viewUnit) {
   const sevC = ev.severity==='critical'?'var(--red)':ev.severity==='warning'?'var(--yellow)':'var(--text3)';
   const statusLabel = {open:'未結',in_progress:'處理中',resolved:'已結案',closed:'已關閉'}[ev.status]||ev.status;
   const statusC = (ev.status==='resolved'||ev.status==='closed')?'var(--green)':'var(--yellow)';
   const notes = _parseNotes(ev.notes);
   const isOpen = ev.status === 'open' || ev.status === 'in_progress';
 
+  // ── 角色 tag（EOC 模式：顯示本組與事件的關係，不重複計算事件數）──
+  const _uLabel = {'command':'指揮部','forward':'前進組','security':'安全組','shelter':'收容組','medical':'醫療組'};
+  let roleTag = '';
+  if (viewUnit) {
+    const iReporter = ev.reported_by_unit === viewUnit;
+    const iAssigned = ev.assigned_unit === viewUnit;
+    if (iReporter && iAssigned) {
+      roleTag = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,139,253,.15);color:#58a6ff;border:1px solid rgba(56,139,253,.3);white-space:nowrap;">回報・承辦</span>`;
+    } else if (iReporter) {
+      const assignee = ev.assigned_unit ? `→ ${_uLabel[ev.assigned_unit]||ev.assigned_unit}` : '';
+      roleTag = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,139,253,.15);color:#58a6ff;border:1px solid rgba(56,139,253,.3);white-space:nowrap;">回報${assignee}</span>`;
+    } else if (iAssigned) {
+      const reporter = ev.reported_by_unit ? `${_uLabel[ev.reported_by_unit]||ev.reported_by_unit} →` : '';
+      roleTag = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(210,153,34,.15);color:#e3b341;border:1px solid rgba(210,153,34,.3);white-space:nowrap;">${reporter} 指派協助</span>`;
+    }
+  }
+
+  const _typeLabel = _evTypeLabel(ev);
+  const _descSub = ev.description && ev.description !== _typeLabel ? ev.description : '';
+
   let html = `<div style="padding:8px 10px;margin-bottom:6px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevC};${dimmed?'opacity:.5;':''}">`;
   // 標題列
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-  html += `<span style="font-size:12px;font-weight:700;">${ev.description || ev.event_type}</span>`;
-  html += `<span style="font-size:10px;color:${statusC};font-weight:600;">${statusLabel}</span>`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">`;
+  html += `<span style="font-size:12px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_typeLabel}</span>`;
+  html += `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">${roleTag}<span style="font-size:10px;color:${statusC};font-weight:600;">${statusLabel}</span></div>`;
   html += `</div>`;
+  // 自由描述副標題（與類型名不同時才顯示）
+  if (_descSub) html += `<div style="font-size:10px;color:var(--text2);margin-top:1px;font-style:italic;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${_descSub}</div>`;
   html += `<div style="font-size:10px;color:var(--text3);margin-top:3px;">回報：${ev.operator_name}　${_decisionAge(ev.occurred_at||ev.created_at)}</div>`;
 
   // 處置紀錄（對齊 shelter PWA）
@@ -2979,7 +5566,7 @@ function _eventCardHTML(ev, dimmed) {
     html += `<div style="font-size:9px;color:var(--text3);margin-bottom:2px;">處置紀錄</div>`;
     notes.forEach(n => {
       html += `<div style="font-size:10px;padding:2px 0;border-bottom:1px solid rgba(48,54,61,.3);">`;
-      html += `<span style="color:var(--text3);">${(n.time||'').slice(11,16)}</span>`;
+      html += `<span style="color:var(--text3);">${_fmtLocal(n.time, true)}</span>`;
       html += n.by ? ` <span style="color:#DAA520;font-weight:600;">${n.by}</span>` : '';
       html += ` — ${n.text}`;
       html += `</div>`;
@@ -3102,23 +5689,45 @@ function _renderDecisionList(decs) {
 
 function openEventForm(prefilledUnit, prefilledLocation, zoneId) {
   if (prefilledUnit) el('ev-unit').value = prefilledUnit;
-  if (prefilledLocation) el('ev-location').value = prefilledLocation;
+  // 位置：優先使用 MGRS（若傳入 lat/lng 物件），否則用文字描述（非單位名稱）
+  if (prefilledLocation && typeof prefilledLocation === 'object' && prefilledLocation.lat != null) {
+    el('ev-location').value = _latlngToMGRS(prefilledLocation.lat, prefilledLocation.lng, 5);
+  } else if (prefilledLocation && typeof prefilledLocation === 'string') {
+    // 避免把單位名稱誤填為位置（openEventForm 從節點 modal 呼叫時舊行為）
+    el('ev-location').value = '';
+  }
   if (zoneId) el('ev-zone-id').value = zoneId;
   // 操作員預填登入帳號
   if (!el('ev-operator').value) el('ev-operator').value = _currentOperator();
-  // 用新的 EVENT_CATEGORIES 更新類型下拉
+  // 填入 NAPSG 危害類型下拉，並同步嚴重度
   _updateEvTypeFromCategories();
+  _syncEvSeverity();
   el('event-overlay').className = 'show';
 }
 
+/** 危害類型切換時，自動同步嚴重度 radio */
+function _syncEvSeverity() {
+  const typeKey = el('ev-type').value;
+  const sev = NAPSG_EVENTS[typeKey]?.severity || 'warning';
+  const radio = document.querySelector(`input[name="ev-sev"][value="${sev}"]`);
+  if (radio) radio.checked = true;
+}
+
 function _updateEvTypeFromCategories() {
-  const unit = el('ev-unit').value;
+  // NAPSG 統一清單，不再依回報單位篩選
   const sel = el('ev-type');
   sel.innerHTML = '';
-  const cats = EVENT_CATEGORIES[unit] || EVENT_CATEGORIES['command'];
-  Object.entries(cats).forEach(([k, v]) => {
+  let prevGroup = null;
+  Object.entries(NAPSG_EVENTS).forEach(([k, v]) => {
+    if (v.group !== prevGroup) {
+      const grpOpt = document.createElement('option');
+      grpOpt.disabled = true;
+      grpOpt.textContent = `── ${NAPSG_GROUPS[v.group] || v.group} ──`;
+      sel.appendChild(grpOpt);
+      prevGroup = v.group;
+    }
     const opt = document.createElement('option');
-    opt.value = k; opt.textContent = v;
+    opt.value = k; opt.textContent = v.label;
     sel.appendChild(opt);
   });
 }
@@ -3143,6 +5752,7 @@ async function submitEvent() {
     location_desc: el('ev-location').value || null,
     needs_commander_decision: el('ev-decision').checked,
     location_zone_id: el('ev-zone-id').value || null,
+    session_type: _sessionType,   // 補上 session_type，與 _placeOnLeaflet 一致
   };
   if (!body.description) { el('ev-desc').focus(); return; }
   try {
@@ -3152,8 +5762,53 @@ async function submitEvent() {
       body: JSON.stringify(body)
     });
     if (resp.ok) {
+      const created = await resp.json();
       closeEventForm();
-      poll(); // 立即刷新
+
+      // ── 樂觀更新：合併前端 body + 伺服端回傳，補齊 reported_by_unit 等欄位 ──
+      // db.create_event 只回傳 {id, event_code, response_deadline}，需自行補全
+      if (_data?.events) {
+        const now = new Date().toISOString();
+        const optimisticEvent = {
+          // 前端已知欄位
+          reported_by_unit:          body.reported_by_unit,
+          event_type:                body.event_type,
+          severity:                  body.severity,
+          description:               body.description,
+          operator_name:             body.operator_name,
+          location_desc:             body.location_desc || null,
+          location_zone_id:          body.location_zone_id || null,
+          assigned_unit:             null,
+          status:                    'open',
+          occurred_at:               now,
+          created_at:                now,
+          notes:                     null,
+          // 伺服端回傳欄位（覆蓋）
+          ...created,
+        };
+        if (!_data.events.find(e => e.id === optimisticEvent.id)) {
+          _data.events.unshift(optimisticEvent); // 插最前面，馬上可見
+        }
+        // 即時更新右側事件欄
+        renderZoneC(getSeries());
+        // 若 zone modal 還開著（從節點事件頁送出），重繪事件頁
+        if (_zoneModalZone && el('overlay').className === 'show') {
+          _zoneModalTab = 'events';
+          _renderZoneModal();
+        }
+      }
+
+      // 背景 poll 取完整 server 資料（覆蓋樂觀資料，含 notes 等欄位）
+      poll();
+
+      // 詢問是否在地圖標記位置（進入 _eventPinMode）
+      _startEventPin(
+        created.id,
+        created.event_code,
+        NAPSG_EVENTS[body.event_type]?.label || body.event_type || body.description,
+        body.event_type,
+        body.severity,
+      );
     } else {
       alert('送出失敗：' + resp.status);
     }
@@ -3525,6 +6180,8 @@ function refresh() {
   _renderConnDots();
   renderZoneC(d);
   renderMapOverlay();
+  // 站外：同步刷新 Leaflet marker（嚴重度顏色、已結案消失）
+  if (_currentMap === 'outdoor') _renderLeafletMarkers();
 }
 
 function _renderZoneANoSnap() {
@@ -3914,15 +6571,23 @@ function renderZoneC(d) {
   const filterLabels = {overdue:'逾時', pending:'待處理', progress:'處理中', resolved:'已結案'};
   let barParts = [];
   if (_evtFilter) barParts.push('篩選：' + filterLabels[_evtFilter]);
-  if (_evtGroupByUnit) barParts.push('按組別分類');
+  if (_evtGroupMode === 'assigned') barParts.push('按處理組別分類');
+  if (_evtGroupMode === 'reported') barParts.push('按回報組別分類');
   if (barParts.length > 0) {
-    filterBar.innerHTML = `<span>${barParts.join(' · ')}</span><span style="cursor:pointer;margin-left:auto;color:var(--text3);" onclick="_evtFilter=null;_evtGroupByUnit=false;renderZoneC(getSeries());">✕ 清除</span>`;
+    filterBar.innerHTML = `<span>${barParts.join(' · ')}</span><span style="cursor:pointer;margin-left:auto;color:var(--text3);" onclick="_evtFilter=null;_evtGroupMode=null;renderZoneC(getSeries());">✕ 清除</span>`;
     filterBar.style.display = 'flex';
     filterBar.style.justifyContent = 'space-between';
     filterBar.style.alignItems = 'center';
   } else {
     filterBar.style.display = 'none';
   }
+  // 分組按鈕 active 樣式
+  const _grpActive = 'background:rgba(26,158,82,.2);color:#fff;border-color:var(--green);';
+  const _grpInact  = 'background:transparent;color:var(--text3);border-color:var(--border);';
+  const _grpR = document.getElementById('evt-grp-reported');
+  const _grpA = document.getElementById('evt-grp-assigned');
+  if (_grpR) _grpR.style.cssText += _evtGroupMode === 'reported' ? _grpActive : _grpInact;
+  if (_grpA) _grpA.style.cssText += _evtGroupMode === 'assigned' ? _grpActive : _grpInact;
 
   const unitColors = {forward:'#e68c1e',security:'#3366e6',shelter:'#d4b200',medical:'#e03030',command:'#22b05a'};
   const unitNames = {forward:'前進組',security:'安全組',shelter:'收容組',medical:'醫療組',command:'指揮部'};
@@ -3973,79 +6638,108 @@ function renderZoneC(d) {
           if ((dl - now) < (dl - cr) * 0.5) tagColor = '#e67e22';
         }
       }
-      const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
-      const uName = unitNames[ev.reported_by_unit] || '';
+      // 左色條：severity（紅/黃/灰）
+      const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
+      const uName  = unitNames[ev.reported_by_unit] || '';
+      const asgKey = ev.assigned_unit;
+      const asgName = asgKey && asgKey !== ev.reported_by_unit ? (unitNames[asgKey] || asgKey) : '';
       const overdueAnim = _isOverdue ? 'animation:pulse 1s infinite;' : '';
+      // 標題：統一用 NAPSG 類型標籤；使用者描述若不同則小字附注
+      const typeLabel = NAPSG_EVENTS[ev.event_type]?.label || ev.event_type || ev.description;
+      const extraDesc = ev.description && ev.description !== typeLabel ? ev.description : '';
       let h = '';
-      h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor};" onclick="_openEventByCode('${ev.id}')" onmousedown="_evtCardDown('${ev.id}')" onmouseup="_evtCardUp()" onmouseleave="_evtCardUp()" ontouchstart="_evtCardDown('${ev.id}')" ontouchend="_evtCardUp()">`;
-      h += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-      h += `<span style="font-size:10px;font-weight:600;">${ev.description||ev.event_type}</span>`;
-      h += `<span style="font-size:9px;font-weight:700;color:${tagColor};${overdueAnim}">${cd}</span>`;
+      h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor};" onclick="_openEventByCode('${ev.id}')" onmousedown="_evtCardDown('${ev.id}')" onmouseup="_evtCardUp()" onmouseleave="_evtCardUp()" ontouchstart="_evtCardDown('${ev.id}')" ontouchend="_evtCardUp()">`;
+      h += `<div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">`;
+      h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${typeLabel}</span>`;
+      h += `<span style="font-size:9px;font-weight:700;color:${tagColor};flex-shrink:0;${overdueAnim}">${cd}</span>`;
       h += `</div>`;
-      h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1px;">`;
-      h += `<span style="font-size:9px;color:var(--text3);">${uName}</span>`;
-      h += `<span style="font-size:8px;color:var(--text3);">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
+      // 使用者備注（若有）
+      if (extraDesc) h += `<div style="font-size:9px;color:var(--text3);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;font-style:italic;">${extraDesc}</div>`;
+      // 末行：回報單位 → assigned unit → EV 編號
+      h += `<div style="display:flex;align-items:center;margin-top:2px;gap:0;">`;
+      h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">${uName}</span>`;
+      h += `<span style="font-size:9px;color:var(--text3);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;opacity:.7;">${asgName ? '→ ' + asgName : ''}</span>`;
+      h += `<span style="font-size:8px;color:var(--text3);flex-shrink:0;">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
       h += `</div>`;
       h += `</div>`;
       return h;
     };
 
     // 組別分類 or 時間序
-    if (_evtGroupByUnit) {
+    const _renderGrouped = (evList, keyFn, extraGroups) => {
       const groups = {};
       const unitOrder = ['forward','security','shelter','medical','command'];
-      filteredOpen.forEach(ev => {
-        const u = ev.reported_by_unit || 'command';
+      evList.forEach(ev => {
+        const u = keyFn(ev);
         if (!groups[u]) groups[u] = [];
         groups[u].push(ev);
       });
       unitOrder.forEach(u => {
         if (!groups[u] || groups[u].length === 0) return;
-        const uColor = unitColors[u] || 'var(--text3)';
-        const uName = unitNames[u] || u;
-        evtHtml += `<div style="font-size:9px;color:${uColor};padding:6px 0 2px;font-weight:700;border-bottom:1px solid ${uColor}33;">── ${uName} ──</div>`;
+        evtHtml += `<div style="font-size:9px;color:var(--text3);padding:6px 0 2px;font-weight:600;border-bottom:1px solid var(--border);">── ${unitNames[u]||u} ──</div>`;
         groups[u].forEach(ev => { evtHtml += _evtCardHtml(ev); });
       });
+      // 未指派群（assigned 模式限定）
+      if (extraGroups && groups['__unassigned']?.length > 0) {
+        evtHtml += `<div style="font-size:9px;color:var(--text3);padding:6px 0 2px;font-weight:600;border-bottom:1px solid var(--border);opacity:.6;">── 未指派 ──</div>`;
+        groups['__unassigned'].forEach(ev => { evtHtml += _evtCardHtml(ev); });
+      }
+    };
+
+    if (_evtGroupMode === 'assigned') {
+      _renderGrouped(filteredOpen, ev => ev.assigned_unit || '__unassigned', true);
+    } else if (_evtGroupMode === 'reported') {
+      _renderGrouped(filteredOpen, ev => ev.reported_by_unit || 'command', false);
     } else {
       filteredOpen.forEach(ev => { evtHtml += _evtCardHtml(ev); });
     }
     // 已結案
     if (filteredResolved.length > 0) {
       const _resolvedCard = (ev) => {
-        const uColor = unitColors[ev.reported_by_unit] || 'var(--text3)';
-        const uName = unitNames[ev.reported_by_unit] || '';
+        // 左色條：severity（淡化版）
+        const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
+        const uName  = unitNames[ev.reported_by_unit] || '';
+        const asgKey = ev.assigned_unit;
+        const asgName = asgKey && asgKey !== ev.reported_by_unit ? (unitNames[asgKey] || asgKey) : '';
+        const typeLabel = NAPSG_EVENTS[ev.event_type]?.label || ev.event_type || ev.description;
+        const extraDesc = ev.description && ev.description !== typeLabel ? ev.description : '';
         let h = '';
-        h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${uColor}55;opacity:.55;" onclick="_openEventByCode('${ev.id}')">`;
-        h += `<div style="display:flex;justify-content:space-between;align-items:center;">`;
-        h += `<span style="font-size:10px;font-weight:600;">${ev.description||ev.event_type}</span>`;
-        h += `<span style="font-size:9px;color:var(--text3);">已結案</span>`;
+        h += `<div style="cursor:pointer;padding:5px 8px;margin-bottom:2px;background:var(--surface2);border-radius:5px;border-left:3px solid ${sevColor};opacity:.45;" onclick="_openEventByCode('${ev.id}')">`;
+        h += `<div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">`;
+        h += `<span style="font-size:10px;font-weight:600;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${typeLabel}</span>`;
+        h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">已結案</span>`;
         h += `</div>`;
-        h += `<div style="display:flex;justify-content:space-between;margin-top:1px;">`;
-        h += `<span style="font-size:9px;color:var(--text3);">${uName}</span>`;
-        h += `<span style="font-size:8px;color:var(--text3);">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
+        if (extraDesc) h += `<div style="font-size:9px;color:var(--text3);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px;font-style:italic;">${extraDesc}</div>`;
+        h += `<div style="display:flex;align-items:center;margin-top:2px;gap:0;">`;
+        h += `<span style="font-size:9px;color:var(--text3);flex-shrink:0;">${uName}</span>`;
+        h += `<span style="font-size:9px;color:var(--text3);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;opacity:.7;">${asgName ? '→ ' + asgName : ''}</span>`;
+        h += `<span style="font-size:8px;color:var(--text3);flex-shrink:0;">${(ev.event_code||'').replace(/-\d{4}-/, '-')}</span>`;
         h += `</div>`;
         h += `</div>`;
         return h;
       };
 
-      if (_evtGroupByUnit) {
-        evtHtml += `<div style="font-size:9px;color:var(--text3);padding:5px 0 2px;font-weight:600;">已結案</div>`;
+      evtHtml += `<div style="font-size:9px;color:var(--text3);padding:5px 0 2px;font-weight:600;">已結案</div>`;
+      if (_evtGroupMode) {
         const rGroups = {};
         const unitOrder = ['forward','security','shelter','medical','command'];
         filteredResolved.forEach(ev => {
-          const u = ev.reported_by_unit || 'command';
+          const u = _evtGroupMode === 'assigned'
+            ? (ev.assigned_unit || '__unassigned')
+            : (ev.reported_by_unit || 'command');
           if (!rGroups[u]) rGroups[u] = [];
           rGroups[u].push(ev);
         });
         unitOrder.forEach(u => {
           if (!rGroups[u] || rGroups[u].length === 0) return;
-          const uColor = unitColors[u] || 'var(--text3)';
-          const uName = unitNames[u] || u;
-          evtHtml += `<div style="font-size:9px;color:${uColor};padding:4px 0 2px;font-weight:700;border-bottom:1px solid ${uColor}33;opacity:.6;">── ${uName} ──</div>`;
+          evtHtml += `<div style="font-size:9px;color:var(--text3);padding:4px 0 2px;font-weight:600;border-bottom:1px solid var(--border);opacity:.6;">── ${unitNames[u]||u} ──</div>`;
           rGroups[u].forEach(ev => { evtHtml += _resolvedCard(ev); });
         });
+        if (_evtGroupMode === 'assigned' && rGroups['__unassigned']?.length > 0) {
+          evtHtml += `<div style="font-size:9px;color:var(--text3);padding:4px 0 2px;font-weight:600;opacity:.6;">── 未指派 ──</div>`;
+          rGroups['__unassigned'].forEach(ev => { evtHtml += _resolvedCard(ev); });
+        }
       } else {
-        evtHtml += `<div style="font-size:9px;color:var(--text3);padding:5px 0 2px;font-weight:600;">已結案</div>`;
         filteredResolved.forEach(ev => { evtHtml += _resolvedCard(ev); });
       }
     }
@@ -4262,6 +6956,12 @@ function showSlice(idx, d, focusType) {
   el('overlay').className = 'show';
 }
 
+function openModal(title, bodyHtml, footerHtml) {
+  el('modal-title').textContent = title;
+  el('modal-body').innerHTML = bodyHtml || '';
+  el('modal-footer').innerHTML = footerHtml || '';
+  el('overlay').className = 'show';
+}
 function closeModal() { el('overlay').className = ''; sessionStorage.removeItem('_openEventId'); sessionStorage.removeItem('_openZoneModal'); }
 
 // ══════════════════════════════════════════════════════════════
@@ -4333,6 +7033,8 @@ function toggleTTXMode() {
 }
 
 initMap();
+_populateNapsgCsel();     // 預填 NAPSG 危害類型下拉
+_updateEvTypeFromCategories(); // 預填事件表單類型下拉
 // 恢復展開狀態
 if (_expandedSection) _applyRightExpand(_expandedSection);
 

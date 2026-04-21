@@ -12,13 +12,14 @@ FastAPI + SQLite，跑在指揮部 Pi
   GET  http://<指揮部IP>:8000/api/dashboard
 """
 
-from fastapi import FastAPI, HTTPException, Request, Body
+from fastapi import FastAPI, HTTPException, Request, Body, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from pydantic import BaseModel, Field
 from typing import Optional
 import json
+import sqlite3
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
@@ -153,6 +154,36 @@ static_path = Path(__file__).parent.parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
+# ── Tile server（MBTiles → Leaflet XYZ）──────────────────────────────────────
+_MBTILES_DIR = static_path / "tiles"
+
+def _get_tile_db(name: str) -> Path:
+    p = _MBTILES_DIR / f"{name}.mbtiles"
+    if not p.exists():
+        raise HTTPException(404, f"Tile source '{name}' not found")
+    return p
+
+@app.get("/tiles/{source}/{z}/{x}/{y}.png", tags=["地圖 Tiles"])
+def serve_tile(source: str, z: int, x: int, y: int):
+    db_path = _get_tile_db(source)
+    tms_y = (2**z - 1) - y  # Leaflet XYZ → MBTiles TMS
+    with sqlite3.connect(str(db_path)) as conn:
+        row = conn.execute(
+            "SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?",
+            (z, x, tms_y)
+        ).fetchone()
+    if not row:
+        raise HTTPException(204, "Tile not found")
+    return Response(content=row[0], media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+@app.get("/tiles/{source}/metadata", tags=["地圖 Tiles"])
+def tile_metadata(source: str):
+    db_path = _get_tile_db(source)
+    with sqlite3.connect(str(db_path)) as conn:
+        rows = conn.execute("SELECT name, value FROM metadata").fetchall()
+    return {k: v for k, v in rows}
+
 # CA 根憑證下載（供手機/平板安裝）
 cert_path = Path(__file__).parent.parent.parent / "certs" / "rootCA.pem"
 
@@ -258,6 +289,7 @@ class EventIn(BaseModel):
     response_type:            Optional[str] = None
     needs_commander_decision: bool = False
     related_person_name:      Optional[str] = None
+    assigned_unit:            Optional[str] = None   # NAPSG：指派處理單位
     occurred_at:              Optional[str] = None
     session_type:             str = "real"
 
@@ -382,6 +414,53 @@ def post_event(ev: EventIn):
 @app.get("/api/events", tags=["事件"])
 def get_events(status: Optional[str] = None, limit: int = 50):
     return db.get_events(status, limit)
+
+
+class EventPatch(BaseModel):
+    assigned_unit: Optional[str] = None      # 指派處理單位
+    location_desc: Optional[str] = None      # 位置描述（MGRS）
+    location_zone_id: Optional[str] = None   # 地圖圖層 zone id
+
+
+@app.patch("/api/events/{event_id}", tags=["事件"])
+def patch_event(event_id: str, body: EventPatch):
+    """更新事件欄位（支援 assigned_unit, location_desc, location_zone_id）"""
+    updates = {}
+    if body.assigned_unit is not None:
+        updates["assigned_unit"] = body.assigned_unit if body.assigned_unit else None
+    if body.location_desc is not None:
+        updates["location_desc"] = body.location_desc
+    if body.location_zone_id is not None:
+        updates["location_zone_id"] = body.location_zone_id
+    if not updates:
+        return {"ok": True}
+    db.patch_event(event_id, updates)
+    return {"ok": True}
+
+
+class DeadlinePatch(BaseModel):
+    delta_minutes: int          # 正數延長，負數提前
+    operator: str
+
+
+@app.patch("/api/events/{event_id}/deadline", tags=["事件"])
+def patch_event_deadline(event_id: str, body: DeadlinePatch):
+    """調整事件的 response_deadline（正數延長、負數提前）"""
+    events = db.get_events()
+    ev = next((e for e in events if e["id"] == event_id), None)
+    if not ev:
+        raise HTTPException(404, "event not found")
+    current = ev.get("response_deadline")
+    if current:
+        from datetime import datetime, timezone, timedelta
+        base = datetime.fromisoformat(current.replace("Z", "+00:00"))
+    else:
+        from datetime import datetime, timezone, timedelta
+        base = datetime.now(timezone.utc)
+    new_deadline = (base + timedelta(minutes=body.delta_minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    db.patch_event(event_id, {"response_deadline": new_deadline})
+    # note 由前端寫入（前端可轉本地時間格式，避免 UTC 顯示不一致）
+    return {"ok": True, "new_deadline": new_deadline}
 
 
 @app.patch("/api/events/{event_id}/status", tags=["事件"])
@@ -710,6 +789,30 @@ async def save_map_config(request: Request):
     config_path = static_path / "map_config.json"
     config_path.write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True, "path": str(config_path)}
+
+
+@app.post("/api/map/upload-image", tags=["系統"])
+async def upload_map_image(request: Request, file: UploadFile = File(...)):
+    """上傳室內平面圖（需指揮官 session）"""
+    token = request.headers.get("X-Session-Token")
+    print(f"[upload-image] token={token!r}  sessions={list(_sessions.keys())}")
+    sess = _sessions.get(token)
+    print(f"[upload-image] sess={sess}")
+    if not sess or sess.get("role") != "指揮官":
+        print(f"[upload-image] 403 — role={sess.get('role') if sess else 'NO SESSION'}")
+        raise HTTPException(403, "僅指揮官可上傳地圖")
+    # 限制副檔名
+    filename = file.filename or "map.jpg"
+    ext = filename.rsplit(".", 1)[-1].lower()
+    print(f"[upload-image] filename={filename!r} ext={ext!r}")
+    if ext not in {"jpg", "jpeg", "png", "gif", "webp", "svg"}:
+        raise HTTPException(400, f"不支援的圖片格式：{ext}")
+    # 儲存到 static/
+    save_path = static_path / filename
+    content = await file.read()
+    save_path.write_bytes(content)
+    print(f"[upload-image] 儲存完成 → {save_path}")
+    return {"ok": True, "filename": filename}
 
 
 @app.get("/api/health", tags=["系統"])
