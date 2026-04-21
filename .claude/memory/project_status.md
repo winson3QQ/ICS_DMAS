@@ -71,6 +71,8 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | 4+ | 情境設計器 + chart_utils.js 共用 + 演練模式鑽探停用 + 量能右軸 | cmd-v0.9.0 / FastAPI-v1.2.0 | ✅ 完成 |
 | 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.10.0 | 待做 |
 | 6 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v1.0.0 | 待做 |
+| 7 | TAK 整合（FreeTAKServer + CoT ↔ ICS_DMAS 雙向橋接，前進/安全組 ATAK 位置與事件） | cmd-v1.1.0 | 待做 |
+| 8 | EOC/NIMS 標準對齊（ICS 表單、資源請求、單位間訊息、廣播、SitRep、附件） | cmd-v1.2.0 | 待做 |
 
 ### Wave 3 版本歷史摘要
 
@@ -154,6 +156,64 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
 | 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
 | 地圖流向箭頭 | ⚠️ 部分完成 | `renderFlows()` 已實作（讀 `m.flows`，按 `calc.forward.units` red 傷亡數計算動態粗度）；無 `data_source` 欄位對應，直接用 calc 數值，功能可用 |
+
+---
+
+### Wave 7：TAK 整合
+
+> 細節待定。前進組／安全組使用 ATAK，需與 Command Console 整合。
+
+---
+
+### Wave 8：EOC／NIMS 標準對齊
+
+> 依據 NIMS 教義 + ICS 標準表單規格 + WebEOC/Veoci 共同設計模式識別的缺口。
+> Wave 7 完成後，本系統在 EOC 核心功能上可對標主流商用平台。
+
+#### 優先順序說明
+
+| 優先 | 功能 | NIMS 依據 | 說明 |
+|------|------|-----------|------|
+| 🔴 P1 | **ICS 標準表單輸出**（ICS 201 / 214） | NIMS Ch.3 文件化要求 | ICS 201 事故概況表（事件清單、資源摘要、地圖截圖）；ICS 214 工作日誌（各組活動紀錄）；輸出 PDF 或列印友善 HTML |
+| 🔴 P1 | **資源請求工作流程** | ICS Section Chief 資源請求鏈 | 前進/醫療/收容組從 PWA 提交資源需求 → 指揮部審核/批准/拒絕 → 狀態回報請求方；對應 ICS 213RR 表單 |
+| 🟡 P2 | **單位間訊息（Inter-Unit Messaging）** | NIMS EOC 協調功能 | 指揮部 ↔ 各 Pi 組之間的結構化文字訊息（非即時聊天，類似 WebEOC Message Board）；訊息綁定事件 ID；PWA 端收到後推播通知 |
+| 🟡 P2 | **廣播通知（Broadcast to PWA）** | EOC 通知管理 | 指揮部發出全組或特定組的廣播（演習開始、疏散指令等）；PWA 端顯示 banner + 音效；紀錄廣播歷史 |
+| 🟢 P3 | **狀況報告自動生成** | ICS 209 事故狀況報告 | 每 N 分鐘（可設定）從 DB 快照自動產生純文字狀況摘要：事件數/嚴重度、人員流向、資源消耗率、決策待裁示；指揮官一鍵確認後鎖定為正式 SitRep |
+| 🟢 P3 | **照片 / 附件** | EOC 文件管理 | 事件 marker 可附加照片（PWA 相機拍攝或上傳）；指揮部地圖 popup 顯示縮圖；存 Pi 本地 + push 至 Command；容量限制：每張 ≤ 2MB，每事件 ≤ 5 張 |
+| 🟢 P3 | **事後檢討報告（AAR）** | NIMS 演習文件要求 | 演習結束後自動從 DB 組裝：事件時間軸、決策紀錄、資源消耗摘要、各組活動日誌；輸出 PDF 或列印友善 HTML |
+| 🟢 P3 | **稽核軌跡（操作日誌）** | EOC 責任釐清 | 每個操作（建立事件、結案、調度指示、帳號登入）記錄操作者 + 時間戳；middleware 層統一記錄至 `audit_log` 表 |
+
+#### 各功能技術要點
+
+**ICS 201 / 214 表單**
+- 後端：`GET /api/reports/ics201` 依事件 + 時間範圍彙整；`GET /api/reports/ics214/{unit_id}` 輸出工作日誌
+- 前端：`window.print()` 觸發瀏覽器列印，CSS `@media print` 控制版面
+- DB：不需新表，從現有 `events` / `decisions` / `pi_received_batches` 彙整
+
+**資源請求工作流程**
+- 新增 `resource_requests` 表：`(id, requesting_unit, item, quantity, priority, status, approved_by, created_at, resolved_at)`
+- PWA 端：設定頁新增「資源請求」tab，送出後 push 至 Command
+- Command 端：右側欄新增「資源請求」佇列（類似現有事件列表）
+
+**單位間訊息**
+- 新增 `unit_messages` 表：`(id, from_unit, to_unit, event_id?, body, read_at, created_at)`
+- 傳遞路徑：Command → Pi WS broadcast（現有 WS server `broadcast()` 可直接複用）
+- PWA 端：頂部燈旁顯示未讀紅點 badge
+
+**廣播通知**
+- Command 端 `POST /api/broadcast`：body + target_units（`[]` = 全組）
+- Pi WS server 收到後用現有 `broadcast()` 推給所有連線裝置
+- PWA 端：`handleWsMsg()` 新增 `broadcast` type 處理
+
+**狀況報告自動生成**
+- `POST /api/sitrep/generate`：後端從 DB 快照組裝純文字模板
+- `POST /api/sitrep/{id}/confirm`：指揮官確認後鎖定
+- 前端：右側欄「SitRep」tab，顯示最新草稿 + 歷史列表
+
+**照片 / 附件**
+- 新增 `event_attachments` 表：`(id, event_id, unit_id, filename, mime_type, size_bytes, created_at)`
+- Pi 端：`multipart/form-data POST /upload` → 存 `~/ics-dmas/uploads/`；push 時附帶 attachment metadata
+- Command 端：`GET /api/attachments/{id}` Proxy 從 Pi 取圖（或直接存 Command DB blob，≤ 2MB）
 
 ### Pi Push 技術細節
 
