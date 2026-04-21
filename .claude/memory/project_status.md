@@ -137,15 +137,15 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | Phase 2.5：MGRS 搜尋 + 固定節點放置 + severity 精細化 | ✅ 完成 | MGRS/WGS84 搜尋欄、三層自動補前綴；設定面板放置圓形/矩形永久節點（hover tooltip）；22 事件類型各自 severity（critical/warning/info）；底圖固定 Grayscale；節點統一深灰色 |
 | Phase 2.6：UI/UX 細節收尾 | ✅ 完成 | Popup/sidebar/卡片 severity 色條一致；sidebar expanded 30%；卡片加 assigned unit；節點 modal 事件頁雙來源（ICS+PWA）；改派自動記錄；z-index 修正；表單位置欄 MGRS；severity auto-sync；送出後即時刷新 |
 | Phase 2.7：地圖視覺調整 + 事件新增流程 | ✅ 完成 | 表單送出後可選擇在地圖點擊標記位置（_eventPinMode）；卡片標題統一 NAPSG label，描述另行斜體小字；info 事件菱形改深灰 #3a4149、節點改中灰 #6e7681；前進組/安全組方塊改正方形 28×28 |
-| Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | 🔲 待做 | 繪製管制區、疏散範圍；後端儲存 |
+| Phase 3：Area/Polygon — NAPSG 三級顏色、實線/虛線 | ✅ 完成 | 管制區/疏散範圍/集結點/危險區域/作業區；點擊繪製頂點，完成後表單填名稱/類型；儲存至 map_config polygons[]；點擊多邊形可刪除 |
 | Phase 4：NATO APP-6E 軍用符號 | 🔲 待做 | 友軍符號、Phase Line、SIDC |
-| Phase 5：MGRS 格線 overlay | 🔲 待做 | zoom 自動調整、格線標注 |
+| Phase 5：MGRS 格線 overlay | ✅ 完成 | 像素密度自動決定間距（MIN_PX=60）；zoom 自動切換 100km/10km/1km/100m/10m/1m；標籤最少 3 位數；標籤用 pixel→UTM 換算固定距邊緣位置（Y 左 24px、X 底 60px）|
 
 ### Wave 5 待做項目（UI 收尾）
 
 | 項目 | 狀態 | 說明 |
 |------|------|------|
-| 重設 deadline 後端 API | 🔲 待做 | 前端 `_resetDeadline()` UI 已實作（只追加 note）；後端 `PATCH /api/events/{id}/deadline` 未建立，DB `response_deadline` 欄位未更新 |
+| 重設 deadline 後端 API | ✅ 完成 | `PATCH /api/events/{id}/deadline`（delta_minutes）；前端 ±分鐘 UI；note 由前端寫入含本地時間 |
 | 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
 | 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
 | 地圖流向箭頭 | ⚠️ 部分完成 | `renderFlows()` 已實作（讀 `m.flows`，按 `calc.forward.units` red 傷亡數計算動態粗度）；無 `data_source` 欄位對應，直接用 calc 數值，功能可用 |
@@ -204,7 +204,7 @@ NATO MIP 要求的 `classification`（密級標記）亦尚未實作。
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.10.3`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.11.0`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.48`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`

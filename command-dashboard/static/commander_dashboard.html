@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.10.4';</script>
+<script>const CMD_VERSION='v0.11.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -118,7 +118,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 /* 地圖編輯模式 */
 #map-tools{
-  position:absolute;top:8px;right:8px;z-index:10;display:flex;gap:4px;
+  position:absolute;top:44px;right:8px;z-index:10;display:flex;gap:4px;
 }
 .map-btn{
   width:30px;height:30px;border-radius:5px;border:1px solid var(--border);
@@ -127,6 +127,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 }
 .map-btn:hover{background:rgba(22,27,34,1);color:#fff;}
 .map-btn.active{background:rgba(26,158,82,.3);color:#fff;border-color:var(--green);}
+/* Phase 5: MGRS 格線標籤 */
+.mgrs-gl{font-size:9px;font-weight:700;color:rgba(30,80,180,.9);background:rgba(255,255,255,.78);padding:1px 3px;border-radius:2px;white-space:nowrap;pointer-events:none;line-height:1.3;}
+/* Phase 3: 繪製範圍 banner */
+#poly-draw-banner{display:none;position:absolute;top:48px;left:50%;transform:translateX(-50%);z-index:1001;
+  background:rgba(14,22,29,.92);border:1px solid var(--border);border-radius:20px;
+  padding:6px 14px;font-size:12px;align-items:center;gap:12px;white-space:nowrap;pointer-events:auto;}
+#poly-draw-banner button{background:transparent;border:1px solid var(--border);color:var(--text2);
+  padding:2px 10px;border-radius:10px;font-size:11px;cursor:pointer;}
+#poly-draw-banner button.ok{background:var(--green);color:#fff;border-color:var(--green);}
 #edit-bar{
   position:absolute;bottom:0;left:0;right:0;z-index:10;
   display:flex;padding:5px 10px;gap:6px;align-items:center;
@@ -889,6 +898,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
         padding:6px 14px;border-radius:6px;white-space:nowrap;align-items:center;gap:10px;">
         <span>📋 <b id="event-pin-code"></b> 已建立　點擊地圖標記位置</span>
         <span onclick="_cancelEventPin()" style="cursor:pointer;color:#8b949e;font-size:13px;" title="略過">略過 ✕</span>
+      </div>
+      <!-- Phase 3：繪製範圍模式 banner -->
+      <div id="poly-draw-banner">
+        <span>✏ 繪製範圍　點擊新增頂點</span>
+        <button id="poly-finish-btn" class="ok" onclick="_finishPolyDraw()" disabled>完成</button>
+        <button onclick="_cancelPolyDraw()">取消</button>
       </div>
     </div>
     <div id="edit-bar">
@@ -2468,6 +2483,305 @@ function _utmToLatLng(zoneNum, E, N) {
   return { lat: latRad*180/Math.PI, lng: (λ0 + lngRad)*180/Math.PI };
 }
 
+// ── WGS84 → UTM（供 MGRS 格線計算）───────────────────────────
+function _latlngToUtm(lat, lng) {
+  const a = 6378137.0, f = 1/298.257223563;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a), ep2 = e2/(1-e2), k0 = 0.9996;
+  const zoneNum = Math.floor((lng + 180) / 6) + 1;
+  const φ = lat*Math.PI/180, λ = lng*Math.PI/180;
+  const λ0 = ((zoneNum-1)*6 - 180 + 3)*Math.PI/180;
+  const sinφ = Math.sin(φ), cosφ = Math.cos(φ), tanφ = Math.tan(φ);
+  const N = a / Math.sqrt(1 - e2*sinφ*sinφ);
+  const T = tanφ*tanφ, C = ep2*cosφ*cosφ, A = cosφ*(λ - λ0);
+  const M = a*(
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256)*φ
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024)*Math.sin(2*φ)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024)*Math.sin(4*φ)
+    - (35*e2*e2*e2/3072)*Math.sin(6*φ));
+  let E = k0*N*(A+(1-T+C)*A*A*A/6+(5-18*T+T*T+72*C-58*ep2)*A*A*A*A*A/120) + 500000;
+  let Nn = k0*(M + N*tanφ*(A*A/2 + (5-T+9*C+4*C*C)*A*A*A*A/24
+    + (61-58*T+T*T+600*C-330*ep2)*A*A*A*A*A*A/720));
+  if (lat < 0) Nn += 10000000;
+  return { zoneNum, easting: E, northing: Nn };
+}
+
+// ══════════════════════════════════════════════════════════════
+// Phase 5: MGRS 格線 overlay
+// ══════════════════════════════════════════════════════════════
+
+function _mgrsGridSpacing() {
+  // 用實際像素密度決定間距：保證格線之間至少 MIN_PX 像素
+  // 不用 zoom level，避免不同螢幕/視窗大小下格線過密
+  const MIN_PX = 60;
+  const zoom = _leafletMap.getZoom();
+  const lat  = _leafletMap.getCenter().lat;
+  // Leaflet Mercator：每像素公尺數（考慮緯度縮放）
+  const metersPerPx = (40075016.686 / (256 * Math.pow(2, zoom)))
+                    / Math.cos(lat * Math.PI / 180);
+  const minMeters = metersPerPx * MIN_PX;
+  // 選最近的 MGRS 標準間距（1, 10, 100, 1000, 10000, 100000 m）
+  const levels = [1, 10, 100, 1000, 10000, 100000];
+  return levels.find(s => s >= minMeters) || 100000;
+}
+
+function _mgrsGridLabel(val, spacing) {
+  // 位數 = log10(100000 / spacing)：10km→1位, 1km→2位, 100m→3位, 10m→4位
+  const digits  = Math.max(3, Math.round(Math.log10(100000 / spacing)));
+  const divisor = Math.pow(10, 5 - digits);
+  const v = Math.round(val % 100000);
+  return String(Math.floor(v / divisor)).padStart(digits, '0');
+}
+
+function _mgrsLabelIconW(spacing) {
+  // chip 寬度隨位數調整：1位=22px, 2位=28px, 3位=34px, 4位=40px
+  const digits = Math.max(1, Math.round(Math.log10(100000 / spacing)));
+  return 16 + digits * 6;
+}
+
+function _drawMgrsGrid() {
+  if (!_leafletMap) return;
+  if (!_mgrsGridLayer) _mgrsGridLayer = L.layerGroup();
+  _mgrsGridLayer.clearLayers();
+  if (!_mgrsGridVisible) {
+    if (_mgrsGridLayer._map) _mgrsGridLayer.remove();
+    return;
+  }
+  if (!_mgrsGridLayer._map) _mgrsGridLayer.addTo(_leafletMap);
+
+  const zoom = _leafletMap.getZoom();
+  const sp = _mgrsGridSpacing();   // 由像素密度自動決定
+  const b = _leafletMap.getBounds();
+  // 用地圖中心的 UTM 帶號，避免跨帶問題（Taiwan 主要在 51R）
+  const ctr = _latlngToUtm(b.getCenter().lat, b.getCenter().lng);
+  const sw  = _latlngToUtm(b.getSouth(), b.getWest());
+  const ne  = _latlngToUtm(b.getNorth(), b.getEast());
+  const zn  = ctr.zoneNum;
+
+  const lineOpt = { color:'rgba(90,150,215,.55)', weight:1, interactive:false };
+
+  // 用 Leaflet pixel→LatLng 換算，將標籤固定在距邊緣 N px 的螢幕位置
+  // 避免 UI 元件（搜尋欄、座標面板、tab bar）遮蓋
+  const mapW = _leafletMap.getContainer().offsetWidth;
+  const mapH = _leafletMap.getContainer().offsetHeight;
+  const leftPx   = 24;  // 左側：標籤寬 36px，中心錨點 18px，需 ≥18px 才不超出邊界
+  const bottomPx = 60;  // 下側：距底部 60px（避開搜尋欄+edit bar ~55px）
+  const llLeft   = _leafletMap.containerPointToLatLng(L.point(leftPx,   mapH / 2));
+  const llBottom = _leafletMap.containerPointToLatLng(L.point(mapW / 2, mapH - bottomPx));
+  const labelE = _latlngToUtm(llLeft.lat,   llLeft.lng).easting;    // Y 標籤的 X 位置
+  const labelN = _latlngToUtm(llBottom.lat, llBottom.lng).northing; // X 標籤的 Y 位置
+
+  // Northing 線（東西向）—— Y 軸標籤貼左側
+  const n0 = Math.floor(sw.northing / sp) * sp;
+  const n1 = Math.ceil(ne.northing  / sp) * sp;
+  for (let n = n0; n <= n1; n += sp) {
+    const p1 = _utmToLatLng(zn, sw.easting - sp, n);
+    const p2 = _utmToLatLng(zn, ne.easting + sp, n);
+    if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
+    L.polyline([[p1.lat, p1.lng],[p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
+    // 左側 Y 標籤
+    const ll = _utmToLatLng(zn, labelE, n);
+    if (isFinite(ll.lat)) {
+      const w = _mgrsLabelIconW(sp);
+      L.marker([ll.lat, ll.lng], {
+        icon: L.divIcon({
+          html: `<div class="mgrs-gl">${_mgrsGridLabel(n, sp)}</div>`,
+          className:'', iconSize:[w, 14], iconAnchor:[w/2, 7]
+        }),
+        interactive:false, zIndexOffset:-900
+      }).addTo(_mgrsGridLayer);
+    }
+  }
+
+  // Easting 線（南北向）—— X 軸標籤貼下側
+  const e0 = Math.floor(sw.easting / sp) * sp;
+  const e1 = Math.ceil(ne.easting  / sp) * sp;
+  for (let e = e0; e <= e1; e += sp) {
+    const p1 = _utmToLatLng(zn, e, sw.northing - sp);
+    const p2 = _utmToLatLng(zn, e, ne.northing + sp);
+    if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
+    L.polyline([[p1.lat, p1.lng],[p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
+    // 下側 X 標籤：固定距底部 60px（搜尋欄上方）
+    const ll = _utmToLatLng(zn, e, labelN);
+    if (isFinite(ll.lat)) {
+      const w = _mgrsLabelIconW(sp);
+      L.marker([ll.lat, ll.lng], {
+        icon: L.divIcon({
+          html: `<div class="mgrs-gl">${_mgrsGridLabel(e, sp)}</div>`,
+          className:'', iconSize:[w, 14], iconAnchor:[w/2, 7]
+        }),
+        interactive:false, zIndexOffset:-900
+      }).addTo(_mgrsGridLayer);
+    }
+  }
+}
+
+function _toggleMgrsGrid() {
+  _mgrsGridVisible = !_mgrsGridVisible;
+  const btn = document.getElementById('btn-mgrs-grid');
+  if (btn) btn.classList.toggle('active', _mgrsGridVisible);
+  _drawMgrsGrid();
+}
+
+// ══════════════════════════════════════════════════════════════
+// Phase 3: 繪製範圍（Polygon）
+// ══════════════════════════════════════════════════════════════
+
+const POLY_TYPES = {
+  control:    { label:'管制區',   color:'#e05555', dash:true  },
+  evacuation: { label:'疏散範圍', color:'#e3b341', dash:true  },
+  assembly:   { label:'集結點',   color:'#3fb950', dash:false },
+  danger:     { label:'危險區域', color:'#c0392b', dash:false },
+  ops:        { label:'作業區',   color:'#58a6ff', dash:false },
+};
+
+function _startPolyDraw() {
+  if (_polyDrawState) _cancelPolyDraw();
+  _polyDrawState = { latlngs: [], markers: [], previewPoly: null };
+  const banner = document.getElementById('poly-draw-banner');
+  banner.style.display = 'flex';
+  el('map-coord-panel').style.display = 'none';
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+  const btn = document.getElementById('btn-poly-draw');
+  if (btn) btn.classList.add('active');
+}
+
+function _cancelPolyDraw() {
+  if (!_polyDrawState) return;
+  // 清除頂點 markers 和 preview
+  _polyDrawState.markers.forEach(m => m.remove());
+  if (_polyDrawState.previewPoly) _polyDrawState.previewPoly.remove();
+  _polyDrawState = null;
+  document.getElementById('poly-draw-banner').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  const btn = document.getElementById('btn-poly-draw');
+  if (btn) btn.classList.remove('active');
+}
+
+function _addPolyVertex(lat, lng) {
+  if (!_polyDrawState) return;
+  _polyDrawState.latlngs.push([lat, lng]);
+  // 頂點小圓點
+  const m = L.circleMarker([lat, lng], {
+    radius:4, color:'#fff', weight:2, fillColor:'#58a6ff', fillOpacity:1, interactive:false
+  }).addTo(_leafletMap);
+  _polyDrawState.markers.push(m);
+  // 更新 preview 多邊形
+  if (_polyDrawState.previewPoly) _polyDrawState.previewPoly.remove();
+  if (_polyDrawState.latlngs.length >= 2) {
+    _polyDrawState.previewPoly = L.polygon(_polyDrawState.latlngs, {
+      color:'#58a6ff', weight:1.5, dashArray:'6 3', fillOpacity:0.08, interactive:false
+    }).addTo(_leafletMap);
+  }
+  // 3 個頂點後才能完成
+  const finBtn = document.getElementById('poly-finish-btn');
+  if (finBtn) finBtn.disabled = _polyDrawState.latlngs.length < 3;
+}
+
+function _finishPolyDraw() {
+  if (!_polyDrawState || _polyDrawState.latlngs.length < 3) return;
+  const latlngs = [..._polyDrawState.latlngs];
+  _cancelPolyDraw();  // 清理 draw 狀態（但先取出 latlngs）
+  _openPolyForm(latlngs);
+}
+
+function _openPolyForm(latlngs) {
+  const typeOpts = Object.entries(POLY_TYPES).map(([k, v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+
+  let html = '';
+  html += `<div style="margin-bottom:12px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">範圍名稱</label>`;
+  html += `<input id="poly-name" placeholder="例：北側管制區" autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">`;
+  html += `</div>`;
+  html += `<div style="margin-bottom:16px;">`;
+  html += `<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="poly-type" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">${typeOpts}</select>`;
+  html += `</div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">${latlngs.length} 個頂點</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button onclick="closeModal()" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;">取消</button>`;
+  html += `<button onclick="_savePolygon()" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">儲存</button>`;
+  html += `</div>`;
+
+  // 暫存 latlngs 供 _savePolygon 使用
+  window._pendingPolyLatlngs = latlngs;
+  el('modal-title').textContent = '✏ 新增範圍';
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _savePolygon() {
+  const name = (document.getElementById('poly-name')?.value || '').trim();
+  const typeKey = document.getElementById('poly-type')?.value || 'ops';
+  const latlngs = window._pendingPolyLatlngs;
+  if (!name || !latlngs) return;
+  const def = POLY_TYPES[typeKey];
+  const poly = {
+    id: 'poly_' + Date.now(),
+    label: name,
+    poly_type: typeKey,
+    color: def.color,
+    dash: def.dash,
+    latlngs,
+  };
+  if (!_mapConfig.maps['outdoor'].polygons) _mapConfig.maps['outdoor'].polygons = [];
+  _mapConfig.maps['outdoor'].polygons.push(poly);
+  await saveMapConfig();
+  closeModal();
+  _renderPolygons();
+}
+
+function _renderPolygons() {
+  if (!_leafletMap) return;
+  if (!_polygonLayer) _polygonLayer = L.layerGroup().addTo(_leafletMap);
+  _polygonLayer.clearLayers();
+  const polys = _mapConfig?.maps?.['outdoor']?.polygons || [];
+  polys.forEach(poly => {
+    const dash = poly.dash ? '8 5' : null;
+    const pl = L.polygon(poly.latlngs, {
+      color: poly.color, weight:2, dashArray: dash,
+      fillColor: poly.color, fillOpacity:0.12, interactive:true,
+    }).addTo(_polygonLayer);
+    pl.on('click', () => _showPolyInfo(poly));
+    // 標籤（多邊形重心）
+    const center = _polyCentroid(poly.latlngs);
+    L.marker(center, {
+      icon: L.divIcon({
+        html:`<div style="font-size:10px;font-weight:700;color:${poly.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;">${poly.label}</div>`,
+        className:'', iconSize:[80,16], iconAnchor:[40,8]
+      }), interactive:false
+    }).addTo(_polygonLayer);
+  });
+}
+
+function _polyCentroid(latlngs) {
+  const lat = latlngs.reduce((s, p) => s + p[0], 0) / latlngs.length;
+  const lng = latlngs.reduce((s, p) => s + p[1], 0) / latlngs.length;
+  return [lat, lng];
+}
+
+function _showPolyInfo(poly) {
+  const def = POLY_TYPES[poly.poly_type] || {};
+  let html = `<div style="margin-bottom:12px;">`;
+  html += `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${poly.color}22;color:${poly.color};border:1px solid ${poly.color}44;">${def.label||poly.poly_type}</span>`;
+  html += `</div>`;
+  html += `<div style="font-size:11px;color:var(--text2);margin-bottom:16px;">${poly.latlngs.length} 個頂點</div>`;
+  html += `<button onclick="_deletePolygon('${poly.id}')" style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">刪除此範圍</button>`;
+
+  el('modal-title').textContent = `▱ ${poly.label}`;
+  el('modal-body').innerHTML = html;
+  el('overlay').className = 'show';
+}
+
+async function _deletePolygon(polyId) {
+  if (!_mapConfig.maps['outdoor'].polygons) return;
+  _mapConfig.maps['outdoor'].polygons = _mapConfig.maps['outdoor'].polygons.filter(p => p.id !== polyId);
+  await saveMapConfig();
+  closeModal();
+  _renderPolygons();
+}
+
 // ── MGRS → WGS84（解析 "51R TH 99717 46592" 等格式）─────────
 function _mgrsToLatLng(mgrsStr) {
   // 正規化：大寫、去多餘空白
@@ -2550,6 +2864,17 @@ function _currentMgrsGzd() {
 /** 動態更新 MGRS 搜尋欄的 placeholder
  *  顯示 "TH 00000 00000"（省略 zone designator，因為會自動補）
  */
+// 注入站外地圖工具列按鈕
+function _initMapTools() {
+  const tools = document.getElementById('map-tools');
+  if (!tools) return;
+  tools.innerHTML =
+    `<button class="map-btn${_mgrsGridVisible?' active':''}" id="btn-mgrs-grid"
+       onclick="_toggleMgrsGrid()" title="MGRS 格線（Phase 5）" style="font-size:12px;font-family:var(--mono);">⊞</button>
+     <button class="map-btn" id="btn-poly-draw"
+       onclick="_startPolyDraw()" title="繪製範圍（Phase 3）" style="font-size:16px;">▱</button>`;
+}
+
 function _updateMgrsPlaceholder() {
   const input = el('mgrs-search-input');
   if (!input) return;
@@ -2668,6 +2993,11 @@ function _initLeafletMap() {
   const _coordPanel = document.getElementById('map-coord-panel');
   _leafletMap.on('click', function(e) {
     const lat = e.latlng.lat, lng = e.latlng.lng;
+    // Phase 3: 繪製範圍模式最優先
+    if (_polyDrawState) {
+      _addPolyVertex(lat, lng);
+      return;
+    }
     if (_nodePlaceMode) {
       _saveNodePosition(lat, lng);
       return;
@@ -2729,7 +3059,7 @@ function _initLeafletMap() {
     } catch(e) { _leafletMap.setView(_HSINCHU_CENTER, _HSINCHU_ZOOM); }
   }
 
-  // 移動/縮放時記錄位置
+  // 移動/縮放時記錄位置 + 重繪 MGRS 格線
   _leafletMap.on('moveend zoomend', () => {
     const c = _leafletMap.getCenter();
     sessionStorage.setItem('_mapView', JSON.stringify({
@@ -2737,12 +3067,16 @@ function _initLeafletMap() {
       lng: Math.round(c.lng * 100000) / 100000,
       zoom: _leafletMap.getZoom()
     }));
-    _updateMgrsPlaceholder();  // 地圖移動後同步更新 placeholder
+    _updateMgrsPlaceholder();
+    _drawMgrsGrid();  // Phase 5: 格線跟隨地圖移動/縮放
   });
 
-  // 初始化後渲染 marker，並設定初始 placeholder
+  // 初始化後渲染 marker + polygon + 格線
   _renderLeafletMarkers();
+  _renderPolygons();
+  _drawMgrsGrid();
   _updateMgrsPlaceholder();
+  _initMapTools();  // 注入工具列按鈕
 }
 
 // ── 渲染 outdoor Leaflet markers（NAPSG 符號）──────────────────
@@ -2840,6 +3174,9 @@ function _renderLeafletMarkers() {
     }
     _leafletMarkers.push(marker);
   });
+
+  // Phase 3: 重新渲染多邊形（在 markers 之後，確保 z-order 正確）
+  _renderPolygons();
 }
 
 // ── 座標指示 pin（藍色十字，非事件 marker）────────────────────
@@ -3791,6 +4128,12 @@ function _toggleEvtGroup() {
 let _placeMode = null;     // null 或 { reportedBy, type, label, icon, assignedUnit }
 let _nodePlaceMode = null; // null 或 { id, label, node_type, icon }（據點定位模式）
 let _eventPinMode = null;  // null 或 { eventId, eventCode, label, type, severity }（表單送出後標記位置）
+// Phase 5: MGRS 格線
+let _mgrsGridLayer   = null;
+let _mgrsGridVisible = false;
+// Phase 3: 繪製範圍
+let _polyDrawState  = null;  // null 或 { latlngs, markers, previewPoly }
+let _polygonLayer   = null;
 let _placeTypeValue = '';
 
 // ── NAPSG 危害類型 csel 初始化（頁面載入後呼叫一次）────────────
