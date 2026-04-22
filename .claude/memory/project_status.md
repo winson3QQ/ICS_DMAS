@@ -69,10 +69,14 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | 3 | Escalation/De-escalation + 佈局重構 + 全中文化 + 登入認證 | cmd-v0.4.0～v0.7.0+ | ✅ 完成 |
 | 4 | Pi Push + L3/L4 鑽探 + calc_engine 接入 | cmd-v0.8.0 / server-v1.1.0 | ✅ 完成 |
 | 4+ | 情境設計器 + chart_utils.js 共用 + 演練模式鑽探停用 + 量能右軸 | cmd-v0.9.0 / FastAPI-v1.2.0 | ✅ 完成 |
-| 5 | UI 收尾（deadline fix、決策合併、burn rate、流向箭頭） | cmd-v0.10.0 | 待做 |
-| 6 | Operator Fatigue 操作者疲勞偵測（需改 PWA） | cmd-v1.0.0 | 待做 |
-| 7 | TAK 整合（FreeTAKServer + CoT ↔ ICS_DMAS 雙向橋接，前進/安全組 ATAK 位置與事件） | cmd-v1.1.0 | 待做 |
-| 8 | EOC/NIMS 標準對齊（ICS 表單、資源請求、單位間訊息、廣播、SitRep、附件） | cmd-v1.2.0 | 待做 |
+| 4++ | Leaflet 互動地圖完整實作（區域/路線/調度指示/基礎設施/MGRS/EOC 事件追蹤） | cmd-v0.12.4 | ✅ 完成 |
+| 5 | UI 收尾（deadline API、決策合併、burn rate 預測線、動態 marker 聯動 calc_engine、push/polling 間隔縮短） | cmd-v0.13.0 | 🔲 待做 |
+| 6 | COP 完整實作（熱圖、叢集化、過濾搜尋、時間軸回放、3D 地形待評估） | cmd-v0.14.0 | 🔲 待做 |
+| 7 | TAK 整合（FreeTAKServer + CoT ↔ ICS_DMAS）+ MIL-STD-2525 軍用符號 | cmd-v1.1.0 | 🔲 待做 |
+| 8 | EOC/NIMS 標準對齊（ICS 201/214 表單、資源請求、單位間訊息、廣播、SitRep、AAR、稽核軌跡、YubiKey 雙人驗證） | cmd-v1.2.0 | 🔲 待做 |
+| 9 | Silent Scribe 整合（STT Breeze ASR 25 on N100、LLM ICS-214 自動填表、Panic Wipe、SQLCipher） | cmd-v1.3.0 | 🔲 待做 |
+
+> **硬體備忘**：Command Console 目標平台為 N100 Mini PC（解決 3D 地形 WebGL 需求）；Pi 500 定位為 PWA host + WS Server + Pi push 中繼節點。
 
 ### Wave 3 版本歷史摘要
 
@@ -152,9 +156,11 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 
 | 項目 | 狀態 | 說明 |
 |------|------|------|
-| 重設 deadline 後端 API | 🔲 待做 | 前端 `_resetDeadline()` UI 已實作（只追加 note）；後端 `PATCH /api/events/{id}/deadline` 未建立，DB `response_deadline` 欄位未更新 |
+| 重設 deadline 後端 API | ✅ 完成 | 前後端均已實作；`PATCH /api/events/{id}/deadline`、`db.patch_event()` 白名單含 `response_deadline`、前端 `_resetDeadline()` 完整 |
 | 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
 | 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
+| **動態 marker 聯動 calc_engine** | 🔲 待做 | Medical/Shelter zone marker 顏色依量能壓力變化（綠→黃→紅）；Marker badge 顯示人數/傷患數；Pi 超時未 push → marker 灰化（Freshness）；資料已有（Pi push → calc_engine），純前端渲染補漏 |
+| **縮短 push / polling 間隔** | ✅ 完成 | Pi push：60s → 5s（`ics_ws_server.js` `PI_PUSH_INTERVAL_MS`）；Command polling 已是 5s（`POLL_INTERVAL=5000`）；最壞延遲 ~10s |
 | 地圖流向箭頭 | ✅ 完成 | 舊 SVG overlay `renderFlows()` 已移除；現由 Leaflet `_renderFlows()` 統一處理 |
 
 ---
@@ -164,6 +170,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 > 細節待定。前進組／安全組使用 ATAK，需與 Command Console 整合。
 > 前進組可能與軍方對接，地圖需支援 MIL-STD-2525 軍用符號渲染。
 > TAK CoT `type` 欄位本身即為 MIL-STD-2525 代碼（如 `a-f-G-U-C`），TAK 整合與符號渲染為同一 Wave。
+> **注意**：ATAK 裝置每幾秒推送 GPS 位置，動態 marker 更新是 TAK 整合的前提條件（Wave 5 先打好基礎）。
 
 ---
 

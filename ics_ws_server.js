@@ -165,7 +165,7 @@ async function pushToCommand(snapshotPayload) {
    每 PI_PUSH_INTERVAL_MS 毫秒讀 current_state → push_queue → POST 指揮部。
    斷線期間 buffer，復線後依序補送。
 ═══════════════════════════════════════════════════════════════ */
-const PI_PUSH_INTERVAL_MS = parseInt(process.env.PI_PUSH_INTERVAL_MS || '') || 60_000;
+const PI_PUSH_INTERVAL_MS = parseInt(process.env.PI_PUSH_INTERVAL_MS || '') || 5_000;
 const MAX_QUEUE_AGE_MS = 24 * 60 * 60 * 1000; // 24hr
 
 function postJSONWithBearer(urlStr, body, bearerToken, timeoutMs = 8000) {
