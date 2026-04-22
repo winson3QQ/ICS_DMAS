@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.12.3';</script>
+<script>const CMD_VERSION='v0.12.13';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -594,6 +594,39 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .napsg-tooltip{background:rgba(13,17,23,.85);border:1px solid rgba(255,255,255,.15);color:#e6edf3;font-size:10px;padding:2px 7px;border-radius:3px;white-space:nowrap;}
 .napsg-highlighted{animation:napsg-pulse .9s ease-in-out infinite alternate;transform-origin:center;display:block;}
 @keyframes napsg-pulse{from{filter:drop-shadow(0 0 4px #3fb950);transform:scale(1);}to{filter:drop-shadow(0 0 14px #3fb950);transform:scale(1.35);}}
+/* Wave 5 動態 marker：RAG 壓力 + Pi 超時灰化 + 人數 badge */
+.napsg-wrap{position:relative;width:100%;height:100%;}
+.napsg-wrap svg{display:block;}
+.napsg-stale{filter:grayscale(.85) opacity(.55);}
+.napsg-stale::before{
+  content:'';position:absolute;inset:-5px;
+  border:2.5px dashed var(--red);border-radius:50%;
+  pointer-events:none;
+  box-shadow:0 0 10px rgba(204,42,42,.7);
+}
+/* Phase 3：Link warn（Pi 抖動 30-90s），黃虛線 + 光暈、不蓋過 stale */
+.napsg-wrap.link-warn:not(.napsg-stale)::before{
+  content:'';position:absolute;inset:-5px;
+  border:2.5px dashed var(--yellow);border-radius:50%;
+  pointer-events:none;
+  box-shadow:0 0 10px rgba(212,144,0,.7);
+  animation:blink 1s infinite;
+}
+.napsg-badge.off{background:rgba(204,42,42,.95);border-color:var(--red);color:#fff;letter-spacing:.05em;}
+/* RAG 閃爍（對齊 header .za-counts 的 70%/90% 門檻）；stale 時不閃，避免資訊衝突 */
+.napsg-wrap.warn:not(.napsg-stale) svg{animation:blink 1s infinite;}
+.napsg-wrap.crit:not(.napsg-stale) svg{animation:blink .6s infinite;}
+.napsg-badge{
+  position:absolute;top:-6px;right:-10px;
+  min-width:16px;height:14px;padding:0 4px;
+  background:#0d1117;border:1px solid #30363d;color:#fff;
+  border-radius:8px;font-size:9px;font-weight:700;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);pointer-events:none;
+  box-shadow:0 1px 3px rgba(0,0,0,.5);
+}
+.napsg-badge.warn{border-color:var(--yellow);color:var(--yellow);}
+.napsg-badge.crit{border-color:var(--red);color:#ff6b6b;}
 /* 底圖 layer control 已移除；Phase 3/5 加 operational overlays 後再恢復 */
 /* 座標顯示面板 */
 /* 浮島共用樣式（座標 + 工具列一致）*/
@@ -1252,7 +1285,7 @@ async function cmdLogout() {
 
 /* --- PinLock（閒置鎖定）--- */
 const PinLock = (() => {
-  const IDLE_MS = 90000;  // 90 秒
+  const IDLE_MS = 270000;  // 4.5 分鐘閒置 + 30 秒倒數 = 5 分鐘鎖屏
   const WARN_S = 30;
   let _timer = null, _warnTimer = null, _countdown = 0;
 
@@ -1854,8 +1887,15 @@ async function admLoadPiNodes() {
     html += '<div style="color:var(--text3);text-align:center;padding:20px;font-size:11px;">尚未註冊任何 Pi 節點</div>';
   }
   for (const n of nodes) {
-    const online = n.last_seen_at && (Date.now() - new Date(n.last_seen_at).getTime() < 120000);
-    const dot = online ? '<span style="color:var(--green);">●</span>' : '<span style="color:var(--text3);">○</span>';
+    // Phase 3：節點卡 3 態 + lkp（跟 header conn-dot 完全一致）
+    let dotColor = 'var(--text3)', dotAnim = '', dotLabel = 'never';
+    if (n.last_seen_at) {
+      const age = Date.now() - new Date(n.last_seen_at).getTime();
+      if (age < 30000)      { dotColor = 'var(--green)';  dotLabel = 'online'; }
+      else if (age < 90000) { dotColor = 'var(--yellow)'; dotAnim = 'animation:blink 1s infinite;'; dotLabel = 'degrading'; }
+      else                  { dotColor = 'var(--red)';    dotAnim = 'animation:blink .6s infinite;'; dotLabel = 'offline'; }
+    }
+    const dot = `<span style="color:${dotColor};${dotAnim}" title="${dotLabel}">●</span>`;
     const seen = n.last_seen_at ? n.last_seen_at.replace('T',' ').slice(0,19) : '從未連線';
     html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;">
       <div style="flex:1;">
@@ -3626,7 +3666,11 @@ const _NODE_ABBR = { shelter:'收', medical:'醫', forward:'前', security:'安'
  * @param {string} severity  - critical/warning/info（事件用）
  * @param {boolean} isEvent  - true=事件 marker（菱形），false=永久節點
  */
-function _napsgIcon(nodeType, severity, isEvent) {
+// Wave 5：RAG 壓力色
+const _RAG_COLORS = { ok:'#1a9e52', warn:'#d49000', crit:'#cc2a2a' };
+
+function _napsgIcon(nodeType, severity, isEvent, opts) {
+  opts = opts || {};
   if (isEvent) {
     // 菱形（NAPSG Hazard/Incident）
     // nodeType 為 NAPSG group key：security/rescue/medical/care/infra/ops
@@ -3640,7 +3684,23 @@ function _napsgIcon(nodeType, severity, isEvent) {
     return L.divIcon({ html: svg, className: '', iconSize: [26,26], iconAnchor: [13,13] });
   }
   const abbr = _NODE_ABBR[nodeType] || '?';
-  const c = _NODE_COLORS[nodeType] || '#8b949e';
+  // Shelter/Medical 改用 calc_engine RAG 色；其他節點維持中性灰
+  let c = _NODE_COLORS[nodeType] || '#8b949e';
+  if ((nodeType === 'shelter' || nodeType === 'medical') && opts.rag) {
+    c = _RAG_COLORS[opts.rag] || c;
+  }
+  const ragCls = opts.rag ? ' ' + opts.rag : '';
+  const staleCls = opts.stale ? ' napsg-stale' : '';
+  const linkWarnCls = opts.linkWarn ? ' link-warn' : '';
+  // 三種 badge：OFF（stale 覆蓋）／RAG 數字／—
+  let badgeHtml = '';
+  if (opts.stale && (nodeType === 'shelter' || nodeType === 'medical')) {
+    badgeHtml = `<div class="napsg-badge off">OFF</div>`;
+  } else if (opts.badge != null && opts.badge !== '') {
+    const bCls = opts.rag === 'crit' ? 'crit' : opts.rag === 'warn' ? 'warn' : '';
+    badgeHtml = `<div class="napsg-badge ${bCls}">${opts.badge}</div>`;
+  }
+
   if (nodeType === 'forward' || nodeType === 'security') {
     // 正方形（NAPSG Unit / Mobile Resource）— 縮小至 24×24，與圓形視覺相當
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
@@ -3648,7 +3708,10 @@ function _napsgIcon(nodeType, severity, isEvent) {
       <text x="12" y="16" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
             font-family="sans-serif">${abbr}</text>
     </svg>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [24,24], iconAnchor: [12,12] });
+    return L.divIcon({
+      html: `<div class="napsg-wrap${ragCls}${staleCls}${linkWarnCls}">${svg}${badgeHtml}</div>`,
+      className: '', iconSize: [24,24], iconAnchor: [12,12]
+    });
   }
   // 圓形（NAPSG Operations Node — shelter / medical / command）
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
@@ -3656,7 +3719,10 @@ function _napsgIcon(nodeType, severity, isEvent) {
     <text x="14" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="#fff"
           font-family="sans-serif">${abbr}</text>
   </svg>`;
-  return L.divIcon({ html: svg, className: '', iconSize: [28,28], iconAnchor: [14,14] });
+  return L.divIcon({
+    html: `<div class="napsg-wrap${ragCls}${staleCls}${linkWarnCls}">${svg}${badgeHtml}</div>`,
+    className: '', iconSize: [28,28], iconAnchor: [14,14]
+  });
 }
 
 function _initLeafletMap() {
@@ -3803,7 +3869,48 @@ function _renderLeafletMarkers() {
       }
     }
 
-    const icon = _napsgIcon(zone.node_type, severity, isEvent);
+    // Wave 5：固定節點（非事件）依 calc_engine 壓力 + Pi 新鮮度動態上色
+    const nodeOpts = {};
+    if (!isEvent && zone.icon === 'pin') {
+      const calc = _data?.calc || {};
+      const parseSnap = key => {
+        const s = calc[key]?.snapshot || {};
+        const ex = (typeof s.extra === 'string' ? (()=>{try{return JSON.parse(s.extra);}catch(e){return {};}})() : s.extra) || {};
+        return { s, ex };
+      };
+      // Phase 3：對齊 header conn-dot 三態 Link
+      //   Link ok  (<30s)   → 正常
+      //   Link warn (30-90s) → 黃虛線外框（Pi 抖動，資料仍可用）
+      //   Link crit (≥90s) / lkp (從未連線) → 紅虛線 + OFF badge + desaturate
+      if (zone.node_type === 'shelter' || zone.node_type === 'medical') {
+        const hasSnap = !!(calc[zone.node_type]?.snapshot);
+        const piNode = (_data?.pi_nodes || []).find(n => n.unit_id === zone.node_type);
+        let linkLevel = 'lkp';
+        if (piNode?.last_seen_at) {
+          const age = Date.now() - new Date(piNode.last_seen_at).getTime();
+          linkLevel = age < 30000 ? 'ok' : age < 90000 ? 'warn' : 'crit';
+        }
+        const linkDown = (linkLevel === 'crit' || linkLevel === 'lkp');
+        if (hasSnap) {
+          const { s } = parseSnap(zone.node_type);
+          const bu = s.bed_used || 0, bt = s.bed_total || 1;
+          const pct = bu / bt * 100;
+          nodeOpts.rag = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : 'ok';
+          nodeOpts.badge = bu;
+          if (linkDown) nodeOpts.stale = true;
+          else if (linkLevel === 'warn') nodeOpts.linkWarn = true;
+        } else if (!linkDown) {
+          // Link ok / warn，無 snap → 綠待命
+          nodeOpts.rag = 'ok';
+          nodeOpts.badge = '—';
+          if (linkLevel === 'warn') nodeOpts.linkWarn = true;
+        } else {
+          nodeOpts.stale = true;                   // 從未連線 / 斷線
+        }
+      }
+    }
+
+    const icon = _napsgIcon(zone.node_type, severity, isEvent, nodeOpts);
     const marker = L.marker([zone.lat, zone.lng], {
       icon,
       draggable: true,
@@ -4082,7 +4189,8 @@ function renderMapOverlay() {
       const _piNode = _piNodes.find(n => n.unit_id === z.node_type);
       if (_piNode && _piNode.last_seen_at) {
         const _age = Date.now() - new Date(_piNode.last_seen_at).getTime();
-        freshLevel = _age < 120000 ? 'ok' : _age < 300000 ? 'warn' : 'crit';
+        // Phase 2：Link 三態 — <30s ok / 30-90s warn / ≥90s crit
+        freshLevel = _age < 30000 ? 'ok' : _age < 90000 ? 'warn' : 'crit';
       } else {
         freshLevel = calc[z.node_type]?.freshness?.level || '';
       }
@@ -5369,7 +5477,8 @@ function _renderZoneModal() {
   if (piNode && piNode.last_seen_at) {
     const ageSec = Math.round((Date.now() - new Date(piNode.last_seen_at).getTime()) / 1000);
     freshLabel = ageSec < 60 ? `${ageSec}秒前` : `${Math.round(ageSec/60)}分前`;
-    freshLvl = ageSec < 120 ? 'ok' : ageSec < 300 ? 'warn' : 'crit';
+    // Phase 2：Link 三態 — <30s ok / 30-90s warn / ≥90s crit
+    freshLvl = ageSec < 30 ? 'ok' : ageSec < 90 ? 'warn' : 'crit';
   } else if (piNode) {
     freshLabel = '未連線'; freshLvl = 'lkp';
   } else {
@@ -6222,16 +6331,17 @@ function _renderConnDots() {
     let level = ch[k]?.health_level || 'lkp';
     if (node && node.last_seen_at) {
       const age = Date.now() - new Date(node.last_seen_at).getTime();
-      level = age < 120000 ? 'ok' : age < 300000 ? 'warn' : 'crit';
+      // Phase 2：Link 三態 — <30s ok / 30-90s warn / ≥90s crit
+      level = age < 30000 ? 'ok' : age < 90000 ? 'warn' : 'crit';
     } else if (node && !node.last_seen_at) {
       level = 'lkp'; // 已註冊但從未連線
     }
     if (dot) dot.className = 'conn-dot ' + level;
     // tooltip：顯示連線條件說明
     const tipMap = {
-      ok: '● 正常（2 分鐘內有推送）',
-      warn: '● 注意（2~5 分鐘無推送）',
-      crit: '● 離線（超過 5 分鐘無推送）',
+      ok: '● 正常（30 秒內有推送）',
+      warn: '● 注意（30~90 秒無推送）',
+      crit: '● 離線（超過 90 秒無推送）',
       lkp: '○ 未連線（尚未收到任何推送）',
     };
     let tip = tipMap[level] || '';

@@ -708,6 +708,37 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _iso_utc(s: str | None) -> str | None:
+    """
+    將 DB 內可能混雜的時間字串正規化為 ISO 8601 UTC 帶 Z。
+    吃得下：
+      'YYYY-MM-DD HH:MM:SS'          （SQLite datetime('now')）
+      'YYYY-MM-DDTHH:MM:SS'          （缺 Z）
+      'YYYY-MM-DDTHH:MM:SSZ'         （正確，直接回）
+      'YYYY-MM-DDTHH:MM:SS.sss+00:00'（fromisoformat 格式）
+    回傳 None 當輸入為空。
+    """
+    if not s:
+        return None
+    s = s.strip()
+    if s.endswith("Z"):
+        return s
+    # 空白分隔 → T
+    if " " in s and "T" not in s:
+        s = s.replace(" ", "T", 1)
+    # 有 +/-時區 → 轉 UTC 再輸出 Z
+    if "+" in s or (s.count("-") > 2):
+        try:
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except Exception:
+            pass
+    # 預設：假設已是 UTC，補 Z
+    return s + "Z"
+
+
 def _row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     # extra 欄位自動反序列化
@@ -1325,7 +1356,7 @@ def create_pi_node(unit_id: str, label: str) -> dict:
 
 
 def list_pi_nodes() -> list[dict]:
-    """列出所有 Pi 節點（api_key 只回傳末 8 碼）"""
+    """列出所有 Pi 節點（api_key 只回傳末 8 碼；時間欄位正規化為 ISO UTC+Z）"""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT unit_id, label, api_key, last_seen_at, last_data_at, created_at, revoked_at FROM pi_nodes"
@@ -1334,6 +1365,8 @@ def list_pi_nodes() -> list[dict]:
     for r in rows:
         d = dict(r)
         d["api_key_suffix"] = d.pop("api_key")[-8:]
+        for k in ("last_seen_at", "last_data_at", "created_at", "revoked_at"):
+            d[k] = _iso_utc(d.get(k))
         result.append(d)
     return result
 

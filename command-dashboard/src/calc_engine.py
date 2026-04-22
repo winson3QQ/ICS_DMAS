@@ -25,9 +25,11 @@ DEFAULT_THRESHOLDS = {
         "waiting_red":    6,
         "supply_yellow":  0.30,     # 剩餘 30%
         "supply_red":     0.10,     # 剩餘 10%
-        "freshness_warn_min":  3,   # 分鐘
-        "freshness_crit_min":  5,
-        "lkp_min":            10,
+        # Phase 2：Data freshness = snapshot_time 的新舊
+        # <5 fresh（ok）／5–15 stale（warn）／≥15 LKP
+        "freshness_warn_min":  5,
+        "freshness_crit_min": 15,   # 實務上 lkp 會先 hit
+        "lkp_min":            15,
     },
     "shelter": {
         "bed_usage_yellow": 0.70,
@@ -36,21 +38,21 @@ DEFAULT_THRESHOLDS = {
         "pending_intake_red":   10,
         "srt_red_yellow": 3,
         "srt_red_red":    6,
-        "freshness_warn_min": 3,
-        "freshness_crit_min": 5,
-        "lkp_min":           10,
+        "freshness_warn_min":  5,
+        "freshness_crit_min": 15,
+        "lkp_min":            15,
     },
     "forward": {
         "red_per_team_yellow": 1,
         "red_per_team_red":    2,
         "freshness_warn_min":  5,
-        "freshness_crit_min": 10,   # 10分→LKP
-        "lkp_min":            10,
+        "freshness_crit_min": 15,
+        "lkp_min":            15,
     },
     "security": {
-        "freshness_warn_min": 3,
-        "freshness_crit_min": 5,
-        "lkp_min":           10,
+        "freshness_warn_min":  5,
+        "freshness_crit_min": 15,
+        "lkp_min":            15,
     },
 }
 

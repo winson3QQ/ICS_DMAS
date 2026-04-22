@@ -159,7 +159,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | 重設 deadline 後端 API | ✅ 完成 | 前後端均已實作；`PATCH /api/events/{id}/deadline`、`db.patch_event()` 白名單含 `response_deadline`、前端 `_resetDeadline()` 完整 |
 | 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
 | 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
-| **動態 marker 聯動 calc_engine** | 🔲 待做 | Medical/Shelter zone marker 顏色依量能壓力變化（綠→黃→紅）；Marker badge 顯示人數/傷患數；Pi 超時未 push → marker 灰化（Freshness）；資料已有（Pi push → calc_engine），純前端渲染補漏 |
+| **動態 marker 聯動 calc_engine** | ✅ 完成（cmd-v0.12.13） | Leaflet zone marker 三態：Link ok+有資料→RAG 顏色+人數 badge；Link warn（30-90s）→黃虛線圓環疊加；Link crit/LKP→灰底+OFF badge+紅閃圓環。`_napsgIcon()` 加第 4 個 `opts` 參數；`_renderLeafletMarkers()` 從 `_data.pi_nodes`+`snapshots` 算 linkLevel；header conn dot、marker、node-card dot 全部對齊 30/90s 門檻。 |
 | **縮短 push / polling 間隔** | ✅ 完成 | Pi push：60s → 5s（`ics_ws_server.js` `PI_PUSH_INTERVAL_MS`）；Command polling 已是 5s（`POLL_INTERVAL=5000`）；最壞延遲 ~10s |
 | 地圖流向箭頭 | ✅ 完成 | 舊 SVG overlay `renderFlows()` 已移除；現由 Leaflet `_renderFlows()` 統一處理 |
 
@@ -263,7 +263,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.12.3`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.12.13`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.0`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.48`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`

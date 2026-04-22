@@ -18,16 +18,16 @@
     {
       "name": "收容組 Pi Server",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["src/shelter_ws_server.js"],
+      "runtimeArgs": ["ics_ws_server.js", "--unit", "shelter"],
       "port": 8766,
-      "cwd": "shelter-pwa"
+      "cwd": "."
     },
     {
       "name": "醫療組 Pi Server",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["src/medical_ws_server.js"],
+      "runtimeArgs": ["ics_ws_server.js", "--unit", "medical"],
       "port": 8776,
-      "cwd": "medical-pwa"
+      "cwd": "."
     },
     {
       "name": "指揮部儀表板",
