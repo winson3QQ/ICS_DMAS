@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <!-- PWA 版號（格式同 SERVER_VERSION） -->
-<script>const PWA_VERSION='v2.2.48';</script>
+<script>const PWA_VERSION='v2.2.53';</script>
 <!-- 最早期定義 _dbgLog buffer，確保整個 boot 序列都被記錄 -->
 <script>
 (function(){
@@ -214,7 +214,7 @@
     .bed-status-dot { width: 8px; height: 8px; border-radius: 50%; }
     .bed-cell.empty .bed-status-dot { background: var(--gray); }
     .bed-cell.occupied .bed-status-dot { background: var(--green); } .bed-cell.suspended .bed-status-dot { background: var(--red); }
-    .bed-legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface); border-radius: var(--r-sm); margin-bottom: 12px; position: sticky; top: 0; z-index: 10; box-shadow: var(--shadow-sm); }
+    .bed-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface); border-radius: var(--r-sm); margin-bottom: 12px; position: sticky; top: 0; z-index: 10; box-shadow: var(--shadow-sm); }
     .bed-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
     .bed-legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
     .bed-legend-dot.empty { background: var(--gray-bg); border-color: var(--border); }
@@ -454,6 +454,7 @@
         <div class="bed-legend-item"><div class="bed-legend-dot empty"></div>空置</div>
         <div class="bed-legend-item"><div class="bed-legend-dot occupied"></div>已佔用</div>
         <div class="bed-legend-item"><div class="bed-legend-dot suspended"></div>暫停</div>
+        <span id="bed-total-stats" style="margin-left:auto;font-size:13px;font-weight:700;color:var(--text1);white-space:nowrap;"></span>
       </div>
       <div id="bed-map-content">載入中…</div>
     </div>
@@ -989,7 +990,7 @@ const App = {
     for(const zone of this.config.zones){
       const prefix=PREFIX[zone.id]||zone.id.charAt(0).toUpperCase();
       for(let n=1;n<=zone.capacity;n++){
-        await db.beds.add({display_id:`${prefix}${String(n).padStart(2,'0')}`,zone:zone.id,status:'empty',assigned_to:null,notes:''});
+        await db.beds.add(AuditManager.stamp({display_id:`${prefix}${String(n).padStart(2,'0')}`,zone:zone.id,status:'empty',assigned_to:null,notes:''}));
       }
     }
   },
@@ -1803,11 +1804,15 @@ async function confirmFamilyExit(personId){
 async function renderBeds(){
   const beds=await db.beds.toArray(),zones=App.config.zones;
   let html='';
+  let totalAvail=0,totalOcc=0,totalAll=0;
   for(const zone of zones){
     const zb=beds.filter(b=>b.zone===zone.id),avail=zb.filter(b=>b.status==='empty').length,occ=zb.filter(b=>b.status==='occupied').length;
+    totalAvail+=avail;totalOcc+=occ;totalAll+=zb.length;
     html+=`<div class="zone-section"><div class="zone-header"><span class="zone-name">${zone.name}</span><span class="zone-stats">空 ${avail} ／ 佔 ${occ} ／ 共 ${zb.length}</span></div><div class="bed-grid">${zb.map(bed=>`<div class="bed-cell ${bed.status}" onclick="openBedModal('${bed.display_id}')"><div class="bed-status-dot"></div><div class="bed-id">${escHtml(bed.display_id)}</div><div class="bed-person">${escHtml(bed.assigned_to||'—')}</div></div>`).join('')}</div></div>`;
   }
   el('bed-map-content').innerHTML=html;
+  const statsEl=el('bed-total-stats');
+  if(statsEl)statsEl.textContent=`合計：空 ${totalAvail} ／ 佔 ${totalOcc} ／ 共 ${totalAll}`;
 }
 async function openBedModal(bedDisplayId){
   const bed=await db.beds.where('display_id').equals(bedDisplayId).first();if(!bed)return;
@@ -2008,12 +2013,50 @@ async function saveInquiry(){await db.inquiries.add({timestamp:el('inq-time')?.v
 
 async function openConfigModal(){
   const cfg=App.config;
-  openModal('收容所設定',`<div class="form-group"><label class="form-label">收容所名稱</label><input class="form-input" id="cfg-name" value="${escHtml(cfg.shelter.name||'')}"></div><div class="form-group"><label class="form-label">場地位置</label><input class="form-input" id="cfg-loc" value="${escHtml(cfg.shelter.location||'')}"></div><div class="form-group"><label class="form-label">總容量上限</label><input class="form-input" id="cfg-cap" type="number" value="${cfg.shelter.capacity_max||30}"></div><div class="form-section-title mt-2">無線電設定</div><div class="form-group"><label class="form-label">組長頻率</label><input class="form-input" id="cfg-freq" value="${escHtml(cfg.radio?.leader_freq||'')}"></div><div class="form-group"><label class="form-label">CTCSS</label><input class="form-input" id="cfg-ctcss" value="${escHtml(cfg.radio?.ctcss||'')}"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="saveConfig()">儲存設定</button>`);
+  const zoneRows=cfg.zones.map(z=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="min-width:56px;font-size:14px;">${escHtml(z.name)}</span><input class="form-input" data-zone="${z.id}" type="number" min="0" max="99" value="${z.capacity}" oninput="updateCfgTotal()" style="width:72px;padding:6px 8px;"><span style="font-size:13px;color:var(--text2);">床</span></div>`).join('');
+  const zoneTotal=cfg.zones.reduce((s,z)=>s+z.capacity,0);
+  openModal('收容所設定',`<div class="form-group"><label class="form-label">收容所名稱</label><input class="form-input" id="cfg-name" value="${escHtml(cfg.shelter.name||'')}"></div><div class="form-group"><label class="form-label">場地位置</label><input class="form-input" id="cfg-loc" value="${escHtml(cfg.shelter.location||'')}"></div><div class="form-section-title mt-2">各區床位數量</div><div style="font-size:12px;color:var(--text2);margin-bottom:10px;">⚠️ 變更後系統將自動重建床位，現有人員分配將清除。</div>${zoneRows}<div style="font-size:13px;margin-top:4px;margin-bottom:12px;">合計：<strong id="cfg-total-beds">${zoneTotal}</strong> 床</div><div class="form-section-title mt-2">無線電設定</div><div class="form-group"><label class="form-label">組長頻率</label><input class="form-input" id="cfg-freq" value="${escHtml(cfg.radio?.leader_freq||'')}"></div><div class="form-group"><label class="form-label">CTCSS</label><input class="form-input" id="cfg-ctcss" value="${escHtml(cfg.radio?.ctcss||'')}"></div>`,`<button class="btn btn-ghost flex-1" onclick="closeModal()">取消</button><button class="btn btn-primary flex-1" onclick="saveConfig()">儲存設定</button>`);
 }
+
+/** 設定 modal 中即時更新合計床數顯示 */
+function updateCfgTotal(){
+  const inputs=document.querySelectorAll('[data-zone]');
+  const total=Array.from(inputs).reduce((s,i)=>s+(parseInt(i.value)||0),0);
+  const el2=document.getElementById('cfg-total-beds');if(el2)el2.textContent=total;
+}
+
 async function saveConfig(){
-  App.config.shelter.name=el('cfg-name')?.value.trim()||'收容所';App.config.shelter.location=el('cfg-loc')?.value.trim()||'';App.config.shelter.capacity_max=parseInt(el('cfg-cap')?.value)||30;
-  if(!App.config.radio)App.config.radio={};App.config.radio.leader_freq=el('cfg-freq')?.value.trim()||'';App.config.radio.ctcss=el('cfg-ctcss')?.value.trim()||'';
-  await db.config.put({key:'main',value:App.config});closeModal();showToast('設定已儲存');document.getElementById('shelter-name-title').textContent=App.config.shelter.name;
+  App.config.shelter.name=el('cfg-name')?.value.trim()||'收容所';
+  App.config.shelter.location=el('cfg-loc')?.value.trim()||'';
+  if(!App.config.radio)App.config.radio={};
+  App.config.radio.leader_freq=el('cfg-freq')?.value.trim()||'';
+  App.config.radio.ctcss=el('cfg-ctcss')?.value.trim()||'';
+  // 讀取各區床位容量，比對是否有變更
+  let zonesChanged=false;
+  document.querySelectorAll('[data-zone]').forEach(input=>{
+    const zoneId=input.dataset.zone;
+    const newCap=Math.max(0,parseInt(input.value)||0);
+    const zone=App.config.zones.find(z=>z.id===zoneId);
+    if(zone&&zone.capacity!==newCap){zone.capacity=newCap;zonesChanged=true;}
+  });
+  // capacity_max = 各區容量總和（與物理床位一致）
+  App.config.shelter.capacity_max=App.config.zones.reduce((s,z)=>s+z.capacity,0);
+  await db.config.put({key:'main',value:App.config});
+  _syncCapacityToPi();
+  closeModal();
+  document.getElementById('shelter-name-title').textContent=App.config.shelter.name;
+  if(zonesChanged){
+    // 床位數量有變更，自動重建（modal 中已告知後果，不需再確認）
+    await confirmReseedBeds(true);
+  } else {
+    showToast('設定已儲存');
+  }
+}
+
+/** 將 capacity_max 以 delta 推送至 Pi current_state，供指揮部計算 bed_total 用 */
+function _syncCapacityToPi(){
+  if(!WsManager.isConnected())return;
+  WsManager.sendDelta('beds_meta',{_id:'capacity',capacity_max:App.config.shelter.capacity_max,updated_at:new Date().toISOString()});
 }
 
 function downloadFile(content,filename,type='text/csv;charset=utf-8;'){const BOM=type.includes('csv')?'\uFEFF':'',blob=new Blob([BOM+content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
@@ -2056,7 +2099,32 @@ function printBlankIntake(){el('print-area').innerHTML=`<div class="print-header
 function printFourDocSet(){const sn=escHtml(App.config.shelter.name),sl=escHtml(App.config.shelter.location||''),today=new Date().toLocaleDateString('zh-TW');el('print-area').innerHTML=`<div class="print-section"><div class="print-header"><h1>收容同意書</h1><p>${sn}</p></div><p style="font-size:11pt;line-height:1.8;margin-bottom:16px;">本人自願接受 <strong>${sn}</strong> 提供之緊急收容安置服務，同意遵守收容公約。</p><div class="print-field"><span class="print-field-label">收容者姓名：</span><span class="print-field-value"> </span></div><div class="print-signature"><div class="sig-block"><div style="height:40px"></div><div class="sig-line">收容者簽名</div></div><div class="sig-block"><div style="height:40px"></div><div class="sig-line">日期</div></div></div></div>`;window.print();}
 async function printRecoveryChecklist(){const [persons,resources,incidents]=await Promise.all([db.persons.toArray(),db.resources.toArray(),db.incidents.toArray()]);const borrowed=resources.filter(r=>r.is_borrowed),openInc=incidents.filter(i=>i.status!=='已結案');el('print-area').innerHTML=`<div class="print-header"><h1>${escHtml(App.config.shelter.name)} 場復清點表</h1><p>列印時間：${fmtDT(nowISO())}</p></div><div class="print-section"><div class="print-title">待歸還借用物資</div>${borrowed.length?`<table><thead><tr><th>物資</th><th>擁有者</th><th>數量</th><th>已歸還</th></tr></thead><tbody>${borrowed.map(r=>`<tr><td>${escHtml(r.name)}</td><td>${escHtml(r.owner_name||'—')}</td><td>${r.qty_current} ${escHtml(r.unit)}</td><td>□</td></tr>`).join('')}</tbody></table>`:'無借用物資'}</div><div class="print-section"><div class="print-title">未結案事件</div>${openInc.length?openInc.map(i=>`<div class="print-field"><span class="print-field-label">${escHtml(INCIDENT_LABELS[i.type]||i.type)}</span><span class="print-field-value">${escHtml(i.status)}</span></div>`).join(''):'無未結案事件'}</div>`;window.print();}
 
-async function confirmReseedBeds(){const ok=await confirm2('重建床位編號','這會清除所有現有床位並重新建立（M/F/A/C/P 前綴）。確定繼續？');if(!ok)return;await db.beds.clear();await db.persons.toCollection().modify({bed_id:null});await App.seedDefaultBeds();showToast('✅ 床位已重建');renderCurrentTab();refreshCapacityBanner();}
+async function confirmReseedBeds(skipConfirm=false){
+  if(!skipConfirm){const ok=await confirm2('重建床位編號','這會清除所有現有床位並重新建立（M/F/A/C/P 前綴）。確定繼續？');if(!ok)return;}
+  console.log('[reseed] 開始重建床位');
+  await db.beds.clear();
+  await db.persons.toCollection().modify({bed_id:null});
+  await App.seedDefaultBeds();
+  const newBeds=await db.beds.toArray();
+  console.log('[reseed] IndexedDB 新床位數量：',newBeds.length,'IDs:',newBeds.map(b=>b._id));
+  // 清除 sync 時間戳，確保全部床位都被 filter 納入
+  localStorage.removeItem('shelter_last_sync_ts');
+  // 同步容量 meta
+  _syncCapacityToPi();
+  if(WsManager.isConnected()){
+    try{
+      // full_sync_tables:['beds'] → Pi 先刪除所有舊 beds 再寫入，原子操作無 race condition
+      const count=await WsManager.pushRecoveryData({fullSyncTables:['beds']});
+      console.log('[reseed] pushRecoveryData OK, pushed',count,'records');
+      showToast('✅ 床位已重建，已同步至 Pi');
+    }catch(e){
+      console.warn('[reseed] pushRecoveryData 失敗：',e);
+      showToast('✅ 床位已重建（Pi 未連線，下次重連時同步）');
+    }
+  } else {
+    showToast('✅ 床位已重建（Pi 未連線，下次重連時同步）');
+  }
+  renderCurrentTab();refreshCapacityBanner();}
 async function confirmClearData(){
   if(App.role!=='組長'){showToast('僅組長可執行場復清除');return;}
   const pinOk=await requirePinConfirm('場復資料銷毀','此操作不可復原。請輸入 PIN 確認。');if(!pinOk)return;
@@ -2646,9 +2714,10 @@ const WsManager = (function(){
       });
     },
     sendDelta(table,record){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'delta',src:SyncManager.deviceId(),table,action:'upsert',record,ts:record.updated_at||record.timestamp||new Date().toISOString()}));},
+    sendClearTable(table){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'clear_table',table,device_id:SyncManager.deviceId()}));},
     sendAuditEvent(action,detail){if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)return;_ws.send(JSON.stringify({type:'audit_event',action,operator_name:AuditManager.getOperator()||'未知',device_id:SyncManager.deviceId(),session_id:sessionStorage.getItem('shelter_session_id')||'',detail}));},
     /* v2.1: 網路恢復推送 — 從 IndexedDB 讀取 since=last_sync_ts 的記錄推送至 Pi */
-    async pushRecoveryData(){
+    async pushRecoveryData(opts={}){
       if(!_connected||!_ws||_ws.readyState!==WebSocket.OPEN)throw new Error('伺服器未連線');
       const since=localStorage.getItem('shelter_last_sync_ts')||'1970-01-01T00:00:00.000Z';
       const TABLES=['persons','beds','resources','incidents','shifts'];
@@ -2657,17 +2726,15 @@ const WsManager = (function(){
         const records=await db[table].filter(r=>(r.updated_at||r.timestamp||r.opened_at||'')>=since).toArray();
         tables[table]=records;totalCount+=records.length;
       }
-      // 讀取快照（含 snapshot_uuid，供 Pass 1 對齊）
-      // 只送 QR 生成的快照（有完整 SnapshotIn 欄位），略過操作型快照（takeSnapshot）
-      // QR 快照不做時間過濾：Pi 以 snapshot_uuid INSERT OR IGNORE 保冪等，避免時間邊界遺漏
       const snapshots=await db.snapshots.orderBy('timestamp').filter(s=>s.source==='qr_generated').toArray();
+      const fullSyncTables=opts.fullSyncTables||[];
+      console.log(`[pushRecoveryData] since=${since} fullSync=${JSON.stringify(fullSyncTables)} beds=${tables.beds?.length||0} persons=${tables.persons?.length||0} total=${totalCount}`);
       return new Promise((resolve,reject)=>{
         const timeout=setTimeout(()=>reject(new Error('sync_push 無回應逾時')),15000);
-        const prevHandler=this._syncAckHandler;
         this._syncAckHandler=(msg)=>{
           if(msg.type==='sync_ack'){clearTimeout(timeout);this._syncAckHandler=null;localStorage.setItem('shelter_last_sync_ts',msg.last_sync_to_command||new Date().toISOString());resolve(totalCount);}
         };
-        _ws.send(JSON.stringify({type:'sync_push',sync_start_ts:since,tables,snapshots,device_id:SyncManager.deviceId()}));
+        _ws.send(JSON.stringify({type:'sync_push',sync_start_ts:since,tables,snapshots,device_id:SyncManager.deviceId(),full_sync_tables:fullSyncTables}));
       });
     },
     _syncAckHandler:null,

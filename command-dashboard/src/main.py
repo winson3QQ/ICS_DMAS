@@ -582,11 +582,25 @@ def _pi_batch_to_snapshot(unit_id: str, pushed_at: str, records: list) -> dict |
     elif unit_id == "shelter":
         persons = by_table.get("persons", [])
         beds = by_table.get("beds", [])
+        beds_meta = by_table.get("beds_meta", [])
         # 在站人員
         placed = [p for p in persons if p.get("status") == "已安置"]
         waiting = [p for p in persons if p.get("status") == "等候中"]
-        # 床位統計
-        total_beds = len(beds) if beds else max(len(placed) + 5, 12)
+        # bed_total 優先使用管理員在設定頁設定的容量上限（beds_meta.capacity_max）
+        # 次選：Pi 推上來的實際床位數（排除 suspended）
+        # fallback：人數＋緩衝
+        capacity_max = next(
+            (int(m["capacity_max"]) for m in beds_meta
+             if m.get("_id") == "capacity" and m.get("capacity_max")),
+            None
+        )
+        active_beds = [b for b in beds if b.get("status") != "suspended"]
+        if capacity_max is not None:
+            total_beds = capacity_max
+        elif active_beds:
+            total_beds = len(active_beds)
+        else:
+            total_beds = max(len(placed) + 5, 12)
         snap["bed_used"] = len(placed)
         snap["bed_total"] = total_beds
         snap["pending_intake"] = len(waiting)

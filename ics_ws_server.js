@@ -70,7 +70,7 @@ const log = {
   info:  (...a) => _logLevel >= 2 && console.log  (`[I][${_ts()}]`, ...a),
   debug: (...a) => _logLevel >= 3 && console.log  (`[D][${_ts()}]`, ...a),
 };
-const SERVER_VERSION = 'v1.1.0';
+const SERVER_VERSION = 'v1.1.2';
 log.info(`${cfg.logPrefix} WS Server ${SERVER_VERSION} | unit=${unitArg} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 /* ─── 設定 ────────────────────────────────────────────────────── */
@@ -696,12 +696,23 @@ wss.on('connection', (ws, req) => {
          4. 回傳 sync_ack（含 Pass 1 SNAPSHOT 合併結果摘要）
       ── */
       case 'sync_push': {
-        const { sync_start_ts, tables, snapshots: pushSnapshots, device_id: pushDeviceId } = msg;
+        const { sync_start_ts, tables, snapshots: pushSnapshots, device_id: pushDeviceId,
+                full_sync_tables } = msg;
         let recordsApplied = 0;
         let snapshotsMerged = 0;
 
-        // 將各 table 的記錄寫入 delta_log 並廣播
+        // full_sync_tables：先清除指定 table 的所有記錄再寫入（原子操作，避免累加）
         const SYNC_TABLES = cfg.syncTables;
+        if (Array.isArray(full_sync_tables)) {
+          for (const tbl of full_sync_tables) {
+            if (SYNC_TABLES.includes(tbl)) {
+              const result = db.prepare('DELETE FROM current_state WHERE table_name=?').run(tbl);
+              log.info(`[sync_push] full_sync clear: ${tbl}, deleted ${result.changes} rows`);
+            }
+          }
+        }
+
+        // 將各 table 的記錄寫入 delta_log 並廣播
         for (const table of SYNC_TABLES) {
           const records = tables?.[table] || [];
           for (const record of records) {
@@ -794,6 +805,21 @@ wss.on('connection', (ws, req) => {
             msg.detail || {}
           );
         } catch(e) { /* non-critical */ }
+        break;
+      }
+
+      /* ── 清除指定 table 的 current_state（床位重建時使用） ── */
+      case 'clear_table': {
+        if (!ws.isAuthed) { ws.send(JSON.stringify({ type: 'error', reason: '未認證' })); break; }
+        const CLEARABLE = ['beds', 'persons', 'resources', 'incidents', 'shifts'];
+        const tbl = msg.table;
+        if (!CLEARABLE.includes(tbl)) {
+          ws.send(JSON.stringify({ type: 'error', reason: `不允許清除 ${tbl}` }));
+          break;
+        }
+        db.prepare('DELETE FROM current_state WHERE table_name=?').run(tbl);
+        log.info(`[clear_table] ${tbl} cleared by ${ws.username||'unknown'}`);
+        ws.send(JSON.stringify({ type: 'clear_table_ack', table: tbl, ok: true }));
         break;
       }
 
