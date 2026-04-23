@@ -184,6 +184,42 @@ def tile_metadata(source: str):
         rows = conn.execute("SELECT name, value FROM metadata").fetchall()
     return {k: v for k, v in rows}
 
+@app.get("/tiles/pmtiles/{filename}", tags=["地圖 Tiles"])
+def serve_pmtiles(filename: str, request: Request):
+    """PMTiles 檔案的 Range request handler（Protomaps 需要 206 Partial Content）"""
+    p = _MBTILES_DIR / filename
+    if not p.exists() or not filename.endswith(".pmtiles"):
+        raise HTTPException(404, "PMTiles file not found")
+    file_size = p.stat().st_size
+    range_header = request.headers.get("Range")
+    if not range_header:
+        with open(p, "rb") as f:
+            data = f.read()
+        return Response(content=data, media_type="application/octet-stream",
+                        headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)})
+    try:
+        unit, rng = range_header.split("=")
+        start_str, end_str = rng.split("-")
+        start = int(start_str)
+        end = int(end_str) if end_str else file_size - 1
+    except Exception:
+        raise HTTPException(416, "Invalid Range header")
+    if start > end or end >= file_size:
+        raise HTTPException(416, "Range Not Satisfiable")
+    length = end - start + 1
+    with open(p, "rb") as f:
+        f.seek(start)
+        data = f.read(length)
+    return Response(
+        content=data, status_code=206, media_type="application/octet-stream",
+        headers={
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(length),
+            "Cache-Control": "public, max-age=86400",
+        }
+    )
+
 # CA 根憑證下載（供手機/平板安裝）
 cert_path = Path(__file__).parent.parent.parent / "certs" / "rootCA.pem"
 

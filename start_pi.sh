@@ -89,7 +89,7 @@ COMMAND_URL="$PROTO_HTTP://127.0.0.1:8000" \
   CERT_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2.pem}" \
   KEY_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2-key.pem}" \
   CA_CERT_PATH="${TLS_ENABLED:+$CERT_DIR/rootCA.pem}" \
-  node ics_ws_server.js --unit shelter \
+  node server/index.js --unit shelter \
   > /tmp/ics_shelter.log 2>&1 &
 SHELTER_PID=$!
 echo "[OK] 收容組 Pi PID $SHELTER_PID"
@@ -101,7 +101,7 @@ COMMAND_URL="$PROTO_HTTP://127.0.0.1:8000" \
   CERT_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2.pem}" \
   KEY_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2-key.pem}" \
   CA_CERT_PATH="${TLS_ENABLED:+$CERT_DIR/rootCA.pem}" \
-  node ics_ws_server.js --unit medical \
+  node server/index.js --unit medical \
   > /tmp/ics_medical.log 2>&1 &
 MEDICAL_PID=$!
 echo "[OK] 醫療組 Pi PID $MEDICAL_PID"

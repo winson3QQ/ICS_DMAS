@@ -52,7 +52,7 @@
 **Git tag 命名規則**（三組各自獨立）：
 - `medical-vX.Y.Z[-alpha|-beta]` — 醫療組 PWA
 - `shelter-vX.Y.Z[-alpha]` — 收容組 PWA
-- `server-vX.Y.Z` — 共用 Pi Server（`ics_ws_server.js`）
+- `server-vX.Y.Z` — 共用 Pi Server（`server/index.js`）
 
 每次 commit 若包含版號遞增，**必須同時打對應的 git tag**。舊有 `v0.1.0`（無 prefix）為歷史遺留，不再使用。
 
@@ -75,7 +75,7 @@
 
 1. `PWA_VERSION`（HTML 檔案內的常數）
 2. `CACHE_NAME`（`sw.js`，格式：`shelter-pwa-vX.X.XX` / `medical-pwa-vX.X.XX`）
-3. `SERVER_VERSION`（`ics_ws_server.js`）— 若 server 有改動
+3. `SERVER_VERSION`（`server/config.js`）— 若 server 有改動
 4. **規格書同步** — 若有介面、資料格式、或功能行為變更，需更新對應規格文件
 
 不需詢問，直接遞增。

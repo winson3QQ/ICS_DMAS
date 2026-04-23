@@ -8,7 +8,7 @@ Requires=ics-command.service
 Type=simple
 User=ics
 WorkingDirectory=/home/ics/ics-dmas
-ExecStart=/usr/bin/node ics_ws_server.js --unit medical
+ExecStart=/usr/bin/node server/index.js --unit medical
 Environment=COMMAND_URL=https://127.0.0.1:8000
 Environment=LOG_LEVEL=info
 Environment=CERT_PATH=/home/ics/ics-dmas/certs/192.168.100.10+2.pem

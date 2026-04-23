@@ -5,12 +5,12 @@
     "node": ">=18.0.0"
   },
   "description": "ICS DMAS 統一 Pi WebSocket 伺服器（shelter / medical）",
-  "main": "ics_ws_server.js",
+  "main": "server/index.js",
   "scripts": {
-    "shelter": "node ics_ws_server.js --unit shelter",
-    "medical": "node ics_ws_server.js --unit medical",
-    "dev:shelter": "node --watch ics_ws_server.js --unit shelter",
-    "dev:medical": "node --watch ics_ws_server.js --unit medical"
+    "shelter": "node server/index.js --unit shelter",
+    "medical": "node server/index.js --unit medical",
+    "dev:shelter": "node --watch server/index.js --unit shelter",
+    "dev:medical": "node --watch server/index.js --unit medical"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

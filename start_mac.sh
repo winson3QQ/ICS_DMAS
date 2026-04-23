@@ -71,7 +71,7 @@ fi
 echo ""
 echo "[啟動] 收容組 Pi 伺服器 :8765/:8766 ..."
 COMMAND_URL="http://127.0.0.1:8000" \
-  node ics_ws_server.js --unit shelter \
+  node server/index.js --unit shelter \
   > /tmp/ics_shelter.log 2>&1 &
 SHELTER_PID=$!
 echo "[OK] 收容組 Pi PID $SHELTER_PID"
@@ -80,7 +80,7 @@ echo "[OK] 收容組 Pi PID $SHELTER_PID"
 echo ""
 echo "[啟動] 醫療組 Pi 伺服器 :8775/:8776 ..."
 COMMAND_URL="http://127.0.0.1:8000" \
-  node ics_ws_server.js --unit medical \
+  node server/index.js --unit medical \
   > /tmp/ics_medical.log 2>&1 &
 MEDICAL_PID=$!
 echo "[OK] 醫療組 Pi PID $MEDICAL_PID"

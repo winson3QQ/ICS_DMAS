@@ -3735,7 +3735,7 @@ function _initLeafletMap() {
   _leafletMap = L.map(container, { zoomControl: true, attributionControl: true, doubleClickZoom: false })
     .setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
 
-  const pmtilesUrl = '/static/tiles/taiwan.pmtiles';
+  const pmtilesUrl = '/tiles/pmtiles/taiwan.pmtiles';
 
   // ── 底圖：固定 Vector Grayscale（EOC 標準，NAPSG 符號對比最佳）──
   // overlays（MGRS 格線、管制區等）待 Phase 3/5 實作後加入 L.control.layers 的 overlays 欄

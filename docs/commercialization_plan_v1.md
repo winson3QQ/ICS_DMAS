@@ -1,9 +1,10 @@
-# ICS_DMAS 商業化大改版計劃 v1.2
+# ICS_DMAS 商業化大改版計劃 v1.3
 
 > 狀態：草稿（初步規劃）
-> 基準版本：shelter-v2.2.53 / server-v1.1.2 / cmd-v0.12.13
+> 基準版本：shelter-v2.2.53 / server-v1.2.0 / cmd-v0.12.13
 > v1.1 更新：整合 AI_integration_roadmap、project_status、Silent Scribe v1.4 規格
 > v1.2 更新：法規同步（資安法/個資法 2025 修正）、競品動態（WebEOC Nexus + JAI）、標準更新（NIST 5.2.0）
+> v1.3 更新：C0 Pi 端重構完成（server-v1.2.0）、PMTiles range request 修正
 > 最後 review：2026-04-23
 
 ---
@@ -80,7 +81,7 @@
 | `shelter-pwa/public/shelter_pwa.html` | 3,264 | 同上 |
 | `command-dashboard/src/db.py` | 1,594 | CRUD/migration/sync/audit 全混 |
 | `command-dashboard/src/main.py` | 1,577 | 64 個路由 + models + 認證 + tile 全混 |
-| `ics_ws_server.js` | 1,159 | WebSocket/HTTP/auth/DB/audit 全混 |
+| `server/`（8 模組）| ~900（分散） | ✅ C0 已重構：logger/config/db/auth/audit/sync/ws_handler/routes |
 
 ### 台灣政府採購合規缺口
 
@@ -279,7 +280,7 @@ shelter-pwa/public/shelter_pwa.html
 ### 工作項目
 
 - [ ] **後端分層**：`main.py`（1,577 行）+ `db.py`（1,594 行）拆進 `routers/` + `services/` + `repositories/` + `auth/` + `core/`
-- [ ] **Pi 端分層**：`ics_ws_server.js`（1,159 行）拆進 `server/` 子目錄
+- [x] **Pi 端分層**：`ics_ws_server.js`（1,159 行）拆進 `server/` 子目錄（server-v1.2.0，2026-04-23）
 - [ ] **前端模組化**：抽出 `.js` 模組 + 加入 esbuild 建置步驟
 - [ ] **Smoke test**：用 httpx TestClient 打每個端點，確認無功能回歸
 - [ ] **session_type 完整性**：確認 AI roadmap Phase 0-3 的 session_type 欄位在新架構中正確傳遞
@@ -765,7 +766,7 @@ C0 基礎重構（唯一串行前提）
 | 里程碑 | 版本 | 商業意義 | 對應 AI roadmap |
 |--------|------|---------|----------------|
 | Wave 5 完成 | `cmd-v0.13.0` | UI 收尾，演訓可用 | Phase 1 完成 |
-| C0 完成 | `v2.0.0-internal` | 架構重構，對外功能不變 | — |
+| C0 Pi 端完成 | `server-v1.2.0` | Pi server 模組化，對外功能不變 | — |
 | C1 + C2 完成 | `v2.1.0` | **第一個可投標版本** | — |
 | C3 + C4 完成 | `v2.2.0` | **第一個可銷售版本** | — |
 | C5-A + C5-B 完成 | `v3.0.0` | **護城河開始，TTX+AAR 商品化** | Phase 6 完成 |
