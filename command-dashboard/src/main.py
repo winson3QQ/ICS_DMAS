@@ -18,6 +18,7 @@ from core.config import STATIC_DIR, APP_VERSION
 from core.database import init_db
 from auth.middleware import auth_middleware
 from repositories.account_repo import ensure_default_admin
+from repositories.config_repo import ensure_default_admin_pin
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 from routers import (
@@ -31,6 +32,7 @@ from routers import (
 async def lifespan(app: FastAPI):
     init_db()
     ensure_default_admin()
+    ensure_default_admin_pin()
     yield
 
 

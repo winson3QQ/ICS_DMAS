@@ -31,3 +31,8 @@ def verify_admin_pin(pin: str) -> bool:
 def set_admin_pin(new_pin: str, operator: str):
     h, s = hash_pin(new_pin)
     set_config("admin_pin", json.dumps({"hash": h, "salt": s}), operator)
+
+
+def ensure_default_admin_pin():
+    if not get_config("admin_pin"):
+        set_admin_pin("1234", "system")
