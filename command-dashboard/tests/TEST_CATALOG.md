@@ -1,6 +1,6 @@
 # ICS DMAS 測試目錄
 
-> 目前共 **110 個測試案例**，分三層執行。  
+> 目前共 **133 個測試案例**，分三層執行。  
 > 執行指令：`bash scripts/run_tests.sh`
 
 ---
@@ -145,7 +145,7 @@
 
 ---
 
-## API 測試（35 個）
+## API 測試（58 個）
 
 > 透過 FastAPI TestClient，模擬完整的 HTTP 請求→認證→邏輯→回應流程。
 
@@ -205,13 +205,48 @@
 
 ---
 
-## 目前未覆蓋的範圍（Coverage 29%）
+### `test_pi_push_api.py` — Pi 節點推送 API（13 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_shelter_heartbeat` | shelter 空推送（心跳），HTTP 200，ok=true |
+| `test_medical_heartbeat` | medical 空推送（心跳），HTTP 200 |
+| `test_no_bearer_returns_401` | 沒帶 Authorization header，HTTP 401 |
+| `test_wrong_token_returns_403` | 錯誤的 Bearer token，HTTP 403 |
+| `test_unknown_unit_returns_403` | 未知 unit_id，HTTP 403 |
+| `test_cross_unit_token_rejected` | shelter token 推送 medical，HTTP 403（跨節點不可用） |
+| `test_push_returns_ok` | shelter 推 persons + beds + resources，HTTP 200，records_count 正確 |
+| `test_push_stores_batch` | 推送後 `/api/pi-data/shelter/list` 回傳正確筆數 |
+| `test_push_groups_by_table` | grouped 欄位依 table_name 分組，persons/beds 各 2 筆 |
+| `test_push_returns_ok` (medical) | medical 推 patients + resources + incidents，HTTP 200 |
+| `test_push_stores_batch` (medical) | 推送後 `/api/pi-data/medical/list` offline=false |
+| `test_offline_before_push` | 推送前查詢 offline=true |
+| `test_two_nodes_push_independently` | shelter + medical 各自推送，資料不互相干擾 |
+
+---
+
+### `test_dashboard_api.py` — Dashboard 聚合驗證（10 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_returns_200` | `/api/dashboard` HTTP 200 |
+| `test_pi_nodes_empty_before_registration` | 未建節點時 pi_nodes 為空陣列 |
+| `test_no_auth_returns_401` | 未帶 token，HTTP 401 |
+| `test_pi_node_appears_after_push` | shelter 推送後 pi_nodes 列表出現 shelter |
+| `test_shelter_bed_used` | 2 人已安置 → shelter_history[0].bed_used = 2 |
+| `test_shelter_pending_intake` | 1 人等候中 → shelter_history[0].pending_intake = 1 |
+| `test_medical_red_casualties` | 1 位紅傷患在場 → medical_history[0].casualties_red = 1 |
+| `test_medical_excludes_discharged` | 已離區傷患不計入 bed_used（3 人中 1 已離，bed_used=2） |
+| `test_both_nodes_in_pi_nodes_list` | shelter + medical 同時推送，pi_nodes 包含兩者 |
+| `test_both_histories_populated` | 兩節點推送後，shelter_history 和 medical_history 都有資料 |
+
+---
+
+## 目前未覆蓋的範圍
 
 | 模組 | 覆蓋率 | 原因 | 預計在 |
 |------|--------|------|--------|
-| `dashboard_service.py` | 6% | 需要完整的 Pi 推送資料流 | C2 |
 | `routers/ttx.py` | 25% | TTX 場景注入流程複雜 | C2 |
-| `pi_push_service.py` | 17% | 需要模擬 Pi 節點推送 | C2 |
 | `services/ai_service.py` | 36% | AI stub，Wave 5 才實裝 | Wave 5 |
 | `routers/sync.py` | — | 三 Pass 同步邏輯需要完整情境 | C2 |
 | `routers/map.py` | — | 需要實際的 MBTiles 檔案 | C2 |

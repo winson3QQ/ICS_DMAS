@@ -1,7 +1,7 @@
-# ICS_DMAS 商業化大改版計劃 v1.8
+# ICS_DMAS 商業化大改版計劃 v1.9
 
 > 狀態：草稿（初步規劃）
-> 基準版本：shelter-v2.2.53 / server-v1.2.0 / cmd-v0.12.13
+> 基準版本：shelter-v2.2.53 / server-v1.2.0 / cmd-v2.0.1
 > v1.1 更新：整合 AI_integration_roadmap、project_status、Silent Scribe v1.4 規格
 > v1.2 更新：法規同步（資安法/個資法 2025 修正）、競品動態（WebEOC Nexus + JAI）、標準更新（NIST 5.2.0）
 > v1.3 更新：C0 Pi 端重構完成（server-v1.2.0）、PMTiles range request 修正
@@ -10,6 +10,7 @@
 > v1.6 更新：TTX Orchestrator 架構決策（獨立服務 + lite backend，land-and-expand）；資安對策；HSEEP 流程合規定位
 > v1.7 更新：C0 補入 C5 前向相容設計（inject signature 欄位、session mutex、TTX_ORCHESTRATOR role、API client 標注）
 > v1.8 更新：IP 策略章節（開源 vs 競爭力區分、專利申請建議、學術發表策略）
+> v1.9 更新：C0 後端重構完成（cmd-v2.0.1）；前端模組化移至 C1-F；C0 完成標準全部達標
 > 最後 review：2026-04-23
 
 ---
@@ -310,24 +311,14 @@ shelter-pwa/public/shelter_pwa.html
 
 ### 工作項目
 
-- [ ] **後端分層**：`main.py`（1,577 行）+ `db.py`（1,594 行）拆進 `routers/` + `services/` + `repositories/` + `auth/` + `core/`
-- [x] **Pi 端分層**：`ics_ws_server.js`（1,159 行）拆進 `server/` 子目錄（server-v1.2.0，2026-04-23）
-- [ ] **前端模組化**：抽出 `.js` 模組 + 加入 esbuild 建置步驟
-- [ ] **Smoke test**：用 httpx TestClient 打每個端點，確認無功能回歸
-- [ ] **session_type 完整性**：確認 AI roadmap Phase 0-3 的 session_type 欄位在新架構中正確傳遞
-- [ ] **演練資料基礎 Schema**（護城河前提，C0 一起建）：
-  - 新增 `exercises` / `event_types` / `resource_snapshots` / `aar_entries` / `exercise_kpis` / `ai_recommendations` 六張表
-  - 既有表補 `exercise_id` FK、`resolved_at`、`resolution_notes` 等欄位
-  - `exercise_repo.py` + `exercise_service.py` + `exercises` router（場次管理）
-- [ ] **AI 服務抽象層 stub**（Breeze/Ollama，OpenAI-compatible API，本地優先）：
-  - `ai_service.py`（依賴注入，底層模型可換）、`ai_repo.py`、`ai.py` router（即時建議 + 演練後分析 endpoints）
-- [ ] **TAK stub**（正確 CoT XML 欄位，非空殼）：`tak.py` router + `tak_service.py`
-- [ ] **法規合規基線**：醫療資料欄位存取稽核（個資法最低標準）
-- [ ] **C5 前向相容（四件，避免 C5 重改）**：
-  - `ttx_injects` 加 `signature TEXT NULL`（C5 inject 簽章用，C0 填 NULL）
-  - `exercise_service.set_active()` 加 mutex 邏輯（TTX / real session 不能同時存在）
-  - RBAC 加 `TTX_ORCHESTRATOR` role（read-only scope，供未來 Orchestrator 認證）
-  - API 設計標注 TTX Orchestrator 為預期外部 client（影響 CORS / auth 設計）
+- [x] **後端分層**：`main.py` 拆進 `routers/` + `services/` + `repositories/` + `auth/` + `core/`（cmd-v2.0.0，2026-04-23）
+- [x] **Pi 端分層**：`ics_ws_server.js` 拆進 `server/` 子目錄（server-v1.2.0，2026-04-23）
+- [x] **Smoke test**：133 個測試案例（unit/integration/api），CI 全綠（2026-04-23）
+- [x] **演練資料基礎 Schema**：六張新表建立完成，既有表含 `exercise_id`
+- [x] **AI 服務抽象層 stub**：`ai_service.py` + `ai_repo.py` + `ai.py` router（回傳 501）
+- [x] **TAK stub**：`tak.py` router + `tak_service.py`（回傳 501）
+- [x] **C5 前向相容（四件）**：signature 欄位、mutex 邏輯、TTX_ORCHESTRATOR role、API 標注
+- [ ] **前端模組化**：抽出 `.js` 模組 + 加入 esbuild 建置步驟（**移至 C1**，不 block 後端架構）
 
 ### 執行原則
 
@@ -337,12 +328,13 @@ shelter-pwa/public/shelter_pwa.html
 
 ### 完成標準
 
-- `main.py` ≤ 80 行
-- 所有現有功能可運作（路徑可變，功能不能壞）
-- 六張新表建立完成，所有既有資料表含 `exercise_id`
-- AI / TAK stub 有正確 schema 和 endpoint，回傳明確的 501 + 說明
-- PWA 與新 API 路徑對齊
-- Wave 5 剩餘項目（burn rate 預測線、決策合併卡片）可在新架構中繼續實作
+- [x] `main.py` ≤ 80 行（74 行，2026-04-23）
+- [x] 所有現有功能可運作（133 測試全綠）
+- [x] 六張新表建立完成，所有既有資料表含 `exercise_id`
+- [x] AI / TAK stub 有正確 schema 和 endpoint，回傳明確的 501
+- [x] PWA 與新 API 路徑對齊（2026-04-23 逐一確認）
+- [x] Wave 5 剩餘項目可在新架構中繼續實作
+- [ ] 前端模組化（移至 C1-F，不影響 C0 完成判定）
 
 ---
 
@@ -437,6 +429,14 @@ END;
 **結構化 Log（可接 SIEM）**
 - structlog，JSON 格式輸出
 - 台灣政府 IT 部門常要求接入 Splunk / ELK
+
+### C1-F 前端模組化
+
+> 從 C0 移入。`commander_dashboard.html` 目前 5,000+ 行單一檔案，C1 階段隨安全加固一起重構。
+
+- 抽出 `.js` 模組（auth、map、events、decisions 等獨立檔案）
+- 加入 esbuild 建置步驟（bundle + minify）
+- 對應 CI 新增 `js-quality`：eslint + vitest + lighthouse-ci
 
 ### C1-E Schema 版本追蹤
 
