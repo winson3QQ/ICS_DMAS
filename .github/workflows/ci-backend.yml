@@ -1,0 +1,103 @@
+name: CI — 指揮部後端
+
+on:
+  push:
+    branches: [main, refactor/c0-command-backend]
+    paths:
+      - 'command-dashboard/src/**'
+      - 'command-dashboard/tests/**'
+      - 'command-dashboard/requirements*.txt'
+      - '.github/workflows/ci-backend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'command-dashboard/src/**'
+      - 'command-dashboard/tests/**'
+
+# 同一 branch 只跑最新的 push，舊的自動取消
+concurrency:
+  group: ci-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest + coverage
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: command-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            command-dashboard/requirements.txt
+            command-dashboard/requirements-test.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
+      - name: Run tests with coverage
+        run: |
+          python3 -m pytest \
+            --tb=short \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml:tests/reports/coverage.xml \
+            --html=tests/reports/report.html \
+            --self-contained-html \
+            -v \
+            tests/
+
+      - name: Upload test report
+        if: always()   # 即使測試失敗也上傳報告
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ github.run_number }}
+          path: |
+            command-dashboard/tests/reports/report.html
+            command-dashboard/tests/reports/coverage.xml
+          retention-days: 30
+
+  security-scan:
+    name: 安全掃描
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: command-dashboard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: command-dashboard/requirements.txt
+
+      - name: Install dependencies + scanners
+        run: |
+          pip install -r requirements.txt
+          pip install pip-audit bandit
+
+      - name: pip-audit（CVE 依賴掃描）
+        run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2023-62
+
+      - name: bandit（靜態安全分析）
+        run: |
+          bandit -r src/ \
+            --skip B101,B106 \
+            --severity-level medium \
+            -f txt
