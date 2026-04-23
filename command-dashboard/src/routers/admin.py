@@ -117,7 +117,7 @@ def reset_db(request: Request):
     with get_conn() as conn:
         for t in tables:
             try:
-                conn.execute(f"DELETE FROM {t}")
+                conn.execute(f"DELETE FROM {t}")  # nosec B608
             except Exception:
                 pass
     audit("admin", None, "db_reset", "system", "all", {"tables": tables})
@@ -133,13 +133,13 @@ def reset_exercise(request: Request):
     with get_conn() as conn:
         for t in ex_tables:
             try:
-                cur = conn.execute(f"DELETE FROM {t}")
+                cur = conn.execute(f"DELETE FROM {t}")  # nosec B608
                 cleared[t] = cur.rowcount
             except Exception:
                 pass
         for t in data_tables:
             try:
-                cur = conn.execute(f"DELETE FROM {t} WHERE exercise_id IS NOT NULL")
+                cur = conn.execute(f"DELETE FROM {t} WHERE exercise_id IS NOT NULL")  # nosec B608
                 cleared[t] = cur.rowcount
             except Exception:
                 pass

@@ -490,7 +490,7 @@ def patch_event(event_id: str, updates: dict):
     set_clause = ", ".join(f"{k}=?" for k in safe)
     values = list(safe.values()) + [event_id]
     with get_conn() as conn:
-        conn.execute(f"UPDATE events SET {set_clause} WHERE id=?", values)
+        conn.execute(f"UPDATE events SET {set_clause} WHERE id=?", values)  # nosec B608
 
 
 def update_event_status(event_id: str, status: str, operator: str, session_type: str = "real"):

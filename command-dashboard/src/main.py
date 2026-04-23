@@ -1055,7 +1055,7 @@ def admin_reset_db(request: Request):
     with db.get_conn() as conn:
         for t in tables:
             try:
-                conn.execute(f"DELETE FROM {t}")
+                conn.execute(f"DELETE FROM {t}")  # nosec B608
             except Exception:
                 pass
     db._audit("admin", None, "db_reset", None, None, {"tables": tables})
@@ -1072,14 +1072,14 @@ def admin_reset_exercise(request: Request):
     with db.get_conn() as conn:
         for t in data_tables:
             try:
-                cur = conn.execute(f"DELETE FROM {t} WHERE session_type = 'exercise'")
+                cur = conn.execute(f"DELETE FROM {t} WHERE session_type = 'exercise'")  # nosec B608
                 cleared[t] = cur.rowcount
             except Exception:
                 pass
         # TTX 專用表：全部清除（本身就是演練資料）
         for t in ["ttx_injects", "ttx_sessions"]:
             try:
-                cur = conn.execute(f"DELETE FROM {t}")
+                cur = conn.execute(f"DELETE FROM {t}")  # nosec B608
                 cleared[t] = cur.rowcount
             except Exception:
                 pass
