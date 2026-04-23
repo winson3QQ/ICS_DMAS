@@ -56,7 +56,7 @@ def client(tmp_db):
     startup event 會自動執行 init_db + ensure_default_admin。
     """
     from fastapi.testclient import TestClient
-    from main_new import app
+    from main import app
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
 
