@@ -69,13 +69,13 @@ if not exist "node_modules" (
 :: ── 收容組 Pi 伺服器 ────────────────────
 echo.
 echo [啟動] 收容組 Pi 伺服器 :8765/:8766 ...
-start "ICS-收容組Pi" /min cmd /c "cd /d "%REPO%" && set COMMAND_URL=https://127.0.0.1:8000&& set CERT_PATH=%CERT%&& set KEY_PATH=%KEY%&& node ics_ws_server.js --unit shelter > %TEMP%\ics_shelter.log 2>&1"
+start "ICS-收容組Pi" /min cmd /c "cd /d "%REPO%" && set COMMAND_URL=https://127.0.0.1:8000&& set CERT_PATH=%CERT%&& set KEY_PATH=%KEY%&& node server/index.js --unit shelter > %TEMP%\ics_shelter.log 2>&1"
 echo [OK] 收容組 Pi 已啟動
 
 :: ── 醫療組 Pi 伺服器 ────────────────────
 echo.
 echo [啟動] 醫療組 Pi 伺服器 :8775/:8776 ...
-start "ICS-醫療組Pi" /min cmd /c "cd /d "%REPO%" && set COMMAND_URL=https://127.0.0.1:8000&& set CERT_PATH=%CERT%&& set KEY_PATH=%KEY%&& node ics_ws_server.js --unit medical > %TEMP%\ics_medical.log 2>&1"
+start "ICS-醫療組Pi" /min cmd /c "cd /d "%REPO%" && set COMMAND_URL=https://127.0.0.1:8000&& set CERT_PATH=%CERT%&& set KEY_PATH=%KEY%&& node server/index.js --unit medical > %TEMP%\ics_medical.log 2>&1"
 echo [OK] 醫療組 Pi 已啟動
 
 :: ── 等待就緒 ──────────────────────────

@@ -18,14 +18,14 @@
     {
       "name": "收容組 Pi Server",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["ics_ws_server.js", "--unit", "shelter"],
+      "runtimeArgs": ["server/index.js", "--unit", "shelter"],
       "port": 8766,
       "cwd": "."
     },
     {
       "name": "醫療組 Pi Server",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["ics_ws_server.js", "--unit", "medical"],
+      "runtimeArgs": ["server/index.js", "--unit", "medical"],
       "port": 8776,
       "cwd": "."
     },
