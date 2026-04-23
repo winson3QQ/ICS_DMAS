@@ -43,3 +43,13 @@ ICS_DMAS_*測試*.md
 ICS_DMAS_*報告*.md
 MASTER_claude_code_handoff.md
 command-dashboard/static/tiles/
+
+# pytest 產生的暫存與報告
+command-dashboard/.coverage
+command-dashboard/.pytest_cache/
+command-dashboard/tests/reports/
+
+# 截圖（badge 資產除外）
+command-dashboard/static/*.png
+!command-dashboard/static/badge.png
+!command-dashboard/static/臂章後製版.png

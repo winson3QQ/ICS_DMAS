@@ -10,6 +10,10 @@
 
 4. **缺欄位要從源頭修**：server 缺欄位先判斷是源頭該送還是本來就不適用，不要只在 server 容錯。
 
+## 架構決策
+
+- [架構設計決策](architecture_decisions.md) — COP 聯邦架構、TAK stub、命令後端模組結構、韌性原則
+
 ## 參考文件
 
 - [iOS WSS zombie 參考](reference_ios_wss_zombie.md) — Happy Eyeballs 根因、已排除假設、設計決策，避免重複踩坑
@@ -17,3 +21,4 @@
 ## 專案狀態
 
 - [專案狀態總覽](project_status.md) — 醫療 PWA 進度、指揮部路線圖、硬體資訊、Pi 設定步驟
+- [即將到來的演練](upcoming_exercises.md) — 5/31 無線電演練、6月底/7月初 中型演練，護城河資料積累關鍵時間點
