@@ -1,11 +1,37 @@
-# ICS_DMAS 商業化大改版計劃 v1.3
+# ICS_DMAS 商業化大改版計劃 v1.8
 
 > 狀態：草稿（初步規劃）
 > 基準版本：shelter-v2.2.53 / server-v1.2.0 / cmd-v0.12.13
 > v1.1 更新：整合 AI_integration_roadmap、project_status、Silent Scribe v1.4 規格
 > v1.2 更新：法規同步（資安法/個資法 2025 修正）、競品動態（WebEOC Nexus + JAI）、標準更新（NIST 5.2.0）
 > v1.3 更新：C0 Pi 端重構完成（server-v1.2.0）、PMTiles range request 修正
+> v1.4 更新：C0 後端資料模型設計完成；演練資料升格為核心護城河；TAK/AI 定位從「未來 stub」升格為第一等需求；Breeze 本地 AI 架構確認；法規合規基線確定（個資法最低標準）
+> v1.5 更新：文件地圖建立；三層文件結構確立；AI_reference.md / database_schema.md 廢棄
+> v1.6 更新：TTX Orchestrator 架構決策（獨立服務 + lite backend，land-and-expand）；資安對策；HSEEP 流程合規定位
+> v1.7 更新：C0 補入 C5 前向相容設計（inject signature 欄位、session mutex、TTX_ORCHESTRATOR role、API client 標注）
+> v1.8 更新：IP 策略章節（開源 vs 競爭力區分、專利申請建議、學術發表策略）
 > 最後 review：2026-04-23
+
+---
+
+## 文件地圖
+
+本文件為唯一業務/戰略入口。所有技術決策從這裡往下追。
+
+| 文件 | 層級 | 讀者 | 說明 |
+|------|------|------|------|
+| **commercialization_plan_v1.md**（本文） | L1 業務/戰略 | 所有人 | 唯一頂層文件，驅動所有決策 |
+| `docs/AI_integration_roadmap.md` | L2 技術路線圖 | 開發者 | Phase 0–7 + C0 資料基礎層，由本文 §C 章節引用 |
+| `command-dashboard/docs/指揮部儀表板設計規格.md` | L2 產品規格 | 開發者 | Wave UI 設計規範 |
+| `shelter-pwa/docs/shelter_pwa_spec.md` | L2 產品規格 | 開發者 | 收容 PWA 功能規格 |
+| `medical-pwa/docs/medical_pwa_spec.md` | L2 產品規格 | 開發者 | 醫療 PWA 功能規格 |
+| `docs/ui_ux_design_guide.md` | L3 參考 | 設計/開發 | UI/UX 設計規範 |
+| `docs/0411-0412_ExcerciseData.md` | L3 參考 | 開發者 | 真實演練 AAR，ground truth 知識庫種子 |
+| `shelter-pwa/docs/收容組_SOP_彙整_20260330.md` | L3 作業 | 志工/組長 | 收容組作業程序 |
+| `medical-pwa/docs/醫療組SOP_20260323.md` | L3 作業 | 志工/組長 | 醫療組作業程序 |
+| `security & forward/docs/` ×3 | L3 機密 | 限定人員 | Silent Scribe 規格書/開發計畫/測試計畫（CONFIDENTIAL） |
+| ~~`docs/AI_reference.md`~~ | ❌ 廢棄 | — | 內容已整合進 AI_integration_roadmap.md |
+| ~~`shelter-pwa/docs/database_schema.md`~~ | ❌ 廢棄 | — | C0 後由 migration 檔案管理，已過時 |
 
 ---
 
@@ -33,6 +59,11 @@
 |------|------|---------|---------|
 | 2026-04-23 | v1.1 | 整合 AI roadmap、Silent Scribe、Wave 6-9 | 初版建立 |
 | 2026-04-23 | v1.2 | 資安法/個資法 2025 修正同步；WebEOC Nexus+JAI 競品更新；NIST 5.2.0；ISO 27001 版本確認 | 定期排程 review（6 個月） |
+| 2026-04-23 | v1.4 | C0 資料模型設計完成；演練資料升格為核心護城河；TAK/AI 升格為第一等需求；Breeze 本地 AI 架構確認；人機互動閉環（ai_recommendations）納入護城河 | C0 後端重構設計階段完成 |
+| 2026-04-23 | v1.5 | 文件地圖建立；三層文件結構確立（biz plan → 技術路線圖 → 參考）；AI_reference.md / database_schema.md 標記廢棄 | 文件整合 |
+| 2026-04-23 | v1.6 | TTX Orchestrator：獨立服務 + lite backend（Option B）；land-and-expand 商業模式；inject 簽章 / session mutex / read-only token 資安對策；HSEEP 流程合規定位；無業界軟體標準結論 | TTX 架構設計討論 |
+| 2026-04-23 | v1.7 | C0 補入 C5 前向相容：signature 欄位、mutex 邏輯、TTX_ORCHESTRATOR role、API client 標注；明確區分 C0 做什麼、C5 加什麼 | 避免 C5 重改 |
+| 2026-04-23 | v1.8 | IP 策略章節：Open Core 模式確立；TTX Inject 機制申請專利；ISCRAM/IEEE 學術發表路徑；競品無衝突專利確認 | IP 策略討論 |
 
 ---
 
@@ -284,12 +315,33 @@ shelter-pwa/public/shelter_pwa.html
 - [ ] **前端模組化**：抽出 `.js` 模組 + 加入 esbuild 建置步驟
 - [ ] **Smoke test**：用 httpx TestClient 打每個端點，確認無功能回歸
 - [ ] **session_type 完整性**：確認 AI roadmap Phase 0-3 的 session_type 欄位在新架構中正確傳遞
+- [ ] **演練資料基礎 Schema**（護城河前提，C0 一起建）：
+  - 新增 `exercises` / `event_types` / `resource_snapshots` / `aar_entries` / `exercise_kpis` / `ai_recommendations` 六張表
+  - 既有表補 `exercise_id` FK、`resolved_at`、`resolution_notes` 等欄位
+  - `exercise_repo.py` + `exercise_service.py` + `exercises` router（場次管理）
+- [ ] **AI 服務抽象層 stub**（Breeze/Ollama，OpenAI-compatible API，本地優先）：
+  - `ai_service.py`（依賴注入，底層模型可換）、`ai_repo.py`、`ai.py` router（即時建議 + 演練後分析 endpoints）
+- [ ] **TAK stub**（正確 CoT XML 欄位，非空殼）：`tak.py` router + `tak_service.py`
+- [ ] **法規合規基線**：醫療資料欄位存取稽核（個資法最低標準）
+- [ ] **C5 前向相容（四件，避免 C5 重改）**：
+  - `ttx_injects` 加 `signature TEXT NULL`（C5 inject 簽章用，C0 填 NULL）
+  - `exercise_service.set_active()` 加 mutex 邏輯（TTX / real session 不能同時存在）
+  - RBAC 加 `TTX_ORCHESTRATOR` role（read-only scope，供未來 Orchestrator 認證）
+  - API 設計標注 TTX Orchestrator 為預期外部 client（影響 CORS / auth 設計）
+
+### 執行原則
+
+- **架構重構 + Schema 擴充一起做**：兩件事是同一個前提，不分開 commit
+- **API 路徑不受舊版約束**：若新結構需要改 endpoint，同步更新 PWA，不留相容層
+- **既有 NULL exercise_id 不是問題**：C0 前的歷史資料維持 NULL，代表「未關聯演練的資料」，查詢層正常處理
 
 ### 完成標準
 
 - `main.py` ≤ 80 行
-- 現有 64 個路由全部可運作
-- `npm run build` 產出的 PWA 功能與現在完全相同
+- 所有現有功能可運作（路徑可變，功能不能壞）
+- 六張新表建立完成，所有既有資料表含 `exercise_id`
+- AI / TAK stub 有正確 schema 和 endpoint，回傳明確的 501 + 說明
+- PWA 與新 API 路徑對齊
 - Wave 5 剩餘項目（burn rate 預測線、決策合併卡片）可在新架構中繼續實作
 
 ---
@@ -615,6 +667,50 @@ class TTXScenario:
 
 **護城河價值**：現有 10 個情境 + 每次 TTX 服務積累 → 3 年後 50+ 個驗證過的台灣本土場景，是別人花錢買不到的核心 IP。
 
+### C5-A 補充：TTX Orchestrator 產品架構（2026-04-23 確認）
+
+#### 產品定位：Land-and-Expand 前鋒
+
+TTX Orchestrator 是**獨立可部署的服務**，不捆綁完整 ICS_DMAS。客戶可先買 TTX 服務（低門檻進場），跑幾場後看到價值再升級完整系統，資料無縫帶入。
+
+```
+進場路徑：
+TTX Orchestrator（單賣）→ 跑 N 場演練 → 升級完整 ICS_DMAS → 資料 migrate 不重來
+```
+
+#### 架構選型：Option B（lite backend，可完全獨立部署）
+
+```
+[TTX Orchestrator Service]
+├── Facilitator UI（主持人介面，與參與者天然隔離）
+├── Lite backend（TTX core：exercises / ttx_injects / aar_entries）
+├── 讀狀態 → Command API（read-only token）
+├── 讀狀態 → Pi WS（連線燈、PWA 在線人數）
+└── 推 inject → Command API → Pi WS → PWA
+```
+
+**Orchestrator 自身無完整資料庫**，資料仍存 Command DB（單一事實來源）。升級完整 ICS_DMAS 時直接沿用，無需 migration。
+
+#### 產業標準研究結論
+
+TTX 軟體**無統一業界標準**（ISO 22398、HSEEP 均規範流程，不規範軟體格式）。Avalanche TTX 為商業產品，專有格式，無開放 API。
+
+策略：
+- 軟體架構自主設計（無約束）
+- **流程層面對齊 HSEEP**（MSEL 格式、AAR 模板），這是台灣政府採購的實際參考框架
+- AAR 匯出支援 HSEEP AAR 模板格式，inject 設計參考 MSEL（Master Scenario Events List）結構
+
+#### 資安風險與對策（架構層級必做）
+
+| 風險 | 對策 |
+|------|------|
+| PWA 無法辨別真假 inject | **Inject 簽章**：Orchestrator 私鑰簽署每個 inject，PWA 驗簽後才接受 |
+| TTX 資料汙染 real session | **Session mutex**：TTX 與 real session 硬鎖，不能同時存在 |
+| Orchestrator 讀 Command 時越權寫入 | **Read-only API token**：狀態讀取用獨立 read-only token，寫入走 TTX 專屬路徑 |
+| Lite backend 安全縮水 | **安全基線一致**：稽核、auth、rate limit 與完整版相同，不可省略 |
+
+**最高風險**：Orchestrator 被入侵後可在實戰中推假 inject 干擾決策並汙染紀錄。Inject 簽章是最關鍵的防線。
+
 ### C5-B AAR 報告引擎（資料鎖定護城河）
 
 > **對應**：AI roadmap Phase 6（aar_engine.py 四函式設計）。以下為商業化實作規格，技術細節見 AI roadmap。
@@ -816,6 +912,54 @@ EMIC 定位為互補，推動「EMIC + ICS_DMAS 雙系統」採購。
 
 ---
 
+## IP 策略：開源屏障與競爭力保護
+
+### 開源 vs 保留
+
+採用 **Open Core 模式**：開源平台建立社群與標準，收費產品鎖定核心價值。
+
+| 類別 | 內容 | 策略 |
+|------|------|------|
+| **開源（平台）** | Core framework（PWA + Command backend + WS sync）、ICS/EOC 資料模型、三 Pass 同步協議、TAK 整合介面 | 開源加速採用、建立標準、政府可稽核 |
+| **收費（產品）** | TTX Orchestrator、AI 微調模型、TTX 場景庫授權、AAR 服務、部署訓練 | 核心營收來源 |
+| **資料護城河** | 演練資料、ai_recommendations 閉環、ground truth 知識庫 | 最終護城河，代碼可 fork，資料不行 |
+
+> **核心原則：代碼可以被複製，10 場演練積累的資料不行。護城河是資料，不是代碼。**
+
+### 專利策略
+
+| 組件 | 建議 | 原因 |
+|------|------|------|
+| **TTX Inject 簽章推送機制** | ✅ 申請發明專利 | 特定領域應用（演習 + WebSocket 認證鏈），符合台灣審查基準「對整體系統產生技術效果」 |
+| 三 Pass 同步協議 | ❌ 放棄 | 最終一致性已有美國先例（US20120265742A1），新穎性風險高 |
+| 聯邦式 COP | ❌ 放棄 | 學術界廣泛研究，難過發明步驟門檻 |
+| Exercise→AI 訓練管線 | ❌ 放棄 | 學術發表建立先例防禦更有效 |
+
+**競品確認**：WebEOC、D4H 專利集中在 UI 和工作流，無分散式協議或演習管理核心專利，無衝突風險。
+
+### 學術發表策略
+
+目的：建立先例防禦 + 台灣政府採購信度（評委認可同儕評審）
+
+| 場所 | 理由 |
+|------|------|
+| **ISCRAM**（危機資訊系統國際研討會） | 聯合國人道救援認可，最具分量，開放取用 |
+| **IEEE Xplore Emergency Informatics** | 台灣政府採購評委認可 IEEE 文獻 |
+| **International Journal of Emergency Management** | 同儕評審，Google Scholar 高引用 |
+
+**發表主題**：三 Pass 同步協議 + 台灣本土 TTX 資料集（學術界目前缺乏此類資料）
+
+### 執行順序
+
+```
+Step 1：向 ISCRAM 2026 投稿論文（系統架構 + 台灣 TTX 資料集）
+Step 2：論文受理後、出刊前 → 向 TIPO 申請 TTX Inject 機制發明專利
+         （台灣有 12 個月優先權寬限期，先發表不影響申請）
+Step 3：取得 IEEE / ISCRAM 引用後，納入政府採購提案文件
+```
+
+---
+
 ## 護城河策略
 
 ### 技術護城河
@@ -824,9 +968,11 @@ EMIC 定位為互補，推動「EMIC + ICS_DMAS 雙系統」採購。
 
 | 護城河 | 建法 | 難以複製的原因 |
 |--------|------|--------------|
+| **演練資料積累**（最核心） | 每場演練自動記錄 events / decisions / resource_snapshots，`exercise_id` 完整隔離 | 資料從第一場演練就開始積累；換系統就要放棄所有歷史基準，且別人無法補種 |
+| **人機互動閉環**（ai_recommendations） | AI 建議 → 指揮官採納/否決 → outcome 記錄 → AI 更準 | 10 場演練後產生獨有的「台灣指揮官決策模式」訓練集，競爭者無法複製 |
 | TTX 場景資料庫 | 每次服務副產品（已有 10 個種子） | 場景效果評分是領域知識，非工程問題 |
 | AAR 報告資料 | 客戶使用累積 | 換系統失去所有歷史對比基準 |
-| AI 預測模型 | 台灣本土訓練資料 | 無海外競爭者有此資料集；本機推論符合個資法，WebEOC JAI 雲端不符 |
+| AI 預測模型 | 台灣本土訓練資料 + 演練積累 | 無海外競爭者有此資料集；本機推論（Breeze/Ollama）符合個資法，WebEOC JAI 雲端不符 |
 | 離線同步協議與韌性架構 | 三 Pass 對齊為種子，演進至各節點維護本地 COP 副本的聯邦式同步；申請技術專利 | 災害現場網路必然不穩定；WebEOC/D4H 依賴雲端連線，本系統斷網仍可運作；未來 front/security 單位加入不需重寫 COP 架構 |
 | 硬體套件 | 預裝 OS image + 認證套件 | 換系統需要換掉實體設備 |
 

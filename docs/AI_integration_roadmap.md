@@ -49,6 +49,115 @@
 
 ---
 
+## C0：後端重構 + 資料基礎層（先於所有 Phase）
+
+**定位**：零功能變更的架構重構，同時建立演練資料護城河的完整 schema 基礎。不先做好這層，後面所有 Phase 都要重來。
+
+### 為什麼是「護城河」
+
+演練資料的五個用途決定 schema 設計：
+
+| 用途 | 缺什麼（C0 前） |
+|------|--------------|
+| AAR 事後檢討 | 事件無關閉時間、無處置單位、無結案說明 |
+| 跨場次比較 | 無統一分類法（event_type），無每場 KPI |
+| AI 訓練 | 無 state→action→outcome 三元組結構 |
+| 外部呈報 | 無場次 metadata（地點、人數、主辦單位） |
+| 研究用途 | 無 exercise_id，多場資料全部混在一起 |
+
+### 戰略定位（2026-04-23 確認）
+
+- **TAK**：第一等需求，EOC 互通標準，不是「Wave 7 以後再說」
+- **AI**：第一等需求，核心差異化，不是 Phase 2 評估後再定
+- **斷網**：架構前提，所有功能必須離線可用
+- **法規合規**：以個人資料保護法為最低基本標準，醫療資料存取稽核，不過度收集
+
+### C0 新增 Schema
+
+**`exercises` 表**（整個場次概念，目前不存在）：
+```sql
+id, name, date, location, type(real|ttx),
+scenario_summary, weather, participant_count, organizing_body,
+status(setup|active|archived), started_at, ended_at
+```
+
+**`event_types` 表**（taxonomy，讓跨場次比較有意義）：
+```sql
+id, code, name_zh, category, default_severity
+```
+
+**`resource_snapshots` 表**（正規化 pi_received_batches 為時間序列）：
+```sql
+id, exercise_id, unit_type, snapshot_at,
+total_beds, occupied_beds, light_count, medium_count, severe_count, deceased_count, source
+```
+
+**`aar_entries` 表**：
+```sql
+id, exercise_id, category(well|improve|recommend), content, created_by, created_at
+```
+
+**`exercise_kpis` 表**（計算後存起來，供 AI 訓練和跨場次比較）：
+```sql
+exercise_id, kpi_key, kpi_value, computed_at
+```
+
+**`ai_recommendations` 表**（人機互動閉環，同時是法律紀錄）：
+```sql
+id, exercise_id, made_at, recommendation_type, content, confidence,
+accepted(bool), related_decision_id, outcome_notes
+```
+
+### 既有表補欄位
+
+**`events`**：`+ exercise_id, event_type_id, assigned_unit, acknowledged_at, resolved_at, resolution_notes`
+
+**`decisions`**：補完定義 `+ exercise_id, rationale, affected_units, outcome_at, outcome_notes`
+
+**所有主要資料表**：`+ exercise_id FK`（讓資料可按場次隔離和匯出）
+
+### AI 訓練資料結構
+
+每個訓練樣本 = `(state, action, outcome)`：
+- `state`：當下 resource_snapshot + 進行中 events + 距演練開始時間
+- `action`：decision 內容
+- `outcome`：T+15min 後的 resource_snapshot 變化 + events 解決率
+
+三個表都需要 `exercise_id + timestamp` 才能重建時間軸。
+
+### AI 服務抽象層
+
+- **目前驗證**：Breeze（台灣本土 LLM，Ollama 部署，OpenAI-compatible API）
+- **設計原則**：`ai_service.py` 依賴注入 LLM client，底層模型可換，router 不感知
+- **本地優先**：即時建議必須離線可用；雲端是 config 選項，非預設
+
+### C0 模組結構（完整）
+
+```
+repositories/   exercise_repo / cop_repo / event_repo（補欄位）/ decision_repo（補完）
+                resource_snapshot_repo / aar_repo / ai_repo(stub)
+                snapshot_repo / audit_repo / account_repo / sync_repo / manual_repo
+
+services/       exercise_service / cop_service / pi_push_service
+                dashboard_service / sync_service / ai_service(stub, Breeze 抽象)
+
+routers/        exercises / cop(Wave6 stub) / tak(Wave7 stub, 正確 CoT 欄位)
+                ai(即時建議 + 演練後分析 stub) / ... 其他路由
+```
+
+### C5 前向相容（C0 一起做，避免屆時重改）
+
+| 項目 | C0 做什麼 | C5 做什麼 |
+|------|----------|----------|
+| Inject 簽章 | `ttx_injects` 加 `signature TEXT NULL` | Orchestrator 簽署，PWA 驗簽 |
+| Session mutex | `exercise_service.set_active()` 加互斥檢查 | Orchestrator 呼叫此 API 開始/結束場次 |
+| Orchestrator 認證 | RBAC 加 `TTX_ORCHESTRATOR` role（read-only scope） | Orchestrator 用此 role 的 token 讀狀態 |
+| API client 標注 | 設計文件標注 Orchestrator 為預期 client（影響 CORS/auth） | Orchestrator 直接呼叫，不需額外改 |
+
+> 規則：C0 是「加欄位 + 加邏輯 + 加 role」；C5 是「加服務 + 加實作」。C5 不動 C0 的程式碼。
+
+---
+
 ## Phase 0：Bug 修復 + 基礎準備
 
 **目標**：清技術債，為 TTX 和 AI 打地基。可與 Wave 5 同時進行。
