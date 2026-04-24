@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.12.13';</script>
+<script>const CMD_VERSION='v0.12.14';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -870,8 +870,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
           <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-cap-v">—</span><span class="spark-rag ok" id="sp-cap-rag"></span></span>
         </div>
         <div class="spark-detail" id="sp-cap-detail">
-          <div class="li"><div class="ld" style="background:#E67E22"></div>收容床位</div>
-          <div class="li"><div class="ld" style="background:#C0392B"></div>醫療床位</div>
+          <div class="li"><div class="ld" style="background:#E67E22"></div>收容量能</div>
+          <div class="li"><div class="ld" style="background:#C0392B"></div>醫療量能</div>
           <div class="li"><div class="ld dash" style="border-color:rgba(212,144,0,.6)"></div>警戒70%</div>
           <div class="li"><div class="ld dash" style="border-color:rgba(204,42,42,.6)"></div>危急90%</div>
         </div>
@@ -879,7 +879,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
       </div>
       <div class="spark-card" id="sp-flow" onclick="expandSpark('sp-flow')">
         <div class="spark-hdr">
-          <span class="spark-title">傷患後送</span>
+          <span class="spark-title">傷患入站</span>
           <span style="display:flex;align-items:center;"><span class="spark-val" id="sp-flow-v">—</span><span class="spark-rag ok" id="sp-flow-rag"></span></span>
         </div>
         <div class="spark-detail" id="sp-flow-detail">
@@ -1254,7 +1254,7 @@ function _enterDashboard() {
   const isCommander = sessionStorage.getItem('cmd_role') === '指揮官';
   el('stg-admin-section').style.display = isCommander ? '' : 'none';
   // 更新 settings footer
-  el('stg-user-info').textContent = (sessionStorage.getItem('cmd_display_name') || '') + ' (' + sessionStorage.getItem('cmd_role') + ')　' + (sessionStorage.getItem('cmd_login_time') || '').slice(11,19);
+  el('stg-user-info').textContent = (sessionStorage.getItem('cmd_display_name') || '') + ' (' + sessionStorage.getItem('cmd_role') + ')　' + (_fmtLocalDT(sessionStorage.getItem('cmd_login_time') || '') || '').slice(11,19);
   PinLock.start();
   _pollActive = true;
   poll().then(() => {
@@ -1835,7 +1835,7 @@ async function admLoadLog() {
   let html = '';
   for (const log of logs) {
     html += '<div class="adm-log-entry">' +
-      '<span class="adm-log-time">' + (log.created_at || '').replace('T',' ').slice(0,19) + '</span> ' +
+      '<span class="adm-log-time">' + (_fmtLocalDT(log.created_at) || '') + '</span> ' +
       '<span class="adm-log-action">' + (log.action_type || '') + '</span> ' +
       '<span style="color:var(--text2);">' + (log.operator || '') + '</span> ' +
       '<span style="color:var(--text3);font-size:10px;">' + (log.target_table || '') + '/' + (log.target_id || '').slice(0,8) + '</span>' +
@@ -1896,7 +1896,7 @@ async function admLoadPiNodes() {
       else                  { dotColor = 'var(--red)';    dotAnim = 'animation:blink .6s infinite;'; dotLabel = 'offline'; }
     }
     const dot = `<span style="color:${dotColor};${dotAnim}" title="${dotLabel}">●</span>`;
-    const seen = n.last_seen_at ? n.last_seen_at.replace('T',' ').slice(0,19) : '從未連線';
+    const seen = n.last_seen_at ? _fmtLocalDT(n.last_seen_at) : '從未連線';
     html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;">
       <div style="flex:1;">
         <div style="font-size:12px;font-weight:600;">${dot} ${n.label || n.unit_id}</div>
@@ -2097,7 +2097,7 @@ async function loadL3Records(unitId) {
     }
 
     // ═══ 時間戳 ═══
-    html += `<div style="font-size:9px;color:var(--text3);margin:8px 0 6px;">Pi 資料時間：${(data.pushed_at||'?').replace('T',' ').slice(0,19)}</div>`;
+    html += `<div style="font-size:9px;color:var(--text3);margin:8px 0 6px;">Pi 資料時間：${_fmtLocalDT(data.pushed_at) || '?'}</div>`;
 
     // ═══ 排序 persons（活躍在上，已離站在下）═══
     if (grouped.persons && grouped.persons.length > 0) {
@@ -2197,6 +2197,31 @@ async function loadL3Records(unitId) {
     }
 
     container.innerHTML = html;
+
+    // ─── 還原 sessionStorage 中保存的 UI 狀態 ───────────────────────────
+    // 1. 還原 L3 子頁籤（persons / incidents）
+    const savedL3Sub = sessionStorage.getItem('_l3SubTab');
+    if (savedL3Sub) {
+      try {
+        const {tabId, activeId} = JSON.parse(savedL3Sub);
+        l3SubTab(tabId, activeId);
+      } catch(e) {}
+    }
+    // 2. 還原 L4 Detail（優先於子頁籤，若 L4 有狀態則蓋掉列表）
+    const savedL4 = sessionStorage.getItem('_openL4');
+    if (savedL4) {
+      try {
+        const {unitId: sid, tableName: stn, recordId: srid} = JSON.parse(savedL4);
+        if (sid === unitId && stn && srid && _l3Data.grouped[stn]) {
+          const idx = _l3Data.grouped[stn].findIndex(r => {
+            const rc = r.record || {};
+            return String(rc._id || rc.id || r.record_id) === String(srid);
+          });
+          if (idx >= 0) openL4Detail(sid, stn, idx);
+        }
+      } catch(e) {}
+    }
+    // ─────────────────────────────────────────────────────────────────────
   } catch(e) {
     container.innerHTML = '<div style="color:var(--red);font-size:11px;">網路錯誤：' + e.message + '</div>';
   }
@@ -2204,6 +2229,8 @@ async function loadL3Records(unitId) {
 
 // 子頁籤切換（persons / incidents）
 function l3SubTab(tabId, activeId) {
+  // 儲存子頁籤狀態，供 refresh 後還原
+  sessionStorage.setItem('_l3SubTab', JSON.stringify({tabId, activeId}));
   const bar = document.getElementById(tabId + '_bar');
   if (!bar) return;
   const wrap = bar.parentElement;
@@ -2228,6 +2255,9 @@ function openL4Detail(unitId, tableName, index) {
   const container = document.getElementById('l3-container');
   if (!container) return;
   if (!container.dataset.prevHtml) container.dataset.prevHtml = container.innerHTML;
+  // 儲存 L4 狀態（recordId 用來 refresh 後重新找到同一筆記錄）
+  const recordId = rec._id || rec.id || r.record_id;
+  if (recordId) sessionStorage.setItem('_openL4', JSON.stringify({unitId, tableName, recordId}));
 
   const tableLabels = {persons:'收容人員',beds:'床位',resources:'物資',incidents:'事件',patients:'傷患'};
   const label = tableLabels[tableName] || tableName;
@@ -2287,7 +2317,7 @@ function openL4Detail(unitId, tableName, index) {
     fields += row('目前區域', rec.current_zone || '—');
     fields += row('處置', dp || '—');
     // ── 歷程時間軸 ──
-    const fmt = iso => iso ? iso.slice(0,16).replace('T',' ') : '—';
+    const fmt = iso => iso ? _fmtLocalDT(iso).slice(0,16) : '—';
     const recolorDot = {red:'🔴',yellow:'🟡',green:'🟢',black:'⚫'};
     const allTriages = (_l3Data.grouped.triages||[]).map(t=>t.record||{}).filter(t=>String(t.patient_id)===String(rec.id||rec._id));
     const allEvts = [];
@@ -2381,12 +2411,13 @@ function openL4Detail(unitId, tableName, index) {
       <button onclick="backToL3()" style="padding:3px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--mono);">← 返回列表</button>
       <span style="font-size:11px;font-weight:700;margin-left:8px;">${label}：${name}</span>
     </div>
-    <div style="font-size:9px;color:var(--text3);margin-bottom:6px;">更新時間：${(r.updated_at||'?').replace('T',' ').slice(0,19)}</div>
+    <div style="font-size:9px;color:var(--text3);margin-bottom:6px;">更新時間：${_fmtLocalDT(r.updated_at) || '?'}</div>
     <div style="background:var(--surface);border-radius:5px;padding:10px;font-size:11px;">${fields}</div>
   `;
 }
 
 function backToL3() {
+  sessionStorage.removeItem('_openL4');
   const container = document.getElementById('l3-container');
   if (container && container.dataset.prevHtml) {
     container.innerHTML = container.dataset.prevHtml;
@@ -5526,7 +5557,14 @@ function _openZoneByType(nodeType) {
 function showZoneDetail(zone) {
   if (!_data) return;
   _zoneModalZone = zone;
-  _zoneModalTab = (zone.node_type === 'shelter' || zone.node_type === 'medical') ? 'data' : 'events';
+  const hasData = zone.node_type === 'shelter' || zone.node_type === 'medical';
+  // 優先恢復 sessionStorage 中保存的頁籤；若 data 頁籤對此 zone 無效則 fallback
+  const savedTab = sessionStorage.getItem('_zoneTab');
+  if (savedTab && (savedTab !== 'data' || hasData)) {
+    _zoneModalTab = savedTab;
+  } else {
+    _zoneModalTab = hasData ? 'data' : 'events';
+  }
   sessionStorage.setItem('_openZoneModal', JSON.stringify({id: zone.id, node_type: zone.node_type}));
   _renderZoneModal();
 }
@@ -5592,7 +5630,7 @@ function _renderZoneModal() {
 
 function _zoneTab(key, label) {
   const active = _zoneModalTab === key;
-  return `<button onclick="_zoneModalTab='${key}';_renderZoneModal()" style="padding:4px 12px;border-radius:4px;border:1px solid ${active?'var(--green)':'var(--border)'};background:${active?'rgba(26,158,82,.2)':'var(--surface2)'};color:${active?'#fff':'var(--text3)'};font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">${label}</button>`;
+  return `<button onclick="_zoneModalTab='${key}';sessionStorage.setItem('_zoneTab','${key}');_renderZoneModal()" style="padding:4px 12px;border-radius:4px;border:1px solid ${active?'var(--green)':'var(--border)'};background:${active?'rgba(26,158,82,.2)':'var(--surface2)'};color:${active?'#fff':'var(--text3)'};font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);">${label}</button>`;
 }
 
 function _zoneDataTab(zone) {
@@ -6128,7 +6166,7 @@ function getApiSeries(data) {
   const s = pad([...sh].reverse(), N);
   const m = pad([...mh].reverse(), N);
   const ex = (snap) => (typeof snap.extra === 'string' ? JSON.parse(snap.extra) : snap.extra) || {};
-  const times = s.map(snap => (snap.snapshot_time||snap.t||'').slice(11,16) || '?');
+  const times = s.map(snap => { const t = snap.snapshot_time||snap.t||''; return t ? _fmtLocalDT(t).slice(11,16) : '?'; });
 
   return {
     times, N,
@@ -6527,8 +6565,8 @@ function renderSparklines(d) {
   setRag('sp-cap', capLvl);
   const sBt = d.sBt[N-1]||50, mBt = d.mBt[N-1]||30;
   drawSparkline('sc1', [
-    {data:d.sPct, color:'#E67E22', w:1.5, fill:true, fillColor:'rgba(230,126,34,.15)', unit:'%', label:'收容', extraData:d.sBt, extraUnit:'人'},
-    {data:d.mPct, color:'#C0392B', w:1.5, fill:true, fillColor:'rgba(192,57,43,.12)', unit:'%', label:'醫療', extraData:d.mBt, extraUnit:'人'},
+    {data:d.sPct, color:'#E67E22', w:1.5, fill:true, fillColor:'rgba(230,126,34,.15)', unit:'%', label:'收容', extraData:d.sBu, extraUnit:'人'},
+    {data:d.mPct, color:'#C0392B', w:1.5, fill:true, fillColor:'rgba(192,57,43,.12)', unit:'%', label:'醫療', extraData:d.mBu, extraUnit:'人'},
   ], {yMin:0, yMax:100, yUnit:'%', noEndLabel:true, hover:true,
     thresholds:[{value:70,color:'rgba(212,144,0,.4)',label:'70%'},{value:90,color:'rgba(204,42,42,.4)',label:'90%'}],
     rightAxis:{max:Math.max(sBt,mBt), unit:'人', label:'人'}}, N, isExp('sp-cap'), t);
@@ -6538,8 +6576,8 @@ function renderSparklines(d) {
   const srcTotal = sa + sb + sc;
   const flowLvl = srcTotal >= 10 ? 'crit' : srcTotal >= 5 ? 'warn' : 'ok';
   const flowText = srcTotal > 0
-    ? `入院${srcTotal}人` + (sa?` 前${sa}`:'') + (sb?` 收${sb}`:'') + (sc?` 自${sc}`:'')
-    : '無傷患流入';
+    ? `在站${srcTotal}人` + (sa?` 前${sa}`:'') + (sb?` 收${sb}`:'') + (sc?` 自${sc}`:'')
+    : '無在站傷患';
   el('sp-flow-v').textContent = flowText;
   if (_sessionType === 'real') {
     el('sp-flow-v').style.cursor = 'pointer';
@@ -6620,6 +6658,7 @@ function setRag(cardId, lvl) {
 }
 
 function switchLeftPanel(group) {
+  sessionStorage.setItem('_leftPanelGroup', group);
   document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
   document.querySelector('.panel-tab[data-group="' + group + '"]').classList.add('active');
   el('sg-situation').style.display = group === 'situation' ? 'flex' : 'none';
@@ -7099,7 +7138,7 @@ function showSlice(idx, d, focusType) {
   html += '</div>';
 
   // 來源
-  html += '<div class="slice-card"><div class="slice-card-title">醫療入站來源（累計至 '+t+'）</div>';
+  html += '<div class="slice-card"><div class="slice-card-title">醫療在站傷患來源（'+t+'）</div>';
   html += '<div class="src-breakdown">';
   html += `<div class="src-chip" style="background:rgba(21,101,192,.12);border-color:#1565C0"><div class="sc-label" style="color:#1565C0">A 前進組</div><div class="sc-val" style="color:#1565C0">${sa}</div></div>`;
   html += `<div class="src-chip" style="background:rgba(230,81,0,.1);border-color:#E65100"><div class="sc-label" style="color:#E65100">B 收容轉送</div><div class="sc-val" style="color:#E65100">${sb}</div></div>`;
@@ -7139,22 +7178,31 @@ function openModal(title, bodyHtml, footerHtml) {
   el('modal-footer').innerHTML = footerHtml || '';
   el('overlay').className = 'show';
 }
-function closeModal() { el('overlay').className = ''; sessionStorage.removeItem('_openEventId'); sessionStorage.removeItem('_openZoneModal'); }
+function closeModal() {
+  el('overlay').className = '';
+  sessionStorage.removeItem('_openEventId');
+  sessionStorage.removeItem('_openZoneModal');
+  sessionStorage.removeItem('_zoneTab');
+  sessionStorage.removeItem('_openL4');
+  sessionStorage.removeItem('_l3SubTab');
+}
 
 // ══════════════════════════════════════════════════════════════
 // Sparkline 放大/縮小
 // ══════════════════════════════════════════════════════════════
-let _expandedSpark = null;
+let _expandedSpark = sessionStorage.getItem('_expandedSpark') || null;
 
 function expandSpark(cardId) {
   const card = el(cardId);
   if (_expandedSpark === cardId) {
     card.classList.remove('expanded');
     _expandedSpark = null;
+    sessionStorage.removeItem('_expandedSpark');
   } else {
     if (_expandedSpark) el(_expandedSpark).classList.remove('expanded');
     card.classList.add('expanded');
     _expandedSpark = cardId;
+    sessionStorage.setItem('_expandedSpark', cardId);
   }
   setTimeout(() => { const d = getSeries(); if (d) renderSparklines(d); }, 50);
 }
@@ -7212,8 +7260,16 @@ function toggleTTXMode() {
 initMap();
 _populateNapsgCsel();     // 預填 NAPSG 危害類型下拉
 _updateEvTypeFromCategories(); // 預填事件表單類型下拉
-// 恢復展開狀態
+// 恢復右側面板展開狀態
 if (_expandedSection) _applyRightExpand(_expandedSection);
+// 恢復左側面板頁籤（態勢 / 資源）
+const _savedLeftGroup = sessionStorage.getItem('_leftPanelGroup');
+if (_savedLeftGroup) switchLeftPanel(_savedLeftGroup);
+// 恢復 sparkline 全螢幕展開狀態
+if (_expandedSpark) {
+  const _sc = el(_expandedSpark);
+  if (_sc) _sc.classList.add('expanded');
+}
 
 // 認證 init：檢查是否有 session，有則驗證 heartbeat
 (async function _authInit() {

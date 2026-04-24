@@ -222,6 +222,9 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 | **動態 marker 聯動 calc_engine** | ✅ 完成（cmd-v0.12.13） | Leaflet zone marker 三態：Link ok+有資料→RAG 顏色+人數 badge；Link warn（30-90s）→黃虛線圓環疊加；Link crit/LKP→灰底+OFF badge+紅閃圓環。`_napsgIcon()` 加第 4 個 `opts` 參數；`_renderLeafletMarkers()` 從 `_data.pi_nodes`+`snapshots` 算 linkLevel；header conn dot、marker、node-card dot 全部對齊 30/90s 門檻。 |
 | **縮短 push / polling 間隔** | ✅ 完成 | Pi push：60s → 5s（`ics_ws_server.js` `PI_PUSH_INTERVAL_MS`）；Command polling 已是 5s（`POLL_INTERVAL=5000`）；最壞延遲 ~10s |
 | 地圖流向箭頭 | ✅ 完成 | 舊 SVG overlay `renderFlows()` 已移除；現由 Leaflet `_renderFlows()` 統一處理 |
+| **Session SQLite 持久化** | ✅ 完成（cmd-v0.12.13） | in-memory dict → SQLite `sessions` 表；`check_and_touch()` 原子讀寫；SESSION_TIMEOUT=28800s；server 重啟不登出 |
+| **UI 狀態 Ctrl+Shift+R 還原** | ✅ 完成（cmd-v0.12.14） | 5 個 sessionStorage key：`_zoneTab`、`_l3SubTab`、`_openL4`（recordId 比對）、`_leftPanelGroup`、`_expandedSpark` |
+| **量能圖資料＋語意修正** | ✅ 完成（cmd-v0.12.14） | extraData `sBt→sBu`（實際人數）；圖例「床位→量能」；「傷患後送→傷患入站」 |
 
 ---
 
@@ -323,7 +326,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 
 ### 技術備忘
 
-- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.12.13`）
+- HTML 固定 `commander_dashboard.html`，版號由 `CMD_VERSION` 常數控制（目前 `v0.12.14`）
 - Pi server 版號 `SERVER_VERSION`（目前 `v1.1.2`）、FastAPI 版號 `1.2.0`
 - Shelter PWA 版號 `v2.2.53`、Medical PWA 版號 `v0.6.7-alpha`
 - 啟動：`cd command-dashboard && export PYTHONPATH=src && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000`

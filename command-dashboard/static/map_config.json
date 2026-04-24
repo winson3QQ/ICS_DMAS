@@ -73,6 +73,17 @@
           "icon": "pin",
           "lat": 24.820568,
           "lng": 121.020777
+        },
+        {
+          "id": "evt_1776991825446",
+          "label": "隔離事件",
+          "sub": "",
+          "lat": 24.821046,
+          "lng": 121.020188,
+          "node_type": "care",
+          "icon": "shield",
+          "event_id": "0300d4ba-162a-4780-beb3-0b43b302ede0",
+          "event_code": "EV-0424-001"
         }
       ],
       "flows": [],
