@@ -1,6 +1,8 @@
 import json
+
 from core.database import get_conn
-from ._helpers import now_utc, hash_pin, verify_pin, audit
+
+from ._helpers import audit, hash_pin, now_utc, verify_pin
 
 
 def get_config(key: str) -> str | None:

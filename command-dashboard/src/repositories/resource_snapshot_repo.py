@@ -4,6 +4,7 @@ C0：供跨場次比較、AI 訓練用
 """
 
 from core.database import get_conn
+
 from ._helpers import now_utc, row_to_dict
 
 

@@ -4,10 +4,10 @@ pi_push_service.py — Pi push 接收處理
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from repositories.pi_node_repo import validate_pi_push, touch_pi_node
 from repositories.pi_batch_repo import insert_pi_batch
+from repositories.pi_node_repo import touch_pi_node, validate_pi_push
 from repositories.resource_snapshot_repo import insert_resource_snapshot
 from services.exercise_service import current_exercise_id
 
@@ -21,7 +21,7 @@ def process_push(unit_id: str, bearer_token: str, body: dict) -> dict:
         raise PermissionError("API 金鑰驗證失敗或 unit_id 不符")
 
     records   = body.get("records", [])
-    pushed_at = body.get("pushed_at") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    pushed_at = body.get("pushed_at") or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     if not records or body.get("heartbeat"):
         touch_pi_node(unit_id)

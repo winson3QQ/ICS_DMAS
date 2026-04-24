@@ -2,8 +2,10 @@ import json
 import sqlite3
 import time
 import uuid
+
 from core.database import get_conn
-from ._helpers import now_utc, add_minutes, row_to_dict, audit
+
+from ._helpers import add_minutes, audit, now_utc, row_to_dict
 
 
 def create_event(data: dict, exercise_id: int | None = None) -> dict:

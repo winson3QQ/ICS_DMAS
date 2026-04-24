@@ -3,7 +3,8 @@ core/database.py — SQLite 連線管理與 schema 初始化
 """
 
 import sqlite3
-from typing import Generator
+from collections.abc import Generator
+
 from .config import DB_PATH
 
 
@@ -16,7 +17,7 @@ def get_conn() -> sqlite3.Connection:
     return conn
 
 
-def get_db() -> Generator[sqlite3.Connection, None, None]:
+def get_db() -> Generator[sqlite3.Connection]:
     """FastAPI Depends 使用"""
     conn = get_conn()
     try:

@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class DecisionIn(BaseModel):
@@ -9,10 +9,10 @@ class DecisionIn(BaseModel):
     impact_description: str
     suggested_action_a: str
     created_by:         str
-    suggested_action_b: Optional[str] = None
-    primary_event_id:   Optional[str] = None
-    parent_decision_id: Optional[str] = None
-    exercise_id:        Optional[int] = None  # C0
+    suggested_action_b: str | None = None
+    primary_event_id:   str | None = None
+    parent_decision_id: str | None = None
+    exercise_id:        int | None = None  # C0
 
 
 class DecideIn(BaseModel):

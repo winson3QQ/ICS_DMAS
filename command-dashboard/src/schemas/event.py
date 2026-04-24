@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class EventIn(BaseModel):
@@ -8,21 +8,21 @@ class EventIn(BaseModel):
     severity:                 str = "info"
     description:              str
     operator_name:            str
-    location_desc:            Optional[str] = None
-    location_zone_id:         Optional[str] = None
-    response_type:            Optional[str] = None
+    location_desc:            str | None = None
+    location_zone_id:         str | None = None
+    response_type:            str | None = None
     needs_commander_decision: bool = False
-    related_person_name:      Optional[str] = None
-    assigned_unit:            Optional[str] = None
-    occurred_at:              Optional[str] = None
+    related_person_name:      str | None = None
+    assigned_unit:            str | None = None
+    occurred_at:              str | None = None
     session_type:             str = "real"
-    exercise_id:              Optional[int] = None  # C0：關聯演練
+    exercise_id:              int | None = None  # C0：關聯演練
 
 
 class EventPatch(BaseModel):
-    assigned_unit:   Optional[str] = None
-    location_desc:   Optional[str] = None
-    location_zone_id: Optional[str] = None
+    assigned_unit:   str | None = None
+    location_desc:   str | None = None
+    location_zone_id: str | None = None
 
 
 class DeadlinePatch(BaseModel):

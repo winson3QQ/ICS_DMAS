@@ -1,8 +1,8 @@
-import uuid
-from datetime import datetime, timedelta, timezone
-from core.database import get_conn
-from ._helpers import now_utc, hash_pin, verify_pin, audit
+from datetime import UTC, datetime, timedelta
 
+from core.database import get_conn
+
+from ._helpers import audit, hash_pin, now_utc, verify_pin
 
 # ── C1-A 登入鎖定參數 ───────────────────────────────────────────
 LOCKOUT_THRESHOLD = 5            # 連續失敗次數
@@ -10,7 +10,7 @@ LOCKOUT_DURATION_MIN = 15        # 鎖定時長（分鐘）
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    return datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def _iso_to_dt(iso: str) -> datetime:
@@ -22,7 +22,7 @@ def _is_locked(row: dict) -> bool:
     locked_until = row.get("locked_until")
     if not locked_until:
         return False
-    return datetime.now(timezone.utc) < _iso_to_dt(locked_until)
+    return datetime.now(UTC) < _iso_to_dt(locked_until)
 
 
 def create_account(username: str, pin: str, role: str = "操作員",
@@ -131,7 +131,7 @@ def verify_login(username: str, pin: str) -> tuple[dict | None, str]:
             locked_until = None
             if new_count >= LOCKOUT_THRESHOLD:
                 locked_until = (
-                    datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MIN)
+                    datetime.now(UTC) + timedelta(minutes=LOCKOUT_DURATION_MIN)
                 ).strftime('%Y-%m-%dT%H:%M:%SZ')
             conn.execute(
                 "UPDATE accounts SET failed_login_count=?, locked_until=? WHERE username=?",
@@ -188,9 +188,9 @@ def ensure_initial_admin_token(token_dir: str | None = None) -> str | None:
     回傳產生的 PIN（首次）或 None（已有帳號）。
     PIN 同時寫入 ~/.ics/first_run_token（chmod 600），方便 operator 看到後抹除。
     """
+    import logging
     import os
     import secrets
-    import logging
 
     with get_conn() as conn:
         cnt = conn.execute("SELECT COUNT(*) as c FROM accounts").fetchone()["c"]

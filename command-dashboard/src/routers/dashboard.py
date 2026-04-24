@@ -1,16 +1,16 @@
-from typing import Optional
-from fastapi import APIRouter, Request
-from auth.service import validate_session
-from repositories.snapshot_repo import get_latest_snapshot
-from repositories.audit_repo import get_audit_log
-from services.dashboard_service import build_dashboard
+
+from fastapi import APIRouter
+
 from core.config import APP_VERSION, DB_PATH
+from repositories.audit_repo import get_audit_log
+from repositories.snapshot_repo import get_latest_snapshot
+from services.dashboard_service import build_dashboard
 
 router = APIRouter(tags=["儀表板"])
 
 
 @router.get("/api/dashboard")
-def get_dashboard(exercise_id: Optional[int] = None):
+def get_dashboard(exercise_id: int | None = None):
     """前端每 10 秒 polling 的主要端點"""
     return build_dashboard(exercise_id)
 

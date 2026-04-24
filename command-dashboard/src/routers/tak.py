@@ -7,9 +7,9 @@ tak.py — TAK（Team Awareness Kit）整合 stub（Wave 7）
 C0：stub，正確定義 schema，Wave 7 接 CoT 解析 + COP 正規化。
 """
 
-from fastapi import APIRouter, Request, HTTPException
+
+from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional
 
 router = APIRouter(prefix="/api/tak", tags=["TAK"])
 
@@ -25,8 +25,8 @@ class CoTEventIn(BaseModel):
     hae:   float = 0.0   # Height Above Ellipsoid（公尺）
     ce:    float = 9999  # Circular Error（公尺）
     le:    float = 9999  # Linear Error（公尺）
-    callsign: Optional[str] = None
-    remarks:  Optional[str] = None
+    callsign: str | None = None
+    remarks:  str | None = None
 
 
 @router.post("/events")

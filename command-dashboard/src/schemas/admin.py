@@ -1,13 +1,13 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class AccountCreateIn(BaseModel):
     username:     str
     pin:          str
     role:         str = "操作員"
-    role_detail:  Optional[str] = None
-    display_name: Optional[str] = None
+    role_detail:  str | None = None
+    display_name: str | None = None
 
 
 class AccountStatusIn(BaseModel):
@@ -24,7 +24,7 @@ class AdminPinIn(BaseModel):
 
 class RoleUpdateIn(BaseModel):
     role:        str
-    role_detail: Optional[str] = None
+    role_detail: str | None = None
 
 
 class PiNodeCreateIn(BaseModel):

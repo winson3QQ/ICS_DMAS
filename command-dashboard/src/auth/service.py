@@ -9,21 +9,21 @@ auth/service.py — Session 管理與 PIN 驗證（SQLite 持久化）
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from fastapi import HTTPException, Request
 
 from core.config import SESSION_TIMEOUT
 from core.database import get_conn
 
-
 # ── 時間工具 ─────────────────────────────────────────────────────────────────
 
 def _now_ts() -> float:
-    return datetime.now(timezone.utc).timestamp()
+    return datetime.now(UTC).timestamp()
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    return datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def _iso_to_ts(iso: str) -> float:
@@ -150,7 +150,7 @@ def session_remaining(token: str) -> int:
 def cleanup_expired_sessions() -> int:
     """清除所有過期 session，回傳刪除筆數（供 server 啟動時呼叫）"""
     cutoff = datetime.fromtimestamp(
-        _now_ts() - SESSION_TIMEOUT, tz=timezone.utc
+        _now_ts() - SESSION_TIMEOUT, tz=UTC
     ).strftime('%Y-%m-%dT%H:%M:%SZ')
     conn = get_conn()
     try:

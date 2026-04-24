@@ -1,7 +1,8 @@
-from typing import Optional
+
 from fastapi import APIRouter, HTTPException
-from repositories.decision_repo import create_decision, get_decisions, decide
-from schemas.decision import DecisionIn, DecideIn
+
+from repositories.decision_repo import create_decision, decide, get_decisions
+from schemas.decision import DecideIn, DecisionIn
 
 router = APIRouter(prefix="/api/decisions", tags=["裁示"])
 
@@ -12,7 +13,7 @@ def post_decision(dec: DecisionIn):
 
 
 @router.get("")
-def get_dec(status: Optional[str] = None):
+def get_dec(status: str | None = None):
     return get_decisions(status)
 
 
@@ -21,4 +22,4 @@ def do_decide(decision_id: str, body: DecideIn):
     try:
         return decide(decision_id, body.action, body.decided_by, body.execution_note)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e

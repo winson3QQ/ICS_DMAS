@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
+
+from repositories.snapshot_repo import get_snapshots, upsert_snapshot
 from schemas.snapshot import SnapshotIn
-from repositories.snapshot_repo import upsert_snapshot, get_snapshots
 
 router = APIRouter(prefix="/api/snapshots", tags=["快照"])
 

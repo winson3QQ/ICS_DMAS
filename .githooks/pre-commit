@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# pre-commit hook — 從 command-dashboard 目錄執行 ruff + detect-secrets
+# 因 core.hooksPath=.githooks，pre-commit install 無法直接使用，改用手動包裝
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+CMD_DIR="$REPO_ROOT/command-dashboard"
+
+if [ -f "$CMD_DIR/.pre-commit-config.yaml" ]; then
+    cd "$CMD_DIR" || exit 1
+    python3 -m pre_commit run --from-ref HEAD --to-ref HEAD 2>/dev/null || \
+    python3 -m pre_commit run 2>&1
+fi

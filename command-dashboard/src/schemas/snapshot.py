@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class SnapshotIn(BaseModel):
@@ -10,34 +10,34 @@ class SnapshotIn(BaseModel):
     t:           str              # ISO 8601 UTC
     src:         str
 
-    source: Optional[str] = "auto"  # auto / qr_scan / auto_sync / manual
+    source: str | None = "auto"  # auto / qr_scan / auto_sync / manual
 
     # SHELTER
-    bed_used:       Optional[int]  = None
-    bed_total:      Optional[int]  = None
-    srt:            Optional[dict] = None
-    pending_intake: Optional[int]  = None
-    cmist_pending:  Optional[int]  = None
-    staff_on_duty:  Optional[int]  = None
+    bed_used:       int | None  = None
+    bed_total:      int | None  = None
+    srt:            dict | None = None
+    pending_intake: int | None  = None
+    cmist_pending:  int | None  = None
+    staff_on_duty:  int | None  = None
 
     # MEDICAL
-    casualties:      Optional[dict] = None
-    waiting_count:   Optional[int]  = None
-    pending_evac:    Optional[int]  = None
-    evacuated_total: Optional[int]  = None
-    supplies:        Optional[dict] = None
+    casualties:      dict | None = None
+    waiting_count:   int | None  = None
+    pending_evac:    int | None  = None
+    evacuated_total: int | None  = None
+    supplies:        dict | None = None
 
     # FORWARD
-    units: Optional[list] = None
+    units: list | None = None
 
     # SECURITY
-    post_total:      Optional[int] = None
-    post_anomaly:    Optional[str] = None
-    qrf_available:   Optional[int] = None
-    isolation_count: Optional[int] = None
+    post_total:      int | None = None
+    post_anomaly:    str | None = None
+    qrf_available:   int | None = None
+    isolation_count: int | None = None
 
-    vehicle_available: Optional[int]  = None
-    extra:             Optional[dict] = None
+    vehicle_available: int | None  = None
+    extra:             dict | None = None
 
     class Config:
         extra = "allow"

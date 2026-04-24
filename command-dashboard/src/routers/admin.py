@@ -1,19 +1,32 @@
 from fastapi import APIRouter, HTTPException, Request
+
 from core.database import get_conn
+from repositories._helpers import audit
 from repositories.account_repo import (
-    create_account, get_all_accounts, update_account_status,
-    update_account_pin, update_account_role, delete_account, suspend_all_accounts,
     clear_default_pin_flag,
-)
-from repositories.config_repo import get_config, verify_admin_pin, set_admin_pin
-from repositories.pi_node_repo import (
-    create_pi_node, list_pi_nodes, delete_pi_node, revoke_pi_node_key,
+    create_account,
+    delete_account,
+    get_all_accounts,
+    suspend_all_accounts,
+    update_account_pin,
+    update_account_role,
+    update_account_status,
 )
 from repositories.audit_repo import get_audit_log
-from repositories._helpers import audit
+from repositories.config_repo import get_config, set_admin_pin, verify_admin_pin
+from repositories.pi_node_repo import (
+    create_pi_node,
+    delete_pi_node,
+    list_pi_nodes,
+    revoke_pi_node_key,
+)
 from schemas.admin import (
-    AccountCreateIn, AccountStatusIn, PinResetIn,
-    AdminPinIn, RoleUpdateIn, PiNodeCreateIn,
+    AccountCreateIn,
+    AccountStatusIn,
+    AdminPinIn,
+    PiNodeCreateIn,
+    PinResetIn,
+    RoleUpdateIn,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["帳號管理"])
@@ -54,7 +67,7 @@ def create_acct(body: AccountCreateIn, request: Request):
         return create_account(body.username, body.pin, body.role,
                               body.display_name, body.role_detail)
     except Exception as e:
-        raise HTTPException(409, f"帳號建立失敗：{e}")
+        raise HTTPException(409, f"帳號建立失敗：{e}") from e
 
 
 @router.delete("/accounts/{username}")
@@ -181,7 +194,7 @@ def create_node(body: PiNodeCreateIn, request: Request):
         return create_pi_node(body.unit_id, body.label)
     except Exception as e:
         if "UNIQUE" in str(e) or "PRIMARY" in str(e):
-            raise HTTPException(409, f"unit_id '{body.unit_id}' 已存在")
+            raise HTTPException(409, f"unit_id '{body.unit_id}' 已存在") from e
         raise
 
 

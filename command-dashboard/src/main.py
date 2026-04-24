@@ -14,22 +14,36 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.config import STATIC_DIR, APP_VERSION, ALLOWED_ORIGINS
-from core.database import init_db
-from core.security_headers import security_headers_middleware
+from auth.first_run_gate import first_run_gate_middleware
 from auth.middleware import auth_middleware
 from auth.rate_limit import auth_rate_limit_middleware
-from auth.first_run_gate import first_run_gate_middleware
+from auth.service import cleanup_expired_sessions
+from core.config import ALLOWED_ORIGINS, APP_VERSION, STATIC_DIR
+from core.database import init_db
+from core.security_headers import security_headers_middleware
 from repositories.account_repo import ensure_initial_admin_token
 from repositories.config_repo import ensure_default_admin_pin
-from auth.service import cleanup_expired_sessions
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 from routers import (
-    auth, snapshots, events, decisions, admin,
-    pi_push, sync, manual, dashboard,
-    config_router, map, exercises, ttx, ai, tak, security,
+    admin,
+    ai,
+    auth,
+    config_router,
+    dashboard,
+    decisions,
+    events,
+    exercises,
+    manual,
+    map,
+    pi_push,
+    security,
+    snapshots,
+    sync,
+    tak,
+    ttx,
 )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 @asynccontextmanager

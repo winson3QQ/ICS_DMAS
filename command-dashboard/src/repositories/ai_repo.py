@@ -4,6 +4,7 @@ C0：stub，Wave 5 由 ai_service 填入實際 LLM 呼叫
 """
 
 from core.database import get_conn
+
 from ._helpers import now_utc, row_to_dict
 
 

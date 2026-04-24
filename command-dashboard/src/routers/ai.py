@@ -4,14 +4,12 @@ ai.py — AI 整合 API stub（C0）
 Wave 5 實裝：連接 Breeze/Ollama，補充即時狀態讀取。
 """
 
-from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
+
 from auth.service import validate_session
-from services.ai_service import (
-    get_recommendation, get_post_exercise_report, get_ml_export
-)
 from repositories.ai_repo import update_outcome
-from schemas.ai import AIRecommendIn, AIOutcomeIn
+from schemas.ai import AIOutcomeIn, AIRecommendIn
+from services.ai_service import get_ml_export, get_post_exercise_report, get_recommendation
 
 router = APIRouter(prefix="/api/ai", tags=["AI"])
 

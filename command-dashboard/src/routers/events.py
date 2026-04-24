@@ -1,12 +1,10 @@
-from typing import Optional
-from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Request
-from auth.service import validate_session
-from repositories.event_repo import (
-    create_event, get_events, patch_event, update_event_status, add_event_note
-)
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, HTTPException
+
 from repositories.decision_repo import create_decision
-from schemas.event import EventIn, EventPatch, DeadlinePatch, EventNoteIn
+from repositories.event_repo import add_event_note, create_event, get_events, patch_event, update_event_status
+from schemas.event import DeadlinePatch, EventIn, EventNoteIn, EventPatch
 
 router = APIRouter(prefix="/api/events", tags=["事件"])
 
@@ -35,7 +33,7 @@ def post_event(ev: EventIn):
 
 
 @router.get("")
-def get_ev(status: Optional[str] = None, limit: int = 50):
+def get_ev(status: str | None = None, limit: int = 50):
     return get_events(status, limit)
 
 
@@ -61,7 +59,7 @@ def patch_deadline(event_id: str, body: DeadlinePatch):
         raise HTTPException(404, "event not found")
     current = ev.get("response_deadline")
     base    = (datetime.fromisoformat(current.replace("Z", "+00:00"))
-               if current else datetime.now(timezone.utc))
+               if current else datetime.now(UTC))
     new_dl  = (base + timedelta(minutes=body.delta_minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
     patch_event(event_id, {"response_deadline": new_dl})
     return {"ok": True, "new_deadline": new_dl}
@@ -72,7 +70,7 @@ def patch_status(event_id: str, status: str, operator: str):
     try:
         update_event_status(event_id, status, operator)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     return {"ok": True}
 
 
@@ -81,4 +79,4 @@ def add_note(event_id: str, body: EventNoteIn):
     try:
         return add_event_note(event_id, body.text, body.operator)
     except ValueError as e:
-        raise HTTPException(404, str(e))
+        raise HTTPException(404, str(e)) from e
