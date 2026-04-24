@@ -1560,7 +1560,21 @@ async function adminLogin() {
     headers: {'X-Admin-PIN': pin},
   });
   if (!resp.ok) {
-    el('adm-pin-warn').textContent = '管理員 PIN 錯誤';
+    const body = await resp.json().catch(() => ({}));
+    const detail = body.detail || '';
+    if (resp.status === 423) {
+      // C2-D：鎖定中，將 UTC 時間轉為本地時間顯示
+      const localDetail = detail.replace(
+        /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/,
+        s => new Date(s).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})
+      );
+      el('adm-pin-warn').textContent = '🔒 ' + (localDetail || '管理員 PIN 已鎖定，請稍後再試');
+    } else {
+      // 403：PIN 錯誤，顯示剩餘次數（若有）
+      el('adm-pin-warn').textContent = detail.includes('剩餘') ? '❌ ' + detail : '❌ 管理員 PIN 錯誤';
+    }
+    el('adm-pin-input').value = '';
+    el('adm-pin-input').focus();
     return;
   }
   _admPin = pin;
