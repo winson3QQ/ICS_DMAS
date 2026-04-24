@@ -1,5 +1,5 @@
 """
-tests/security/test_admin_gate.py — Admin 權限集中化前的守門測試
+tests/security/test_admin_gate.py — Admin 權限集中化前的守門測試 + C2-D Admin PIN 鎖定
 
 核心設計：/api/admin/* 使用兩層獨立認證：
   1. Session auth（middleware 層）：/api/admin/* 豁免 session check
@@ -13,7 +13,12 @@ tests/security/test_admin_gate.py — Admin 權限集中化前的守門測試
 """
 
 import pytest
-from repositories.config_repo import set_admin_pin
+from repositories.config_repo import (
+    ADMIN_LOCKOUT_THRESHOLD,
+    get_admin_pin_lock_status,
+    reset_admin_pin_failures,
+    set_admin_pin,
+)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -127,3 +132,87 @@ class TestAdminPinBoundary:
         r = client.delete("/api/admin/accounts/ghost_user",
                           headers={"X-Admin-PIN": "1234"})
         assert r.status_code == 404
+
+
+# ─────────────────────────────────────────────────────────────────
+# C2-D：Admin PIN 鎖定機制
+# ─────────────────────────────────────────────────────────────────
+
+class TestAdminPinLockout:
+    """Admin PIN 連續失敗鎖定（C2-D）"""
+
+    def _wrong(self, client, n: int = 1):
+        """送出 n 次錯誤 Admin PIN，回傳最後一次 response。"""
+        r = None
+        for _ in range(n):
+            r = client.get("/api/admin/accounts",
+                           headers={"X-Admin-PIN": "000000"})
+        return r
+
+    def test_single_wrong_pin_returns_403_with_remaining(self, client):
+        """單次錯誤 → 403，detail 含剩餘次數。"""
+        set_admin_pin("1234", "test")
+        r = self._wrong(client, 1)
+        assert r.status_code == 403
+        assert "剩餘" in r.json()["detail"]
+
+    def test_remaining_count_decrements(self, client):
+        """每次失敗剩餘次數遞減。"""
+        set_admin_pin("1234", "test")
+        r1 = self._wrong(client, 1)
+        r2 = self._wrong(client, 1)
+        # 兩次結果都是 403，且 r2 的 detail 剩餘次數比 r1 少 1
+        assert r1.status_code == r2.status_code == 403
+        import re
+        n1 = int(re.search(r"剩餘\s*(\d+)", r1.json()["detail"]).group(1))
+        n2 = int(re.search(r"剩餘\s*(\d+)", r2.json()["detail"]).group(1))
+        assert n2 == n1 - 1
+
+    def test_threshold_wrong_pins_triggers_423(self, client):
+        """連續失敗達門檻 → 423 鎖定。"""
+        set_admin_pin("1234", "test")
+        r = self._wrong(client, ADMIN_LOCKOUT_THRESHOLD)
+        assert r.status_code == 423
+
+    def test_locked_correct_pin_still_returns_423(self, client):
+        """鎖定中送正確 PIN → 仍然 423（不因 PIN 正確而解鎖）。"""
+        set_admin_pin("1234", "test")
+        self._wrong(client, ADMIN_LOCKOUT_THRESHOLD)  # 觸發鎖定
+        r = client.get("/api/admin/accounts",
+                       headers={"X-Admin-PIN": "1234"})
+        assert r.status_code == 423
+
+    def test_correct_pin_resets_failure_count(self, client):
+        """錯誤 N-1 次後送正確 PIN → 成功且計數清零。"""
+        set_admin_pin("1234", "test")
+        self._wrong(client, ADMIN_LOCKOUT_THRESHOLD - 1)  # 未鎖定
+        r = client.get("/api/admin/accounts",
+                       headers={"X-Admin-PIN": "1234"})
+        assert r.status_code == 200
+        # 成功後計數歸零，再錯一次仍是 403（非 423）
+        r2 = self._wrong(client, 1)
+        assert r2.status_code == 403
+        status = get_admin_pin_lock_status()
+        assert status["failed_count"] == 1
+        assert not status["locked"]
+
+    def test_lock_status_repo_reflects_lockout(self, client):
+        """鎖定後 get_admin_pin_lock_status() 回傳正確狀態。"""
+        set_admin_pin("1234", "test")
+        self._wrong(client, ADMIN_LOCKOUT_THRESHOLD)
+        status = get_admin_pin_lock_status()
+        assert status["locked"] is True
+        assert status["locked_until"] is not None
+        assert status["failed_count"] >= ADMIN_LOCKOUT_THRESHOLD
+
+    def test_reset_admin_pin_failures_clears_lockout(self, client):
+        """reset_admin_pin_failures() 可手動清除鎖定（用於測試/緊急解鎖）。"""
+        set_admin_pin("1234", "test")
+        self._wrong(client, ADMIN_LOCKOUT_THRESHOLD)
+        assert get_admin_pin_lock_status()["locked"] is True
+        reset_admin_pin_failures()
+        assert get_admin_pin_lock_status()["locked"] is False
+        # 解鎖後正確 PIN 可以通過
+        r = client.get("/api/admin/accounts",
+                       headers={"X-Admin-PIN": "1234"})
+        assert r.status_code == 200

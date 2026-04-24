@@ -13,7 +13,15 @@ from repositories.account_repo import (
     update_account_status,
 )
 from repositories.audit_repo import get_audit_log
-from repositories.config_repo import get_config, set_admin_pin, verify_admin_pin
+from repositories.config_repo import (
+    ADMIN_LOCKOUT_THRESHOLD,
+    get_admin_pin_lock_status,
+    get_config,
+    record_admin_pin_failure,
+    reset_admin_pin_failures,
+    set_admin_pin,
+    verify_admin_pin,
+)
 from repositories.pi_node_repo import (
     create_pi_node,
     delete_pi_node,
@@ -33,9 +41,27 @@ router = APIRouter(prefix="/api/admin", tags=["帳號管理"])
 
 
 def _check_admin_pin(request: Request):
+    # C2-D：鎖定檢查（優先於 PIN 驗證）
+    lock = get_admin_pin_lock_status()
+    if lock["locked"]:
+        raise HTTPException(423, f"管理員 PIN 已鎖定，請於 {lock['locked_until']} 後再試")
+
     pin = request.headers.get("X-Admin-PIN")
-    if not pin or not verify_admin_pin(pin):
+    if not pin:
         raise HTTPException(403, "管理員 PIN 驗證失敗")
+
+    if not verify_admin_pin(pin):
+        status = record_admin_pin_failure()
+        if status["locked"]:
+            raise HTTPException(
+                423,
+                f"管理員 PIN 連續錯誤 {status['failed_count']} 次，已鎖定 30 分鐘"
+            )
+        remaining = ADMIN_LOCKOUT_THRESHOLD - status["failed_count"]
+        raise HTTPException(403, f"管理員 PIN 驗證失敗（剩餘 {remaining} 次）")
+
+    # 驗證成功：清除失敗計數
+    reset_admin_pin_failures()
 
 
 # ── 狀態 ─────────────────────────────────────────────────────────────────────
