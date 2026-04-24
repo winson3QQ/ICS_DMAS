@@ -1,7 +1,7 @@
 # ICS DMAS 測試目錄
 
-> 目前共 **241 個測試案例**（240 passed + 1 xfailed），分四層執行（Unit / Integration / API / Security）。  
-> 最新報告：`tests/reports/smoke_v3_20260424_144713.html`（240 passed, 1 xfailed, 2026-04-24）  
+> 目前共 **251 個測試案例**（250 passed + 1 xfailed），分四層執行（Unit / Integration / API / Security）。  
+> 最新報告：`tests/reports/smoke_v3_20260424_144713.html`（240 passed, 1 xfailed, 2026-04-24）；2026-04-24 外部 bundle 整合後 250 passed + 1 xfailed  
 > Coverage：**44%**（排除 legacy dead code `db.py` / `main_legacy.py`）  
 > 執行指令：`bash scripts/run_tests.sh`
 
@@ -80,7 +80,7 @@
 
 ---
 
-## Integration 測試（36 個）
+## Integration 測試（37 個）
 
 > 每個測試使用獨立的 SQLite 暫存檔，測試結束自動刪除，互不影響。
 
@@ -99,6 +99,7 @@
 | `test_idempotent` | 呼叫兩次 `ensure_default_admin()` 不會建出兩個 admin |
 | `test_default_pin_works` | 預設 admin 帳號的 PIN 是「1234」，可以登入，`reason="ok"` |
 | `test_suspend_and_login_fails` | 停用帳號後，即使密碼正確也回 `(None, "suspended")` |
+| `test_successful_login_resets_failed_count` | 連續 3 次錯誤 PIN 後，正確登入 → `failed_login_count=0`、`locked_until=None`（lockout reset 驗證）|
 
 ---
 
@@ -148,7 +149,7 @@
 
 ---
 
-## API 測試（58 個）
+## API 測試（64 個）
 
 > 透過 FastAPI TestClient，模擬完整的 HTTP 請求→認證→邏輯→回應流程。
 
@@ -186,6 +187,9 @@
 | `test_resolve` | 經由 in_progress 轉到 resolved，HTTP 200 |
 | `test_nonexistent_event_returns_4xx` | 對不存在的事件改狀態，HTTP 4xx |
 | `test_add_note` | 對事件新增筆記，HTTP 200 |
+| `test_create_then_list_contains_exact_event_id` | 建事件後 list 中可用精確 ID 找到，`event_code` 一致 |
+| `test_patch_nonexistent_event_status_returns_4xx` | PATCH 不存在事件的 status → 4xx（ValueError→HTTP 400）|
+| `test_add_note_to_nonexistent_event_returns_404` | POST notes 到不存在事件 → 404（router 明確轉換 ValueError→404）|
 
 ---
 
@@ -205,6 +209,9 @@
 | `test_can_activate_after_archive` | 歸檔後可以啟動新演練，HTTP 200 |
 | `test_create_aar` | 建 AAR 紀錄，HTTP 200，有 id |
 | `test_list_aar` | 建兩筆 AAR 後，列表長度為 2 |
+| `test_create_then_list_contains_exact_id` | 建演練後 list 中可用精確 ID 找到，status 為 setup |
+| `test_second_activate_returns_exactly_409` | 第二個 activate（mutex 衝突）→ 精確 409，不是 400 |
+| `test_archive_nonexistent_exercise_returns_404` | archive 不存在的演練 ID → 404（router 存在性守門）|
 
 ---
 
@@ -316,7 +323,13 @@
 > 對應規格：韌性 / 安全 / 模糊測試  
 > 測試檔路徑：`tests/security/`
 
-### `test_sync_integrity.py` — 同步完整性（8 個）
+### `test_sync_integrity.py` — 同步完整性（9 個）
+
+#### `TestWithinPayloadDuplicate`（1 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_duplicate_snapshot_id_in_single_sync_payload_last_wins` | 單一 sync payload 內兩筆相同 snapshot_id → Three-Pass 逐筆串行：第一筆 INSERT，第二筆 UPDATE（last wins=99），DB 只有 1 筆 |
 
 #### `TestReplayDuplicateSync`（5 個）
 
@@ -338,7 +351,14 @@
 
 ---
 
-### `test_session_edge.py` — Session 超時邊界（8 個）
+### `test_session_edge.py` — Session 超時邊界（10 個）
+
+#### `TestSessionStrictBoundary`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_heartbeat_api_remaining_refreshes` | heartbeat 後 `remaining` 不繼續遞減（API 層 remaining 欄位驗證）|
+| `test_expired_session_heartbeat_returns_401` | 過期 session 呼叫 `/api/auth/heartbeat` → 401（HTTP 層，不只是 check_and_touch）|
 
 #### `TestSessionTimeout`（4 個）
 

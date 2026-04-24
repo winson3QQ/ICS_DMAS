@@ -92,6 +92,40 @@ class TestArchiveExercise:
         assert r.status_code == 200
 
 
+class TestExercisesStrict:
+    def test_create_then_list_contains_exact_id(self, client, auth):
+        """新建演練後，list 應包含完全相同的 ID 與初始 status"""
+        created = client.post("/api/exercises",
+                              json={"name": "Strict Exercise", "type": "ttx"},
+                              headers=auth).json()
+
+        listing = client.get("/api/exercises", headers=auth).json()
+        found = [ex for ex in listing if ex["id"] == created["id"]]
+        assert len(found) == 1
+        assert found[0]["name"] == "Strict Exercise"
+        assert found[0]["status"] == "setup"
+
+    def test_second_activate_returns_exactly_409(self, client, auth):
+        """第二次 activate（mutex 衝突）應精確回傳 409，不是 400"""
+        ex1_id = client.post("/api/exercises",
+                             json={"name": "S1", "type": "ttx"},
+                             headers=auth).json()["id"]
+        ex2_id = client.post("/api/exercises",
+                             json={"name": "S2", "type": "ttx"},
+                             headers=auth).json()["id"]
+
+        r1 = client.post(f"/api/exercises/{ex1_id}/activate", json={}, headers=auth)
+        assert r1.status_code == 200
+
+        r2 = client.post(f"/api/exercises/{ex2_id}/activate", json={}, headers=auth)
+        assert r2.status_code == 409
+
+    def test_archive_nonexistent_exercise_returns_404(self, client, auth):
+        """archive 不存在的演練 ID → 404"""
+        r = client.post("/api/exercises/999999/archive", json={}, headers=auth)
+        assert r.status_code == 404
+
+
 class TestAAREntries:
     def test_create_aar(self, client, auth, active_exercise):
         ex_id = active_exercise["id"]

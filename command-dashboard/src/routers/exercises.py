@@ -47,6 +47,8 @@ def activate(exercise_id: int, request: Request):
 @router.post("/{exercise_id}/archive")
 def do_archive(exercise_id: int, request: Request):
     sess = validate_session(request)
+    if not get(exercise_id):
+        raise HTTPException(404, "演練不存在")
     return archive(exercise_id, sess["username"])
 
 

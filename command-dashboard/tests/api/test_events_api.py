@@ -92,3 +92,31 @@ class TestAddNote:
                         json={"text": "現場確認完成", "operator": "admin"},
                         headers=auth)
         assert r.status_code == 200
+
+
+class TestEventsStrict:
+    def test_create_then_list_contains_exact_event_id(self, client, auth):
+        """新建事件後，list 應包含完全相同的 event_id"""
+        created = client.post("/api/events", json=_VALID_EVENT, headers=auth).json()
+
+        listing = client.get("/api/events", headers=auth).json()
+        found = [ev for ev in listing if ev["id"] == created["id"]]
+        assert len(found) == 1
+        assert found[0]["event_code"] == created["event_code"]
+
+    def test_patch_nonexistent_event_status_returns_4xx(self, client, auth):
+        """PATCH 不存在事件的 status → 4xx（repo 拋 ValueError，router 轉為 400）"""
+        r = client.patch(
+            "/api/events/999999/status?status=in_progress&operator=admin",
+            headers=auth,
+        )
+        assert r.status_code in (400, 404)
+
+    def test_add_note_to_nonexistent_event_returns_404(self, client, auth):
+        """POST notes 到不存在事件 → 404（router 明確轉換 ValueError → 404）"""
+        r = client.post(
+            "/api/events/999999/notes",
+            headers=auth,
+            json={"text": "missing", "operator": "admin"},  # schema 要 text 不是 note
+        )
+        assert r.status_code == 404

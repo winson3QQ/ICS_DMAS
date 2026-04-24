@@ -97,3 +97,34 @@ class TestUpdateAccountStatus:
         update_account_status("target", "suspended", operator="admin")
         acc, reason = verify_login("target", "1234")
         assert acc is None and reason == "suspended"
+
+
+class TestLoginLockoutReset:
+    def test_successful_login_resets_failed_count(self, tmp_db):
+        """連續 3 次錯誤 PIN 後，正確登入 → failed_login_count 歸零、locked_until 清除"""
+        from repositories.account_repo import create_account, verify_login
+        from core.database import get_conn
+
+        create_account("reset_user", "correct", "操作員", "", "operator")
+
+        # 累積 3 次錯誤
+        for _ in range(3):
+            acc, reason = verify_login("reset_user", "wrong")
+            assert acc is None
+            assert reason == "bad_pin"
+
+        # 正確登入
+        acc, reason = verify_login("reset_user", "correct")
+        assert acc is not None
+        assert reason == "ok"
+
+        # DB 確認歸零
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT failed_login_count, locked_until FROM accounts WHERE username=?",
+            ("reset_user",),
+        ).fetchone()
+        conn.close()
+
+        assert row["failed_login_count"] == 0
+        assert row["locked_until"] is None

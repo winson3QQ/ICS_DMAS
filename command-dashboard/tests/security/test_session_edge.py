@@ -153,6 +153,42 @@ class TestSessionDestroy:
 # 工具函式
 # ─────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────
+# 嚴格邊界（Strict Boundary）
+# ─────────────────────────────────────────────────────────────────
+
+class TestSessionStrictBoundary:
+    def test_heartbeat_api_remaining_refreshes(self, client):
+        """heartbeat 後 remaining 不繼續遞減（應 ≥ 第一次呼叫的值 - 1s 容差）"""
+        r = client.post("/api/auth/login", json={"username": "admin", "pin": "1234"})
+        token = r.json()["session_id"]
+
+        first = client.get("/api/auth/heartbeat", headers={"X-Session-Token": token})
+        assert first.status_code == 200
+        rem1 = first.json()["remaining"]
+
+        import time
+        time.sleep(1.1)
+
+        second = client.get("/api/auth/heartbeat", headers={"X-Session-Token": token})
+        assert second.status_code == 200
+        rem2 = second.json()["remaining"]
+
+        # heartbeat 刷新 last_active → remaining 不應低於 rem1 - 1（正常遞減容差）
+        assert rem2 >= rem1 - 1, "heartbeat 應刷新 session，remaining 不應大幅下降"
+
+    def test_expired_session_heartbeat_returns_401(self, tmp_db, client):
+        """已過期的 session 呼叫 heartbeat API → 401（HTTP 層驗證）"""
+        from auth import service as svc
+        from core.config import SESSION_TIMEOUT
+        token = svc.create_session({"username": "expired_hb", "role": "operator",
+                                    "display_name": "Expired"})
+        _patch_last_active(tmp_db, token, SESSION_TIMEOUT + 2)
+
+        r = client.get("/api/auth/heartbeat", headers={"X-Session-Token": token})
+        assert r.status_code == 401
+
+
 def _patch_last_active(tmp_db, token: str, seconds_ago: int):
     """直接修改 DB，讓 last_active = 現在 - seconds_ago 秒"""
     from datetime import datetime, timezone, timedelta
