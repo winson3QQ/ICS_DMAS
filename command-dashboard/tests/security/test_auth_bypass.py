@@ -23,23 +23,35 @@ import pytest
 # ─────────────────────────────────────────────────────────────────
 
 class TestAdminPinProtection:
+    """Admin PIN 保護測試。
+    各測試先設定 Admin PIN，確保 503（未設定）不干擾 403（有設定但 PIN 錯誤）的語意。
+    """
+
     def test_list_accounts_without_pin_returns_403(self, client):
-        """GET /api/admin/accounts 無 X-Admin-PIN → 403"""
+        """Admin PIN 已設定，無 X-Admin-PIN header → 403"""
+        from repositories.config_repo import set_admin_pin
+        set_admin_pin("999999", "test")
         r = client.get("/api/admin/accounts")
         assert r.status_code == 403
 
     def test_list_accounts_wrong_pin_returns_403(self, client):
-        """錯誤 X-Admin-PIN → 403"""
+        """Admin PIN 已設定，錯誤 X-Admin-PIN → 403"""
+        from repositories.config_repo import set_admin_pin
+        set_admin_pin("999999", "test")
         r = client.get("/api/admin/accounts", headers={"X-Admin-PIN": "000000"})
         assert r.status_code == 403
 
     def test_list_accounts_empty_pin_returns_403(self, client):
-        """空字串 X-Admin-PIN → 403"""
+        """Admin PIN 已設定，空字串 X-Admin-PIN → 403"""
+        from repositories.config_repo import set_admin_pin
+        set_admin_pin("999999", "test")
         r = client.get("/api/admin/accounts", headers={"X-Admin-PIN": ""})
         assert r.status_code == 403
 
     def test_create_account_without_pin_returns_403(self, client):
-        """POST /api/admin/accounts 無 X-Admin-PIN → 403"""
+        """Admin PIN 已設定，POST /api/admin/accounts 無 PIN → 403"""
+        from repositories.config_repo import set_admin_pin
+        set_admin_pin("999999", "test")
         r = client.post("/api/admin/accounts", json={
             "username": "hacker", "pin": "1234", "role": "操作員",
             "display_name": "", "role_detail": ""
@@ -47,9 +59,16 @@ class TestAdminPinProtection:
         assert r.status_code == 403
 
     def test_delete_account_without_pin_returns_403(self, client):
-        """DELETE /api/admin/accounts/{username} 無 X-Admin-PIN → 403"""
+        """Admin PIN 已設定，DELETE 無 PIN → 403"""
+        from repositories.config_repo import set_admin_pin
+        set_admin_pin("999999", "test")
         r = client.delete("/api/admin/accounts/admin")
         assert r.status_code == 403
+
+    def test_admin_pin_not_configured_returns_503(self, client):
+        """Admin PIN 未設定 → 503（系統未初始化）"""
+        r = client.get("/api/admin/accounts")
+        assert r.status_code == 503
 
 
 # ─────────────────────────────────────────────────────────────────

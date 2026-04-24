@@ -45,9 +45,39 @@ def set_admin_pin(new_pin: str, operator: str):
     set_config("admin_pin", json.dumps({"hash": h, "salt": s}), operator)
 
 
-def ensure_default_admin_pin():
-    if not get_config("admin_pin"):
-        set_admin_pin("1234", "system")
+def ensure_default_admin_pin(token_dir: str | None = None) -> str | None:
+    """首次啟動：若 admin_pin 未設定，產生隨機 6 位 PIN。
+
+    回傳產生的 PIN（首次）或 None（已設定）。
+    PIN 同時寫入 ~/.ics/admin_pin_token（chmod 600）。
+    """
+    import logging
+    import os
+    import secrets
+
+    if get_config("admin_pin"):
+        return None
+
+    admin_pin = f"{secrets.randbelow(1_000_000):06d}"
+    set_admin_pin(admin_pin, "system")
+
+    target_dir = token_dir or os.path.expanduser("~/.ics")
+    token_file = os.path.join(target_dir, "admin_pin_token")
+    try:
+        os.makedirs(target_dir, mode=0o700, exist_ok=True)
+        with open(token_file, "w") as f:
+            f.write(admin_pin + "\n")
+        os.chmod(token_file, 0o600)
+    except OSError:
+        token_file = "(寫檔失敗，請從 console 紀錄取得)"
+
+    logger = logging.getLogger("ics.first_run")
+    logger.warning("=" * 60)
+    logger.warning("ICS 首次啟動：Admin PIN = %s", admin_pin)
+    logger.warning("請在管理員面板登入後立刻修改 Admin PIN")
+    logger.warning("Token 檔：%s", token_file)
+    logger.warning("=" * 60)
+    return admin_pin
 
 
 # ── C2-D Admin PIN 鎖定 ───────────────────────────────────────────

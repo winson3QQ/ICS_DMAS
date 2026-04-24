@@ -96,6 +96,10 @@ def client(tmp_db, monkeypatch):
     monkeypatch.setattr(
         "main.ensure_initial_admin_token",
         lambda *args, **kwargs: _setup_test_admin())
+    # 測試環境：Admin PIN 不自動產生（由各測試自行 set_admin_pin）
+    monkeypatch.setattr(
+        "main.ensure_default_admin_pin",
+        lambda *args, **kwargs: None)
     from fastapi.testclient import TestClient
     from main import app
     with TestClient(app, raise_server_exceptions=True) as c:
