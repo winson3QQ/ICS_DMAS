@@ -36,10 +36,20 @@
 
 ## Git 操作規則
 
-- **任何 git 操作（commit、push、tag）一律等使用者明確指示才執行**
+- **任何 git 操作（commit、push、tag、PR）一律等使用者明確指示才執行**
 - 程式碼改完後停下來，告知改了什麼，等使用者說 ok 再動 git
-- 例外：使用者明確說「commit」、「push」、「推上去」才執行對應操作
+- 例外：使用者明確說「commit」、「push」、「推上去」、「開 PR」才執行對應操作
 - **不得自行判斷「應該順便 commit」或「順便 push」**
+
+### Branch 工作流（Feature Branch）
+
+- 每個功能 / Cx 項目建立獨立分支，命名規則：
+  - `feat/<scope>` — 新功能（如 `feat/c2-c-ruff`、`feat/c1-e-migrations`）
+  - `fix/<scope>` — bug fix（如 `fix/archive-404`）
+  - `docs/<scope>` — 純文件更新
+- 分支完成後透過 PR merge 回 `main`
+- `main` 只接受 merge commit（不直接 push feature code）
+- hotfix 或純文件更新可直接在 `main` commit
 
 ## 版號規則
 

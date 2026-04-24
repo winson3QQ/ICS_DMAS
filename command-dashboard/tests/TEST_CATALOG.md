@@ -1,7 +1,8 @@
 # ICS DMAS 測試目錄
 
-> 目前共 **251 個測試案例**（250 passed + 1 xfailed），分四層執行（Unit / Integration / API / Security）。  
-> 最新報告：`tests/reports/smoke_v3_20260424_144713.html`（240 passed, 1 xfailed, 2026-04-24）；2026-04-24 外部 bundle 整合後 250 passed + 1 xfailed  
+> 目前共 **269 個測試案例**（268 passed + 1 xfailed），分四層執行（Unit / Integration / API / Security）。  
+> 最新報告：cmd-v2.0.5，2026-04-24，269 passed + 1 xfailed  
+> 新增：C2-D `TestAdminPinLockout`（7）、C1-E `TestMigrationsTable`（6）+ `TestSchemaMigrationsApi`（4）、Admin PIN 503 測試（1）  
 > Coverage：**44%**（排除 legacy dead code `db.py` / `main_legacy.py`）  
 > 執行指令：`bash scripts/run_tests.sh`
 
