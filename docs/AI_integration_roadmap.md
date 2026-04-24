@@ -1,7 +1,8 @@
 # ICS_DMAS AI 整合開發 Roadmap
 
-**唯一主文件** — 整合來源：Wave 5 待辦、[AI_reference.md 第一部分](AI_reference.md)（AI 藍圖）、[AI_reference.md 第二部分](AI_reference.md)（AI 技術報告）、民防感知系統規格書/開發計畫/測試計畫 v1.4
-原始文件降為參考資料，不需要日常查閱。
+> **層級**：L2 技術路線圖，由 [commercialization_plan_v1.md](commercialization_plan_v1.md) §C 章節引用
+> **里程碑進度**：見 [ROADMAP.md](ROADMAP.md)（Wave 9 / C5-C / C5-D 對應段落）
+> **整合來源**：Wave 5 待辦、AI_reference.md（已廢棄）、民防感知系統規格書/開發計畫/測試計畫 v1.4
 
 ## 進度追蹤
 

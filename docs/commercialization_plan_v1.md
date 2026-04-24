@@ -17,11 +17,13 @@
 
 ## 文件地圖
 
-本文件為唯一業務/戰略入口。所有技術決策從這裡往下追。
+> 里程碑進度與 Wave/cX 狀態見 [docs/ROADMAP.md](ROADMAP.md)（導航層）。
+> 本文件為 **L1 業務/策略規格**，負責 C0–C6 實作細節、商業模式、IP 策略、法規合規。
 
 | 文件 | 層級 | 讀者 | 說明 |
 |------|------|------|------|
-| **commercialization_plan_v1.md**（本文） | L1 業務/戰略 | 所有人 | 唯一頂層文件，驅動所有決策 |
+| `docs/ROADMAP.md` | L0 導航 | 所有人 | Wave + cX 統一里程碑，進度唯一入口 |
+| **commercialization_plan_v1.md**（本文） | L1 業務/戰略 | 所有人 | C0–C6 實作規格、商業模式、IP 策略、法規合規 |
 | `docs/AI_integration_roadmap.md` | L2 技術路線圖 | 開發者 | Phase 0–7 + C0 資料基礎層，由本文 §C 章節引用 |
 | `command-dashboard/docs/指揮部儀表板設計規格.md` | L2 產品規格 | 開發者 | Wave UI 設計規範 |
 | `shelter-pwa/docs/shelter_pwa_spec.md` | L2 產品規格 | 開發者 | 收容 PWA 功能規格 |
@@ -859,16 +861,7 @@ C0 基礎重構（唯一串行前提）
 
 ### 版本里程碑
 
-| 里程碑 | 版本 | 商業意義 | 對應 AI roadmap |
-|--------|------|---------|----------------|
-| Wave 5 完成 | `cmd-v0.13.0` | UI 收尾，演訓可用 | Phase 1 完成 |
-| C0 Pi 端完成 | `server-v1.2.0` | Pi server 模組化，對外功能不變 | — |
-| C1 + C2 完成 | `v2.1.0` | **第一個可投標版本** | — |
-| C3 + C4 完成 | `v2.2.0` | **第一個可銷售版本** | — |
-| C5-A + C5-B 完成 | `v3.0.0` | **護城河開始，TTX+AAR 商品化** | Phase 6 完成 |
-| C5-C + C5-D 完成 | `v3.1.0` | **AI 差異化功能，Tier 3 可賣** | Phase 4+5 完成 |
-| C6 完成 | `v3.2.0` | **ISO 認證版本，旗艦標案用** | Phase 7 完成 |
-| Silent Scribe MVP | `ss-v1.0.0` | **戰術版獨立產品線上線** | Silent Scribe Sprint 6 |
+> 見 [docs/ROADMAP.md](ROADMAP.md)（Wave + cX 統一里程碑表）
 
 ---
 

@@ -122,21 +122,7 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 
 ## 指揮部儀表板路線圖
 
-| Wave | 內容 | 版號 | 狀態 |
-|------|------|------|------|
-| 1 | 三區佈局 + 雙地圖 + calc_engine 基礎智慧 | cmd-v0.2.0 | ✅ 完成 |
-| 2 | 互動地圖事件輸入 + Decision Countdown + DCI + staff API | cmd-v0.3.0 | ✅ 完成 |
-| 3 | Escalation/De-escalation + 佈局重構 + 全中文化 + 登入認證 | cmd-v0.4.0～v0.7.0+ | ✅ 完成 |
-| 4 | Pi Push + L3/L4 鑽探 + calc_engine 接入 | cmd-v0.8.0 / server-v1.1.0 | ✅ 完成 |
-| 4+ | 情境設計器 + chart_utils.js 共用 + 演練模式鑽探停用 + 量能右軸 | cmd-v0.9.0 / FastAPI-v1.2.0 | ✅ 完成 |
-| 4++ | Leaflet 互動地圖完整實作（區域/路線/調度指示/基礎設施/MGRS/EOC 事件追蹤） | cmd-v0.12.4 | ✅ 完成 |
-| 5 | UI 收尾（deadline API、決策合併、burn rate 預測線、動態 marker 聯動 calc_engine、push/polling 間隔縮短） | cmd-v0.13.0 | 🔲 待做 |
-| 6 | COP 完整實作（熱圖、叢集化、過濾搜尋、時間軸回放、3D 地形待評估） | cmd-v0.14.0 | 🔲 待做 |
-| 7 | TAK 整合（FreeTAKServer + CoT ↔ ICS_DMAS）+ MIL-STD-2525 軍用符號 | cmd-v1.1.0 | 🔲 待做 |
-| 8 | EOC/NIMS 標準對齊（ICS 201/214 表單、資源請求、單位間訊息、廣播、SitRep、AAR、稽核軌跡、YubiKey 雙人驗證） | cmd-v1.2.0 | 🔲 待做 |
-| 9 | Silent Scribe 整合（STT Breeze ASR 25 on N100、LLM ICS-214 自動填表、Panic Wipe、SQLCipher） | cmd-v1.3.0 | 🔲 待做 |
-
-> **硬體備忘**：Command Console 目標平台為 N100 Mini PC（解決 3D 地形 WebGL 需求）；Pi 500 定位為 PWA host + WS Server + Pi push 中繼節點。
+> Wave 進度與版本里程碑見 [docs/ROADMAP.md](../../docs/ROADMAP.md)
 
 ### Wave 3 版本歷史摘要
 
@@ -214,17 +200,9 @@ originSessionId: 543daa3e-1ccf-42d0-95b2-51722f37c565
 
 ### Wave 5 待做項目（UI 收尾）
 
-| 項目 | 狀態 | 說明 |
-|------|------|------|
-| 重設 deadline 後端 API | ✅ 完成 | 前後端均已實作；`PATCH /api/events/{id}/deadline`、`db.patch_event()` 白名單含 `response_deadline`、前端 `_resetDeadline()` 完整 |
-| 決策主題合併卡片 | 🔲 待做 | 前端 `primary_event_id` 篩選邏輯已存在；group by 合併顯示「鏈 N 筆」尚未實作 |
-| 物資 burn rate 預測線 | 🔲 待做 | `chart_utils.js` `drawSparkline()` 無 `projectToZero` 屬性；需新增虛線延伸至 Y=0 邏輯 |
-| **動態 marker 聯動 calc_engine** | ✅ 完成（cmd-v0.12.13） | Leaflet zone marker 三態：Link ok+有資料→RAG 顏色+人數 badge；Link warn（30-90s）→黃虛線圓環疊加；Link crit/LKP→灰底+OFF badge+紅閃圓環。`_napsgIcon()` 加第 4 個 `opts` 參數；`_renderLeafletMarkers()` 從 `_data.pi_nodes`+`snapshots` 算 linkLevel；header conn dot、marker、node-card dot 全部對齊 30/90s 門檻。 |
-| **縮短 push / polling 間隔** | ✅ 完成 | Pi push：60s → 5s（`ics_ws_server.js` `PI_PUSH_INTERVAL_MS`）；Command polling 已是 5s（`POLL_INTERVAL=5000`）；最壞延遲 ~10s |
-| 地圖流向箭頭 | ✅ 完成 | 舊 SVG overlay `renderFlows()` 已移除；現由 Leaflet `_renderFlows()` 統一處理 |
-| **Session SQLite 持久化** | ✅ 完成（cmd-v0.12.13） | in-memory dict → SQLite `sessions` 表；`check_and_touch()` 原子讀寫；SESSION_TIMEOUT=28800s；server 重啟不登出 |
-| **UI 狀態 Ctrl+Shift+R 還原** | ✅ 完成（cmd-v0.12.14） | 5 個 sessionStorage key：`_zoneTab`、`_l3SubTab`、`_openL4`（recordId 比對）、`_leftPanelGroup`、`_expandedSpark` |
-| **量能圖資料＋語意修正** | ✅ 完成（cmd-v0.12.14） | extraData `sBt→sBu`（實際人數）；圖例「床位→量能」；「傷患後送→傷患入站」 |
+> 詳細清單見 [docs/ROADMAP.md § Wave 5 → v0.13.0](../../docs/ROADMAP.md)
+>
+> 剩餘：決策主題合併卡片、物資 burn rate 預測線
 
 ---
 
