@@ -19,6 +19,7 @@ from core.database import init_db
 from auth.middleware import auth_middleware
 from repositories.account_repo import ensure_default_admin
 from repositories.config_repo import ensure_default_admin_pin
+from auth.service import cleanup_expired_sessions
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 from routers import (
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):
     init_db()
     ensure_default_admin()
     ensure_default_admin_pin()
+    cleanup_expired_sessions()  # 清除上次遺留的過期 session
     yield
 
 

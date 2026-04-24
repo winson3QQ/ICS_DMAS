@@ -6,8 +6,9 @@ DB 隔離策略：
   並 monkeypatch core.database.DB_PATH，確保測試之間不互汙染。
 
 Session 隔離：
-  auth.service._sessions 是 module-level dict，
-  autouse fixture 在每個測試前後清空，避免 session 洩漏。
+  sessions 存在 SQLite（sessions 表），隨 tmp_db 的獨立 DB 自動隔離。
+  _clear_sessions autouse fixture 在測試前後刪除 sessions 表資料，
+  防止跨測試 session 洩漏（包含無 tmp_db 的測試情境）。
 """
 
 import sys
@@ -21,12 +22,23 @@ import pytest
 
 # ── Session 隔離（autouse，所有測試自動套用）────────────────────────────────
 
+def _delete_all_sessions():
+    """刪除當前 DB 的所有 sessions（test DB 或 real DB 均適用）"""
+    try:
+        from core.database import get_conn
+        conn = get_conn()
+        conn.execute("DELETE FROM sessions")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # sessions 表不存在（init_db 尚未執行）時忽略
+
+
 @pytest.fixture(autouse=True)
 def _clear_sessions():
-    from auth.service import _sessions
-    _sessions.clear()
+    _delete_all_sessions()
     yield
-    _sessions.clear()
+    _delete_all_sessions()
 
 
 # ── DB 隔離 ────────────────────────────────────────────────────────────────

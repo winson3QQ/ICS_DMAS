@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import Response, HTMLResponse, FileResponse
-from auth.service import _sessions
+from auth.service import get_session
 from core.config import MBTILES_DIR, STATIC_DIR, SRC_DIR
 
 router = APIRouter(tags=["地圖 Tiles"])
@@ -85,7 +85,7 @@ async def save_map_config(request: Request):
 @router.post("/api/map/upload-image", tags=["系統"])
 async def upload_map_image(request: Request, file: UploadFile = File(...)):
     token = request.headers.get("X-Session-Token")
-    sess  = _sessions.get(token)
+    sess  = get_session(token) if token else None
     if not sess or sess.get("role") != "指揮官":
         raise HTTPException(403, "僅指揮官可上傳地圖")
     filename = file.filename or "map.jpg"

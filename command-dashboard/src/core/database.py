@@ -302,6 +302,16 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     -- ── RBAC roles（config key）───────────────────────────────────────────
     -- 用 accounts.role 欄位，合法值：
     --   'operator' | 'commander' | 'admin' | 'ttx_orchestrator'
+
+    -- ── Sessions（持久化，server 重啟後仍有效）────────────────────────────
+    CREATE TABLE IF NOT EXISTS sessions (
+        token        TEXT PRIMARY KEY,
+        username     TEXT NOT NULL,
+        role         TEXT NOT NULL,
+        display_name TEXT,
+        last_active  TEXT NOT NULL,
+        created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
     """)
 
 

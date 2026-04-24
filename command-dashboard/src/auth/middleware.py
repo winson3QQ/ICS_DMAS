@@ -4,10 +4,9 @@ auth/middleware.py — 全域 HTTP 認證中介層
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from datetime import datetime, timezone
 
-from core.config import SESSION_TIMEOUT, AUTH_EXEMPT_EXACT, AUTH_EXEMPT_PREFIXES
-from .service import _sessions
+from core.config import AUTH_EXEMPT_EXACT, AUTH_EXEMPT_PREFIXES
+from .service import check_and_touch
 
 
 async def auth_middleware(request: Request, call_next):
@@ -53,13 +52,12 @@ async def auth_middleware(request: Request, call_next):
     # 其餘 /api/ 端點需要有效 session
     if path.startswith("/api/"):
         token = request.headers.get("X-Session-Token")
-        if not token or token not in _sessions:
+        if not token:
             return JSONResponse({"detail": "未登入或 session 已過期"}, status_code=401)
-        sess = _sessions[token]
-        now = datetime.now(timezone.utc).timestamp()
-        if now - sess["last_active"] > SESSION_TIMEOUT:
-            _sessions.pop(token, None)
-            return JSONResponse({"detail": "閒置超時，請重新登入"}, status_code=401)
-        sess["last_active"] = now
+        sess = check_and_touch(token)
+        if sess is None:
+            return JSONResponse({"detail": "未登入或 session 已過期"}, status_code=401)
+        # 存入 request.state，供 validate_session() 直接讀取，避免重複 DB 查詢
+        request.state.session = sess
 
     return await call_next(request)
