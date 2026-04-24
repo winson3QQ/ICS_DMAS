@@ -1,0 +1,11 @@
+#!/bin/bash
+# branch checkout 後自動同步 Claude memory
+# $3 = 1 表示 branch checkout（非 file checkout，不觸發）
+if [ "$3" = "1" ]; then
+  REPO=$(git rev-parse --show-toplevel)
+  PROJECT_DIR=$(echo "$REPO" | sed 's|^/||; s|[^a-zA-Z0-9]|-|g')
+  DEST="$HOME/.claude/projects/$PROJECT_DIR/memory"
+  mkdir -p "$DEST"
+  cp "$REPO/.claude/memory/"* "$DEST/"
+  echo "[memory sync] Claude memory 已同步 → $DEST"
+fi

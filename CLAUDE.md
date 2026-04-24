@@ -86,12 +86,21 @@
 
 ## Memory 同步（跨機器）
 
-Memory 檔案存放在 repo 的 `.claude/memory/` 目錄，**每次在新機器 clone 後**需執行以下指令，將 memory 複製到 Claude Code 實際讀取的位置。
-
-路徑因機器不同，使用動態指令自動偵測：
+Memory 檔案存放在 repo 的 `.claude/memory/` 目錄。`git pull` 會自動觸發 sync（透過 `.githooks/post-merge`），**每台新機器只需執行一次 hook 啟用指令**：
 
 ```bash
-# Mac / Linux（在 repo 根目錄執行）
+# Mac / Linux / Git Bash（在 repo 根目錄執行一次）
+git config core.hooksPath .githooks
+```
+
+啟用後，`git pull` 完自動將 `.claude/memory/` 同步到 Claude Code 讀取位置，無需手動操作。
+
+### 手動 sync（備用）
+
+hook 尚未啟用，或需要立即強制同步時：
+
+```bash
+# Mac / Linux
 REPO=$(git rev-parse --show-toplevel)
 PROJECT_DIR=$(echo "$REPO" | sed 's|^/||; s|[^a-zA-Z0-9]|-|g')
 mkdir -p ~/.claude/projects/$PROJECT_DIR/memory
@@ -99,7 +108,7 @@ cp "$REPO/.claude/memory/"* ~/.claude/projects/$PROJECT_DIR/memory/
 ```
 
 ```powershell
-# Windows（PowerShell，在 repo 根目錄執行）
+# Windows（PowerShell）
 $repo = git rev-parse --show-toplevel
 $encoded = ($repo -replace '^/', '' -replace '[^a-zA-Z0-9]', '-')
 $dest = "$env:USERPROFILE\.claude\projects\$encoded\memory"
@@ -108,7 +117,6 @@ Copy-Item "$repo\.claude\memory\*" $dest
 ```
 
 > **路徑編碼規則**：Claude Code 將絕對路徑的每個非英數字元（`/`、`\`、`:`、空格、`_` 等）全部換成 `-`，並去掉開頭的 `-`。
-> 執行前可用 `ls ~/.claude/projects/ | grep ICS`（Mac）確認目錄名稱。
 
 若在該機器新增了 memory，記得也要 commit `.claude/memory/` 回 repo，讓其他機器能同步。
 

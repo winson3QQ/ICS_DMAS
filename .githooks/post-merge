@@ -1,0 +1,8 @@
+#!/bin/bash
+# git pull 後自動同步 Claude memory
+REPO=$(git rev-parse --show-toplevel)
+PROJECT_DIR=$(echo "$REPO" | sed 's|^/||; s|[^a-zA-Z0-9]|-|g')
+DEST="$HOME/.claude/projects/$PROJECT_DIR/memory"
+mkdir -p "$DEST"
+cp "$REPO/.claude/memory/"* "$DEST/"
+echo "[memory sync] Claude memory 已同步 → $DEST"
