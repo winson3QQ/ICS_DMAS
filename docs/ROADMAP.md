@@ -9,7 +9,7 @@
 
 | 項目 | 狀態 |
 |------|------|
-| 程式版號 | `cmd-v2.0.2` / `server-v1.3.0` |
+| 程式版號 | `cmd-v2.0.3` / `server-v1.3.0` |
 | Wave 進度 | Wave 5 尾端（剩 2 項）|
 | cX 進度 | C0 ✅ / **C1-B ✅** / **C1-A Phase 1 ✅**（鎖定 + rate limit + 首次強制設定；Phase 2 RBAC + Phase 3 MFA 待做）/ C1 其餘待做 / C2 部分完成 |
 | 下一個里程碑 | `v0.13.0` Wave 5 完成 |

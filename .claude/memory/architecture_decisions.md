@@ -251,3 +251,26 @@ command-dashboard/src/
 - Command dashboard 有本地資料副本
 - 復線後自動補送（push_queue）
 - AI 即時建議：本地模型優先，雲端是 fallback
+
+---
+
+## C1-A 首次啟動 PIN 交付——C3-B 解決（2026-04-24 決策）
+
+### 問題
+首次啟動產生的隨機 PIN 目前只印在 console 和寫入 `~/.ics/first_run_token`。
+部署到 Pi 後台服務（systemd）時，部署者看不到 console，token 檔也需要 SSH 才能讀。
+
+### 決策
+**現在的做法是過渡方案**，C3-B（一鍵安裝腳本）實作時解決：
+- 安裝腳本最後一步要求部署者設定初始 PIN（部署者一定在場）
+- 或印出隨機 PIN 並要求確認後才結束腳本
+
+### 業界參考
+- 方案 A（安裝時設定）：Enterprise 軟體主流，`bash install.sh --initial-pin XXXXXX`
+- 方案 B（本機限定首次設定）：pfSense / Proxmox / Grafana 做法，初始狀態只允許 localhost 訪問
+- 方案 C（硬體衍生密碼）：路由器做法，從 Pi serial number 衍生 PIN，貼紙印在機器上
+
+**選定：方案 A**（安裝腳本設定），搭配方案 B（首次設定前只開 localhost）作為保險。
+
+### 不動 C1-A 現有程式碼
+現有的 `ensure_initial_admin_token()` 邏輯不變，C3-B 的安裝腳本在啟動服務前先呼叫 CLI 設定初始 PIN，不進入 first-run 流程。

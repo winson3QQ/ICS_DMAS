@@ -1,6 +1,8 @@
 # ICS DMAS 測試目錄
 
-> 目前共 **133 個測試案例**，分三層執行。  
+> 目前共 **241 個測試案例**（240 passed + 1 xfailed），分四層執行（Unit / Integration / API / Security）。  
+> 最新報告：`tests/reports/smoke_v3_20260424_144713.html`（240 passed, 1 xfailed, 2026-04-24）  
+> Coverage：**44%**（排除 legacy dead code `db.py` / `main_legacy.py`）  
 > 執行指令：`bash scripts/run_tests.sh`
 
 ---
@@ -12,6 +14,7 @@
 | **Unit** | 測單一函式的輸入輸出 | 不碰 DB、不起 server、最快 |
 | **Integration** | 測模組之間的協作，包含真實 DB 操作 | 每個測試用獨立的暫存 SQLite |
 | **API** | 模擬 HTTP 請求，測完整的請求→回應流程 | 透過 FastAPI TestClient，不需要起真正的 server |
+| **Security** | 安全功能端對端驗證（C1-A+）| 鎖定邏輯、rate limit、first-run gate，部分需 DB + TestClient |
 
 ---
 
@@ -88,14 +91,14 @@
 | `test_create_and_retrieve` | 建帳號後可以查到，欄位正確 |
 | `test_duplicate_username_raises` | 重複的帳號名稱應拋出例外 |
 | `test_pin_not_stored_in_plaintext` | DB 裡的 pin_hash 不是明文（安全性驗證） |
-| `test_correct_credentials` | 正確帳密，`verify_login()` 回傳帳號資料 |
-| `test_wrong_pin` | 錯誤 PIN，`verify_login()` 回傳 None |
-| `test_nonexistent_user` | 不存在的帳號，`verify_login()` 回傳 None |
+| `test_correct_credentials` | 正確帳密，`verify_login()` 回傳 `(account, "ok")` |
+| `test_wrong_pin` | 錯誤 PIN，`verify_login()` 回傳 `(None, "bad_pin")` |
+| `test_nonexistent_user` | 不存在的帳號，`verify_login()` 回傳 `(None, "no_user")` |
 | `test_pin_not_in_response` | 登入成功的回傳值不包含 `pin_hash`、`pin_salt`（不洩漏機敏資料） |
 | `test_creates_admin_if_empty` | 第一次啟動，自動建立 admin 帳號 |
 | `test_idempotent` | 呼叫兩次 `ensure_default_admin()` 不會建出兩個 admin |
-| `test_default_pin_works` | 預設 admin 帳號的 PIN 是「1234」，可以登入 |
-| `test_suspend_and_login_fails` | 停用帳號後，即使密碼正確也無法登入 |
+| `test_default_pin_works` | 預設 admin 帳號的 PIN 是「1234」，可以登入，`reason="ok"` |
+| `test_suspend_and_login_fails` | 停用帳號後，即使密碼正確也回 `(None, "suspended")` |
 
 ---
 
@@ -242,14 +245,371 @@
 
 ---
 
+---
+
+## Security 測試（19 個）—— C1-A Phase 1（cmd-v2.0.2）
+
+> 對應規格：`docs/commercialization_plan_v1.md §C1-A`  
+> 測試檔路徑：`tests/security/`
+
+### `test_login_lockout.py` — 登入鎖定 + IP rate limit（9 個）
+
+#### `TestAccountLockout`（5 個，DB 層）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_fifth_wrong_pin_locks_account` | 第 5 次錯誤 PIN → `reason="locked"`，帳號鎖定 15 分鐘 |
+| `test_locked_account_rejects_correct_pin` | 鎖定中即使輸入正確 PIN 也回 `"locked"`（防鎖定期暴力） |
+| `test_successful_login_resets_failed_count` | 成功登入後 `failed_login_count=0`、`locked_until=NULL` |
+| `test_unlock_account_clears_lock` | `unlock_account()` 管理員手動解鎖，之後可正常登入 |
+| `test_lockout_expires_after_duration` | 直接改 DB `locked_until` 到過去時間，模擬 15 分鐘已過，應可登入 |
+
+#### `TestLoginAPILockout`（2 個，HTTP 層）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_locked_returns_423` | 帳號鎖定後 `POST /api/auth/login` 回 HTTP 423 Locked |
+| `test_no_user_returns_401_not_404` | 不存在帳號回 401，不洩漏帳號是否存在 |
+
+#### `TestIPRateLimit`（2 個，HTTP 層）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_eleventh_request_returns_429` | 同一 IP 第 11 次 login 回 HTTP 429，且帶 `Retry-After` header |
+| `test_rate_limit_only_applies_to_login` | 非 `/api/auth/login` 路徑（如 `/api/health`）不受 rate limit |
+
+---
+
+### `test_first_run.py` — 首次強制設定流程（10 個）
+
+#### `TestEnsureInitialAdminToken`（5 個，DB 層）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_creates_admin_with_random_pin` | 空 DB 首次啟動，自動建立 admin，PIN 為 6 位數字 |
+| `test_writes_token_file` | PIN 寫入 `first_run_token` 檔案，權限 0600 |
+| `test_returns_none_if_accounts_exist` | 已有帳號時回傳 `None`（冪等，不重複建） |
+| `test_pin_unpredictable` | 連續 5 次獨立執行 PIN 不重複（隨機性 sanity check） |
+| `test_initial_pin_is_default_flagged` | 新建 admin 的 `is_default_pin=1`，`is_first_run_required()=True` |
+
+#### `TestClearDefaultPinFlag`（1 個，DB 層）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_clear_after_pin_change` | `clear_default_pin_flag()` 後 `is_first_run_required()=False` |
+
+#### `TestFirstRunGate`（4 個，HTTP 層）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_login_allowed_when_first_run` | 白名單：`POST /api/auth/login` 在 first-run 狀態仍可通過，回傳 `must_change_pin=true` |
+| `test_health_allowed_when_first_run` | 白名單：`GET /api/health` 不被 gate 擋 |
+| `test_other_apis_blocked_with_423` | 非白名單路徑（即使持有有效 token）回 HTTP 423，body `code="FIRST_RUN_REQUIRED"` |
+| `test_change_pin_clears_gate` | 改 PIN 後 `is_default_pin=0`，gate 解除，原本被擋的 API 恢復正常 |
+
+---
+
+---
+
+## Security 測試擴充（51 個）—— Smoke v2（2026-04-24）
+
+> 對應規格：韌性 / 安全 / 模糊測試  
+> 測試檔路徑：`tests/security/`
+
+### `test_sync_integrity.py` — 同步完整性（8 個）
+
+#### `TestReplayDuplicateSync`（5 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_first_insert_returns_inserted_true` | 首次推送 `inserted=True` |
+| `test_duplicate_returns_inserted_false` | 相同 snapshot_id 二次推送 → `inserted=False` |
+| `test_duplicate_does_not_increase_db_count` | 重複推送不增加 DB 筆數（恰好 1 筆）|
+| `test_duplicate_with_modified_data_ignored` | 相同 ID 不同資料 → 原始資料保留（INSERT OR IGNORE）|
+| `test_duplicate_via_api_both_return_200` | 透過 API 重複推送：兩次都 200，不拋錯 |
+
+#### `TestOutOfOrderSync`（3 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_latest_reflects_snapshot_time_not_arrival` | 排序依 `snapshot_time`，亂序不影響 latest |
+| `test_old_snapshot_does_not_displace_latest` | 舊時間戳快照推入後，最新快照不被取代 |
+| `test_future_timestamp_accepted` | 未來時間戳（時鐘偏移）系統接受，不拋錯 |
+
+---
+
+### `test_session_edge.py` — Session 超時邊界（8 個）
+
+#### `TestSessionTimeout`（4 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_session_valid_just_before_timeout` | `SESSION_TIMEOUT - 1s`：session 仍有效 |
+| `test_session_expired_just_over_timeout` | `SESSION_TIMEOUT + 1s`：session 過期，回 None |
+| `test_expired_session_deleted_from_db` | 過期觸發時，token 從 DB 實際刪除 |
+| `test_session_remaining_zero_after_expiry` | 過期後 `session_remaining()` 回傳 0 |
+
+#### `TestSessionHeartbeat`（1 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_heartbeat_via_api_extends_session` | `GET /api/auth/heartbeat` 刷新 `last_active` |
+
+#### `TestSessionDestroy`（3 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_logout_invalidates_token` | 登出後原 token 打 `/api/auth/me` → 401 |
+| `test_same_user_can_have_multiple_sessions` | 同帳號可同時持有多個 session（多裝置）|
+| `test_logout_one_session_does_not_affect_other` | 登出一個 session 不影響同帳號其他 session |
+
+---
+
+### `test_concurrent.py` — 並發 / Mutex 競爭（5 個，含 1 xfailed）
+
+#### `TestExerciseMutexSerial`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_second_activate_raises` | 序列呼叫：第二個 activate 拋 `ValueError` |
+| `test_archive_releases_mutex` | 歸檔釋放 mutex，可再啟動新演練 |
+
+#### `TestExerciseMutexConcurrent`（1 個，xfailed）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_concurrent_activate_at_most_one_wins` | ⚠️ **TOCTOU 風險**：並發 activate 若出現兩個 active → `xfail`（已知風險，C2 修正）|
+
+#### `TestConcurrentSnapshotPush`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_two_threads_push_different_snapshots` | 兩執行緒推不同 snapshot_id → 兩筆都進 DB |
+| `test_two_threads_push_same_snapshot_id` | 兩執行緒推相同 snapshot_id → DB 只有 1 筆，不崩潰 |
+
+---
+
+### `test_auth_bypass.py` — 管理員繞過嘗試（15 個）
+
+#### `TestAdminPinProtection`（5 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_list_accounts_without_pin_returns_403` | 無 X-Admin-PIN → 403 |
+| `test_list_accounts_wrong_pin_returns_403` | 錯誤 PIN → 403 |
+| `test_list_accounts_empty_pin_returns_403` | 空字串 PIN → 403 |
+| `test_create_account_without_pin_returns_403` | POST /api/admin/accounts 無 PIN → 403 |
+| `test_delete_account_without_pin_returns_403` | DELETE /api/admin/accounts/{u} 無 PIN → 403 |
+
+#### `TestPiPushProtection`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_pi_push_without_bearer_returns_401` | 無 Authorization header → 401 |
+| `test_pi_push_wrong_token_returns_403` | 錯誤 Bearer token → 403 |
+
+#### `TestTokenForging`（5 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_nonexistent_token_returns_401` | 不存在的 UUID token → 401 |
+| `test_sql_injection_in_token_returns_401` | SQL 注入字串作 token → 401，不崩潰 |
+| `test_very_long_token_returns_401` | 10,000 字元 token → 401，不崩潰 |
+| `test_empty_token_returns_401` | 空字串 token → 401 |
+| `test_no_token_returns_401` | 完全不帶 header → 401 |
+
+#### `TestOpenEndpointsByDesign`（3 個，設計決策文件）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_snapshot_post_is_open_by_design` | POST /api/snapshots 無 session 200（機對機設計，非漏洞）|
+| `test_snapshot_get_is_open_by_design` | GET /api/snapshots/{type} 無 session 200（Pi 讀取，設計）|
+| `test_health_is_open` | GET /api/health 無 session 200（監控探針）|
+
+---
+
+### `test_payload_fuzzing.py` — 惡意/畸形 Payload（15 個）
+
+#### `TestLoginFuzzing`（6 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_integer_pin_coerced_or_422` | pin 傳整數 → 強制轉換或 422，不崩潰 |
+| `test_sql_injection_in_username` | SQL 注入 username → 401，DB 不受影響 |
+| `test_sql_injection_in_pin` | SQL 注入 pin → 401，不崩潰 |
+| `test_missing_username_returns_422` | 缺 username → 422 |
+| `test_missing_pin_returns_422` | 缺 pin → 422 |
+| `test_empty_body_returns_422` | 空 body → 422 |
+
+#### `TestEventFuzzing`（5 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_invalid_severity_returns_422` | 非法 severity 值 → 422 |
+| `test_xss_in_description_stored_safely` | XSS payload 原樣存入（後端不 escape，前端責任）|
+| `test_sql_injection_in_description_stored_safely` | SQL 注入存入 → DB 不受影響，events 表仍存在 |
+| `test_oversized_description` | 50,000 字元 description → 200 或 422，不崩潰 |
+| `test_unicode_and_emoji_in_description` | Unicode + emoji → 正常處理 |
+
+#### `TestSnapshotFuzzing`（4 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_missing_snapshot_id_returns_422` | 缺 snapshot_id → 422 |
+| `test_unknown_type_returns_400` | 未知 node type → 400 |
+| `test_extra_unknown_fields_accepted` | 額外未知欄位（`extra="allow"`）→ 200 |
+| `test_negative_bed_values_accepted` | 負數 bed_used → 接受（已知行為，C2 加 validator）|
+
+---
+
+---
+
+## Security 測試擴充（38 個）—— Smoke v3（2026-04-24）
+
+> 測試檔路徑：`tests/security/`
+
+### `test_admin_gate.py` — Admin 權限集中化守門（10 個）
+
+#### `TestSessionVsAdminPin`（4 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_valid_session_without_admin_pin_returns_403` | 有效 session + 無 X-Admin-PIN → 403（session 不替代 PIN）|
+| `test_valid_session_with_wrong_admin_pin_returns_403` | 有效 session + 錯誤 PIN → 403 |
+| `test_no_session_with_correct_admin_pin_passes` | 無 session + 正確 PIN → 200（admin 端點豁免 session auth）|
+| `test_valid_session_with_correct_admin_pin_passes` | 有效 session + 正確 PIN → 200 |
+
+#### `TestRoleVsAdminPin`（3 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_operator_without_admin_pin_gets_403` | 操作員角色 + 無 PIN → 403（角色不替代 PIN）|
+| `test_operator_with_correct_admin_pin_can_access` | 操作員 + 正確 PIN → 200（PIN 才是守門關鍵）|
+| `test_operator_cannot_escalate_own_role_without_pin` | 操作員嘗試升級自己角色（無 PIN）→ 403 |
+
+#### `TestAdminPinBoundary`（3 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_admin_pin_not_setup_verify_returns_false` | 空 DB 無 admin_pin → `verify_admin_pin()` 回 False |
+| `test_admin_pin_change_takes_effect_immediately` | 改 PIN 後舊 PIN 立刻失效，新 PIN 立刻生效 |
+| `test_delete_nonexistent_account_returns_404` | 刪除不存在帳號（正確 PIN）→ 404 |
+
+---
+
+### `test_sync_extended.py` — /api/sync/push 三 Pass 同步（9 個）
+
+#### `TestSyncEmptyPayload`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_empty_sync_push_returns_200` | 空 payload → 200，不崩潰 |
+| `test_empty_sync_does_not_change_db` | 空 payload 不增加任何 snapshots |
+
+#### `TestSyncIdempotency`（3 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_same_payload_twice_idempotent` | 相同 payload 推兩次 → 快照數不變（Pass 1 UPDATE）|
+| `test_sync_pass1_updates_existing_snapshot` | 已存在 snapshot_id → Pass 1 UPDATE（不同於 INSERT OR IGNORE）|
+| `test_sync_result_consistent_on_retry` | 失敗重試 → 結果與第一次一致 |
+
+#### `TestSyncOutOfOrder`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_old_timestamp_via_sync_does_not_displace_latest` | 透過 sync push 的舊時間戳不取代最新快照 |
+| `test_mixed_timestamps_all_stored` | 亂序多筆快照全部存入 DB（不丟棄）|
+
+#### `TestSyncUnknownUnit`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_unknown_source_unit_accepted` | 未知 source_unit → 200（容錯設計）|
+| `test_sync_without_snapshots_key` | 缺 snapshots 欄位 → 200 或 422，不崩潰 |
+
+---
+
+### `test_session_config.py` — Session 設定邊界（6 個）
+
+#### `TestSessionTimeoutConfig`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_custom_short_timeout_expires_session` | SESSION_TIMEOUT=2s：2 秒後 session 過期 |
+| `test_zero_timeout_immediately_expires` | SESSION_TIMEOUT=0：session 立即過期（邊界值）|
+
+#### `TestCleanupExpiredSessions`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_cleanup_removes_expired_sessions` | `cleanup_expired_sessions()` 移除所有過期 session |
+| `test_cleanup_returns_zero_when_nothing_expired` | 無過期 session 時 cleanup 回傳 0 |
+
+#### `TestConcurrentSession`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_concurrent_requests_with_same_token` | 同 token 10 條並發請求 → 全部 200（不競爭損壞）|
+| `test_session_touch_updates_last_active` | `check_and_touch` 每次都更新 `last_active`（非 read-only）|
+
+---
+
+### `test_firstrun_config.py` — First-run / Secure-mode 配置邊界（13 個）
+
+#### `TestCSPModeSwitch`（3 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_report_only_mode_uses_correct_header_name` | CSP_MODE='report-only' → header 名稱為 `Content-Security-Policy-Report-Only` |
+| `test_enforce_mode_uses_correct_header_name` | CSP_MODE='enforce' → header 名稱為 `Content-Security-Policy` |
+| `test_csp_report_only_does_not_block_requests` | report-only 模式不阻擋正常請求 |
+
+#### `TestSecurityHeadersToggle`（2 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_csp_header_present_by_default` | 預設 CSP header 存在（FastAPI 層）|
+| `test_security_headers_absent_when_disabled` | ENABLE_SECURITY_HEADERS=false → CSP header 不送出 |
+
+#### `TestAllowedOriginsParsing`（4 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_default_origins_not_empty` | 預設 ALLOWED_ORIGINS 包含 localhost |
+| `test_origins_strip_whitespace` | 多餘空白被去除 |
+| `test_empty_origins_env_yields_empty_list` | ALLOWED_ORIGINS='' → 空 list（CORS 全拒）|
+| `test_single_origin_parsed_correctly` | 單一 origin 解析為長度 1 的 list |
+
+#### `TestFirstRunGateBoundary`（4 個）
+
+| 測試案例 | 驗證什麼 |
+|---------|---------|
+| `test_is_first_run_false_when_no_accounts` | 空 DB 無帳號 → `is_first_run_required()` 回 False（非「無帳號」觸發）|
+| `test_is_first_run_true_only_when_default_pin_flagged` | `is_default_pin=1` 才觸發，普通帳號不觸發 |
+| `test_first_run_token_file_idempotent` | token 檔冪等性：空 DB 重建不崩潰 |
+| `test_gate_allows_whitelisted_paths_when_active` | gate 啟動時白名單路徑（/api/status）仍通過 |
+
+---
+
 ## 目前未覆蓋的範圍
 
 | 模組 | 覆蓋率 | 原因 | 預計在 |
 |------|--------|------|--------|
-| `routers/ttx.py` | 25% | TTX 場景注入流程複雜 | C2 |
-| `services/ai_service.py` | 36% | AI stub，Wave 5 才實裝 | Wave 5 |
-| `routers/sync.py` | — | 三 Pass 同步邏輯需要完整情境 | C2 |
-| `routers/map.py` | — | 需要實際的 MBTiles 檔案 | C2 |
+| `repositories/sync_repo.py` | 9% | 三 Pass 同步邏輯需要完整情境 | C2 |
+| `repositories/manual_repo.py` | 19% | 人工紀錄 CRUD | C2 |
+| `repositories/ttx_repo.py` | 22% | TTX 場景注入流程複雜 | C2 |
+| `routers/ttx.py` | 25% | 同上 | C2 |
+| `routers/map.py` | 29% | 需要實際的 MBTiles 檔案 | C2 |
+| `routers/admin.py` | 37% | 大量帳號管理 CRUD | C2 |
+| `services/ai_service.py` | 36% | AI stub，C5-C 才實裝 | C5-C |
+| `calc_engine.py` | 61% | 下半段為 Wave 6 功能，尚未實裝 | Wave 6 |
+| `db.py` / `main_legacy.py` | 0% | **Legacy 死碼，不計入 coverage 目標** | 待清除 |
+
+> **已知風險項（未關閉）**  
+> ⚠️ 演練 mutex TOCTOU：`exercise_repo.update_exercise_status` SELECT→UPDATE 非原子，  
+> `test_concurrent.py::test_concurrent_activate_at_most_one_wins` 標記為 `xfail`。  
+> 修正方案：改為 `UPDATE exercises SET status='active', mutex_locked=1 WHERE id=? AND NOT EXISTS(SELECT 1 FROM exercises WHERE status='active' AND id!=?)` 原子寫入。預計 C2 修正。
 
 ---
 

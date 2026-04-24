@@ -382,6 +382,7 @@ shelter-pwa/public/shelter_pwa.html
 - ✅ 鎖定中即使輸入正確 PIN 也拒絕（防鎖定中暴力）
 - ✅ 成功登入清失敗計數
 - ✅ 19 個新測試覆蓋（`tests/security/test_login_lockout.py` + `test_first_run.py`）
+- ✅ Smoke v2/v3 額外 89 個安全測試（replay/bypass/fuzzing/admin gate/sync/session config/firstrun config）；合計 **241 tests（240 passed + 1 xfailed）**（2026-04-24，報告：`tests/reports/smoke_v3_20260424_144713.html`，Coverage 44%）
 
 **CISO 指定要求（2025 資安法修正新增）**
 - 資通安全管理法 2025 修正後，廠商合約須明定資安責任，政府機關需指派 CISO 及全職資安人員
