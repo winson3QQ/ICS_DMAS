@@ -15,7 +15,8 @@ MBTILES_DIR = STATIC_DIR / "tiles"
 DB_PATH = DATA_DIR / "ics.db"
 
 # ── Session ───────────────────────────────
-SESSION_TIMEOUT: int = int(os.getenv("SESSION_TIMEOUT", "90"))  # 秒，與 PWA PinLock 一致
+SESSION_TIMEOUT: int = int(os.getenv("SESSION_TIMEOUT", "28800"))  # 秒，預設 8 小時（一次演練時長）
+# 注意：PinLock（UI 層 idle 鎖定）是獨立機制，與此 server-side timeout 無關
 
 # ── App ───────────────────────────────────
 APP_VERSION = "2.0.0"   # C0 重構版

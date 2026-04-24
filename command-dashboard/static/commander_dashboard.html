@@ -2001,7 +2001,7 @@ async function loadL3Records(unitId) {
 
     // L3 顯示順序與隱藏規則
     const showTables = ['patients','persons','incidents','shifts'];
-    const hideTables = ['triages','transfers','beds','resources','snapshots','audit_log','config','accounts','time_sync'];
+    const hideTables = ['triages','transfers','beds','resources','snapshots','audit_log','config','accounts','time_sync','incidents'];
     const tableLabels = {persons:'收容人員',resources:'物資',incidents:'組內事件',shifts:'值班',patients:'傷患'};
     const triageColorDot = {red:'🔴',yellow:'🟡',green:'🟢',black:'⚫'};
 
@@ -2099,13 +2099,24 @@ async function loadL3Records(unitId) {
     // ═══ 時間戳 ═══
     html += `<div style="font-size:9px;color:var(--text3);margin:8px 0 6px;">Pi 資料時間：${(data.pushed_at||'?').replace('T',' ').slice(0,19)}</div>`;
 
+    // ═══ 排序 persons（活躍在上，已離站在下）═══
+    if (grouped.persons && grouped.persons.length > 0) {
+      const _sp = {'已安置':0,'等候中':1,'已隔離':2,'登記中':3};
+      grouped.persons = [...grouped.persons].sort((a, b) =>
+        ((_sp[(a.record||{}).status||''] ?? 4) - (_sp[(b.record||{}).status||''] ?? 4)));
+    }
+
     // ═══ 記錄列表 ═══
+    let _personsTabHtml = '', _incidentsTabHtml = '';
+
     for (const tableName of showTables) {
       const records = grouped[tableName];
       if (!records || records.length === 0) continue;
       if (hideTables.includes(tableName)) continue;
       const label = tableLabels[tableName] || tableName;
-      html += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:8px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">${label}（${records.length}）</div>`;
+      const isSubTab = tableName === 'persons' || tableName === 'incidents';
+
+      let rowsHtml = '';
       records.forEach((r, i) => {
         const rec = r.record || {};
 
@@ -2116,20 +2127,20 @@ async function loadL3Records(unitId) {
           const chief = rec.chief_issue ? ` — ${rec.chief_issue.slice(0,20)}` : '';
           const disp = rec.disposition || rec.care_status || '';
           const dispColor = {'後送':'var(--yellow)','離開':'var(--text3)','死亡':'var(--red)','在場':'var(--green)','assessed':'var(--green)','monitoring':'var(--blue)','triaged':'var(--yellow)'}[disp] || 'var(--text2)';
-          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
-          html += `<span>${dot} <b>${did}</b>${chief}</span>`;
-          html += `<span style="font-size:10px;color:${dispColor};font-weight:600;">${disp}</span>`;
-          html += `</div>`;
+          rowsHtml += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          rowsHtml += `<span>${dot} <b>${did}</b>${chief}</span>`;
+          rowsHtml += `<span style="font-size:10px;color:${dispColor};font-weight:600;">${disp}</span>`;
+          rowsHtml += `</div>`;
         } else if (tableName === 'persons') {
           // 收容人員：ID + 狀態
           const did = rec.display_id || rec._id || '?';
           const st = rec.status || '';
           const stColor = {'已安置':'var(--green)','已離站':'var(--text3)','等候中':'var(--yellow)','已隔離':'var(--red)'}[st] || 'var(--text2)';
           const hf = rec.health_flag === '需關注' ? ' ⚠' : rec.health_flag === '已隔離' ? ' 🚨' : '';
-          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
-          html += `<span><b>${did}</b>${hf}</span>`;
-          html += `<span style="font-size:10px;color:${stColor};font-weight:600;">${st}</span>`;
-          html += `</div>`;
+          rowsHtml += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          rowsHtml += `<span><b>${did}</b>${hf}</span>`;
+          rowsHtml += `<span style="font-size:10px;color:${stColor};font-weight:600;">${st}</span>`;
+          rowsHtml += `</div>`;
         } else if (tableName === 'incidents') {
           // 事件：類型 + 嚴重度 + 狀態
           const incLabels = {security_threat:'安全威脅',infectious_risk:'傳染疑慮',resource_shortage:'物資短缺',capacity_overload:'量能超載',medication_mgmt:'藥品管理',language_assist:'語言協助',other:'其他'};
@@ -2137,25 +2148,75 @@ async function loadL3Records(unitId) {
           const st = rec.status || '';
           const stColor = {'已結案':'var(--text3)','已通報':'var(--red)','待處理':'var(--yellow)','處理中':'var(--yellow)'}[st] || 'var(--text2)';
           const sevDot = rec.severity === '高' ? '🔴' : rec.severity === '中' ? '🟡' : '🟢';
-          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
-          html += `<span>${sevDot} ${typeLabel}</span>`;
-          html += `<span style="font-size:10px;color:${stColor};font-weight:600;">${st}</span>`;
-          html += `</div>`;
+          rowsHtml += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:6px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          rowsHtml += `<span>${sevDot} ${typeLabel}</span>`;
+          rowsHtml += `<span style="font-size:10px;color:${stColor};font-weight:600;">${st}</span>`;
+          rowsHtml += `</div>`;
         } else {
           // 其他 table：通用顯示
           const name = rec.display_id || rec.name || rec._id || rec.id || r.record_id || '?';
           const status = rec.status || '';
-          html += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:5px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
-          html += `<span>${name}</span>`;
-          html += `<span style="font-size:10px;color:var(--text2);font-weight:600;">${status}</span>`;
-          html += `</div>`;
+          rowsHtml += `<div onclick="openL4Detail('${unitId}','${tableName}',${i})" style="padding:5px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">`;
+          rowsHtml += `<span>${name}</span>`;
+          rowsHtml += `<span style="font-size:10px;color:var(--text2);font-weight:600;">${status}</span>`;
+          rowsHtml += `</div>`;
         }
       });
+
+      if (isSubTab) {
+        if (tableName === 'persons') _personsTabHtml = rowsHtml;
+        else _incidentsTabHtml = rowsHtml;
+      } else {
+        html += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:8px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">${label}（${records.length}）</div>`;
+        html += rowsHtml;
+      }
     }
+
+    // ═══ 子頁籤（人員 / 事件）═══
+    if (_personsTabHtml || _incidentsTabHtml) {
+      const _tid = `l3sub_${unitId}`;
+      const _tabs = [];
+      if (_personsTabHtml) _tabs.push({id:'persons', label:`人員（${(grouped.persons||[]).length}）`, html:_personsTabHtml});
+      if (_incidentsTabHtml) _tabs.push({id:'incidents', label:`事件（${(grouped.incidents||[]).length}）`, html:_incidentsTabHtml});
+
+      if (_tabs.length === 1) {
+        // 只有一類，直接用區塊 header，不渲染多餘的頁籤列
+        html += `<div style="font-size:10px;font-weight:700;color:var(--text);margin:8px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">${_tabs[0].label}</div>`;
+        html += _tabs[0].html;
+      } else {
+        html += `<div style="display:flex;gap:4px;margin:8px 0 4px;" id="${_tid}_bar">`;
+        _tabs.forEach((t, idx) => {
+          const _act = idx === 0;
+          html += `<button onclick="l3SubTab('${_tid}','${t.id}')" id="${_tid}_btn_${t.id}" style="flex:1;padding:5px 0;font-size:11px;border-radius:4px;border:1px solid var(--border);background:${_act?'var(--accent)':'var(--surface)'};color:${_act?'#fff':'var(--text2)'};cursor:pointer;font-weight:${_act?'700':'400'};">${t.label}</button>`;
+        });
+        html += `</div>`;
+        _tabs.forEach((t, idx) => {
+          html += `<div id="${_tid}_panel_${t.id}" style="display:${idx===0?'block':'none'};">${t.html}</div>`;
+        });
+      }
+    }
+
     container.innerHTML = html;
   } catch(e) {
     container.innerHTML = '<div style="color:var(--red);font-size:11px;">網路錯誤：' + e.message + '</div>';
   }
+}
+
+// 子頁籤切換（persons / incidents）
+function l3SubTab(tabId, activeId) {
+  const bar = document.getElementById(tabId + '_bar');
+  if (!bar) return;
+  const wrap = bar.parentElement;
+  wrap.querySelectorAll(`[id^="${tabId}_panel_"]`).forEach(p => p.style.display = 'none');
+  bar.querySelectorAll(`[id^="${tabId}_btn_"]`).forEach(b => {
+    b.style.background = 'var(--surface)';
+    b.style.color = 'var(--text2)';
+    b.style.fontWeight = '400';
+  });
+  const panel = document.getElementById(`${tabId}_panel_${activeId}`);
+  if (panel) panel.style.display = 'block';
+  const btn = document.getElementById(`${tabId}_btn_${activeId}`);
+  if (btn) { btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.fontWeight = '700'; }
 }
 
 function openL4Detail(unitId, tableName, index) {
@@ -2178,6 +2239,12 @@ function openL4Detail(unitId, tableName, index) {
     let v = rec[k];
     if (v === undefined || v === null) return '';
     if (typeof v === 'object') v = JSON.stringify(v);
+    // ISO 時間戳自動格式化為本地時間：2026-04-23T23:59:40.520Z → 2026-04-24 07:59:40（UTC+8）
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
+      const _d = new Date(v);
+      v = isNaN(_d) ? v.replace('T',' ').slice(0,19)
+        : `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')} ${String(_d.getHours()).padStart(2,'0')}:${String(_d.getMinutes()).padStart(2,'0')}:${String(_d.getSeconds()).padStart(2,'0')}`;
+    }
     return `<div class="slice-row"><span class="sk">${lbl}</span><span class="sv">${v}</span></div>`;
   };
 
