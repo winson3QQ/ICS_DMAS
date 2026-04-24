@@ -43,8 +43,8 @@
 | 地圖流向箭頭（Leaflet）| ✅ | SVG overlay 已移除，統一 Leaflet |
 | UI 狀態 Ctrl+Shift+R 還原 | ✅ | 5 個 sessionStorage key 全部持久化 |
 | 量能圖資料＋語意修正 | ✅ | sBt→sBu；床位→量能；傷患後送→入站 |
-| **決策主題合併卡片** | 🔲 | `primary_event_id` 邏輯已存在，差 group-by 渲染 |
 | **物資 burn rate 預測線** | 🔲 | `chart_utils.js` 加 `projectToZero` 虛線延伸 |
+| ~~決策主題合併卡片~~ | ⏸ 暫緩 | COP 資訊架構重設計後一起實作，避免在錯誤佈局上建功能 |
 
 ### Engineering（C0 遺留）
 
@@ -59,8 +59,13 @@
 
 ### Feature — Wave 6：COP 完整實作
 
+> ⚠️ **前置條件**：Wave 6 實作前需完成 **COP 資訊架構 design sprint**（見 architecture_decisions.md）。
+> 現有三欄佈局有結構性問題（決策佇列優先序、左 panel 對象不一致、地圖與事件列表脫節），
+> 在錯誤架構上疊加功能只會增加技術債。
+
 | 項目 | 說明 |
 |------|------|
+| **COP 資訊架構重設計** | Design sprint 產出：線框圖 + 聯動規格 + 更新設計規格書 |
 | 熱圖（Heatmap）| 事件/人員密度疊加於地圖 |
 | 叢集化（Clustering）| 大量 marker 自動群組 |
 | 過濾搜尋 | 事件/資源/人員全域搜尋 |
