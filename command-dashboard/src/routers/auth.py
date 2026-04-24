@@ -12,8 +12,14 @@ router = APIRouter(prefix="/api/auth", tags=["認證"])
 
 @router.post("/login")
 def login(body: LoginIn):
-    acct = verify_login(body.username, body.pin)
+    acct, reason = verify_login(body.username, body.pin)
+    if reason == "locked":
+        # 423 Locked：明確告知鎖定，不洩漏帳號是否存在
+        raise HTTPException(423, "帳號暫時鎖定，請 15 分鐘後再試")
+    if reason == "suspended":
+        raise HTTPException(403, "帳號已停權")
     if not acct:
+        # no_user 與 bad_pin 同樣訊息（不洩漏帳號是否存在）
         raise HTTPException(401, "帳號或 PIN 錯誤")
     token = create_session(acct)
     audit(acct["username"], None, "login", "accounts", acct["username"],
@@ -25,6 +31,8 @@ def login(body: LoginIn):
         "role":         acct["role"],
         "role_detail":  acct.get("role_detail"),
         "display_name": acct.get("display_name") or acct["username"],
+        # C1-A：is_default_pin=1 → 前端強制改 PIN
+        "must_change_pin": bool(acct.get("is_default_pin")),
     }
 
 

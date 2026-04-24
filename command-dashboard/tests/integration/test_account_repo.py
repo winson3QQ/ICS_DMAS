@@ -40,23 +40,26 @@ class TestVerifyLogin:
     def test_correct_credentials(self, tmp_db):
         from repositories.account_repo import create_account, verify_login
         create_account("dave", "correct", "操作員", "", "operator")
-        acc = verify_login("dave", "correct")
-        assert acc is not None
+        acc, reason = verify_login("dave", "correct")
+        assert acc is not None and reason == "ok"
         assert acc["username"] == "dave"
 
     def test_wrong_pin(self, tmp_db):
         from repositories.account_repo import create_account, verify_login
         create_account("eve", "right", "操作員", "", "operator")
-        assert verify_login("eve", "wrong") is None
+        acc, reason = verify_login("eve", "wrong")
+        assert acc is None and reason == "bad_pin"
 
     def test_nonexistent_user(self, tmp_db):
         from repositories.account_repo import verify_login
-        assert verify_login("ghost", "1234") is None
+        acc, reason = verify_login("ghost", "1234")
+        assert acc is None and reason == "no_user"
 
     def test_pin_not_in_response(self, tmp_db):
         from repositories.account_repo import create_account, verify_login
         create_account("frank", "secret", "操作員", "", "operator")
-        acc = verify_login("frank", "secret")
+        acc, reason = verify_login("frank", "secret")
+        assert reason == "ok"
         assert "pin_hash" not in acc
         assert "pin_salt" not in acc
 
@@ -81,8 +84,8 @@ class TestEnsureDefaultAdmin:
     def test_default_pin_works(self, tmp_db):
         from repositories.account_repo import ensure_default_admin, verify_login
         ensure_default_admin()
-        acc = verify_login("admin", "1234")
-        assert acc is not None
+        acc, reason = verify_login("admin", "1234")
+        assert acc is not None and reason == "ok"
 
 
 class TestUpdateAccountStatus:
@@ -92,4 +95,5 @@ class TestUpdateAccountStatus:
         )
         create_account("target", "1234", "操作員", "", "operator")
         update_account_status("target", "suspended", operator="admin")
-        assert verify_login("target", "1234") is None
+        acc, reason = verify_login("target", "1234")
+        assert acc is None and reason == "suspended"

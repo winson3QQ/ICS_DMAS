@@ -339,6 +339,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "manual_records", "exercise_id", "INTEGER REFERENCES exercises(id)")
     _add_column_if_missing(conn, "audit_log", "exercise_id", "INTEGER REFERENCES exercises(id)")
 
+    # ── C1-A 登入鎖定 ─────────────────────────────────────────────
+    _add_column_if_missing(conn, "accounts", "failed_login_count", "INTEGER NOT NULL DEFAULT 0")
+    _add_column_if_missing(conn, "accounts", "locked_until", "TEXT")
+    # ── C1-A 首次強制設定 ─────────────────────────────────────────
+    # is_default_pin=1 表示尚未首次修改 PIN，登入後強制改密碼；舊資料設 0（既有帳號視為已設定過）
+    _add_column_if_missing(conn, "accounts", "is_default_pin", "INTEGER NOT NULL DEFAULT 0")
+
     # ttx_injects：舊版有 session_id TEXT NOT NULL REFERENCES ttx_sessions → 整表重建
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     if "ttx_injects" in tables:

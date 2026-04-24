@@ -9,9 +9,9 @@
 
 | 項目 | 狀態 |
 |------|------|
-| 程式版號 | `cmd-v2.0.1` / `server-v1.3.0` |
+| 程式版號 | `cmd-v2.0.2` / `server-v1.3.0` |
 | Wave 進度 | Wave 5 尾端（剩 2 項）|
-| cX 進度 | C0 ✅ / **C1-B ✅**（HTTPS + CSP + step-ca + STRICT_TLS）/ C1 其餘待做 / C2 部分完成 |
+| cX 進度 | C0 ✅ / **C1-B ✅** / **C1-A Phase 1 ✅**（鎖定 + rate limit + 首次強制設定；Phase 2 RBAC + Phase 3 MFA 待做）/ C1 其餘待做 / C2 部分完成 |
 | 下一個里程碑 | `v0.13.0` Wave 5 完成 |
 | 下一個商業里程碑 | `v2.1.0` 第一個可投標版本 |
 
@@ -76,7 +76,7 @@
 
 | 子項 | 內容 | 說明 |
 |------|------|------|
-| **C1-A** | 認證強化 | TOTP MFA（AAL2）、登入鎖定 5次/15min、OBSERVER 唯讀角色 |
+| **C1-A** ⚠️ Phase 1 完成 | 認證強化 | ✅ 登入鎖定 5次/15min + IP rate limit 10/min + 首次強制設定（移除預設 PIN 1234）；🔲 RBAC OBSERVER；🔲 TOTP MFA AAL2 |
 | **C1-B** ✅ 程式碼 | 全面加密傳輸 | nginx HTTPS（TLS 1.2+）、HSTS、CSP report-only、CORS 收斂、step-ca 內網 PKI；待 step-ca/nginx 安裝實測；strict CSP 留 C1-F 後做 |
 | **C1-C** | 個資保護 | 敏感欄位 Fernet 加密、`pii_access_log`、72h PDPC 通報流程 |
 | **C1-D** | Append-only 稽核軌跡 | DB trigger 防竄改、雜湊鏈、6 個月保存、structlog JSON |

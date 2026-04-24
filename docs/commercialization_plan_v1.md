@@ -347,11 +347,17 @@ shelter-pwa/public/shelter_pwa.html
 
 ### C1-A 認證強化
 
-**首次強制設定（移除預設 PIN 1234）**
-- 部署後第一次打開指揮部 → 強制進入設定頁面
-- 管理員密碼政策：≥12 字元、英數混合（NIST SP 800-63B）
-- 設定完成前所有 API 回傳 `423 Locked`
-- Pi 端同樣：首次啟動產生隨機臨時 PIN，印出至 console，強制首次修改
+> **狀態**：Phase 1 ✅ 完成（cmd-v2.0.2，登入鎖定 + IP rate limit + 首次強制設定）。
+> Phase 2（RBAC OBSERVER）+ Phase 3（TOTP MFA）+ Phase 4（CISO 文件）待後續 session。
+
+**首次強制設定（移除預設 PIN 1234）** ✅ Phase 1
+- ✅ 首次啟動 `ensure_initial_admin_token()` 產生隨機 6 位數 PIN
+- ✅ PIN 印 console + 寫 `~/.ics/first_run_token`（chmod 600）
+- ✅ login API 回傳 `must_change_pin=true`
+- ✅ `first_run_gate_middleware`：未改 PIN 前所有非白名單 API 回 `423 Locked`
+  - 白名單：login / logout / me / heartbeat / health / docs / change-pin / static
+- 🔲 管理員密碼政策：≥12 字元、英數混合（NIST SP 800-63B，目前仍是 4-6 位數字 PIN）— Phase 3 一併做
+- 🔲 Pi 端同樣機制（首次隨機 PIN）— 待後續
 
 **管理後台 MFA（TOTP，AAL2）**
 - 啟用流程：產生 secret → 顯示 QR code → 驗證首次 OTP → 啟用
@@ -368,10 +374,14 @@ shelter-pwa/public/shelter_pwa.html
 | `OBSERVER` | 唯讀（供外部稽查人員使用） | Tier 2+ |
 | `PI_NODE` | 推送專用，無 UI 存取權 | 所有層 |
 
-**登入鎖定**
-- 失敗 5 次 → 鎖定 15 分鐘
-- 每 IP 每分鐘 ≤ 10 次認證請求
-- 鎖定事件寫入 audit log
+**登入鎖定** ✅ Phase 1
+- ✅ 失敗 5 次 → 鎖定 15 分鐘（`accounts.failed_login_count` + `locked_until`）
+- ✅ 每 IP 每分鐘 ≤ 10 次認證請求（`auth/rate_limit.py` in-memory sliding window）
+- ✅ 鎖定事件寫入 audit log（`account_locked` 事件）
+- ✅ 管理員手動解鎖：`unlock_account()`
+- ✅ 鎖定中即使輸入正確 PIN 也拒絕（防鎖定中暴力）
+- ✅ 成功登入清失敗計數
+- ✅ 19 個新測試覆蓋（`tests/security/test_login_lockout.py` + `test_first_run.py`）
 
 **CISO 指定要求（2025 資安法修正新增）**
 - 資通安全管理法 2025 修正後，廠商合約須明定資安責任，政府機關需指派 CISO 及全職資安人員

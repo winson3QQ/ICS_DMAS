@@ -3,6 +3,7 @@ from core.database import get_conn
 from repositories.account_repo import (
     create_account, get_all_accounts, update_account_status,
     update_account_pin, update_account_role, delete_account, suspend_all_accounts,
+    clear_default_pin_flag,
 )
 from repositories.config_repo import get_config, verify_admin_pin, set_admin_pin
 from repositories.pi_node_repo import (
@@ -81,6 +82,8 @@ def reset_pin(username: str, body: PinResetIn, request: Request):
         raise HTTPException(422, "PIN 必須是 4-6 位數字")
     if not update_account_pin(username, body.new_pin, "admin"):
         raise HTTPException(404, "帳號不存在")
+    # C1-A：改 PIN 後清 is_default_pin 標記（首次設定流程結束）
+    clear_default_pin_flag(username)
     return {"ok": True}
 
 

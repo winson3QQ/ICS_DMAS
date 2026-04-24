@@ -41,6 +41,18 @@ def _clear_sessions():
     _delete_all_sessions()
 
 
+# ── C1-A：Rate limit bucket 隔離（autouse）─────────────────────────────────
+# 多測試共用 TestClient → 同一 IP → 沒重置會在第 11 次 login 後撞 429
+@pytest.fixture(autouse=True)
+def _reset_rate_limit():
+    try:
+        from auth.rate_limit import reset_for_tests
+        reset_for_tests()
+    except Exception:
+        pass
+    yield
+
+
 # ── DB 隔離 ────────────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -62,11 +74,28 @@ def tmp_db(tmp_path, monkeypatch):
 # ── FastAPI TestClient ────────────────────────────────────────────────────
 
 @pytest.fixture
-def client(tmp_db):
+def client(tmp_db, monkeypatch):
     """
     FastAPI TestClient，綁定測試 DB。
     startup event 會自動執行 init_db + ensure_default_admin。
+
+    C1-A 註：production 改用 ensure_initial_admin_token（隨機 PIN），
+    但測試需要可預測 admin/1234，所以 monkeypatch 為舊版 fallback；
+    並清 is_default_pin 標記，避免 first_run_gate middleware 擋下所有測試。
     """
+    from repositories import account_repo
+    from core.database import get_conn
+
+    def _setup_test_admin():
+        account_repo.ensure_default_admin("1234")
+        # 清 is_default_pin 讓 first_run_gate 放行
+        with get_conn() as conn:
+            conn.execute("UPDATE accounts SET is_default_pin=0")
+            conn.commit()
+
+    monkeypatch.setattr(
+        "main.ensure_initial_admin_token",
+        lambda *args, **kwargs: _setup_test_admin())
     from fastapi.testclient import TestClient
     from main import app
     with TestClient(app, raise_server_exceptions=True) as c:

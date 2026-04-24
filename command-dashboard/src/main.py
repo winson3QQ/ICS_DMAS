@@ -18,7 +18,9 @@ from core.config import STATIC_DIR, APP_VERSION, ALLOWED_ORIGINS
 from core.database import init_db
 from core.security_headers import security_headers_middleware
 from auth.middleware import auth_middleware
-from repositories.account_repo import ensure_default_admin
+from auth.rate_limit import auth_rate_limit_middleware
+from auth.first_run_gate import first_run_gate_middleware
+from repositories.account_repo import ensure_initial_admin_token
 from repositories.config_repo import ensure_default_admin_pin
 from auth.service import cleanup_expired_sessions
 
@@ -33,7 +35,8 @@ from routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    ensure_default_admin()
+    # C1-A：首次啟動產生隨機 PIN（取代舊的預設 1234），印 console + 寫 ~/.ics/first_run_token
+    ensure_initial_admin_token()
     ensure_default_admin_pin()
     cleanup_expired_sessions()  # 清除上次遺留的過期 session
     yield
@@ -54,6 +57,8 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Session-Token"],
 )
 app.middleware("http")(auth_middleware)
+app.middleware("http")(first_run_gate_middleware)
+app.middleware("http")(auth_rate_limit_middleware)
 app.middleware("http")(security_headers_middleware)
 
 # ── 靜態檔案 ──────────────────────────────────────────────────────────────────
