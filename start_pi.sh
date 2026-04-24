@@ -4,22 +4,42 @@
 # 用法：chmod +x start_pi.sh && ./start_pi.sh
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-CERT_DIR="$REPO/certs"
 
 # ── 取得本機 LAN IP ──────────────────────────────
 LAN_IP=$(hostname -I | awk '{print $1}')
 
-# ── TLS 憑證檢查 ────────────────────────────────
-if [ -f "$CERT_DIR/192.168.100.10+2.pem" ] && [ -f "$CERT_DIR/192.168.100.10+2-key.pem" ]; then
+# ── TLS 憑證偵測（C1-B：step-ca 優先，mkcert fallback）─────
+# 優先 1：step-ca 簽的憑證（C1-B 標準）
+STEP_CA_CERT_DIR="$REPO/deploy/step-ca/certs"
+STEP_ROOT_CA="$HOME/.step/certs/root_ca.crt"
+
+# 優先 2：mkcert 既有憑證（向下相容）
+MKCERT_DIR="$REPO/certs"
+
+if [ -f "$STEP_CA_CERT_DIR/${LAN_IP}/cert.pem" ] && [ -f "$STEP_ROOT_CA" ]; then
   TLS_ENABLED=true
+  CERT_FILE="$STEP_CA_CERT_DIR/${LAN_IP}/cert.pem"
+  KEY_FILE="$STEP_CA_CERT_DIR/${LAN_IP}/key.pem"
+  CA_FILE="$STEP_ROOT_CA"
   PROTO_HTTP="https"
   PROTO_WS="wss"
-  echo "[TLS] 憑證已找到，啟用 HTTPS/WSS"
+  echo "[TLS] 使用 step-ca 憑證（C1-B 標準）：$CERT_FILE"
+elif [ -f "$MKCERT_DIR/192.168.100.10+2.pem" ] && [ -f "$MKCERT_DIR/192.168.100.10+2-key.pem" ]; then
+  TLS_ENABLED=true
+  CERT_FILE="$MKCERT_DIR/192.168.100.10+2.pem"
+  KEY_FILE="$MKCERT_DIR/192.168.100.10+2-key.pem"
+  CA_FILE="$MKCERT_DIR/rootCA.pem"
+  PROTO_HTTP="https"
+  PROTO_WS="wss"
+  echo "[TLS] 使用 mkcert 憑證（fallback）：$CERT_FILE"
 else
   TLS_ENABLED=false
+  CERT_FILE=""
+  KEY_FILE=""
+  CA_FILE=""
   PROTO_HTTP="http"
   PROTO_WS="ws"
-  echo "[TLS] 憑證未找到，退回 HTTP/WS"
+  echo "[TLS] 無憑證，退回 HTTP/WS（C1-B：演練環境必須有 TLS）"
 fi
 
 echo "======================================"
@@ -62,8 +82,8 @@ if [ "$TLS_ENABLED" = true ]; then
     .venv/bin/uvicorn main:app --app-dir src \
     --host 0.0.0.0 \
     --port 8000 \
-    --ssl-certfile "$CERT_DIR/192.168.100.10+2.pem" \
-    --ssl-keyfile "$CERT_DIR/192.168.100.10+2-key.pem" \
+    --ssl-certfile "$CERT_FILE" \
+    --ssl-keyfile "$KEY_FILE" \
     > /tmp/ics_command.log 2>&1 &
 else
   COMMAND_URL="" \
@@ -86,9 +106,9 @@ fi
 echo ""
 echo "[啟動] 收容組 Pi 伺服器 :8765/:8766 ..."
 COMMAND_URL="$PROTO_HTTP://127.0.0.1:8000" \
-  CERT_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2.pem}" \
-  KEY_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2-key.pem}" \
-  CA_CERT_PATH="${TLS_ENABLED:+$CERT_DIR/rootCA.pem}" \
+  CERT_PATH="${TLS_ENABLED:+$CERT_FILE}" \
+  KEY_PATH="${TLS_ENABLED:+$KEY_FILE}" \
+  CA_CERT_PATH="${TLS_ENABLED:+$CA_FILE}" \
   node server/index.js --unit shelter \
   > /tmp/ics_shelter.log 2>&1 &
 SHELTER_PID=$!
@@ -98,9 +118,9 @@ echo "[OK] 收容組 Pi PID $SHELTER_PID"
 echo ""
 echo "[啟動] 醫療組 Pi 伺服器 :8775/:8776 ..."
 COMMAND_URL="$PROTO_HTTP://127.0.0.1:8000" \
-  CERT_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2.pem}" \
-  KEY_PATH="${TLS_ENABLED:+$CERT_DIR/192.168.100.10+2-key.pem}" \
-  CA_CERT_PATH="${TLS_ENABLED:+$CERT_DIR/rootCA.pem}" \
+  CERT_PATH="${TLS_ENABLED:+$CERT_FILE}" \
+  KEY_PATH="${TLS_ENABLED:+$KEY_FILE}" \
+  CA_CERT_PATH="${TLS_ENABLED:+$CA_FILE}" \
   node server/index.js --unit medical \
   > /tmp/ics_medical.log 2>&1 &
 MEDICAL_PID=$!

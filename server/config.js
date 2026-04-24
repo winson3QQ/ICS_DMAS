@@ -4,7 +4,7 @@ const path = require('path');
 const fs   = require('fs');
 const { log } = require('./logger');
 
-const SERVER_VERSION = 'v1.2.0';
+const SERVER_VERSION = 'v1.3.0';
 
 const UNIT_CONFIGS = {
   shelter: {
@@ -50,6 +50,8 @@ const MAX_QUEUE_AGE_MS    = 24 * 60 * 60 * 1000;
 
 const CERT_PATH   = process.env.CERT_PATH || '';
 const KEY_PATH    = process.env.KEY_PATH  || '';
+// STRICT_TLS=true：沒憑證直接 fail-fast；生產環境（systemd unit）必須設 true
+const STRICT_TLS  = (process.env.STRICT_TLS || '').toLowerCase() === 'true';
 const _caCertPath = process.env.CA_CERT_PATH ||
   (CERT_PATH ? path.join(path.dirname(CERT_PATH), 'rootCA.pem') : '');
 const CA_CERT = (_caCertPath && fs.existsSync(_caCertPath))
@@ -58,10 +60,20 @@ const CA_CERT = (_caCertPath && fs.existsSync(_caCertPath))
 if (CA_CERT) log.info(`[TLS] 指揮部推送 CA=${_caCertPath}`);
 
 function loadTlsOptions() {
-  if (!CERT_PATH || !KEY_PATH) return null;
+  if (!CERT_PATH || !KEY_PATH) {
+    if (STRICT_TLS) {
+      log.error(`[TLS] STRICT_TLS=true 但未提供 CERT_PATH/KEY_PATH，拒絕啟動`);
+      process.exit(1);
+    }
+    return null;
+  }
   try {
     return { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
   } catch (e) {
+    if (STRICT_TLS) {
+      log.error(`[TLS] STRICT_TLS=true 但憑證載入失敗：${e.message}，拒絕啟動`);
+      process.exit(1);
+    }
     log.warn(`[TLS] 憑證載入失敗：${e.message}，退回 HTTP`);
     return null;
   }
@@ -69,6 +81,7 @@ function loadTlsOptions() {
 const tlsOpts    = loadTlsOptions();
 const PROTOCOL    = tlsOpts ? 'https' : 'http';
 const WS_PROTOCOL = tlsOpts ? 'wss'   : 'ws';
+if (STRICT_TLS && tlsOpts) log.info(`[TLS] STRICT_TLS=true，已載入憑證`);
 
 // command_url 可在執行期被 admin API 更新，用 getter/setter 封裝可變狀態
 let _commandUrl = process.env.COMMAND_URL || '';

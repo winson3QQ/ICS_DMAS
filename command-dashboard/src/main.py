@@ -14,8 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.config import STATIC_DIR, APP_VERSION
+from core.config import STATIC_DIR, APP_VERSION, ALLOWED_ORIGINS
 from core.database import init_db
+from core.security_headers import security_headers_middleware
 from auth.middleware import auth_middleware
 from repositories.account_repo import ensure_default_admin
 from repositories.config_repo import ensure_default_admin_pin
@@ -25,7 +26,7 @@ from auth.service import cleanup_expired_sessions
 from routers import (
     auth, snapshots, events, decisions, admin,
     pi_push, sync, manual, dashboard,
-    config_router, map, exercises, ttx, ai, tak,
+    config_router, map, exercises, ttx, ai, tak, security,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,11 +48,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Session-Token"],
 )
 app.middleware("http")(auth_middleware)
+app.middleware("http")(security_headers_middleware)
 
 # ── 靜態檔案 ──────────────────────────────────────────────────────────────────
 if STATIC_DIR.exists():
@@ -62,7 +65,7 @@ for router in (
     auth.router, snapshots.router, events.router, decisions.router,
     admin.router, pi_push.router, sync.router, manual.router,
     dashboard.router, config_router.router, map.router,
-    exercises.router, ttx.router, ai.router, tak.router,
+    exercises.router, ttx.router, ai.router, tak.router, security.router,
 ):
     app.include_router(router)
 
