@@ -11,7 +11,7 @@
 |------|------|
 | 程式版號 | `cmd-v2.0.4` / `server-v1.3.0` |
 | Wave 進度 | Wave 5 尾端（剩 2 項）|
-| cX 進度 | C0 ✅ / **C1-B ✅** / **C1-A Phase 1 ✅**（鎖定 + rate limit + 首次強制設定；Phase 2 RBAC + Phase 3 MFA 待做）/ C1 其餘待做 / C2 部分完成 |
+| cX 進度 | C0 ✅ / **C1-B ✅** / **C1-A Phase 1 ✅** / **C1-E ✅** / **C2-C ✅** / **C2-D ✅**（Admin PIN 鎖定）/ C1-A Phase 2 RBAC 待做 / Pi server 同步項目（P-Cx）待做 |
 | 下一個里程碑 | `v0.13.0` Wave 5 完成 |
 | 下一個商業里程碑 | `v2.1.0` 第一個可投標版本 |
 
@@ -89,7 +89,21 @@
 |------|------|------|
 | **C2-A** | 測試補完 | security/ 測試（auth bypass、SQL injection、rate limit）|
 | **C2-B** | CI/CD 強化 | mypy strict、coverage ≥70%、js-quality（eslint + vitest）|
-| **C2-C** | 程式碼品質工具 | ruff、pre-commit hooks、detect-secrets |
+| **C2-C** ✅ | 程式碼品質工具 | ruff、pre-commit hooks、detect-secrets |
+| **C2-D** ✅ | Admin PIN 鎖定 | 5次失敗/鎖定30分鐘，前端顯示剩餘次數與解鎖時間 |
+
+### Engineering — Pi Server 同步（C1/C2 適用項目）
+
+> Pi server（Node.js）與 command dashboard 共享相同的安全與工程品質目標。
+> 以下為 command dashboard Cx 項目在 Pi server 的對應工作。
+
+| 子項 | 對應 | 內容 | 狀態 |
+|------|------|------|------|
+| **P-C1-A** | C2-D | Admin PIN 鎖定（`/admin/setup`、`/admin/reset` 無鎖定）| 🔲 |
+| **P-C1-A** | C1-A | 首次強制設定（確認 Pi server 無預設 admin PIN 漏洞）| 🔲 |
+| **P-C1-D** | C1-D | Audit log hash chain（Pi server 已有 audit log，缺 hash chain）| 🔲 |
+| **P-C1-E** | C1-E | Schema version API + shelter/medical GUI 顯示（`server/migrations.js` 已有邏輯，缺 API）| 🔲 |
+| **P-C2-C** | C2-C | ESLint + prettier + detect-secrets（Node.js 等效 ruff + pre-commit）| 🔲 |
 
 > ⚠️ **v2.1.0 的關鍵路徑**：C1-B（HTTPS）是最優先——沒有 HTTPS 就不是可投標的安全系統。
 > 6月底演練是壓力節點，目標在演練前完成 C1-B + C1-A 核心部分。

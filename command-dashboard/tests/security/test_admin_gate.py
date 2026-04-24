@@ -28,6 +28,7 @@ from repositories.config_repo import (
 class TestSessionVsAdminPin:
     def test_valid_session_without_admin_pin_returns_403(self, client):
         """有效 session token + 無 X-Admin-PIN → 403（session 無法繞過 admin PIN）"""
+        set_admin_pin("1234", "test")
         r = client.post("/api/auth/login", json={"username": "admin", "pin": "1234"})
         token = r.json()["session_id"]
         r2 = client.get("/api/admin/accounts", headers={"X-Session-Token": token})
@@ -35,6 +36,7 @@ class TestSessionVsAdminPin:
 
     def test_valid_session_with_wrong_admin_pin_returns_403(self, client):
         """有效 session + 錯誤 X-Admin-PIN → 403"""
+        set_admin_pin("1234", "test")
         r = client.post("/api/auth/login", json={"username": "admin", "pin": "1234"})
         token = r.json()["session_id"]
         r2 = client.get("/api/admin/accounts", headers={

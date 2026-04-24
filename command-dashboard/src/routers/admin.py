@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 
-from core.database import get_conn
+from core.database import get_conn, get_schema_version
 from repositories._helpers import audit
 from repositories.account_repo import (
     clear_default_pin_flag,
@@ -41,6 +41,10 @@ router = APIRouter(prefix="/api/admin", tags=["帳號管理"])
 
 
 def _check_admin_pin(request: Request):
+    # Admin PIN 尚未完成初始設定
+    if not get_config("admin_pin"):
+        raise HTTPException(503, "Admin PIN 尚未設定，請查看伺服器啟動 log（~/.ics/admin_pin_token）")
+
     # C2-D：鎖定檢查（優先於 PIN 驗證）
     lock = get_admin_pin_lock_status()
     if lock["locked"]:
@@ -71,7 +75,20 @@ def admin_status():
     raw = get_config("admin_pin")
     with get_conn() as conn:
         cnt = conn.execute("SELECT COUNT(*) as c FROM accounts").fetchone()["c"]
-    return {"admin_pin_setup": raw is not None, "active_accounts": cnt}
+        schema_ver = get_schema_version(conn)
+    return {"admin_pin_setup": raw is not None, "active_accounts": cnt,
+            "schema_version": schema_ver}
+
+
+@router.get("/schema-migrations", tags=["帳號管理"])
+def list_migrations(request: Request):
+    """C1-E：列出已套用的 schema migrations（需 Admin PIN）。"""
+    _check_admin_pin(request)
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT version, name, applied_at FROM schema_migrations ORDER BY version"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── 帳號 CRUD ─────────────────────────────────────────────────────────────────

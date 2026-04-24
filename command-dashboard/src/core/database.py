@@ -317,51 +317,111 @@ def _create_tables(conn: sqlite3.Connection) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Migration：補欄位（idempotent）
+# Migration：版本化 schema 升級（C1-E）
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _migrate(conn: sqlite3.Connection) -> None:
-    _add_column_if_missing(conn, "events", "exercise_id", "INTEGER REFERENCES exercises(id)")
-    _add_column_if_missing(conn, "events", "event_type_id", "INTEGER REFERENCES event_types(id)")
-    _add_column_if_missing(conn, "events", "assigned_unit", "TEXT")
-    _add_column_if_missing(conn, "events", "acknowledged_at", "TEXT")
-    _add_column_if_missing(conn, "events", "resolved_at", "TEXT")
-    _add_column_if_missing(conn, "events", "resolution_notes", "TEXT")
+def _ensure_migrations_table(conn: sqlite3.Connection) -> None:
+    """建立 schema_migrations 追蹤表（若不存在）。"""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version    INTEGER PRIMARY KEY,
+            name       TEXT NOT NULL,
+            applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        )
+    """)
 
-    _add_column_if_missing(conn, "decisions", "exercise_id", "INTEGER REFERENCES exercises(id)")
-    _add_column_if_missing(conn, "decisions", "made_by", "TEXT")  # 原本就有，冪等
-    _add_column_if_missing(conn, "decisions", "decision_type", "TEXT")
-    _add_column_if_missing(conn, "decisions", "rationale", "TEXT")
-    _add_column_if_missing(conn, "decisions", "affected_units", "TEXT")
-    _add_column_if_missing(conn, "decisions", "outcome_at", "TEXT")
-    _add_column_if_missing(conn, "decisions", "outcome_notes", "TEXT")
 
-    _add_column_if_missing(conn, "snapshots", "exercise_id", "INTEGER REFERENCES exercises(id)")
-    _add_column_if_missing(conn, "manual_records", "exercise_id", "INTEGER REFERENCES exercises(id)")
-    _add_column_if_missing(conn, "audit_log", "exercise_id", "INTEGER REFERENCES exercises(id)")
+def _applied_versions(conn: sqlite3.Connection) -> set[int]:
+    return {row[0] for row in conn.execute("SELECT version FROM schema_migrations")}
 
-    # ── C1-A 登入鎖定 ─────────────────────────────────────────────
-    _add_column_if_missing(conn, "accounts", "failed_login_count", "INTEGER NOT NULL DEFAULT 0")
-    _add_column_if_missing(conn, "accounts", "locked_until", "TEXT")
-    # ── C1-A 首次強制設定 ─────────────────────────────────────────
-    # is_default_pin=1 表示尚未首次修改 PIN，登入後強制改密碼；舊資料設 0（既有帳號視為已設定過）
-    _add_column_if_missing(conn, "accounts", "is_default_pin", "INTEGER NOT NULL DEFAULT 0")
 
-    # ttx_injects：舊版有 session_id TEXT NOT NULL REFERENCES ttx_sessions → 整表重建
-    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    if "ttx_injects" in tables:
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(ttx_injects)")}
-        if "session_id" in cols:
-            # 舊版 schema，直接清除後 DROP（1 筆測試資料，已確認可清除）
-            conn.execute("DROP TABLE ttx_injects")
-            tables.discard("ttx_injects")
-
-    # 舊版 ttx_sessions → 清除
-    if "ttx_sessions" in tables:
-        conn.execute("DROP TABLE IF EXISTS ttx_sessions")
+def _mark_applied(conn: sqlite3.Connection, version: int, name: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)",
+        (version, name),
+    )
 
 
 def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
     existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
     if column not in existing:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")  # nosec B608
+
+
+# ── 各版本 migration 函式 ──────────────────────────────────────────────────
+
+def _m001_events_columns(conn: sqlite3.Connection) -> None:
+    """events：補 exercise_id / event_type_id / assigned_unit / 時間欄位。"""
+    _add_column_if_missing(conn, "events", "exercise_id",      "INTEGER REFERENCES exercises(id)")
+    _add_column_if_missing(conn, "events", "event_type_id",    "INTEGER REFERENCES event_types(id)")
+    _add_column_if_missing(conn, "events", "assigned_unit",    "TEXT")
+    _add_column_if_missing(conn, "events", "acknowledged_at",  "TEXT")
+    _add_column_if_missing(conn, "events", "resolved_at",      "TEXT")
+    _add_column_if_missing(conn, "events", "resolution_notes", "TEXT")
+
+
+def _m002_decisions_columns(conn: sqlite3.Connection) -> None:
+    """decisions：補 exercise_id / rationale / affected_units / outcome 欄位。"""
+    _add_column_if_missing(conn, "decisions", "exercise_id",    "INTEGER REFERENCES exercises(id)")
+    _add_column_if_missing(conn, "decisions", "made_by",        "TEXT")
+    _add_column_if_missing(conn, "decisions", "decision_type",  "TEXT")
+    _add_column_if_missing(conn, "decisions", "rationale",      "TEXT")
+    _add_column_if_missing(conn, "decisions", "affected_units", "TEXT")
+    _add_column_if_missing(conn, "decisions", "outcome_at",     "TEXT")
+    _add_column_if_missing(conn, "decisions", "outcome_notes",  "TEXT")
+
+
+def _m003_exercise_id_spread(conn: sqlite3.Connection) -> None:
+    """snapshots / manual_records / audit_log：補 exercise_id。"""
+    _add_column_if_missing(conn, "snapshots",      "exercise_id", "INTEGER REFERENCES exercises(id)")
+    _add_column_if_missing(conn, "manual_records", "exercise_id", "INTEGER REFERENCES exercises(id)")
+    _add_column_if_missing(conn, "audit_log",      "exercise_id", "INTEGER REFERENCES exercises(id)")
+
+
+def _m004_c1a_accounts(conn: sqlite3.Connection) -> None:
+    """C1-A：accounts 補登入鎖定 + 首次設定欄位。"""
+    _add_column_if_missing(conn, "accounts", "failed_login_count", "INTEGER NOT NULL DEFAULT 0")
+    _add_column_if_missing(conn, "accounts", "locked_until",       "TEXT")
+    # is_default_pin=1 表示尚未首次修改 PIN；舊帳號視為已設定，預設 0
+    _add_column_if_missing(conn, "accounts", "is_default_pin",     "INTEGER NOT NULL DEFAULT 0")
+
+
+def _m005_ttx_injects_rebuild(conn: sqlite3.Connection) -> None:
+    """ttx_injects：舊版有 session_id（FK → ttx_sessions），整表重建；清除 ttx_sessions。"""
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "ttx_injects" in tables:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(ttx_injects)")}
+        if "session_id" in cols:
+            conn.execute("DROP TABLE ttx_injects")
+    if "ttx_sessions" in tables:
+        conn.execute("DROP TABLE IF EXISTS ttx_sessions")
+
+
+# ── Migration 清單（version, name, fn）────────────────────────────────────
+
+_MIGRATIONS: list[tuple[int, str, object]] = [
+    (1, "events_columns",       _m001_events_columns),
+    (2, "decisions_columns",    _m002_decisions_columns),
+    (3, "exercise_id_spread",   _m003_exercise_id_spread),
+    (4, "c1a_accounts",         _m004_c1a_accounts),
+    (5, "ttx_injects_rebuild",  _m005_ttx_injects_rebuild),
+]
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """依序執行尚未套用的 migrations，已套用的跳過（idempotent）。"""
+    _ensure_migrations_table(conn)
+    applied = _applied_versions(conn)
+    for version, name, fn in _MIGRATIONS:
+        if version not in applied:
+            fn(conn)
+            _mark_applied(conn, version, name)
+
+
+def get_schema_version(conn: sqlite3.Connection) -> int:
+    """回傳目前已套用的最高 migration 版本號（0 表示全新 DB）。"""
+    try:
+        row = conn.execute("SELECT MAX(version) FROM schema_migrations").fetchone()
+        return row[0] or 0
+    except Exception:
+        return 0
