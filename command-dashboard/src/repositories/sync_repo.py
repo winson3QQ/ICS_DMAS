@@ -4,8 +4,10 @@ sync_repo.py — 三 Pass 對齊（網路恢復後同步）
 
 import json
 import uuid
+
 from core.database import get_conn
-from ._helpers import now_utc, row_to_dict, audit
+
+from ._helpers import audit, now_utc, row_to_dict
 
 
 def _unit_to_node(unit: str) -> str:

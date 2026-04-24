@@ -4,10 +4,12 @@ map.py — 地圖相關端點（Tiles、map_config、upload-image、cert）
 
 import sqlite3
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
-from fastapi.responses import Response, HTMLResponse, FileResponse
+
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, Response
+
 from auth.service import get_session
-from core.config import MBTILES_DIR, STATIC_DIR, SRC_DIR
+from core.config import MBTILES_DIR, SRC_DIR, STATIC_DIR
 
 router = APIRouter(tags=["地圖 Tiles"])
 
@@ -60,7 +62,7 @@ def serve_pmtiles(filename: str, request: Request):
         start  = int(start_str)
         end    = int(end_str) if end_str else file_size - 1
     except Exception:
-        raise HTTPException(416, "Invalid Range header")
+        raise HTTPException(416, "Invalid Range header") from None
     if start > end or end >= file_size:
         raise HTTPException(416, "Range Not Satisfiable")
     length = end - start + 1

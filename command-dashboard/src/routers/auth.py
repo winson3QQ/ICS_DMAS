@@ -1,10 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
-from repositories.account_repo import verify_login
-from repositories.audit_repo import get_audit_log
+
+from auth.service import create_session, destroy_session, session_remaining, validate_session
 from repositories._helpers import audit
-from auth.service import (
-    create_session, validate_session, destroy_session, session_remaining
-)
+from repositories.account_repo import verify_login
 from schemas.auth import LoginIn
 
 router = APIRouter(prefix="/api/auth", tags=["認證"])

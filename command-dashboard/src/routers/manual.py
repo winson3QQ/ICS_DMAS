@@ -1,8 +1,7 @@
-from typing import Optional
+
 from fastapi import APIRouter
-from repositories.manual_repo import (
-    create_manual_record, get_manual_records, mark_manual_record_synced
-)
+
+from repositories.manual_repo import create_manual_record, get_manual_records, mark_manual_record_synced
 from schemas.manual import ManualRecordIn
 
 router = APIRouter(prefix="/api/manual_records", tags=["手動輸入"])
@@ -28,7 +27,7 @@ def post_manual(body: ManualRecordIn):
 
 
 @router.get("")
-def get_manual(sync_status: Optional[str] = None, limit: int = 100):
+def get_manual(sync_status: str | None = None, limit: int = 100):
     return get_manual_records(sync_status, limit)
 
 

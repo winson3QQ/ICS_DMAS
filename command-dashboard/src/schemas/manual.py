@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class ManualRecordIn(BaseModel):
@@ -7,8 +7,8 @@ class ManualRecordIn(BaseModel):
     operator:   str
     summary:    str
     payload:    dict
-    device_id:  Optional[str] = None
-    exercise_id: Optional[int] = None  # C0
+    device_id:  str | None = None
+    exercise_id: int | None = None  # C0
 
     class Config:
         extra = "allow"

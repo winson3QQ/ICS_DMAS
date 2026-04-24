@@ -1,8 +1,10 @@
 import json
+
 from fastapi import APIRouter, HTTPException, Request
+
 from auth.service import validate_session
-from services.pi_push_service import process_push
 from repositories.pi_batch_repo import get_latest_pi_batch
+from services.pi_push_service import process_push
 
 router = APIRouter(tags=["Pi 推送"])
 
@@ -17,7 +19,7 @@ async def receive_pi_push(unit_id: str, request: Request):
     try:
         return process_push(unit_id, token, body)
     except PermissionError as e:
-        raise HTTPException(403, str(e))
+        raise HTTPException(403, str(e)) from e
 
 
 @router.get("/api/pi-data/{unit_id}/list", tags=["Pi 資料"])

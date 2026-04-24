@@ -4,8 +4,11 @@ C5 前向相容：set_active() 含 mutex 防護
 """
 
 from repositories.exercise_repo import (
-    create_exercise, get_exercise, list_exercises,
-    update_exercise_status, get_active_exercise,
+    create_exercise,
+    get_active_exercise,
+    get_exercise,
+    list_exercises,
+    update_exercise_status,
 )
 
 

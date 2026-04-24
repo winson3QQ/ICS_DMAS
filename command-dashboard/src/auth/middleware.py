@@ -6,6 +6,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from core.config import AUTH_EXEMPT_EXACT, AUTH_EXEMPT_PREFIXES
+
 from .service import check_and_touch
 
 

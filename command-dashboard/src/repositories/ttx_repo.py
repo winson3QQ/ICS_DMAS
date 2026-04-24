@@ -5,8 +5,10 @@ C0：inject 透過 exercise_id 關聯（ttx_sessions 已廢棄）
 
 import json
 import uuid
+
 from core.database import get_conn
-from ._helpers import now_utc, audit
+
+from ._helpers import audit, now_utc
 
 
 def create_ttx_inject(exercise_id: int, seq: int, target_unit: str,

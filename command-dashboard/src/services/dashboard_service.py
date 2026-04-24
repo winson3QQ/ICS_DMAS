@@ -4,10 +4,14 @@ dashboard_service.py — 組裝儀表板回應資料
 """
 
 import json
+
 import calc_engine
 from repositories import (
-    snapshot_repo, event_repo, decision_repo,
-    pi_node_repo, pi_batch_repo,
+    decision_repo,
+    event_repo,
+    pi_batch_repo,
+    pi_node_repo,
+    snapshot_repo,
 )
 
 

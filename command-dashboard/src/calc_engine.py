@@ -6,9 +6,7 @@ calc_engine.py — ICS 計算引擎
 不直接讀資料庫，由 main.py 傳入資料。
 """
 
-from datetime import datetime, timezone
-from typing import Optional
-
+from datetime import UTC, datetime
 
 # ──────────────────────────────────────────
 # 門檻預設值（規格 6.5）
@@ -71,7 +69,7 @@ def _parse_dt(s: str) -> datetime:
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def minutes_ago(dt_str: str) -> float:

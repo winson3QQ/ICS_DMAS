@@ -1,19 +1,19 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class ExerciseCreateIn(BaseModel):
     name:              str
     type:              str = "ttx"    # 'real' | 'ttx'
-    date:              Optional[str] = None
-    location:          Optional[str] = None
-    scenario_summary:  Optional[str] = None
-    weather:           Optional[str] = None
-    participant_count: Optional[int] = None
-    organizing_body:   Optional[str] = None
+    date:              str | None = None
+    location:          str | None = None
+    scenario_summary:  str | None = None
+    weather:           str | None = None
+    participant_count: int | None = None
+    organizing_body:   str | None = None
     # TTX 專屬
-    facilitator:  Optional[str] = None
-    scenario_id:  Optional[str] = None
+    facilitator:  str | None = None
+    scenario_id:  str | None = None
 
 
 class ExerciseStatusIn(BaseModel):
@@ -23,4 +23,4 @@ class ExerciseStatusIn(BaseModel):
 class AAREntryIn(BaseModel):
     category: str    # 'well' | 'improve' | 'recommend'
     content:  str
-    created_by: Optional[str] = None
+    created_by: str | None = None

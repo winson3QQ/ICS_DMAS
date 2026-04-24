@@ -4,7 +4,8 @@ C0：exercises 表（合併原 ttx_sessions）
 """
 
 from core.database import get_conn
-from ._helpers import now_utc, audit
+
+from ._helpers import audit, now_utc
 
 
 def create_exercise(data: dict) -> dict:

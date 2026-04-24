@@ -1,11 +1,11 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class SyncPushIn(BaseModel):
     source_unit:    str
     sync_start_ts:  str
-    device_id:      Optional[str] = None
+    device_id:      str | None = None
     snapshots:      list = []
     events:         list = []
     manual_records: list = []

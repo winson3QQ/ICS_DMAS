@@ -6,17 +6,23 @@ C5 前向相容：
 - 每個 inject 有 signature 欄位（C0 加，C5 填入簽章值）
 """
 
+import glob
 import json
-from datetime import datetime, timezone
+import os
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException, Request
+
 from auth.service import validate_session
-from repositories.ttx_repo import (
-    create_ttx_inject, bulk_create_ttx_injects,
-    get_ttx_injects, mark_ttx_inject_done,
-)
-from repositories.snapshot_repo import upsert_snapshot
-from repositories.event_repo import create_event
+from core.config import SRC_DIR
 from repositories.decision_repo import create_decision
+from repositories.event_repo import create_event
+from repositories.snapshot_repo import upsert_snapshot
+from repositories.ttx_repo import (
+    bulk_create_ttx_injects,
+    get_ttx_injects,
+    mark_ttx_inject_done,
+)
 from schemas.ttx import TTXInjectBulkIn
 
 router = APIRouter(prefix="/api/ttx", tags=["TTX"])
@@ -59,11 +65,11 @@ def push_inject(exercise_id: int, inject_id: str, request: Request, live: bool =
     inject_type = inject["inject_type"]
 
     if live:
-        _now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         if "t" in payload:
             payload["t"] = _now
         if "snapshot_id" in payload:
-            payload["snapshot_id"] = f"live-{inject_id[:8]}-{int(datetime.now(timezone.utc).timestamp())}"
+            payload["snapshot_id"] = f"live-{inject_id[:8]}-{int(datetime.now(UTC).timestamp())}"
 
     results = []
 
@@ -129,8 +135,6 @@ def push_inject(exercise_id: int, inject_id: str, request: Request, live: bool =
 
 # ── 情境檔案（scenarios/*.json）───────────────────────────────────────────────
 
-import glob
-import os
 
 @router.get("/scenarios", tags=["TTX"])
 def list_scenarios(request: Request):
@@ -157,7 +161,7 @@ def list_scenarios(request: Request):
 @router.post("/scenarios/{scenario_id}/load", tags=["TTX"])
 def load_scenario(scenario_id: str, exercise_id: int, request: Request):
     """載入預建情境的 injects 到指定演練"""
-    sess         = validate_session(request)
+    validate_session(request)
     scenario_dir = str(SRC_DIR.parent / "scenarios")
     fpath        = os.path.join(scenario_dir, f"{scenario_id}.json")
     if not os.path.isfile(fpath):
@@ -165,7 +169,3 @@ def load_scenario(scenario_id: str, exercise_id: int, request: Request):
     data  = json.loads(open(fpath, encoding="utf-8").read())
     count = bulk_create_ttx_injects(exercise_id, data.get("injects", []))
     return {"ok": True, "exercise_id": exercise_id, "injects_loaded": count}
-
-
-# 讓 SRC_DIR 可用
-from core.config import SRC_DIR
