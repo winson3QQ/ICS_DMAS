@@ -2,7 +2,7 @@ name: CI — 指揮部後端
 
 on:
   push:
-    branches: [main, refactor/c0-command-backend]
+    branches: [main, refactor/c0-command-backend, feat/**, fix/**, docs/**]
     paths:
       - 'command-dashboard/src/**'
       - 'command-dashboard/tests/**'
