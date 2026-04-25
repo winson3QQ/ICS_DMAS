@@ -38,21 +38,22 @@
 6. **C1-G**：WebSocket 安全（含 P-FIX-01 isAuthed bug）
 
 ### 第 3 波（資料保護，與第 2 波併行）
-7. **C1-C 擴大**：三層加密 + pii_access_log + role-based PII redaction
-8. **W-C1-C**：PWA IndexedDB 加密
-9. **W-C1-A / P-C1-A**：PWA / Pi 對應 RBAC
+7. **C1-C 擴大**：三層加密（Fernet 應用層 / SQLCipher DB 層 / LUKS 由 C3-B 實作）+ pii_access_log + role-based PII redaction + 資料分類表
+8. **P-C1-C** 🆕：Pi 端對應 — better-sqlite3 + SQLCipher 整 DB 加密
+9. **W-C1-C**：PWA IndexedDB 加密（Dexie 加密）
+10. **W-C1-A / P-C1-A**：PWA / Pi 對應 RBAC
 
 ### 第 4 波（工程品質）
-10. **C2-F**：生產韌性 + DB 並發 retry + dev/prod debug
-11. **C2-E**：SBOM + SLSA L2 + dep scan
-12. **C2-C 擴充**：GitHub Security suite
+11. **C2-F**：生產韌性 + DB 並發 retry + dev/prod debug
+12. **C2-E**：SBOM + SLSA L2 + dep scan
+13. **C2-C 擴充**：GitHub Security suite
 
 ### 第 5 波（部署收尾）
-13. **C1-B 收尾**：step-ca / nginx Pi 實機驗證 + cert renewal monitoring
-14. **C3-A/B/C**：config 外部化 + NTP/WAL/LUKS + 健康檢查 + observability
+14. **C1-B 收尾**：step-ca / nginx Pi 實機驗證 + cert renewal monitoring
+15. **C3-A/B/C**：config 外部化 + NTP/WAL/LUKS + 健康檢查 + observability
 
 ### 第 6 波（演練前驗收）
-15. 全測試 + DR drill + pen test 準備 + commercialization_plan v2 compliance 章節
+16. 全測試 + DR drill + pen test 準備 + commercialization_plan v2 compliance 章節
 
 > **6 月演練壓力節點**：建議第 1-3 波在 6 月演練前完成（第 4-5 波部分併行）；第 6 波視時程取捨。
 
@@ -154,6 +155,7 @@
 |------|------|------|------|
 | **P-C1-A** | C1-A / C2-D | Admin PIN 鎖定 + 首次強制設定（確認 Pi server 無預設 admin PIN 漏洞）| 🔲 |
 | **P-C1-B** 🆕 | C1-B | Pi 端 TLS 憑證管理 + STRICT_TLS 強制 + 憑證到期監控 | 🔲 |
+| **P-C1-C** 🆕 | C1-C | Pi 端靜態加密：better-sqlite3 + SQLCipher（整 DB）+ 對應的 backup 加密；策略 A「分層各自加密」（Pi 自管 key）；保護 accounts / audit_log / sessions（PWA 上傳資料若已 PWA 端加密則 Pi 不需重加密，但 Pi 本機表仍需）| 🔲 |
 | **P-C1-D** | C1-D | Audit log hash chain + correlation ID（與 command 跨組件串連）| 🔲 |
 | **P-C1-E** 擴大 | C1-E | **正式 `schema_migrations` 版本表**（取代 ad-hoc CREATE IF NOT EXISTS）+ migration runner（對齊 command pattern）+ `GET /admin/schema-version` API + PWA admin GUI 顯示版本 | 🔲 |
 | **P-C1-G** 🆕 | C1-G | Pi 端 WS 連線管理（heartbeat + reconnect）+ WS token 驗證 + DoS 防護 | 🔲 |
