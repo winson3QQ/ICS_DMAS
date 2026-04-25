@@ -1,19 +1,25 @@
 # ICS_DMAS 統一路線圖
 
 > **唯一入口**。Wave（功能）與 cX（工程品質/商業化）合併於此。
-> 細節見：[商業化計劃](commercialization_plan_v1.md) · [指揮部規格書](../command-dashboard/docs/指揮部儀表板設計規格.md)
+> 細節見：[商業化計劃](commercialization_plan_v1.md) · [指揮部規格書](../command-dashboard/docs/指揮部儀表板設計規格.md) · [Compliance](compliance/README.md)
+>
+> **Cx 命名前綴**：
+> - `C-` / 無前綴：command-dashboard
+> - `P-C*`：Pi server 對應項
+> - `W-C*`：PWA（shelter + medical）對應項
 
 ---
 
-## 現在位置（2026-04-24）
+## 現在位置（2026-04-25）
 
 | 項目 | 狀態 |
 |------|------|
-| 程式版號 | `cmd-v2.0.4` / `server-v1.3.0` |
-| Wave 進度 | Wave 5 尾端（剩 2 項）|
-| cX 進度 | C0 ✅ / **C1-B ✅** / **C1-A Phase 1 ✅** / **C1-E ✅** / **C2-C ✅** / **C2-D ✅**（Admin PIN 鎖定）/ C1-A Phase 2 RBAC 待做 / Pi server 同步項目（P-Cx）待做 |
+| 程式版號 | `cmd-v2.0.5` / `server-v1.3.0` |
+| Wave 進度 | Wave 5 尾端（剩 1 項）|
+| cX 進度 | C0 ✅ / **C1-B ✅**（程式碼）/ **C1-A Phase 1 ✅** / **C1-E ✅** / **C2-C ✅** / **C2-D ✅** / C1-A Phase 2 RBAC 待做（擴大範圍）/ Compliance Audit 待做 |
 | 下一個里程碑 | `v0.13.0` Wave 5 完成 |
-| 下一個商業里程碑 | `v2.1.0` 第一個可投標版本 |
+| 下一個商業里程碑 | `v2.1.0` 第一個可投標版本（Compliance audit 完成後重估）|
+| **Compliance 程式** | ⏸ Phase 0 Audit 未開始（Session A→B→C→D 未開始）。見 [compliance/](compliance/README.md) |
 
 ---
 
@@ -71,26 +77,36 @@
 | 過濾搜尋 | 事件/資源/人員全域搜尋 |
 | 時間軸回放 | 從 `resource_snapshots` 表重建歷史狀態 |
 | 3D 地形 | 依硬體評估（N100 目標平台）|
+| **COP 事件自動分類** 🆕 | PTT 語音 / TAK / PWA 輸入進系統後立即自動分類、計算優先序，直接顯示地圖與決策佇列 |
+| **決策佇列 + AI 推薦自動排序** 🆕 | 依嚴重度 + 緊急度自動排序；AI 推薦卡片每 30 秒自動更新推送 |
+| **QR Code 快照 5 分鐘自動產生** 🆕 | 最新 COP 狀態轉 QR Code，極端斷網時 PWA 仍可同步（W-C1-G 衝突解析策略配套）|
 
 ### Engineering — C1：安全性與法規合規
 
 | 子項 | 內容 | 說明 |
 |------|------|------|
-| **C1-A** ⚠️ Phase 1 完成 | 認證強化 | ✅ 登入鎖定 5次/15min + IP rate limit 10/min + 首次強制設定（移除預設 PIN 1234）；🔲 RBAC OBSERVER；🔲 TOTP MFA AAL2 |
-| **C1-B** ✅ 程式碼 | 全面加密傳輸 | nginx HTTPS（TLS 1.2+）、HSTS、CSP report-only、CORS 收斂、step-ca 內網 PKI；待 step-ca/nginx 安裝實測；strict CSP 留 C1-F 後做 |
-| **C1-C** | 個資保護 | 敏感欄位 Fernet 加密、`pii_access_log`、72h PDPC 通報流程 |
-| **C1-D** | Append-only 稽核軌跡 | DB trigger 防竄改、雜湊鏈、6 個月保存、structlog JSON |
-| **C1-E** | Schema 版本追蹤 | `migrations` 表，append-only，正式追蹤所有 DB 變更 |
-| **C1-F** | 前端模組化 | 抽出 `.js` 模組、esbuild bundle、vitest 前端測試 |
+| 子項 | 內容 | 適用標準 | 說明 |
+|------|------|---------|------|
+| **C1-A** ⚠️ Phase 1 完成 | 認證強化 | NIST 800-63-3 AAL2 / 800-53 IA / CIS §6 | ✅ Phase 1（登入鎖定 + 首次強制設定）；🔲 **Phase 2：RBAC 4-role + 作業期間 + Transfer of Command**（範圍擴大，見下註）；🔲 Phase 3 TOTP MFA；🔲 Phase 4 CISO 政策文件（→ security_policies.md 升正式版）|
+| **C1-B** ✅ 程式碼 | 全面加密傳輸 | NIST 800-53 SC-8/12/13 / ASVS V9 | nginx HTTPS（TLS 1.2+）、HSTS、CSP report-only、CORS 收斂、step-ca 內網 PKI；待 step-ca/nginx 安裝實測；strict CSP 留 C1-F 後做 |
+| **C1-C** | 個資保護 + 靜態資料加密 | 個資法 PDPA / NIST Privacy Framework / 800-53 PT / SC-28 | **三層加密策略**：① 應用層 Fernet 敏感欄位加密 ② DB 層 SQLCipher（評估導入）③ OS 層 LUKS 全碟加密（Pi 部署時設定）；`pii_access_log`、72h PDPC 通報流程、資料分類表 |
+| **C1-D** | 可觀察性 + 稽核 | NIST 800-53 AU / ASVS V7 / CSF DETECT | **範圍擴大**：跨組件 correlation ID + structlog JSON + append-only audit + hash chain + 6 個月保存（command/pi/pwa 三組件協議統一）；**8 個優先埋 log 位置**：(1) WS 連線/推送 (2) 事件產生與分類 (3) DB 寫入 (4) SDR/無線電錄音 (5) STT 轉錄+CER (6) AI 推薦+採納/拒絕 (7) 登入/權限檢查 (8) calc_engine 計算 |
+| **C1-E** ✅ | Schema 版本追蹤 | NIST 800-53 CM-3 / CM-6 | `schema_migrations` 表，append-only，正式追蹤所有 DB 變更 |
+| **C1-F** | 前端模組化 + 前端安全 | ASVS V14 / CSP3 / 800-53 SC | 抽出 `.js` 模組、esbuild bundle、vitest 前端測試、**CSP enforce 切換**（從 report-only）|
+| **C1-G** 🆕 | WebSocket 安全與可靠性 | ASVS V9 / NIST 800-53 SC-8/23 / CIS §13 | ConnectionManager（heartbeat + reconnect backoff + message queue）、WS token 驗證（獨立於 HTTP session）、WS mTLS（Tier 3）、message signing（可選，高安全版本）、DoS 防護（連線數限制 + rate limit per-connection）|
+
+> **註**：C1-A Phase 2 範圍擴大 — 4-role RBAC（系統管理員 / 指揮官 / 操作員 / 觀察員）+ role_detail（ICS 標準職稱下拉）+ `require_role()` gate + operational_periods 表 + Transfer of Command API + duty_log 表 + Unity of Command 偵測 + break-glass admin PIN 收斂。詳細設計見 compliance/ 與 architecture_decisions.md。
 
 ### Engineering — C2：工程品質
 
-| 子項 | 內容 | 說明 |
-|------|------|------|
-| **C2-A** | 測試補完 | security/ 測試（auth bypass、SQL injection、rate limit）|
-| **C2-B** | CI/CD 強化 | mypy strict、coverage ≥70%、js-quality（eslint + vitest）|
-| **C2-C** ✅ | 程式碼品質工具 | ruff、pre-commit hooks、detect-secrets |
-| **C2-D** ✅ | Admin PIN 鎖定 | 5次失敗/鎖定30分鐘，前端顯示剩餘次數與解鎖時間 |
+| 子項 | 內容 | 適用標準 | 說明 |
+|------|------|---------|------|
+| **C2-A** | 測試補完 | ASVS L2 / ISO 25010 可靠性 / CIS §16 | security/ 測試（auth bypass、SQL injection、rate limit）+ ASVS L2 完整驗證 |
+| **C2-B** | CI/CD 強化 + 品質度量 | DORA / ISO 25010 / SSDF PW.7 | mypy strict、coverage ≥70%、js-quality（eslint + vitest）、DORA metrics 追蹤 |
+| **C2-C** ✅ 擴充 | 程式碼品質工具 + GitHub Security | SSDF PW.4 / CIS §16.11 | ruff、pre-commit hooks、detect-secrets；**擴充**：GitHub CodeQL 啟用、Dependabot alerts、secret scanning、SAST 報告 fail-build 政策 |
+| **C2-D** ✅ | Admin PIN 鎖定 | NIST 800-63-3 / CIS §6.3 | 5次失敗/鎖定30分鐘，前端顯示剩餘次數與解鎖時間 |
+| **C2-E** 🆕 | 供應鏈與 SSDF | SLSA L2 / SSDF PS / NIST SR / CycloneDX | pip-audit + npm audit CI、**SBOM（CycloneDX）** 生成、vulnerability disclosure 政策、SLSA L2 產製流程 |
+| **C2-F** 🆕 | 生產部署韌性 | ASVS V14.3 / 800-53 SI / CIS §8 | 統一 exception handler + 錯誤訊息資訊不揭露（生產模式 debug off）+ payload size 限制 + 全域 rate limit（非只 /login）+ OWASP Top 10 覆蓋檢查；**dev/prod debug 模式切換機制**；**DB 並發韌性**（connection pool + exponential backoff retry + 序列化 writer queue，解 `database is locked`；6 月演練前必做，詳見 architecture_decisions.md Decision B）|
 
 ### Engineering — Pi Server 同步（C1/C2 適用項目）
 
@@ -99,11 +115,35 @@
 
 | 子項 | 對應 | 內容 | 狀態 |
 |------|------|------|------|
-| **P-C1-A** | C2-D | Admin PIN 鎖定（`/admin/setup`、`/admin/reset` 無鎖定）| 🔲 |
-| **P-C1-A** | C1-A | 首次強制設定（確認 Pi server 無預設 admin PIN 漏洞）| 🔲 |
-| **P-C1-D** | C1-D | Audit log hash chain（Pi server 已有 audit log，缺 hash chain）| 🔲 |
+| **P-C1-A** | C1-A / C2-D | Admin PIN 鎖定 + 首次強制設定（確認 Pi server 無預設 admin PIN 漏洞）| 🔲 |
+| **P-C1-B** 🆕 | C1-B | Pi 端 TLS 憑證管理 + STRICT_TLS 強制 + 憑證到期監控 | 🔲 |
+| **P-C1-D** | C1-D | Audit log hash chain + correlation ID（與 command 跨組件串連）| 🔲 |
 | **P-C1-E** | C1-E | Schema version API + shelter/medical GUI 顯示（`server/migrations.js` 已有邏輯，缺 API）| 🔲 |
-| **P-C2-C** | C2-C | ESLint + prettier + detect-secrets（Node.js 等效 ruff + pre-commit）| 🔲 |
+| **P-C1-G** 🆕 | C1-G | Pi 端 WS 連線管理（heartbeat + reconnect）+ WS token 驗證 + DoS 防護 | 🔲 |
+| **P-C2-C** | C2-C | ESLint + prettier + detect-secrets + GitHub CodeQL（Node.js 等效） | 🔲 |
+| **P-C2-F** 🆕 | C2-F | Pi 端錯誤處理 + 生產 debug off + payload 限制 + Pi 端全域 rate limit + Pi 端 DB 並發 retry | 🔲 |
+
+### Engineering — PWA 同步（W-Cx，新增前綴家族）
+
+> PWA（shelter + medical）的安全與品質項目，先前未獨立追蹤。
+> 以下為 command Cx 項目在 PWA 的對應工作，shelter 與 medical 共用同一份 Cx（實作可能略有差異）。
+
+| 子項 | 對應 | 內容 | 狀態 |
+|------|------|------|------|
+| **W-C1-A** 🆕 | C1-A | PWA 端 RBAC + session 機制（目前 PWA 登入是 PIN，無 role 概念）| 🔲 |
+| **W-C1-C** 🆕 | C1-C | PWA 端 PII 處理（IndexedDB 存病患資料，目前明文；Dexie 加密 / 欄位分級）| 🔲 |
+| **W-C1-D** 🆕 | C1-D | PWA 端使用者操作 audit log + correlation ID（上傳至 Pi → 串入系統 audit chain）| 🔲 |
+| **W-C1-F** 🆕 | C1-F | PWA CSP + XSS 防護 + Service Worker 安全（含 SW 劫持防護）| 🔲 |
+| **W-C1-G** 🆕 | C1-G | PWA 端 WS client 可靠性（reconnect backoff、離線佇列、同步衝突解析策略）| 🔲 |
+| **W-C2-A** 🆕 | C2-A | PWA 端 vitest / playwright 測試 | 🔲 |
+| **W-C2-F** 🆕 | C2-F | PWA 端錯誤處理 + 前端 error → 後端回拋機制 | 🔲 |
+
+### Engineering — Compliance Audit（新增：貫穿所有 Cx 的合規程式）
+
+| 子項 | 內容 | 狀態 |
+|------|------|------|
+| **Compliance Phase 0** 🆕 | Audit 全系統 × NIST 800-53/63/218/CSF × ISO 25010/5055 × NIMS/ICS 508 × Taiwan 法規 → 產出 matrix + gap analysis + threat model + policies | ⏸ 未開始（Session A→B→C→D）|
+| 持續追蹤 | 每次 Cx 項目完成，同步更新 compliance matrix evidence 欄位 | 持續 |
 
 > ⚠️ **v2.1.0 的關鍵路徑**：C1-B（HTTPS）是最優先——沒有 HTTPS 就不是可投標的安全系統。
 > 6月底演練是壓力節點，目標在演練前完成 C1-B + C1-A 核心部分。
@@ -112,22 +152,47 @@
 
 ## Wave 7 + C3 + C4 → v2.2.0（🔲 第一個可銷售版本）
 
-### Feature — Wave 7：TAK 整合
+### Feature — Wave 7：TAK 整合 + MANET
 
+#### 7a：TAK 整合
 | 項目 | 說明 |
 |------|------|
 | FreeTAKServer ↔ ICS_DMAS | CoT（Cursor on Target）XML 雙向橋接 |
 | MIL-STD-2525 符號渲染 | CoT `type` 欄位即為符號代碼，同一 Wave 實作 |
 | 動態 GPS marker | ATAK 裝置每幾秒推送位置，Wave 5 動態 marker 為基礎 |
+| CoT 訊息自動分類 | 進入後自動轉 marker + 事件，自動計算優先序 |
+
+#### 7b：MANET（前進組網路）🆕
+| 項目 | 說明 |
+|------|------|
+| Pi Zero 2W Mesh 自動加入 | 開機後自動加入 Mesh、自動選擇最佳路徑 |
+| 訊號強度監控 | 連線品質即時回傳指揮部 |
+| 零設定原則 | 平地 / 城市環境下幾乎零設定即可使用 |
 
 ### Engineering — C3：部署與維運
 
-| 子項 | 內容 |
-|------|------|
-| **C3-A** | 設定外部化：`/etc/ics/command.env`，不進 git |
-| **C3-B** | 一鍵安裝腳本：建立 `ics` 系統使用者、權限、key 產生、systemd |
-| **C3-C** | 健康檢查 `/health` + Prometheus `/metrics` 端點 |
-| **C3-D** | 自動備份三層：WAL（即時）/ daily gzip（30天）/ NAS rsync（可選）|
+| 子項 | 內容 | 適用標準 |
+|------|------|---------|
+| **C3-A** | 設定外部化：`/etc/ics/command.env`，不進 git | CM-6 / CIS §4 |
+| **C3-B** | 一鍵安裝腳本：建立 `ics` 系統使用者、權限、key 產生、systemd、**NTP / chrony 設定**、**WAL mode 啟用**、**LUKS 全碟加密** | CM-2 / SC-12 / SI-16 |
+| **C3-C** | 健康檢查 `/health` + Prometheus `/metrics` + OpenTelemetry traces（跨組件）| CSF DETECT / 800-53 AU-6 / ISO 25010 可靠性 |
+| **C3-D** | 自動備份三層：WAL（即時）/ daily gzip（30天）/ NAS rsync（可選）+ **Recovery drill 每 6 個月** | CP-9 / CP-10 |
+| **C3-F** 🆕 | Docker 化 + Binary IP 保護（**Open Core 策略**）| — |
+| **C3-G** 🆕 | 客戶支援自助化 | — |
+
+**C3-F 詳細**（Open Core 模式，見 architecture_decisions.md Decision A）：
+- Dockerfile + docker-compose.yml：command-dashboard / pi-server / nginx / step-ca 各自容器化
+- **閉源核心** binary compile（Cython 或 Nuitka）：`services/ai_service.py` / TTX Orchestrator / calc_engine 核心邏輯
+- **開源** 其他層：schemas / routers / auth middleware / UI
+- 私有 Docker registry（自建或 GHCR private）
+- Image 版本標籤（如 `ics-dmas:2.1.3`）+ 舊 image 保留供回滾
+- 客戶部署流程：`docker compose pull && docker compose up -d`
+
+**C3-G 詳細**：
+- `collect_debug.sh`：一鍵打包 log / 系統狀態 / config（去敏後）成 zip
+- 客戶 FAQ + troubleshooting playbook（繁中）
+- 自助診斷：`docker compose ps` / `docker logs` / 健康檢查 endpoint
+- 目標：70-80% 問題客戶自助解決
 
 ### Engineering — C4：產品分層與授權機制
 
@@ -189,7 +254,17 @@
 ### Engineering — C5-D：語音輸入
 
 - STT 路線待定（見 Wave 9 上方）
-- `SQLCipher` 資料庫加密（靜態加密，Tier 3）
+- `SQLCipher` 資料庫加密（靜態加密，Tier 3；與 C1-C 的三層加密策略對應）
+
+### Engineering — C5-E 🆕：AI 資安
+
+| 子項 | 內容 | 適用標準 |
+|------|------|---------|
+| **Prompt injection 防護** | Input validation + prompt template 隔離 + output sanitization | OWASP LLM Top 10（2025 版）/ NIST AI RMF |
+| **Output sandbox** | AI 輸出先經規則引擎驗證（不可提議實體行動、不可觸發其他 API）再呈現 | NIST AI RMF GOVERN-AI |
+| **Model weight 簽章** | 本地模型權重檔 SHA-256 + 簽章驗證（啟動前檢查）| SLSA v1.0 / SSDF PS.2 |
+| **AI-specific audit log** | 所有 prompt + response + 指揮官採納/否決紀錄（C5-C `ai_recommendations` 表擴充）| AU-2 / 個資法（AI 不得洩漏個資）|
+| **無出境保證** | 雲端 AI 僅接受匿名化資料（個資 tagger 前置過濾）| 個資法 §21 |
 
 ---
 

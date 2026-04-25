@@ -254,6 +254,110 @@ command-dashboard/src/
 
 ---
 
+## Compliance 程式架構決策（2026-04-25 決策）
+
+### 決策
+建立正式 compliance 程式，產出可用於投標 / 行銷 / 稽核的文件體系。
+
+### 涵蓋標準（鎖定後不變）
+
+**資安**：NIST SP 800-53 Rev.5（Moderate baseline）+ SP 800-63-3 + CSF 2.0 + SP 800-218 SSDF + FEMA NIMS/ICS 508
+**軟體品質**：ISO/IEC 25010:2023 + ISO/IEC 5055:2021 + CNS 25010 + OWASP ASVS 4.0 L2 + CIS Controls v8
+**流程成熟度**：OWASP SAMM 2.0 + SLSA v1.0 + DORA metrics
+**Taiwan**：資安法 + 附表十 + 個資法 PDPA + 災害防救法 + 政府資通安全整體防護計畫 12 項
+
+**不納入**：ISO 27001 外部驗證（C6）/ FedRAMP / HIPAA / CMMI
+
+### 文件結構（3 新 + 既有擴充）
+
+**新增（`docs/compliance/`）**：
+- `matrix.md` — 主 deliverable，控制項 × 組件 × 狀態對照
+- `threat_model.md` — STRIDE + 信任邊界
+- `security_policies.md` — 6 policies 一檔（800-53 xx-1 family 要求）
+
+**擴充既有**：
+- `docs/ROADMAP.md` 每個 Cx 標註適用標準 + 新 Cx（C2-E/C2-F/W-Cx/擴充 P-Cx）
+- `docs/commercialization_plan_v1.md` Session D 補 compliance 章節（投標用）
+- `CLAUDE.md` 入口指引
+
+### 執行方式（4 段式 Audit）
+
+Session A（Auth/Transport/Schema）→ B（PII/Audit/Frontend）→ C（Quality/Deploy/Ops）→ D（NIMS + 整合）
+
+每個 session 在 matrix.md「Session Log」區塊更新進度，避免換 session 失憶。
+
+### 關鍵原則
+1. 架構層級對照，不做 line-by-line code review
+2. 寧可少說不誇大 — 未完成項目明確標示「規劃中」
+3. 新增 Cx 最小化（已新增：C2-E / C2-F / W-Cx prefix + 擴充 P-Cx）
+4. 跨組件協議統一（C1-D 擴大為涵蓋 command + pi + pwa 三組件的 logging + audit 協議）
+
+### 對 Roadmap 的影響
+- **C1-A Phase 2 範圍擴大**：原 RBAC OBSERVER + 對齊英文 role → 改為 4-role（含系統管理員）+ role_detail ICS 職稱 + operational_periods + Transfer of Command + duty_log + Unity of Command 偵測
+- **C1-D 範圍擴大**：原純 audit hash chain → 擴大為跨組件可觀察性 + audit 協議 + 8 個優先埋 log 位置明細
+- **C1-C 範圍擴大**：原 Fernet 欄位加密 → 三層加密策略（Fernet / SQLCipher / LUKS）
+- **新 Cx**：C1-G（WebSocket 安全）、C2-E（供應鏈 / SSDF）、C2-F（生產韌性 + DB 並發 + dev/prod debug）、C3-F（Docker + Binary IP 保護）、C3-G（客戶自助支援）、C5-E（AI 資安）
+- **C2-C 擴充**：加 GitHub Security suite（CodeQL / Dependabot / secret scanning）
+- **C3-B 擴充**：加 NTP / chrony、WAL mode、LUKS 全碟加密
+- **Wave 6 擴充**：COP 事件自動分類 + AI 推薦自動排序 + QR Code 5 分鐘快照
+- **Wave 7 拆分**：7a TAK 整合 + 7b MANET 前進組網路
+- **新 Cx prefix**：W-Cx（PWA 同步項，先前未獨立追蹤），對應新增 W-C1-G
+- **v2.1.0 標的**：Compliance audit 完成後重估時程
+
+---
+
+## Decision A：IP 策略 — Open Core（2026-04-25 決策）
+
+### 決策
+採 **Open Core** 模式（商業化 v1.8 既定方向的具體落實）。
+
+### 分層策略
+
+| 層 | 模式 | 包含 | 發布方式 |
+|---|---|---|---|
+| **閉源核心** | Binary compiled（Cython 或 Nuitka）| `services/ai_service.py`、TTX Orchestrator、`calc_engine` 核心邏輯、AI prompt templates、licensing (`C4`) | Docker image 私有 registry |
+| **開源外殼** | 原始碼公開 | schemas、routers、auth middleware、UI、PWA、部分 services、migration 框架 | GitHub public repo |
+| **部署** | Docker 容器化 | 所有組件（command-dashboard / pi-server / nginx / step-ca）打包 | `docker compose pull && up -d` |
+
+### 對 Roadmap 影響
+- 新 **C3-F Docker + Binary IP 保護**
+- 相依 C4（Tier licensing）
+- 影響開發流程：需建 CI build pipeline（Binary 編譯 → image push）
+
+### 參考
+- 商業化計畫 v1.8 §IP 策略章節
+- Red Hat / Elastic / MongoDB 等 Open Core 先例
+
+---
+
+## Decision B：DB 並發 — SQLite + retry（短期）/ PG（長期）（2026-04-25 決策）
+
+### 問題
+Pi 500 + 多 Pi Zero 2W 同時 PTT 推送 → SQLite 單寫者限制 → `database is locked` 錯誤。
+
+### 決策
+- **短期（6 月演練前必做）**：SQLite + connection pool + exponential backoff retry + **序列化 writer queue**
+- **中期（Wave 7 後評估）**：視實際併發壓力決定是否升 PostgreSQL
+- **長期（多客戶 SaaS 階段）**：混合架構 — Pi 端 SQLite（本地小規模）+ command-dashboard PG（多 Pi 彙總）
+
+### 選擇 A（短期）的理由
+- 演練規模 5-10 個 Pi Zero 2W，SQLite + WAL + 正確 retry 足夠（實測 10-20 writes/sec 上限）
+- 工作量小（純應用層），不動 schema 或部署架構
+- PG 升級工作量大（migration、部署複雜度、記憶體 + SSD 成本），不該在 6 月前做
+- 保留升級路徑：repository 層抽象化後，未來換 PG 只改 `core/database.py`
+
+### 實作位置
+- C2-F 範圍內（生產韌性）
+- 具體：`core/database.py` 加 retry decorator；寫入類 service 用序列化 writer queue
+
+### 量測標準
+- 模擬 10 Pi 同時 push 30 秒，錯誤率 <1%
+- 需在 C2-A security tests 加 concurrent write test
+
+---
+
+---
+
 ## C1-A 首次啟動 PIN 交付——C3-B 解決（2026-04-24 決策）
 
 ### 問題

@@ -94,6 +94,36 @@
 
 任何可增進開發或 debug 效率的工具、做法、架構改善，都可以主動提出，不需要等被問。
 
+## 功能完成定義（Definition of Done）
+
+任何 Cx 項目 / Wave feature / bug fix，**同時滿足以下條件**才算完成：
+
+1. **程式碼 merged**（main 分支）
+2. **CI 測試補齊** — 對應的 unit / integration / security 測試已加並 green
+   - 對應 ROADMAP `C2-A`（測試補完）/ `C2-B`（CI/CD 強化）
+   - 符合 NIST SSDF PW.7 / ASVS V14 / ISO 25010 可靠性
+3. **規格書同步** — 若有介面、資料格式、或功能行為變更
+4. **Compliance matrix 更新**（若該項有對應 control）
+   - `docs/compliance/matrix.md` 的 Evidence 欄位指向新增的 code / test
+   - Gap Register 移除該項（若原本列為 gap）
+5. **ROADMAP.md 狀態改 ✅**
+
+**缺測不算完成。** 這是為了：
+- 每次 release 都有 regression 防線
+- 稽核時有對應測試證據支持 compliance 主張
+- 降低客戶支援成本（bug 被 CI 攔下，不是客戶發現）
+
+### 測試類型指引
+
+| 變更類型 | 必要測試 |
+|---|---|
+| 新 API endpoint | unit + integration + security（auth / authz）|
+| DB schema 變更 | migration 測試 + 資料相容性測試 |
+| 認證 / 授權邏輯 | security 測試（bypass / role escalation）|
+| 前端 UI | vitest unit + playwright E2E（關鍵路徑）|
+| AI / LLM 整合 | 輸出結構測試 + prompt injection 測試（C5-E）|
+| 跨組件協議（WS / Pi push）| integration 測試（模擬 3 組件）|
+
 ## Memory 同步（跨機器）
 
 Memory 檔案存放在 repo 的 `.claude/memory/` 目錄。`git pull` 會自動觸發 sync（透過 `.githooks/post-merge`），**每台新機器（Mac / Windows Git Bash 都一樣）只需執行一次 hook 啟用指令**：
@@ -142,5 +172,17 @@ Copy-Item "$repo\.claude\memory\*" $dest
 ## 專案結構
 
 - `command-dashboard/` — 指揮部後端（FastAPI + SQLite）
-- `shelter-pwa/` — 收容組 PWA + WebSocket Pi 伺服器
+- `server/` — Pi server（Node.js + WebSocket）
+- `shelter-pwa/` — 收容組 PWA
 - `medical-pwa/` — 醫療組 PWA（開發中）
+- `deploy/` — 部署基礎（nginx + step-ca 內網 PKI）
+- `docs/compliance/` — Compliance 程式（NIST / NIMS / ISO / 業界標準對照 + 政策 + 威脅建模）
+
+## Compliance 文件入口
+
+投標 / 行銷 / 稽核時的標準 compliance 主張，統一從 [`docs/compliance/README.md`](docs/compliance/README.md) 入口：
+- `matrix.md` — 控制項 × 組件 × 狀態對照表
+- `threat_model.md` — STRIDE 威脅建模
+- `security_policies.md` — 6 份資安政策（InfoSec / AC / AU / IR / CP / Privacy）
+
+所有 Cx 項目在 `docs/ROADMAP.md` 標註「適用標準」欄位，反向指向 matrix 對應 row。
