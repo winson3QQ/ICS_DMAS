@@ -92,9 +92,7 @@ def create_backup(
 
     started = time.perf_counter()
 
-    with tempfile.NamedTemporaryFile(
-        prefix="ics-backup-", suffix=".db", dir=backup_dir, delete=False
-    ) as raw_tmp:
+    with tempfile.NamedTemporaryFile(prefix="ics-backup-", suffix=".db", dir=backup_dir, delete=False) as raw_tmp:
         raw_tmp_path = Path(raw_tmp.name)
 
     try:
@@ -209,9 +207,7 @@ def restore_backup(
     if not verify_backup(backup_path):
         raise ValueError(f"backup 無效或損毀：{backup_path}")
     if target_db_path.exists() and not overwrite:
-        raise FileExistsError(
-            f"目標已存在：{target_db_path}（要覆寫請明確帶 overwrite=True，並先備份當前 DB）"
-        )
+        raise FileExistsError(f"目標已存在：{target_db_path}（要覆寫請明確帶 overwrite=True，並先備份當前 DB）")
     target_db_path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(backup_path, "rb") as fin, target_db_path.open("wb") as fout:
         shutil.copyfileobj(fin, fout)

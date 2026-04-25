@@ -104,10 +104,12 @@ def main() -> int:
             log.info("cleanup_done deleted=%d retain_days=%d", len(deleted), args.retain_days)
 
     backups = list_backups(args.backup_dir)
-    log.info("backup_summary total=%d oldest=%s newest=%s",
-             len(backups),
-             backups[0].timestamp.isoformat() if backups else None,
-             backups[-1].timestamp.isoformat() if backups else None)
+    log.info(
+        "backup_summary total=%d oldest=%s newest=%s",
+        len(backups),
+        backups[0].timestamp.isoformat() if backups else None,
+        backups[-1].timestamp.isoformat() if backups else None,
+    )
     return 0
 
 
