@@ -96,29 +96,32 @@
 
 ## Memory 同步（跨機器）
 
-Memory 檔案存放在 repo 的 `.claude/memory/` 目錄。`git pull` 會自動觸發 sync（透過 `.githooks/post-merge`），**每台新機器只需執行一次 hook 啟用指令**：
+Memory 檔案存放在 repo 的 `.claude/memory/` 目錄。`git pull` 會自動觸發 sync（透過 `.githooks/post-merge`），**每台新機器（Mac / Windows Git Bash 都一樣）只需執行一次 hook 啟用指令**：
 
 ```bash
-# Mac / Linux / Git Bash（在 repo 根目錄執行一次）
+# 在 repo 根目錄執行一次
 git config core.hooksPath .githooks
 ```
 
 啟用後，`git pull` 完自動將 `.claude/memory/` 同步到 Claude Code 讀取位置，無需手動操作。
+
+> **跨平台相容**：hook 內部用 `python3`（fallback `python`）做路徑編碼，因為 Windows Git Bash 的 sed 對 UTF-8 中文是逐 byte 處理，會產出錯誤的目錄名（中文字會多出 dash）。Mac 與 Windows 兩台都能用同一支 hook，產出相同路徑。
 
 ### 手動 sync（備用）
 
 hook 尚未啟用，或需要立即強制同步時：
 
 ```bash
-# Mac / Linux
+# Mac / Linux / Windows Git Bash 通用
 REPO=$(git rev-parse --show-toplevel)
-PROJECT_DIR=$(echo "$REPO" | sed 's|^/||; s|[^a-zA-Z0-9]|-|g')
+PY=$(command -v python3 || command -v python)
+PROJECT_DIR=$("$PY" -c "import re,sys; print(re.sub(r'[^a-zA-Z0-9]','-',sys.argv[1]).lstrip('-'))" "$REPO")
 mkdir -p ~/.claude/projects/$PROJECT_DIR/memory
 cp "$REPO/.claude/memory/"* ~/.claude/projects/$PROJECT_DIR/memory/
 ```
 
 ```powershell
-# Windows（PowerShell）
+# Windows（PowerShell）— PowerShell 的 -replace 本身就是 char-aware，不需要 Python
 $repo = git rev-parse --show-toplevel
 $encoded = ($repo -replace '^/', '' -replace '[^a-zA-Z0-9]', '-')
 $dest = "$env:USERPROFILE\.claude\projects\$encoded\memory"
@@ -126,7 +129,7 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Copy-Item "$repo\.claude\memory\*" $dest
 ```
 
-> **路徑編碼規則**：Claude Code 將絕對路徑的每個非英數字元（`/`、`\`、`:`、空格、`_` 等）全部換成 `-`，並去掉開頭的 `-`。
+> **路徑編碼規則**：Claude Code 將絕對路徑的每個非英數字元（`/`、`\`、`:`、中文、空格、`_` 等）逐 char 換成 `-`，並去掉開頭的 `-`。
 
 若在該機器新增了 memory，記得也要 commit `.claude/memory/` 回 repo，讓其他機器能同步。
 
