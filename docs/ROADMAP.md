@@ -19,7 +19,44 @@
 | cX 進度 | C0 ✅ / **C1-B ✅**（程式碼）/ **C1-A Phase 1 ✅** / **C1-E ✅** / **C2-C ✅** / **C2-D ✅** / C1-A Phase 2 RBAC 待做（擴大範圍）/ Compliance Audit 待做 |
 | 下一個里程碑 | `v0.13.0` Wave 5 完成 |
 | 下一個商業里程碑 | `v2.1.0` 第一個可投標版本（Compliance audit 完成後重估）|
-| **Compliance 程式** | ⏸ Phase 0 Audit 未開始（Session A→B→C→D 未開始）。見 [compliance/](compliance/README.md) |
+| **Compliance 程式** | ✅ Phase 0 Audit 完成（Session A/B/C/D 全完成 2026-04-25）。88 gap + 14 亮點，全進現有 Cx 範圍。見 [compliance/matrix.md](compliance/matrix.md) |
+
+---
+
+## v2.1.0 Critical Path（Compliance Audit 後重排）
+
+> 依 Session A/B/C/D 累計 88 個 gap 重排 v2.1.0 投標前必補項，按依賴順序：
+
+### 第 1 波（基礎建設，先做）
+1. **C1-F 提前**：前端模組化 + CSP enforce（C1-A Phase 2 RBAC 的硬前提）
+2. **C3-D 提前**：自動備份 + DR playbook + recovery drill（個資法 §27 + 附表十 §3）
+3. **C1-A Phase 4**：CISO 政策 + IR plan + PDPC 72h 通報程序（800-53 PL/IR + 個資法 §12）
+
+### 第 2 波（核心安全，C1-F 完成後）
+4. **C1-A Phase 2**：4-role RBAC + ICS 職稱 + operational_periods + Transfer of Command + duty_log + Unity of Command + soft delete + Session 雙層 timeout + IP/UA 漸層綁定
+5. **C1-D**：跨組件 correlation ID + audit hash chain + 8 個優先 log 位置
+6. **C1-G**：WebSocket 安全（含 P-FIX-01 isAuthed bug）
+
+### 第 3 波（資料保護，與第 2 波併行）
+7. **C1-C 擴大**：三層加密 + pii_access_log + role-based PII redaction
+8. **W-C1-C**：PWA IndexedDB 加密
+9. **W-C1-A / P-C1-A**：PWA / Pi 對應 RBAC
+
+### 第 4 波（工程品質）
+10. **C2-F**：生產韌性 + DB 並發 retry + dev/prod debug
+11. **C2-E**：SBOM + SLSA L2 + dep scan
+12. **C2-C 擴充**：GitHub Security suite
+
+### 第 5 波（部署收尾）
+13. **C1-B 收尾**：step-ca / nginx Pi 實機驗證 + cert renewal monitoring
+14. **C3-A/B/C**：config 外部化 + NTP/WAL/LUKS + 健康檢查 + observability
+
+### 第 6 波（演練前驗收）
+15. 全測試 + DR drill + pen test 準備 + commercialization_plan v2 compliance 章節
+
+> **6 月演練壓力節點**：建議第 1-3 波在 6 月演練前完成（第 4-5 波部分併行）；第 6 波視時程取捨。
+
+---
 
 ---
 

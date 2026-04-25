@@ -19,7 +19,7 @@
 | A | C0 + C1-A + C1-B + C1-E（Auth/Transport/Schema） | ✅ 完成 | 2026-04-25 | 31 個 gap，Decision Set C 4 議題決議 |
 | B | C1-C + C1-D + C1-F + W-C1-* + P-C1-*（PII/Audit/Frontend） | ✅ 完成 | 2026-04-25 | 28 個 gap + 1 個 immediate fix（B-FIX-01 isAuthed bug）+ 6 個亮點 |
 | C | C2 + C3 + P-C2-* + W-C2-*（Quality/Deploy/Ops） | ✅ 完成 | 2026-04-25 | 30 個 gap + 8 個亮點；SSDF L2 候選；SAMM L1.5；SLSA L1；DORA 低成熟度；備份/DR 全失 |
-| D | Wave 功能 + NIMS + ICS 508 + 整合 | ⏸ 未開始 | — | — |
+| D | Wave 功能 + NIMS + ICS 508 + 整合 | ✅ 完成 | 2026-04-25 | 20 個 gap + 6 個亮點；NIMS 25% / ICS 508 1+6/17 / Taiwan 法規對應 / 可主張清單 / Cx 全覆蓋無新增 |
 
 ### Session A 執行狀況（2026-04-25）
 
@@ -766,27 +766,51 @@ _Session D 填入：治理、風險策略、角色責任_
 
 ### 11.1 Incident Command System 結構
 
-_Session D 填入：與本系統 role / operational period 對應_
+| 要求 | Status | Evidence / Gap |
+|---|:---:|---|
+| IC / Deputy IC / Section Chiefs / Unit Leaders 角色 | ⚠️ | 現有 `accounts.role`（指揮官 / 操作員）；`role_detail` 欄已預留但未強制 ICS 標準職稱；C1-A Phase 2 4-role + ICS 職稱下拉解 |
+| 階層式 chain of command | ⚠️ | 後端 RBAC gate 缺（C1-A Phase 2）|
+| Span of Control | N/A | 組織層面，系統不直接約束 |
 
 ### 11.2 Unity of Command
 
-_Session D 填入：對照 C1-A Phase 2 commander of record 機制_
+| 要求 | Status | Evidence / Gap |
+|---|:---:|---|
+| 同時只有一位 IC of record | ❌ | `exercises.mutex_locked` 欄位預留但未檢查；無 commander_account_id 概念；C1-A Phase 2 + `operational_periods` 表 |
+| 正式 Transfer of Command | ❌ | 無 API；C1-A Phase 2 規劃 `POST /api/command/handoff` |
+| Emergency takeover（IC 失能）| ❌ | 無；C1-A Phase 2 規劃 admin PIN + 副指揮官二人同意 |
 
 ### 11.3 Operational Period / Planning P
 
-_Session D 填入：對照 operational_periods 表設計_
+| 要求 | Status | Evidence / Gap |
+|---|:---:|---|
+| 12 hr operational period 概念 | ❌ | 無 schema；C1-A Phase 2 規劃 `operational_periods` 表 |
+| IAP per period | ❌ | 無；Wave 8 規劃（ICS 202 對應）|
+| Planning P 循環 | ❌ | 無；Wave 8 |
 
 ### 11.4 Multi-Agency Coordination（MACS）
 
-_Session D 填入：TAK 整合（Wave 7）_
+| 要求 | Status | Evidence / Gap |
+|---|:---:|---|
+| 跨 EOC 協調機制 | ❌ | 無；單一 EOC 視角設計 |
+| TAK CoT 互通 | ⚠️ | Wave 7a 規劃；router stub 在 `routers/tak.py` |
+| 跨機構 mutual aid 流程 | ❌ | 無 |
 
 ### 11.5 Resource Management
 
-_Session D 填入：對照 resource_requests + ICS 213RR_
+| 要求 | Status | Evidence / Gap |
+|---|:---:|---|
+| Resource Typing（NIMS 分級）| ❌ | 無 `resource_types` taxonomy；資源量化但無 Type 1/2/3/4 分級 |
+| 資源請求工作流 | ❌ | Wave 8 規劃（ICS 213RR）|
+| 資源狀態追蹤 | ✅ | `resource_snapshots` 表 + Pi push；床位 / 量能 / 傷患計數 |
 
-### 11.6 Information Management / Public Information
+### 11.6 Information Management / SitRep
 
-_Session D 填入_
+| 要求 | Status | Evidence / Gap |
+|---|:---:|---|
+| SitRep 自動產生 | ❌ | Wave 8 規劃（ICS 209）|
+| COP 跨來源整合 | ⚠️ | Pi push + manual + TAK stub 設計進 cop_service；Wave 6 重設計 |
+| Public Information / JIS | N/A | 系統無對外發布功能 |
 
 ---
 
@@ -796,16 +820,29 @@ _Session D 填入_
 
 | 表單 | 用途 | 本系統欄位來源 | Status | Cx owner |
 |---|---|---|:---:|---|
-| ICS 201 | Incident Briefing | events / operational_periods / decisions | _Session D_ | Wave 8 |
-| ICS 202 | Incident Objectives | iap_notes（operational_periods） | _Session D_ | Wave 8 |
-| ICS 203 | Organization Assignment | accounts + duty_log | _Session D_ | Wave 8 |
-| ICS 205 | Communications Plan | pi_nodes + network config | _Session D_ | Wave 8 |
-| ICS 206 | Medical Plan | medical-pwa 的 ISBAR 資料 | _Session D_ | Wave 8 |
-| ICS 209 | Status Summary | resource_snapshots + events 統計 | _Session D_ | Wave 8 |
-| ICS 213RR | Resource Request | resource_requests（新表，Wave 8）| _Session D_ | Wave 8 |
-| ICS 214 | Unit Log / Activity Log | duty_log + audit_log | _Session D_ | Wave 8 |
-| ICS 215 | Operational Planning Worksheet | resource allocation records | _Session D_ | Wave 8 |
-| ICS 215A | IAP Safety Analysis | safety officer notes（operational_periods）| _Session D_ | Wave 8 |
+| ICS 201 | Incident Briefing | events / operational_periods / decisions / exercises | ⚠️ 部分（缺 op_period + IC name + Objectives）| C1-A Phase 2 + Wave 8 |
+| ICS 202 | Incident Objectives | iap_notes（operational_periods） | ❌ 全缺（無 objectives 欄）| Wave 8 |
+| ICS 203 | Organization Assignment | accounts + duty_log + role_detail | ⚠️ 部分（缺 Section Chief 結構）| C1-A Phase 2 + Wave 8 |
+| ICS 204 | Assignment List | manual + assignments | ❌ 30%（無集中 assignment 表）| Wave 8 |
+| ICS 205 | Communications Plan | pi_nodes + network config | ❌ 10%（無 comms plan 表）| 未規劃（v3.0+）|
+| ICS 206 | Medical Plan | medical-pwa ISBAR 資料 | ⚠️ 80%（資料齊全；缺 206 格式 export）| Wave 6 醫療 + Wave 8 |
+| ICS 209 | Status Summary | resource_snapshots + events 統計 | ⚠️ 部分（資源 / 人員 / 傷患 ✅，objectives / limitations ❌）| Wave 6 + Wave 8 |
+| ICS 210 | Resource Status Change | events + resource_snapshots | ⚠️ 70%（可追蹤但無專用 change log）| Wave 8 |
+| ICS 211 | Check-in List | shelter PWA persons | ⚠️ 60%（資料有；無 211 格式）| Wave 6 收容 |
+| ICS 213 | General Message | manual records | ⚠️ | Wave 8 |
+| ICS 213RR | Resource Request | resource_requests（**新表，Wave 8**）| ❌ 全缺（無 resource_types taxonomy + 無工作流）| Wave 8 |
+| ICS 214 | Unit Log / Activity Log | duty_log + audit_log | ✅ **欄位齊全**（audit_log 直接對應；缺 PDF/HTML 格式 export）| 已有 + Wave 8 格式輸出 |
+| ICS 215 | Operational Planning Worksheet | resource allocation records | ❌ 20% | Wave 8 |
+| ICS 215A | IAP Safety Analysis | safety officer notes（operational_periods）| ❌ 0%（無 safety analysis 表）| Wave 8 |
+| ICS 218 | Support Vehicle/Equipment | snapshots.vehicle_available | ❌ 40% | 未規劃 |
+| ICS 220 | Air Operations | — | N/A | Taiwan 不適用 |
+| ICS 221 | Demobilization Check-Out | exercises.ended_at | ❌ 30% | Wave 8 |
+
+**統計**：
+- ✅ 完全對應：1 / 17（ICS 214）
+- ⚠️ 部分對應：6 / 17（201/202/203/206/209/213）
+- ❌ 缺欄位 / 需新表：9 / 17
+- N/A：1（ICS 220 航空，Taiwan 不適用）
 
 ---
 
@@ -813,7 +850,28 @@ _Session D 填入_
 
 ### 13.1 資通安全管理法 + 附表十防護基準
 
-_Session D 填入：12 項防護基準對應 NIST 800-53 控制項_
+> 資通安全管理法（2018 制定，2025 修正）+ 附表十「資通系統防護基準」對應 NIST 800-53 子集。
+> 政府機關資通系統採購要求 = 至少達「中度」（Moderate）等級。
+
+| 附表十項目 | 對應 NIST | Status | 對應 Cx |
+|---|---|:---:|---|
+| 1. 存取控制 | AC-2/3/5/6/7 | ⚠️ | C1-A Phase 2 |
+| 2. 事件記錄與監控 | AU-2/3/8/12 + SI-4 | ⚠️ | C1-D + C3-C |
+| 3. 營運持續計畫 | CP-2/4/9/10 | ❌ | C3-D 急迫 + policies §5 |
+| 4. 資料安全 | SC-28 + MP-2 | ❌ | C1-C 三層加密 |
+| 5. 網路安全 | SC-7/8 | ⚠️ | C1-B 收尾 + C1-G |
+| 6. 系統與資訊完整性 | SI-7/10/11/16 | ⚠️ | C2-F + C2-E |
+| 7. 系統發展與獲取 | SA-8/11/15 + SSDF | ⚠️ | C2-A/B/C/E |
+| 8. 識別與鑑別 | IA-2/5 + 800-63 | ⚠️ | C1-A Phase 2 + Phase 3 |
+| 9. 系統與通訊保護 | SC-1 全族 | ⚠️ | C1-B/G |
+| 10. 媒體保護 | MP-1/2/4/6 | ❌ | C1-C + C3-D |
+| 11. 委外服務管理 | SR-3/5 | ⚠️ | C2-E + 政策 |
+| 12. 配置管理 | CM-2/3/6/8 | ⚠️ | C3-A/B + C2-E |
+
+**Taiwan 政府採購對應結論**：
+- 12 項全部需要 ⚠️ 以上才能投政府標案
+- 目前 0 項達 ✅，**11 項 ⚠️ 部分對應**，**3 項 ❌ 完全缺**（資料安全 / 營運持續 / 媒體保護）
+- v2.1.0 必補：項目 3、4、10（C1-C + C3-D 為核心）
 
 ### 13.2 個資法 PDPA
 
@@ -847,11 +905,36 @@ _Session D 填入：12 項防護基準對應 NIST 800-53 控制項_
 
 ### 13.3 災害防救法
 
-_Session D 填入：演練資料保存 / 應變中心運作 / 跨機關協調_
+| 條文 | 要求 | 系統對應 | Status |
+|---|---|---|:---:|
+| §22 預防 | 災害應變中心成立要件 | system bootstrap + first-run 流程 | ⚠️ |
+| §31 應變措施 | 災情通報、人員疏散、資源調度 | events / persons / resource_snapshots | ⚠️ |
+| §35 個資 | 災害應變必要範圍蒐集個資的法律依據 | medical PWA 病患資料 | ⚠️（提供法源；shelter / medical 都依此運作）|
+| §41 文書保存 | 演練資料保存 + AAR | exercises + aar_entries（C0 預留欄位）| ⚠️ |
+| §43 跨機關協調 | 中央 / 地方應變中心互通 | TAK 整合（Wave 7）規劃中 | ❌ |
 
-### 13.4 政府資通安全整體防護計畫（12 項）
+**結論**：本系統設計符合災害防救法精神（演練 + 護城河資料 + 跨機關互通規劃）；具體合規條件待 Wave 7-8 + C1-C 完成。
 
-_Session D 填入_
+### 13.4 政府資通安全整體防護計畫（12 項防護基準）
+
+> 行政院 2024 修正版本 — 政府資通系統最低防護要求；與附表十部分重疊。
+
+| # | 防護基準 | 系統 Status | 主要 gap |
+|---|---|:---:|---|
+| 1 | 資安治理（Governance）| ⚠️ | policies 骨架；缺正式 ISMS |
+| 2 | 資產管理 | ⚠️ | 無 SBOM；C2-E |
+| 3 | 風險評估 | ⚠️ | threat_model 骨架；Session D 收尾 |
+| 4 | 存取控制 | ⚠️ | C1-A Phase 2 RBAC |
+| 5 | 加密保護 | ⚠️ | C1-B 完成 + C1-C 三層加密 |
+| 6 | 安全維運 | ⚠️ | C3-B/C/D |
+| 7 | 事件應變 | ❌ | C1-A Phase 4 IR plan |
+| 8 | 業務持續 | ❌ | C3-D 急迫 |
+| 9 | 系統發展安全 | ⚠️ | SSDF + C2-A/B/C/E |
+| 10 | 供應鏈安全 | ⚠️ | C2-E + 政策 |
+| 11 | 個人資料保護 | ❌ | C1-C + 個資法對應 |
+| 12 | 教育訓練 | N/A | 組織責任 |
+
+**結論**：12 項中有 **3 項全 ❌**（事件應變、業務持續、個資保護）— v2.1.0 必補。其餘 ⚠️ 在現有 Cx 範圍內。
 
 ---
 
@@ -1029,6 +1112,54 @@ _Session D 填入_
 | Branch 策略文件化 | CLAUDE.md feature branch + PR + DoD |
 | `.secrets.baseline` 已 commit | detect-secrets V1.5.0 設計 |
 
+### Session D 發現（2026-04-25）
+
+#### 🔴 Critical（v2.1.0 投標前必補）
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-D01 | NIMS Unity of Command | command | **無 commander_account_id 概念**；無 Transfer of Command API；exercises.mutex_locked 預留未啟用 | C1-A Phase 2 |
+| G-D02 | NIMS Operational Period | command | **無 `operational_periods` 表**；無 12hr 週期管理；ICS 201 無法產對應 op_period | C1-A Phase 2 |
+| G-D03 | ICS 214 / NIMS Personnel Roster | command | duty_log 規劃但**未實作 schema**；ICS 214 來源不全 | C1-A Phase 2 |
+| G-D04 | ICS 213RR / NIMS Resource Mgmt | command | **無 resource_types taxonomy**；無資源請求工作流；NIMS Typing 未對齊 | Wave 8 + 新表 |
+| G-D05 | ICS 209 / NIMS SitRep | command | **無自動 SitRep 摘要**；events / snapshots 需手動彙整 | Wave 6 + Wave 8 |
+| G-D06 | 附表十 §3 營運持續 / 12 項 §8 | command + pi | 對應 G-C01/02/03 — 備份 / DR / drill 全失 | C3-D |
+| G-D07 | 附表十 §4 資料安全 / 12 項 §11 | all | 對應 G-B01/02/03 — 三層加密全缺 | C1-C 擴大 |
+| G-D08 | 附表十 §10 媒體保護 | all | 對應 G-A03 + G-B01/02/03 — 同上 | C1-C + C3-D |
+
+#### 🟡 High
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-D09 | NIMS ICS 結構 / Section Chiefs | command | role_detail 預留但**未強制 ICS 標準職稱**；無 Section Chief 階層 | C1-A Phase 2 + 4-role enum |
+| G-D10 | ICS 201 Incident Briefing | command | **缺 IC name / Deputy / Objectives / Op Period 欄**；無格式化 export | C1-A Phase 2 + Wave 8 |
+| G-D11 | ICS 202 Objectives | command | 完全無 objectives 欄位 | Wave 8 |
+| G-D12 | ICS 203 Organization | command | 缺 Section Chief 結構 | C1-A Phase 2 + Wave 8 |
+| G-D13 | NIMS MACS / ICS 205 | command | TAK Wave 7 規劃；ComPlan 完全無 | Wave 7a + 未來 |
+| G-D14 | 災害防救法 §43 | command | 跨機關互通機制無；TAK Wave 7 | Wave 7a |
+| G-D15 | 12 項 §7 事件應變 | all | 對應 G-C04 — IR plan 全缺 | C1-A Phase 4 + policies §4 |
+| G-D16 | NIMS Public Information | command | 無對外資訊發布 | 未規劃（Wave 9+ 評估）|
+
+#### 🟠 Medium
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-D17 | ICS 215A IAP Safety | command | 無 safety analysis 表 | Wave 8 |
+| G-D18 | ICS 211 Check-in | shelter pwa | 60% 對應；缺 211 格式 export | Wave 6 收容 + Wave 8 |
+| G-D19 | ICS 206 Medical Plan | medical pwa | 80% 對應；缺 206 格式 export | Wave 6 醫療 + Wave 8 |
+| G-D20 | ICS 218/220/221 | command | 30-40% 對應；演練 demo 不急 | 未排（評估價值後做）|
+
+#### ✅ Session D 確認的亮點
+
+| 項目 | 證據 |
+|---|---|
+| ICS 214 欄位齊全 | audit_log 直接對應 unit log，缺 PDF/HTML format export |
+| 資源量化追蹤 | resource_snapshots + Pi push 已實作 |
+| 多來源 COP 設計 | cop_service 正規化層架構（routers/cop.py stub）|
+| TAK 預備 | routers/tak.py + services/tak_service.py stub 已建（CoT 欄位正確）|
+| 演練資料護城河 | exercises / aar_entries / exercise_kpis 表 schema 已建（C0）|
+| 災害防救法 §35 法源 | 病患個資蒐集合法依據明確 |
+
 #### ✅ Session B 確認的亮點（已 comply 項目）
 
 | 項目 | 證據 |
@@ -1137,8 +1268,108 @@ _（Session D 執行時追加，預期會覆蓋 NIMS / ICS 508 / Taiwan 法規 /
 
 ## 主張 compliance 的清單（供投標 / 行銷引用）
 
-> 完成 session A/B/C/D 後，此區列出「可對外主張已 comply」的標準 / 控制項清單，搭配實作證據。
->
-> **原則**：寧可少說，不誇大。未完成的標記「規劃中（target Cx-X）」，不隱瞞。
+> **原則**：寧可少說，不誇大。未完成的標記「規劃中」，不隱瞞。
+> **更新日期**：2026-04-25（Session D 整合）
+> **基準版本**：cmd-v2.0.5 / server-v1.3.0 / shelter-v2.2.53 / medical-v0.6.7-alpha
 
-_（Session D 結束時填入）_
+### A. 當下（v2.0.5）可主張的項目
+
+#### A.1 認證與存取（Authentication & Access）
+- ✅ **PBKDF2-SHA256 100k iter** PIN hash（NIST 800-63-3 IA-5(1) Memorized Secret）
+- ✅ **登入失敗鎖定**（5 次 / 15 分鐘 帳號 + 5 次 / 30 分鐘 admin PIN）（NIST AC-7 / CIS §6.3 / ASVS V2.2）
+- ✅ **首次強制改 PIN**（移除預設 PIN）（NIST IA-5 / ASVS V2.3.1）
+- ✅ **登入錯誤訊息不洩漏帳號存在性**（ASVS V2 / OWASP best practice）
+- ✅ **Session header-based 抗 CSRF**（X-Session-Token；非 cookie）
+- ✅ **持久化 session**（SQLite sessions 表跨 restart）
+
+#### A.2 加密傳輸（Encryption in Transit）
+- ✅ **TLS 1.2/1.3** with Mozilla Intermediate cipher suites（NIST SC-8 / SC-13 / ASVS V9）
+- ✅ **HSTS 1 年 + includeSubDomains**（OWASP / V14.4(2)）
+- ✅ **完整 security headers**：X-Frame-Options DENY / X-Content-Type-Options nosniff / Referrer-Policy / Permissions-Policy（V14.4）
+- ✅ **CSP 已實作**（report-only mode；C1-F 升 enforce）
+- ✅ **per-customer step-ca 內網 PKI**（NIST SC-12 / SC-17）
+- ✅ **STRICT_TLS 模式**：Pi 端可強制憑證驗證 fail-fast
+
+#### A.3 軟體完整性（Software Integrity）
+- ✅ **schema_migrations append-only 表**（NIST CM-3 / CM-6）
+- ✅ **detect-secrets pre-commit + .secrets.baseline 提交**（CIS §16.11）
+- ✅ **ruff + ruff-format + pre-commit hooks**（SSDF PW.4）
+- ✅ **依賴 pinned**（all == versions）
+
+#### A.4 稽核（Audit）
+- ✅ **audit_log INSERT-only 表**（NIST AU-2 / AU-9）
+- ✅ **19+ 事件類型**寫 audit（auth / account / event / decision / snapshot / sync / admin）
+- ✅ **admin PIN 保護 audit log 查詢**（AC-3）
+- ✅ **TOCTOU mutex bug 修復**（演練並發 activate 原子寫入；2026-04-25 hotfix）
+
+#### A.5 測試與品質（Testing & Quality）
+- ✅ **269 個自動化測試**（4 層：unit / integration / API / security）
+- ✅ **129 個 security 測試**（auth bypass / SQL injection / XSS / payload fuzzing / token forging / lockout）
+- ✅ **44% 程式碼覆蓋率**（已排除 Wave 6+ 未實裝模組）
+- ✅ **CI 每 push 自動跑 pytest + pip-audit + bandit + coverage**
+- ✅ **GitHub Actions concurrency 防重複跑**
+
+#### A.6 程序文件（Process Documentation）
+- ✅ **SECURITY.md 漏洞通報政策**（含 PDPC 72h 通報、SLA、scope、coordinated disclosure）
+- ✅ **PR template 含 DoD checklist**（NIST SSDF PW.7 / Definition of Done）
+- ✅ **CLAUDE.md feature branch + PR + 版號規則**（PO.1 軟體開發流程）
+- ✅ **`docs/compliance/` 完整對照表 + 政策骨架**（800-53 PL-1 / xx-1 family）
+- ✅ **architecture_decisions.md 重大設計決策追蹤**（PW.2）
+- ✅ **本地優先架構 + 演練資料護城河 schema**（C0 完成）
+
+#### A.7 NIMS / 災害防救法
+- ✅ **基礎 ICS 結構**（指揮官 / 操作員 role 區分）
+- ✅ **ICS 214 工作日誌欄位齊全**（audit_log 直接對應）
+- ✅ **資源量化追蹤**（resource_snapshots + Pi push）
+- ✅ **災害防救法 §35 個資合法蒐集依據明確**
+
+### B. 規劃中（v2.1.0 目標 — Compliance audit 完成後實作）
+
+> 預期 v2.1.0（2026-06）— 第一個可投政府標案版本。
+
+#### B.1 v2.1.0 必補（Critical Path）
+- 🔲 **C1-A Phase 2**：4-role RBAC + 後端 endpoint-level gate + ICS 標準職稱（職稱）+ operational_periods + Transfer of Command + duty_log + Unity of Command 偵測 + soft delete + Session 雙層 timeout + IP/UA 漸層綁定
+- 🔲 **C1-C 擴大**：三層靜態加密（Fernet / SQLCipher / LUKS）+ pii_access_log + role-based PII redaction + 72h PDPC 通報程序文件
+- 🔲 **C1-D**：跨組件 correlation ID + structlog JSON + audit hash chain + 6 個月保存 + 8 個優先 log 位置
+- 🔲 **C1-G**：WebSocket 安全強化（heartbeat + reconnect + token + DoS 防護）
+- 🔲 **C2-E**：SBOM（CycloneDX）+ SLSA L2 + dep scan（pip-audit + npm audit）+ vulnerability disclosure
+- 🔲 **C2-F**：生產韌性（exception handler + payload limit + 全域 rate limit + DB 並發 retry + dev/prod debug）
+- 🔲 **C3-D 提前**：自動備份三層 + DR playbook + recovery drill 每 6 個月
+- 🔲 **C1-F 提前**：前端模組化 + CSP enforce（為 RBAC 鋪路）
+- 🔲 **C1-A Phase 4**：CISO 政策文件 + IR plan + PDPC 通報程序
+
+#### B.2 v2.1.0 達成後可主張的標準
+- 🔲 NIST 800-53 Moderate baseline AC / IA / SC / AU 4 大族系完整對應
+- 🔲 NIST 800-218 SSDF Level 2
+- 🔲 OWASP SAMM 2.0 Level 2 整體
+- 🔲 SLSA v1.0 Level 2
+- 🔲 OWASP ASVS 4.0 Level 2 V2/V3/V4/V7/V8/V9/V14
+- 🔲 CIS Controls v8 IG1 完整 + 部分 IG2
+- 🔲 個資法 §27/§41 安全維護義務基準達標
+- 🔲 Taiwan 附表十防護基準 12 項全部 ⚠️ 以上
+- 🔲 政府資通安全整體防護計畫 12 項全達標
+
+### C. 未來（v2.2.0 / v3.0.0 / v3.2.0）
+
+| 版本 | 主張內容 | 對應 Cx / Wave |
+|---|---|---|
+| v2.2.0（2026-Q3）| 完整 NIMS / ICS 標準對齊（基礎部分）| Wave 7a TAK + Wave 8 部分 |
+| v3.0.0（2026-Q4）| ICS 508 表單系列產出（201/202/203/209/213RR/214）+ TTX MSEL | Wave 8 完整 + C5-A/B |
+| v3.1.0（2027-Q1）| AI 決策支援（NIST AI RMF 對齊）+ Silent Scribe | Wave 9 + C5-C/D/E |
+| v3.2.0（2027-Q2）| ISO 27001 / CNS 27001 第三方驗證 | C6 + 外部 auditor |
+
+### D. 行銷 / 競標可使用的句型範例
+
+> 投標文件 / 客戶簡報引用本清單時，建議句型：
+
+**保守版**（A 級已完成）：
+> 「ICS_DMAS（v2.0.5）採 NIST 800-63-3 PBKDF2-SHA256 100k iter 帳號保護、TLS 1.2+ Mozilla Intermediate 加密傳輸、269 項自動化測試（含 129 項資安測試），建立基礎合規架構。漏洞通報依 SECURITY.md 公開政策，PDPC 72h 個資外洩通報程序明訂。」
+
+**進取版**（A 級 + 規劃 v2.1.0 路徑）：
+> 「ICS_DMAS 對齊 NIST 800-53 Rev.5 Moderate baseline、NIST 800-218 SSDF、OWASP ASVS 4.0 L2、CIS Controls v8、Taiwan 資通安全管理法附表十防護基準。當前版本（v2.0.5）已實施 [A 級項目摘要]；計畫 v2.1.0（2026-06 目標）達成 [B 級項目]，並通過外部資安顧問覆核。」
+
+**避免**（誇大 / 不實）：
+- ❌「已通過 NIST 認證」（無外部 auditor 驗證）
+- ❌「ISO 27001 認證」（C6 才做）
+- ❌「100% 合規」（永遠有 gap）
+- ✅ 改說「自我聲明 NIST 800-53 Moderate baseline 對齊」
