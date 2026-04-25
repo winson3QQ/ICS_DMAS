@@ -1,9 +1,9 @@
 # ICS DMAS 測試目錄
 
-> 目前共 **286 個測試案例**（**286 passed + 0 xfailed**），分四層執行（Unit / Integration / API / Security）。  
-> 最新報告：cmd-v2.0.7，2026-04-25，286 passed（C3-D 新增 17 測試）  
+> 目前共 **303 個測試案例**（**303 passed + 0 xfailed**），分四層執行（Unit / Integration / API / Security）。  
+> 最新報告：cmd-v2.0.8，2026-04-25，303 passed（C3-D 第二階段新增 17 個 API 測試）  
 > 注意：Linux/Mac CI 全 pass；Windows 環境下 1 個 test_writes_token_file 因 chmod 0o600 在 Win 無 Unix 語義而失敗（pre-existing，與功能無關）  
-> 新增：C2-D `TestAdminPinLockout`（7）、C1-E `TestMigrationsTable`（6）+ `TestSchemaMigrationsApi`（4）、Admin PIN 503 測試（1）；**C3-D `TestCreateBackup` / `TestListBackups` / `TestCleanupOldBackups` / `TestVerifyBackup` / `TestRestoreBackup`（17）**  
+> 新增：C2-D `TestAdminPinLockout`（7）、C1-E `TestMigrationsTable`（6）+ `TestSchemaMigrationsApi`（4）、Admin PIN 503 測試（1）；**C3-D 階段一 `Test{CreateBackup,ListBackups,CleanupOldBackups,VerifyBackup,RestoreBackup}`（17）+ 階段二 admin API `Test{AdminPinGate,ListBackups,TriggerBackup,VerifyEndpoint,PreviewEndpoint,RestoreCmdEndpoint}`（17）**  
 > Coverage：**44%**（legacy dead code `db.py` / `main_legacy.py` 於 2026-04-25 Session C audit 後移除）  
 > 執行指令：`bash scripts/run_tests.sh`
 

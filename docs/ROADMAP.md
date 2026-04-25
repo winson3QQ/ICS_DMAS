@@ -215,7 +215,7 @@
 | **C3-A** | 設定外部化：`/etc/ics/command.env`，不進 git | CM-6 / CIS §4 |
 | **C3-B** | 一鍵安裝腳本：建立 `ics` 系統使用者、權限、key 產生、systemd、**NTP / chrony 設定**、**WAL mode 啟用**、**LUKS 全碟加密** | CM-2 / SC-12 / SI-16 |
 | **C3-C** | 健康檢查 `/health` + Prometheus `/metrics` + OpenTelemetry traces（跨組件）| CSF DETECT / 800-53 AU-6 / ISO 25010 可靠性 |
-| **C3-D** ✅ command 完成 | 自動備份三層：WAL（即時）/ **daily gzip**（30天，systemd timer 03:00）/ NAS rsync（可選 — 待客戶 NAS）+ ✅ **DR playbook**（`docs/ops/disaster_recovery.md` 4 情境）+ Recovery drill 每 6 個月（流程已定，首次待執行）；Pi 端 backup 待 P-C3-D | CP-9 / CP-10 / CIS §11 |
+| **C3-D** ✅ command 完成 | 自動備份三層：WAL（即時）/ **daily gzip**（30天，systemd timer 03:00）/ NAS rsync（可選 — 待客戶 NAS）+ ✅ **DR playbook**（`docs/ops/disaster_recovery.md` 4 情境）+ ✅ **Admin Backup API + UI**（5 endpoint + audit_log 整合 + `static/admin_backups.html`）+ Recovery drill 每 6 個月（流程已定，首次待執行）；Pi 端 backup 待 P-C3-D | CP-9 / CP-10 / CIS §11 |
 | **C3-F** 🆕 | Docker 化 + Binary IP 保護（**Open Core 策略**）| — |
 | **C3-G** 🆕 | 客戶支援自助化 | — |
 

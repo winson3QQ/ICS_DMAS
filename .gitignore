@@ -10,6 +10,8 @@ venv/
 *.db
 *.db-shm
 *.db-wal
+*.db.gz
+data/backups/
 
 # Node / PWA
 node_modules/

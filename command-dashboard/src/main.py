@@ -29,6 +29,7 @@ from routers import (
     admin,
     ai,
     auth,
+    backups,
     config_router,
     dashboard,
     decisions,
@@ -82,7 +83,7 @@ if STATIC_DIR.exists():
 # ── 路由 ──────────────────────────────────────────────────────────────────────
 for router in (
     auth.router, snapshots.router, events.router, decisions.router,
-    admin.router, pi_push.router, sync.router, manual.router,
+    admin.router, backups.router, pi_push.router, sync.router, manual.router,
     dashboard.router, config_router.router, map.router,
     exercises.router, ttx.router, ai.router, tak.router, security.router,
 ):
@@ -96,6 +97,7 @@ def index():
     <body style="font-family:monospace;padding:20px;background:#0a0e1a;color:#9ab0c8">
     <h2 style="color:#fff">ICS 指揮部 command-{APP_VERSION}</h2>
     <p><a href="/static/commander_dashboard.html" style="color:#f0883e;font-weight:bold">▶ 儀表板</a></p>
+    <p><a href="/static/admin_backups.html" style="color:#f0883e">▶ Backup 管理（admin）</a></p>
     <p><a href="/docs" style="color:#90b8e8">/docs — Swagger UI</a></p>
     <p><a href="/api/health" style="color:#90b8e8">/api/health</a></p>
     </body></html>"""
