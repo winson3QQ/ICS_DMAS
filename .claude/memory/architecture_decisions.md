@@ -391,6 +391,114 @@ Session A audit 揭露的 4 個跨 session 議題的最終設計決策。
 
 ---
 
+## Decision E：功能與 License 解耦（2026-04-25 決策）
+
+### 原則
+
+v2.1.0 階段（C1-C5 各 Cx 實作期間），**所有功能寫成「license 無感」**。License 機制由 C4（v2.2.0）統一接入。
+
+### 三條規則
+
+#### 規則 1：法規 / 安全合規功能 — **絕對不能**用 license 關
+
+下列項目**全 tier 必須開啟**，不接受 license 控制：
+
+- **NIST 800-53 AC-7 / CIS §6.3** 登入 lockout / rate limit
+- **NIST 800-53 AU-2/9** audit log + 完整性保護（hash chain）
+- **NIST 800-53 SC-8** TLS 1.2+ 強制
+- **NIST 800-53 IA-5** PIN hash + 強度檢查
+- **個資法 §27** 安全維護義務（含至少應用層 PII 加密）
+- **個資法 §12** 72h PDPC 通報程序
+- **附表十防護基準**全 12 項基線
+- **OWASP ASVS L2** 認證 / 存取 / 加密 / data protection 必要項
+
+理由：tier 是商業價格分層；法規是法律底線。**降低底線 = 違法**，不是省錢。
+
+License 控制範圍**僅限 feature / capability**（哪些模組開、AI 是否啟用、Pi 節點上限、外部 API 是否開放等）。
+
+#### 規則 2：License 須支援彈性發行模式
+
+License 機制必須能滿足以下情境而**不需改程式**：
+
+- **三層標準 SKU**：Tier 1 / Tier 2 / Tier 3（template 一鍵套用）
+- **客製化 SKU**：單一客戶特殊組合（例：Tier 2 + AI 但不要 voice）
+- **試用 license**：時限性全開，過期後自動降級（`expires_at` + fallback tier）
+- **Promo / 季節 license**：限時加開特定 feature（例：演練前 1 個月免費開 TTX）
+- **A/B test license**：兩組客戶不同 feature 組合，比較採購率
+- **降級**：客戶不續約 → 自動回 Tier 1 baseline，不直接停服務
+
+### 規則 3：解耦的具體作法
+
+#### 程式碼層（C1-C5 階段）
+
+**所有 feature gate 透過 `License` dependency**：
+
+```python
+# C1-A Phase 2 階段就這樣寫
+@router.post("/api/admin/accounts")
+def create_account(
+    body: CreateAccount,
+    license: License = Depends(get_license),
+):
+    if body.role == "觀察員" and not license.has_feature("observer_role"):
+        raise HTTPException(403, "Observer role 需對應 license feature")
+    ...
+```
+
+**禁止**寫法（會造成日後重工）：
+```python
+# ❌ 直接判斷 tier 字串
+if config.tier == "tier1": ...
+# ❌ 在功能模組裡硬編 license 邏輯
+if not check_paid_customer(...): ...
+```
+
+#### License 服務層（C4 才實作）
+
+```python
+class License(Protocol):
+    customer: str
+    issued_at: datetime
+    expires_at: datetime | None
+    features: dict[str, Any]   # feature flag 字典
+    limits: dict[str, int]     # 數量上限（max_pi_nodes 等）
+
+    def has_feature(self, name: str) -> bool: ...
+    def get_limit(self, name: str) -> int: ...
+    def is_valid(self) -> bool: ...   # 含 expires_at 檢查
+```
+
+#### Stub 階段（C1-C5 實作期間，C4 完成前）
+
+提供「全開 stub license」：
+```python
+def get_license() -> License:
+    """C4 完成前用，實作後換成 license file 解析"""
+    return StubLicense(features={"observer_role": True, "ttx_module": True, ...})
+```
+
+C4 落地時換掉 `get_license()` 一個函式，**所有 feature gate 自動接上**真實 license。**零重工**。
+
+#### Feature flag 命名 convention
+
+- 模組類：`{module}_module`（例：`shelter_module`、`medical_module`、`ttx_module`）
+- 能力類：`{capability}`（例：`observer_role`、`ai_prediction`、`voice_input`、`field_node_upload`、`physical_security`）
+- 上限類：放 `limits` 不放 `features`（例：`limits.max_pi_nodes = 10`）
+
+### 對 Roadmap 的影響
+
+- **v2.1.0 階段**所有 Cx 實作要遵守此原則 — 寫 `Depends(get_license)` 注入點，不寫 tier hardcode
+- **C4（v2.2.0）**只實作 license file 解析 + 簽章驗證 + `get_license()` 真實版
+- **C1-A Phase 2 / C1-C / C5-A/B/C/D** 等需要 feature gate 的 Cx，**現在**就要把 `Depends(get_license)` 寫進 router
+
+### 違反此原則的偵測
+
+- Code review 抓 `tier == "tier1"` 字串比對 → 退件
+- ruff 自定義規則（C2-C 擴充時加）：grep `tier ==` 警告
+- PR template DoD 加一條：「無 hardcoded tier 判斷」
+
+---
+
 ## Decision Set D：Session B audit 5 議題 + 實作策略（2026-04-25 決策）
 
 ### D0：實作優先順序總原則（橫貫所有 Cx）
