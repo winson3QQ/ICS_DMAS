@@ -14,8 +14,18 @@
 
 ## 架構決策
 
-- [架構設計決策](architecture_decisions.md) — COP 聯邦架構、TAK stub、命令後端模組結構、韌性原則
+- [架構設計決策](architecture_decisions.md) — COP 聯邦架構、TAK / AI 整合、Pi server 模組、Compliance 程式 + 5 組 Decision Sets（A-E：IP / DB 並發 / Session 設計 / 實作策略 / License 解耦）
 - [C1-B HTTPS 架構決策](c1b_https_decisions.md) — nginx + step-ca + 分階段 CSP；CORS env 白名單（不徹底移除）；deploy/ 目錄落地
+
+## Compliance 程式（Phase 0 完成 2026-04-25）
+
+主入口在 repo `docs/compliance/`：
+- `matrix.md` — 主對照表（13 大標準節區 + 88 個 gap + Evidence Index + 「可主張 compliance」master 清單）
+- `threat_model.md` — STRIDE 骨架
+- `security_policies.md` — 6 政策骨架
+- `README.md` — Session A/B/C/D 計劃 + 交接機制
+
+repo root 補：`SECURITY.md`（漏洞通報政策）/ `.github/PULL_REQUEST_TEMPLATE.md`（DoD checklist）
 
 ## 參考文件
 
@@ -23,5 +33,5 @@
 
 ## 專案狀態
 
-- [專案狀態總覽](project_status.md) — 醫療 PWA 進度、指揮部路線圖、硬體資訊、Pi 設定步驟
+- [專案狀態總覽](project_status.md) — Compliance Phase 0 + cmd-v2.0.6 + 醫療 PWA 進度 + 指揮部路線圖 + 硬體資訊 + Pi 設定步驟
 - [即將到來的演練](upcoming_exercises.md) — 5/31 無線電演練、6月底/7月初 中型演練，護城河資料積累關鍵時間點
