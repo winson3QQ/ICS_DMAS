@@ -16,22 +16,89 @@
 
 | Session | 範圍 | 狀態 | 完成日期 | Context 要點 |
 |:---:|---|:---:|---|---|
-| A | C0 + C1-A + C1-B + C1-E（Auth/Transport/Schema） | ⏸ 未開始 | — | — |
+| A | C0 + C1-A + C1-B + C1-E（Auth/Transport/Schema） | 🔄 進行中 | 2026-04-25 | Architecture-level audit 完成；詳下 |
 | B | C1-C + C1-D + C1-F + W-C1-* + P-C1-*（PII/Audit/Frontend） | ⏸ 未開始 | — | — |
 | C | C2 + C3 + P-C2-* + W-C2-*（Quality/Deploy/Ops） | ⏸ 未開始 | — | — |
 | D | Wave 功能 + NIMS + ICS 508 + 整合 | ⏸ 未開始 | — | — |
 
+### Session A 執行狀況（2026-04-25）
+
+**完成**：NIST AC / IA / SC / AU 主要控制項對照；800-63-3 AAL/IAL；ASVS V2/V3/V4 主要要求；CSF PROTECT-PR.AA / PR.DS（部分）；12 大重大 gap 列入 Gap Register。
+
+**Session A 用 Explore agent 架構層審視的結論**（10 大事實 + 12 大 gap，見下節區）：
+- ✅ PBKDF2-SHA256 (100k iter, 16-byte salt) 帳號 hash
+- ✅ Session header-based (X-Session-Token, UUID v4, 8hr timeout, SQLite 持久化)
+- ✅ 登入 lockout 持久化（5x15min）; Admin PIN lockout 持久化（5x30min）
+- ✅ First-run gate 完整（whitelist + 423 擋阻）
+- ✅ TLS 1.2/1.3 + Mozilla Intermediate cipher + HSTS 1yr + Security headers 完整
+- ✅ Pi push Bearer token 驗證
+- ✅ Schema migration append-only 追蹤
+- ✅ 登入錯誤訊息不洩漏帳號存在性
+- ✅ Header-based session 天生抗 CSRF
+- ✅ 核心 auth 邏輯分層清晰（auth/service, middleware, rate_limit, first_run_gate）
+
+**重大 gap**（下 Gap Register 詳列）：
+- ❌ 後端無 role-based endpoint gate（C1-A Phase 2 核心 target）
+- ❌ 無 Separation of Duties / 最小權限（Admin PIN 是 all-or-nothing）
+- ❌ Soft delete 未真實施（`delete_account()` 是 hard DELETE）
+- ⚠️ Rate limit in-memory，server restart 清零
+- ⚠️ Audit log 無 hash chain、無保存 / 清除策略（C1-D 範圍）
+- ⚠️ CSP 含 `unsafe-inline`（C1-F 升 nonce-based）
+- ⚠️ No mTLS（Pi↔Command、WS 都 Bearer token only）
+- ⚠️ 無 correlation ID 跨組件（C1-D 範圍）
+- ⚠️ WebSocket 認證層模糊 —— Pi server 端 ws_handler 無明顯 token 檢查（待 Session B 或 C1-G 補）
+- ⚠️ 無 session idle timeout（只有絕對 timeout）
+- ⚠️ 無登入 banner（AC-8）
+- ⚠️ PWA 無 MDM / device enrollment（AC-19）
+
 ### 讀過的檔案清單（避免 session 間重複讀）
 
-_（Session 執行時追加，每個 session 末記錄本次讀過的檔案）_
+**Session A 已掃 / 已映射**（架構層）：
+- `command-dashboard/src/db.py` (1594 行) — schema / audit_log / migration
+- `command-dashboard/src/auth/service.py` — session 管理
+- `command-dashboard/src/auth/middleware.py` — 全域 auth middleware
+- `command-dashboard/src/auth/first_run_gate.py` — 首次設定閘
+- `command-dashboard/src/auth/rate_limit.py` — 登入 rate limit
+- `command-dashboard/src/repositories/account_repo.py` — 帳號 CRUD + lockout
+- `command-dashboard/src/routers/admin.py` — Admin PIN + 帳號管理 router
+- `command-dashboard/src/routers/auth.py` — login/logout router
+- `command-dashboard/src/core/security_headers.py` — CSP middleware
+- `command-dashboard/src/core/database.py` — migration 框架
+- `command-dashboard/src/core/config.py` — 環境變數 / 豁免清單
+- `deploy/nginx/conf.d/security-headers.conf` — nginx security headers
+- `deploy/nginx/conf.d/ssl-common.conf` — TLS config
+- `command-dashboard/src/services/pi_push_service.py` — Pi push 驗證
+- `deploy/step-ca/README.md` — PKI 架構說明
+
+**Session B/C/D 可能需要補讀（本 session 未深讀）**：
+- `command-dashboard/src/routers/events.py` / `decisions.py` / `snapshots.py` — 寫入類 endpoints（Session B 配 C1-D correlation ID）
+- `server/auth.js`, `server/ws_handler.js`, `server/middleware.js` — Pi server auth（Session B 配 P-C1-G）
+- `command-dashboard/static/commander_dashboard.html` — 前端 role gate（Session B 配 W-C1-A 審）
+- `shelter-pwa/`, `medical-pwa/` — PWA 原始碼（Session B 必讀）
+- `.github/workflows/*.yml` — CI 設定（Session C 必讀）
 
 ### 未決定 / 待追問（cross-session issue）
 
-_（跨 session 的未解議題記錄這裡；session 結束時掃過一遍）_
+1. **Session idle timeout 要不要加**：目前只有絕對 8hr timeout。現場指揮 14hr 班制相容嗎？（C1-A Phase 2 範圍決定）
+2. **Session cookie vs header**：現在用 X-Session-Token header，天生抗 CSRF，但不利前端簡化。保留？還是改 HttpOnly cookie？（前端決策）
+3. **Rate limit 持久化**：in-memory 是刻意取捨還是技術債？（C1-A 範圍內補還是推後？）
+4. **Hard delete vs soft delete**：accounts 有 status 欄位但 `delete_account()` 是 hard DELETE。這有稽核風險（audit_log 的 operator 指向已不存在的 username）。要補正？
 
 ### 重大架構發現（觸發 ROADMAP 或 architecture_decisions 更新的）
 
-_（只記影響跨 session 的決策或新增 Cx / 修訂既有 Cx scope 的發現）_
+**無新 Cx 需加**。 Session A 所有發現都能落入既有 Cx：
+- Role-based endpoint gate → **C1-A Phase 2**（已規劃範圍）
+- Rate limit 持久化 → 建議併入 **C1-A Phase 2**（同 auth 範疇）
+- Hard delete → 建議併入 **C1-A Phase 2**
+- Audit log hash chain / 保存 / 清除策略 → **C1-D**（已規劃）
+- CSP unsafe-inline → **C1-F**（已規劃）
+- mTLS → **C1-G**（已規劃）
+- Correlation ID → **C1-D**（已規劃）
+- WS 認證層細節 → **C1-G**（已規劃）
+- Session idle timeout → **C1-A Phase 2**（建議併入）
+- Login banner (AC-8) → **C1-A Phase 2**（小項，低優先）
+
+**唯一可能需要 architecture_decisions 新記的**：Rate limit 持久化做法（in-memory + SQLite fallback, or 純 SQLite, or Redis）。**暫標 Session B 再定**（因影響 audit log 協議，會跟 C1-D 一起討論）。
 
 ---
 
@@ -83,19 +150,94 @@ Gap 過長時移到最下方「Gap Register」section，matrix 只留編號。
 
 ### 1.1 AC — Access Control
 
-_Session A 填入：AC-1 ~ AC-25，focus AC-2/3/6/7/11/12/14/17_
+**表欄**：C = Command / P = Pi server / W = PWA；Pri 🔴 critical / 🟡 high / 🟠 medium / ⚪ low
+
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| AC-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🟡 | `security_policies.md §2` 骨架；Session D 完稿正式版 |
+| AC-2 | Account Management | ⚠️ | ❌ | ❌ | C1-A Phase 2 / P-C1-A / W-C1-A | 🔴 | `account_repo.py` 完整 CRUD + lockout；**gap**：無年度 review 機制；`delete_account()` 是 hard DELETE；Pi / PWA 無對應帳號管理 |
+| AC-2(1) | Automated Account Management | ❌ | ❌ | ❌ | C1-A Phase 2 | 🟠 | 無自動化 review / disable 機制 |
+| AC-2(3) | Disable Accounts | ⚠️ | ❌ | ❌ | C1-A Phase 2 | 🟡 | `accounts.status` 欄位存在（active/suspended）；無 inactivity 自動停用 |
+| AC-2(13) | Disable for High-Risk | ❌ | ❌ | ❌ | C1-A Phase 2 | 🟠 | 無 risk-based disable |
+| AC-3 | Access Enforcement | ⚠️ | ⚠️ | N/A | **C1-A Phase 2** | 🔴 | Admin PIN 閘口 + 粗分 role 有；**後端無 endpoint-level RBAC gate** (核心 gap)；C1-A Phase 2 `require_role()` 補 |
+| AC-4 | Information Flow Enforcement | N/A | N/A | N/A | — | — | 單體系統，無跨域資料流（TAK Wave 7 再評估）|
+| AC-5 | Separation of Duties | ❌ | ❌ | ❌ | C1-A Phase 2 | 🔴 | 無 role 分離（Admin PIN 是 all-or-nothing）；**C1-A Phase 2 4-role 解決** |
+| AC-6 | Least Privilege | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🔴 | 非最小權限原則；Admin PIN 全權；C1-A Phase 2 分級解決 |
+| AC-6(1) | Authorize Access to Security Functions | ❌ | ❌ | ❌ | C1-A Phase 2 | 🔴 | 需 require_role(系統管理員) 守門 admin 端點 |
+| AC-6(5) | Privileged Accounts | ❌ | ❌ | ❌ | C1-A Phase 2 | 🔴 | 無明確特權帳號（Admin PIN 匿名）；系統管理員 role 解決 |
+| AC-6(9)(10) | Log / Prohibit privileged use | ⚠️ | ❌ | N/A | C1-A Phase 2 + C1-D | 🟡 | audit_log 記 admin PIN 操作；缺 hash chain（C1-D）|
+| AC-7 | Unsuccessful Logon Attempts | ✅ | ❌ | ❌ | 已完成 / P-C1-A / W-C1-A | 🟡 | Command: 5x15min 帳號鎖定 + 10/min IP rate limit + Admin PIN 5x30min；**Pi / PWA 未對應** |
+| AC-8 | System Use Notification | ❌ | ❌ | ❌ | C1-A Phase 2（併入） | ⚪ | 無登入 banner（法規不強制，但 Moderate baseline 列；加一行容易）|
+| AC-10 | Concurrent Session Control | ❌ | ❌ | ❌ | C1-A Phase 2 | 🟡 | 同一帳號可多 session 同時登入；建議上限 N=2（電腦+手機） |
+| AC-11 | Device Lock | ⚠️ | N/A | ⚠️ | C1-A Phase 2（併入） | 🟠 | 靠 session timeout (8hr) 絕對終結；**無 idle lock 觸發畫面鎖定** |
+| AC-12 | Session Termination | ⚠️ | N/A | ⚠️ | C1-A Phase 2（併入） | 🟡 | 有絕對 timeout；**無 idle timeout**；logout 確實刪 session |
+| AC-14 | Permitted Actions Without Auth | ✅ | ✅ | N/A | — | — | `config.py PUBLIC_PATHS`: /health, /docs, /static 明確定義 |
+| AC-17 | Remote Access | ✅ | ✅ | ✅ | — | 🟡 | TLS 1.2+ 強制（STRICT_TLS env）；HSTS 1yr；**gap**：無 remote access policy 文件 → security_policies.md §2 補 |
+| AC-17(2) | Protection of Confidentiality | ⚠️ | ⚠️ | ⚠️ | C1-G + C1-B | 🟡 | nginx TLS ✅；**mTLS 未啟用**（Tier 3 才做）；WS 層認證模糊 |
+| AC-18 | Wireless Access | ⚠️ | ⚠️ | ⚠️ | Wave 7 MANET | 🟡 | Pi 500 WiFi 用；**無 WPA3 policy / access point hardening 規範** |
+| AC-19 | Mobile Device Control | ❌ | N/A | ⚠️ | W-C1-A / Wave 7 | 🟠 | PWA 在 iPad/Android；**無 MDM / device enrollment**；靠 iOS/Android OS 保護 |
+| AC-20 | Use of External Systems | N/A | N/A | N/A | — | — | 本地優先架構；TAK 整合（Wave 7）屬外部，屆時補政策 |
+| AC-22 | Publicly Accessible Content | ✅ | ✅ | N/A | — | — | /health, /docs 明確公開；內容不含敏感資料 |
 
 ### 1.2 AU — Audit and Accountability
 
-_Session A 填入 AU-2/3/4/6/8/9/11/12，Session B 延伸 hash chain_
+> Session A 列出現況（架構層）；**hash chain / 保存策略 / 跨組件 correlation 深入細節 Session B 配合 C1-D 詳填**。
+
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| AU-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🟡 | `security_policies.md §3` 骨架 |
+| AU-2 | Event Logging | ⚠️ | ⚠️ | ❌ | C1-D | 🔴 | `audit_log` 表 19+ 事件類型（`db.py`）；**gap**：PWA 使用者操作未回拋 audit；Pi 有 audit 但未與 command 串連 |
+| AU-3 | Content of Audit Records | ⚠️ | ⚠️ | N/A | C1-D | 🟡 | 欄位：operator / device_id / action_type / target / detail / exercise_id / created_at；**缺 correlation ID 跨組件**；**缺 source IP / user agent**（AU-3(1) 要求）|
+| AU-4 | Audit Log Storage Capacity | ⚠️ | ⚠️ | N/A | C1-D / C3-D | 🟠 | SQLite 單表；**無大小監控 / 輪替**；長期演練會無限膨脹 |
+| AU-5 | Response to Log Failures | ❌ | ❌ | N/A | C1-D | 🟡 | log 失敗目前 silent（寫入 fail 不阻斷業務；若 audit fail 應告警）|
+| AU-6 | Audit Review / Analysis | ⚠️ | ❌ | N/A | C1-D + C3-C | 🟠 | `/api/admin/audit-log` 有查詢 endpoint；**無告警規則 / 異常偵測** |
+| AU-8 | Time Stamps | ⚠️ | ⚠️ | ⚠️ | C3-B 擴充（NTP） | 🔴 | `strftime('%Y-%m-%dT%H:%M:%SZ','now')` 依賴系統時鐘；**Pi 無 NTP 強制保障**；時間不可信 → ICS 214 時間戳沒法律效力 |
+| AU-9 | Protection of Audit Info | ⚠️ | ⚠️ | N/A | C1-D | 🔴 | INSERT-only（程式約定非 DB 約束，可繞）；**無 hash chain / 簽章**；admin PIN 保護查詢 |
+| AU-9(3) | Cryptographic Protection | ❌ | ❌ | N/A | C1-D | 🔴 | **無簽章機制**；hash chain 是 C1-D 核心項 |
+| AU-11 | Audit Record Retention | ❌ | ❌ | N/A | C1-D / C3-D | 🟡 | **無保存 / 清除策略**；security_policies.md §3 規劃 6 個月 |
+| AU-12 | Audit Generation | ⚠️ | ⚠️ | ❌ | C1-D | 🟡 | 寫入類動作多有 audit，但**非 100% 覆蓋**（需 middleware 層強制，而非 service 層選擇性）|
 
 ### 1.3 IA — Identification and Authentication
 
-_Session A 填入：IA-2/3/5/6/7/8/11/12_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| IA-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🟡 | `security_policies.md §2` 骨架 |
+| IA-2 | Identification and Authentication (Users) | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 / W-C1-A | 🟡 | 單因素 PIN（NIST AAL1）；**Phase 3 TOTP 達 AAL2** |
+| IA-2(1) | MFA for Privileged | ❌ | ❌ | ❌ | C1-A Phase 3 | 🔴 | **無 MFA**；Phase 3 規劃 TOTP |
+| IA-2(2) | MFA for Non-Privileged | ❌ | ❌ | ❌ | C1-A Phase 3 | 🟡 | 同上 |
+| IA-2(8) | Replay-Resistant Auth | ✅ | ✅ | ✅ | — | — | HTTPS + session token 機制抗 replay |
+| IA-2(12) | Acceptance of PIV Credentials | N/A | N/A | N/A | — | — | 非美國聯邦系統；對應 Taiwan 自然人憑證可未來評估（Wave 8+）|
+| IA-3 | Device Identification | ⚠️ | ✅ | ⚠️ | P-C1-A | 🟡 | Pi 端 `pi_nodes.api_key` 為 device credential；PWA 無 device ID |
+| IA-4 | Identifier Management | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | `username` UNIQUE；**無 reuse 禁止期**；Phase 2 補政策 |
+| IA-5 | Authenticator Management | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2/3 | 🟡 | PBKDF2 + salt 已有；**PIN 強度 4-6 位**；缺密碼複雜度檢查（無連號 / 無重複）|
+| IA-5(1) | Password-Based Auth | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | PBKDF2-SHA256, 100k iter, 16-byte salt ✅；**4 碼 PIN 太弱**（Moderate baseline 建議 8+ char） |
+| IA-5(2) | PKI-Based Auth | N/A | ⚠️ | N/A | C1-B / C1-G mTLS | 🟠 | step-ca PKI 基礎有；mTLS 是未來項 |
+| IA-5(6) | Protection of Authenticators | ⚠️ | ⚠️ | ⚠️ | C1-C | 🟡 | PIN hash 存 DB；Admin PIN 寫 `~/.ics/first_run_token` chmod 600 ✅；**無定期強制換 PIN 機制** |
+| IA-5(13) | Expiration of Cached Authenticators | N/A | N/A | N/A | — | — | 無 cache auth |
+| IA-6 | Authenticator Feedback | ✅ | ✅ | ✅ | — | — | 登入失敗訊息通用（不洩漏帳號存在性） |
+| IA-7 | Cryptographic Module Authentication | ✅ | ✅ | ✅ | — | — | Python `hashlib` + TLS via nginx（經 FIPS-approved algos）|
+| IA-8 | Identification of Non-Organizational Users | N/A | N/A | N/A | — | — | 封閉系統，非自然人皆組織內 |
+| IA-11 | Re-authentication | ❌ | N/A | ❌ | C1-A Phase 2 | 🟡 | 敏感操作（改 role / 刪帳號）應強制重認證；**目前只靠 admin PIN** |
+| IA-12 | Identity Proofing | N/A | N/A | N/A | — | — | 自我聲明 IAL1；無 proof 流程 |
 
 ### 1.4 SC — System and Communications Protection
 
-_Session A 填入 SC-7/8/12/13/17/23/28，Session B 補前端 SC_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| SC-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🟡 | `security_policies.md` 系列 |
+| SC-5 | Denial of Service Protection | ⚠️ | ⚠️ | N/A | C2-F | 🔴 | 登入 rate limit 有；**其他 endpoint 無全域 rate limit**；無 payload size limit；`push_queue` 有 24h 清除但未驗證壓測 |
+| SC-7 | Boundary Protection | ✅ | ⚠️ | N/A | C1-B / C3-B | 🟡 | nginx 反向代理 + loopback HTTP 內網隔離；**Pi WiFi AP 邊界**（Wave 7 MANET 相關）|
+| SC-8 | Transmission Confidentiality | ✅ | ✅ | ✅ | 已完成 / P-C1-B | 🟡 | TLS 1.2/1.3 強制（`STRICT_TLS`）；HSTS 1yr；Pi push 含 HTTPS |
+| SC-8(1) | Cryptographic Protection | ✅ | ✅ | ✅ | — | — | Mozilla Intermediate 2024-09 cipher suites（ECDHE-*-GCM / CHACHA20-POLY1305）|
+| SC-10 | Network Disconnect | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 / C1-G | 🟡 | session timeout 8hr；**WS 無 heartbeat / reconnect 正式管理**（C1-G 範圍）|
+| SC-12 | Cryptographic Key Management | ⚠️ | ⚠️ | N/A | C1-B 收尾 / C3-B | 🟡 | step-ca PKI 架構有；**憑證到期監控 / 自動 renew timer 待驗證**；金鑰輪替政策待補 |
+| SC-13 | Cryptographic Protection | ✅ | ✅ | N/A | — | — | TLS 1.2+ / PBKDF2-SHA256 / Fernet（C1-C 範圍）都是 NIST-approved |
+| SC-17 | PKI Certificates | ⚠️ | ⚠️ | N/A | C1-B 收尾 | 🟡 | step-ca per-customer 架構良好；**實機 PKI 部署 / renew timer / OCSP stapling 待實測** |
+| SC-18 | Mobile Code | N/A | N/A | ⚠️ | W-C1-F | 🟠 | PWA JS 執行於客戶端；靠 CSP 防 XSS（目前 `unsafe-inline`，C1-F 收緊）|
+| SC-23 | Session Authenticity | ✅ | ✅ | ✅ | — | 🟡 | UUID v4 session token + TLS 封裝；**gap**：無 session binding to IP / user agent（偷 token 即可用） |
+| SC-28 | Protection of Info at Rest | ❌ | ❌ | ❌ | **C1-C 擴大** | 🔴 | **應用層 Fernet 未實施**；**DB 層 SQLCipher 未實施**；**OS 層 LUKS 未實施**；三層加密策略是 C1-C 擴充範圍 |
+| SC-28(1) | Cryptographic Protection | ❌ | ❌ | ❌ | C1-C | 🔴 | 同上 — 無靜態加密 |
+| SC-8(2) | Pre / Post Transmission Handling | N/A | N/A | N/A | — | — | TLS 自動處理 |
 
 ### 1.5 SI — System and Information Integrity
 
@@ -141,15 +283,26 @@ _Session D 評估：本系統多為組織流程層（訓練、實體安全、人
 
 ### 2.1 AAL（Authenticator Assurance Level）
 
-_Session A 填入：當前 AAL1 / 目標 AAL2（MFA 後）_
+| 現況 | 目標 | Gap |
+|---|---|---|
+| **AAL1**（單因素 memorized secret — 6 位 PIN）| **AAL2**（C1-A Phase 3 加 TOTP → 二因素）| TOTP + 備援碼；對應 IA-2(1)(2) |
+
+**AAL1 符合性檢查**：
+- ✅ Memorized secret 最低要求（NIST 規範 6 digits is marginal，且 PIN 非 alphanumeric；**建議 Phase 2 逐步升 8+ 位或改 alphanumeric**）
+- ✅ Throttling（rate limit + lockout）
+- ✅ Secret hashed with approved function (PBKDF2-SHA256, 100k iter)
+- ⚠️ Salt 16 bytes（規範 ≥32-bit，16 bytes = 128 bits 足夠）
 
 ### 2.2 IAL（Identity Assurance Level）
 
-_Session A 填入：本系統 IAL1（自我聲明即可）_
+**IAL1** — 自我聲明身份（no proofing）
+
+- ✅ 符合本系統定位（EOC 封閉系統，現場部署，身份靠組織內部管理）
+- 不追求 IAL2（需 in-person / remote 證件核對流程）
 
 ### 2.3 FAL（Federation Assurance Level）
 
-_N/A（目前無聯邦身份識別）_
+**N/A** — 目前無聯邦身份識別（無 SSO / SAML / OIDC）。未來 TAK 整合（Wave 7）若涉及跨組織 SSO 再評估。
 
 ---
 
@@ -167,7 +320,26 @@ _Session C 填入：資產清單、風險評估、供應鏈_
 
 ### 3.3 PROTECT
 
-_Session A + B 填入：AC / AT / DS（Data Security）/ IP（Information Protection）/ MA_
+> Session A 填 PR.AA（Identity Management & Access Control）；其餘 Session B/C 填。
+
+#### PR.AA — Identity Management, Authentication and Access Control
+
+| ID | 子能力 | Status | 對應 NIST 800-53 / Cx |
+|---|---|:---:|---|
+| PR.AA-01 | 身份建立與管理 | ⚠️ | AC-2 / IA-4；C1-A Phase 2 |
+| PR.AA-02 | Identities are proofed and bound | N/A IAL1 | IA-12（不適用 EOC 內網）|
+| PR.AA-03 | Users authenticated commensurate with risk | ⚠️ → ❌ | IA-2(1)(2) MFA 缺 → C1-A Phase 3 |
+| PR.AA-04 | Identity assertions | N/A | 無 federation |
+| PR.AA-05 | Access permissions enforced（含 least privilege）| ❌ | AC-3/5/6；**核心 gap**，C1-A Phase 2 |
+| PR.AA-06 | Physical access | N/A 軟體 | 由部署現場政策（Pi 鎖櫃）|
+
+#### PR.DS — Data Security（部分）
+
+| ID | 子能力 | Status | 對應 |
+|---|---|:---:|---|
+| PR.DS-01 | Data-at-rest 保護 | ❌ | SC-28；C1-C 三層加密待做 |
+| PR.DS-02 | Data-in-transit 保護 | ✅ | SC-8；TLS 完整 |
+| PR.DS-10 | Data-in-use 保護 | N/A | 單機處理 |
 
 ### 3.4 DETECT
 
@@ -279,7 +451,61 @@ _Session C 填入_
 
 ### V1-V14 Level 2 requirements
 
-_Session A / B / C 分工填入（V2 Auth, V3 Session, V4 Access Control, V7 Crypto, V8 Data Protection, V9 Comm, V10 Malicious Code, V14 Config）_
+> Session A 填 V2（Auth）/ V3（Session）/ V4（Access Control）/ V9（Comm）；其餘 Session B/C 填。
+
+#### V2: Authentication
+
+| Requirement | Status | Evidence / Gap |
+|---|:---:|---|
+| V2.1.1 密碼長度 ≥12（或 alternative policy）| ⚠️ | 6 位 PIN + 強 hash + lockout；**ASVS 角度 PIN 不夠，但 EOC 場景用 PIN 合理**，補 TOTP (C1-A Phase 3) |
+| V2.1.5 允許 paste | ⚠️ | 待驗證 PIN 欄位是否 `autocomplete=off` 阻 paste |
+| V2.1.7 change password 強制驗證舊 PIN | ✅ | `/api/admin/accounts/{u}/pin` 需 admin PIN，非自助；Phase 2 自助改 PIN 需舊 PIN |
+| V2.1.11 沒有密碼提示 | ✅ | 無 hint |
+| V2.2.1 安全通知（新登入 / 新裝置通知）| ❌ | 未實施，C1-A Phase 2 可加 |
+| V2.2.3 認證方式公開記錄 | ⚠️ | 程式碼注釋有，security_policies.md 補 |
+| V2.3.1 system-generated initial secret | ✅ | `ensure_initial_admin_token()` 隨機 6 位 |
+| V2.5 Credential recovery | ⚠️ | 忘記 PIN 靠 admin PIN 重置；**admin PIN 忘記的恢復政策未寫** |
+| V2.7 OOB authenticators | N/A | 無 |
+| V2.8 One-time authenticators | ❌ | C1-A Phase 3 TOTP |
+
+#### V3: Session Management
+
+| Requirement | Status | Evidence / Gap |
+|---|:---:|---|
+| V3.1.1 Stateless tokens OR server-side | ✅ | Server-side（SQLite `sessions` 表）|
+| V3.2.1 Token generation 隨機 ≥64 bits | ✅ | UUID v4 = 122 bits 熵 |
+| V3.2.2 Token uniqueness | ✅ | UUID v4 |
+| V3.3.1 Logout invalidates all sessions? | ⚠️ | 登出只刪當前 token；其他裝置 session 保留 → 非 ASVS 嚴格解讀；**Phase 2 可加「登出所有裝置」按鈕** |
+| V3.3.2 Token idle timeout | ❌ | 只有絕對 timeout 8hr；**缺 idle timeout**（Phase 2 補） |
+| V3.3.3 Absolute timeout | ✅ | 8 小時（SESSION_TIMEOUT） |
+| V3.3.4 Re-auth for sensitive operations | ⚠️ | admin PIN 部分達成；帳號 role 變更尚未強制重認證 |
+| V3.4 Cookie 屬性 | N/A | 非 cookie-based |
+| V3.5 Token-based auth | ✅ | X-Session-Token header |
+| V3.7 Defenses against token-based attacks | ⚠️ | 無 token rotation（每次重要動作換 token）；**replay 靠 TLS + token-in-header 防** |
+
+#### V4: Access Control
+
+| Requirement | Status | Evidence / Gap |
+|---|:---:|---|
+| V4.1.1 Trusted enforcement server-side | ❌ | **後端無 role gate**（核心 gap，C1-A Phase 2）|
+| V4.1.2 All URLs / resources 有授權檢查 | ⚠️ | auth middleware 有；**role 層面尚無**；admin PIN 閘口對 /api/admin/* 是有 |
+| V4.1.3 principle of least privilege | ❌ | admin PIN 全權（C1-A Phase 2 改）|
+| V4.1.5 Deny by default | ❌ | 目前是 allow all authenticated；**需改 deny by default + explicit allowlist** |
+| V4.2.1 Sensitive data 和函式保護 | ⚠️ | PIN hash / audit log 受 admin PIN 保護；無細粒 |
+| V4.3.1 Administrative interface 授權強 | ⚠️ | Admin PIN + 5x30min lockout ✅；**但匿名化（無法追究是誰用的 PIN）** |
+| V4.3.2 Directory browsing 關閉 | ✅ | FastAPI 無 dir listing；nginx 靜態 root 設定無 `autoindex on`（待驗證）|
+
+#### V9: Communications
+
+| Requirement | Status | Evidence / Gap |
+|---|:---:|---|
+| V9.1.1 TLS for all inbound connections | ✅ | nginx 終端 TLS 1.2+；loopback 到 FastAPI 是明文但同主機 |
+| V9.1.2 Modern TLS configuration | ✅ | Mozilla Intermediate 2024-09 |
+| V9.1.3 Insecure protocols 禁用 | ✅ | TLS 1.0/1.1 禁用 |
+| V9.2.1 Outbound connections 驗證憑證 | ⚠️ | Python requests / urllib 預設 verify=True；待驗證是否有 verify=False 的地方 |
+| V9.2.2 Encrypted communications with backend components | ⚠️ | Pi↔Command HTTPS + Bearer；**缺 mTLS**（C1-G）|
+| V9.2.3 Authenticated connections with backend | ✅ | Bearer token 驗 |
+| V9.2.4 Certificates validated against trust chain | ✅ | step-ca CA 掛到系統 trust store（trust-root-mac.sh）|
 
 ---
 
@@ -387,15 +613,101 @@ _Session D 填入_
 > 格式：`[Control-ID] Priority | Component | Gap | Target Cx | ETA`
 > Session A/B/C 發現後彙整，Session D 排序 + 指派 Cx
 
-_（Session 執行時追加）_
+### Session A 發現（2026-04-25）
+
+#### 🔴 Critical（v2.1.0 投標前必補）
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-A01 | AC-3 / AC-5 / AC-6 / V4.1.1 / V4.1.5 | command + pi + pwa | **後端無 role-based endpoint gate**（核心 RBAC 缺）；deny-by-default 未實施 | C1-A Phase 2 |
+| G-A02 | AC-6(1) / AC-6(5) | command | 無特權帳號分離（Admin PIN 匿名 + all-or-nothing）| C1-A Phase 2 |
+| G-A03 | SC-28 / PR.DS-01 | command + pi + pwa | **靜態資料未加密**：應用層 Fernet / DB SQLCipher / OS LUKS 全缺 | C1-C 擴大 |
+| G-A04 | AU-9(3) | command + pi | Audit log **無 hash chain / 簽章**（INSERT-only 是程式約定可繞）| C1-D |
+| G-A05 | AU-8 | command + pi | **時間來源不可信**（系統時鐘無 NTP 強制）→ ICS 214 法律效力受質疑 | C3-B 擴充（NTP）|
+| G-A06 | SC-5 / V14 | command + pi | 全域 rate limit 缺；**只有 /login 有限速**；無 payload size limit | C2-F |
+
+#### 🟡 High（v2.1.0 強烈建議補）
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-A07 | AC-2 | command | `delete_account()` hard DELETE，**audit_log operator 會指向不存在的 user**；應改 soft delete | C1-A Phase 2 |
+| G-A08 | AC-7 / IA-2 | pi + pwa | Pi 端 / PWA 端**無登入 lockout / rate limit** | P-C1-A / W-C1-A |
+| G-A09 | AC-12 / V3.3.2 | command + pwa | 無 idle session timeout；只有絕對 timeout | C1-A Phase 2 |
+| G-A10 | AC-17(2) / SC-23 | command + pi | session token **無 IP / UA binding**（偷 token 即可用）| C1-A Phase 2 |
+| G-A11 | AU-2 / AU-12 | command + pi + pwa | 寫入 audit 散在 service 層（非 100% 覆蓋）；應改 middleware 強制 | C1-D |
+| G-A12 | AU-3 | command + pi | audit_log 缺 source IP / user agent / **correlation ID** | C1-D |
+| G-A13 | AU-11 | command + pi | 無 audit log 保存 / 清除策略 | C1-D + security_policies §3 |
+| G-A14 | IA-2(1)(2) | command + pi + pwa | **無 MFA**（單因素 PIN）；達不到 AAL2 | C1-A Phase 3 |
+| G-A15 | IA-5(1) | command + pi + pwa | 4 位 PIN 可受暴力（lockout 緩解，但不夠）；**無連號 / 重複防** | C1-A Phase 2 |
+| G-A16 | SC-12 / SC-17 | command + pi | step-ca **實機部署 + renew timer 未實測**；OCSP stapling 在 dev 關閉 | C1-B 收尾 / P-C1-B |
+| G-A17 | SC-10 / V3 | pi + pwa | WebSocket **無 heartbeat 管理 / 認證模糊**；auth token 層細節待 Session B 驗 | C1-G |
+| G-A18 | AU-4 / AU-5 | command + pi | log 容量無監控；寫 fail silent | C1-D + C3-C |
+
+#### 🟠 Medium
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-A19 | AC-2(1) / AC-2(13) | command | 無自動化帳號 review / risk-based disable | C1-A Phase 2 |
+| G-A20 | AC-10 | command | 同帳號可多 session 同時登入（無上限）| C1-A Phase 2 |
+| G-A21 | AC-11 | command + pwa | 無 UI idle lock 觸發畫面鎖 | C1-A Phase 2 |
+| G-A22 | AC-19 | pwa | PWA 無 MDM / device enrollment | W-C1-A / Wave 7 |
+| G-A23 | AU-6 | command | audit log 查詢有，**異常告警規則無** | C1-D + C3-C |
+| G-A24 | IA-3 | pwa | PWA 無 device identifier | W-C1-A |
+| G-A25 | IA-11 | command | 敏感操作（改 role / 刪帳號）無強制重認證 | C1-A Phase 2 |
+| G-A26 | SC-18 | pwa | CSP `unsafe-inline`（600+ inline styles/handlers）| C1-F |
+| G-A27 | V2.5 | command | admin PIN 忘記恢復政策未文件化 | C1-A Phase 4 / security_policies §2 |
+
+#### ⚪ Low
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-A28 | AC-8 | command | 無登入 banner | C1-A Phase 2（小項，併入）|
+| G-A29 | V2.1.5 | command + pwa | PIN 欄位 paste 行為未驗（autocomplete=off？）| C1-A Phase 2 |
+| G-A30 | V3.7 | command | 無 token rotation（敏感動作後換 token）| C1-A Phase 2（可選）|
+| G-A31 | V3.3.1 | command | 登出未終結所有裝置 session | C1-A Phase 2 |
 
 ---
 
 ## Evidence Index（關鍵 control 的實作位置）
 
-> 用途：稽核時快速對應「我們符合 AC-2 帳號管理，請看這些檔案」
+> 用途：稽核時快速對應「我們符合 AC-X，請看這些檔案」。
+> 命名：`<NIST/ASVS ID> → <檔案路徑>:<line> → <說明>`
 
-_（Session 執行時追加）_
+### Session A 索引（auth/transport/schema 族）
+
+#### 認證（IA / V2 / V3）
+- `IA-2 / V2.1.7 / V3` → `command-dashboard/src/auth/service.py` → Session 建立 / 驗證 / timeout
+- `IA-5 / V2.1.1 / IA-5(1)` → `command-dashboard/src/repositories/account_repo.py` → PBKDF2-SHA256 100k iter, 16-byte salt
+- `IA-2(8) / V3.5` → `command-dashboard/src/auth/middleware.py` → X-Session-Token header 驗證
+- `AC-7 / V2` → `command-dashboard/src/auth/rate_limit.py` → 10 req/min/IP login rate limit
+- `AC-7 / V2 lockout` → `command-dashboard/src/repositories/account_repo.py` → 5x15min 帳號鎖定（持久化）
+- `AC-7 admin PIN lockout` → `command-dashboard/src/repositories/config_repo.py` → 5x30min admin PIN 鎖定（持久化）
+- `IA-5(1) initial secret` → `command-dashboard/src/repositories/config_repo.py::ensure_initial_admin_token()` → 隨機 6 位 PIN
+- `IA-2 first-run gate` → `command-dashboard/src/auth/first_run_gate.py` → 423 擋阻 + whitelist
+
+#### 存取控制（AC / V4）
+- `AC-3 admin PIN gate` → `command-dashboard/src/routers/admin.py::_check_admin_pin()` → /api/admin/* 全閘
+- `AC-14 PUBLIC_PATHS` → `command-dashboard/src/core/config.py` → /health, /docs, /static 豁免清單
+- `AC-3 粗分 role check` → `command-dashboard/src/routers/config_router.py:21` → `if sess["role"] != "指揮官"`（範例）
+
+#### 稽核（AU）
+- `AU-2 / AU-3 audit_log` → `command-dashboard/src/db.py` → audit_log table schema + INSERT-only 程式約定
+- `AU-6 audit query` → `command-dashboard/src/routers/admin.py:216` → /api/admin/audit-log endpoint
+
+#### 加密傳輸（SC / V9）
+- `SC-8 TLS config` → `deploy/nginx/conf.d/ssl-common.conf` → TLS 1.2/1.3, Mozilla Intermediate
+- `SC-7 / SC-8 security headers` → `deploy/nginx/conf.d/security-headers.conf` → HSTS, X-Frame-Options, etc.
+- `SC-7 CSP` → `command-dashboard/src/core/security_headers.py` → CSP middleware (report-only)
+- `SC-17 PKI` → `deploy/step-ca/` → per-customer step-ca + issue/renew/uninstall scripts
+- `SC-8 Pi push auth` → `command-dashboard/src/services/pi_push_service.py::validate_pi_push()` → Bearer token
+
+#### Schema 管理（CM-3 / CM-6）
+- `CM-3 migrations` → `command-dashboard/src/core/database.py` → _MIGRATIONS list M001-M005, idempotent
+- `CM-6 schema_migrations` → `command-dashboard/src/db.py` → schema_migrations 追蹤表
+
+### Session B/C/D 索引（待補）
+
+_（後續 session 執行時追加，預期會覆蓋 audit hash chain、PII 加密、CI/CD、NIMS 對應）_
 
 ---
 
