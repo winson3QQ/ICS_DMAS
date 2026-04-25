@@ -18,7 +18,7 @@
 |:---:|---|:---:|---|---|
 | A | C0 + C1-A + C1-B + C1-E（Auth/Transport/Schema） | ✅ 完成 | 2026-04-25 | 31 個 gap，Decision Set C 4 議題決議 |
 | B | C1-C + C1-D + C1-F + W-C1-* + P-C1-*（PII/Audit/Frontend） | ✅ 完成 | 2026-04-25 | 28 個 gap + 1 個 immediate fix（B-FIX-01 isAuthed bug）+ 6 個亮點 |
-| C | C2 + C3 + P-C2-* + W-C2-*（Quality/Deploy/Ops） | ⏸ 未開始 | — | — |
+| C | C2 + C3 + P-C2-* + W-C2-*（Quality/Deploy/Ops） | ✅ 完成 | 2026-04-25 | 30 個 gap + 8 個亮點；SSDF L2 候選；SAMM L1.5；SLSA L1；DORA 低成熟度；備份/DR 全失 |
 | D | Wave 功能 + NIMS + ICS 508 + 整合 | ⏸ 未開始 | — | — |
 
 ### Session A 執行狀況（2026-04-25）
@@ -102,6 +102,24 @@
 5. ✅ **PII redaction by role**：觀察員只看 display_id + 傷情等級色；姓名 / 症狀 / 過敏 / 用藥不顯（個資法 §6 §27 必合規）；redact layer 在 command service 層（C1-A Phase 2 + C1-C）
 
 **實作策略總原則（Decision D0）**：command 優先；Pi/PWA 改動若影響 command 行為視為優先；其餘 Pi/PWA 改動 wave 後補。
+
+---
+
+### Session C 揭露的議題（待 Session D 收 / 你決定）
+
+#### 立即可動（已完成於本 commit）
+- ✅ **G-C10 SECURITY.md**：`SECURITY.md` 已建（含 PDPC 72h 通報流程、SLA、scope）
+- ✅ **G-C15 legacy dead code**：`src/db.py` + `src/main_legacy.py` 已刪；`setup.sh` 改用 `core.database.init_db`；`pyproject.toml` 移除排除清單
+- ❌ **G-C19**：driving driving false positive（`.gitignore` 已涵蓋 `*.db`），實際無此問題
+- ✅ **G-C28 PR template**：`.github/PULL_REQUEST_TEMPLATE.md` 已建（含 DoD checklist + compliance 欄位）
+
+#### 已知 bug 待修
+- **G-C05 TOCTOU mutex**：演練 concurrent activate xfail 標記在 test_concurrent.py — 不是新 Cx，是要修的 known bug
+
+#### 商業 / 資源決策題
+- **G-C01 + G-C02 + G-C03 備份 / DR**：6 月演練前**必須**做。要我把它升 Critical Cx priority 還是 timeline 重排？
+- **G-C04 IR plan + 72h 通報**：個資法 §12 + IR-6 + IR-8 三個都依賴；要排哪個 Cx？
+- **G-C06 TLS hardcode + renewal**：C3-A（config 外部化）+ C3-B（install 擴）共同處理
 
 ### 重大架構發現（觸發 ROADMAP 或 architecture_decisions 更新的）
 
@@ -298,15 +316,39 @@ audit_log(id TEXT PK, action, operator_name, device_id, session_id, timestamp, d
 
 ### 1.6 CM — Configuration Management
 
-_Session C 填入：CM-2/3/6/7/8_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| CM-1 | Policy and Procedures | ❌ | ❌ | ❌ | C1-A Phase 4 | 🟡 | security_policies.md 無 CM 章節（待補）|
+| CM-2 | Baseline Configuration | ⚠️ | ⚠️ | ⚠️ | C3-A / C3-B | 🟡 | systemd units 即 baseline；schema_migrations 表追蹤 DB baseline；**無 nginx / step-ca config baseline 文件**；config 散在多檔（pyproject / .env / unit file）|
+| CM-3 | Configuration Change Control | ❌ | ❌ | ❌ | C2-B + 流程 | 🟡 | 無 change request workflow；config 變更 audit_log 不記；系統管理員改 PIN / Pi key 有 audit ✅ 但 OS-level config 變更無 |
+| CM-3(2) | Test / Validate Changes | ⚠️ | ❌ | N/A | C2-B | 🟠 | command 改動有 CI 測試；Pi config / nginx config 變更無 staging 驗證流程 |
+| CM-6 | Configuration Settings | ⚠️ | ⚠️ | ⚠️ | C3-A 擴 | 🟡 | env var system 存在；**敏感路徑 hardcoded in systemd unit files**（cert/key path）；無 `/etc/ics/*.env` 集中模式 |
+| CM-7 | Least Functionality | ⚠️ | ⚠️ | N/A | C3-B | 🟠 | systemd ExecStart 收緊；無系統強化基線（CIS Benchmark）|
+| CM-8 | System Component Inventory | ❌ | ❌ | ❌ | C2-E | 🟡 | 無 SBOM（CycloneDX 規劃中）；無 asset registry |
+| CM-11 | User-Installed Software | N/A | N/A | N/A | — | — | 封閉系統 |
 
 ### 1.7 CP — Contingency Planning
 
-_Session C 填入：CP-2/4/9/10_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| CP-1 | Policy and Procedures | ❌ | ❌ | ❌ | C1-A Phase 4 | 🔴 | `security_policies.md §5 Contingency Plan` 骨架；無詳細 playbook |
+| CP-2 | Contingency Plan | ⚠️ | ⚠️ | ⚠️ | C3-D + policies §5 | 🔴 | RTO ≤ 4h / RPO ≤ 1h 已寫 commercialization plan；**未轉成可執行 playbook** |
+| CP-4 | Contingency Plan Testing | ❌ | ❌ | ❌ | C3-D | 🔴 | **無 DR drill 紀錄**；要求每 6 個月一次 |
+| CP-9 | System Backup | ❌ | ❌ | N/A | **C3-D 急迫** | 🔴 | **無自動備份腳本**；WAL mode ✅ 是基礎但不夠；無 daily gzip / NAS rsync；6 月演練前必補 |
+| CP-9(1) | Test Backup Reliability | ❌ | ❌ | N/A | C3-D | 🔴 | 無還原測試 |
+| CP-10 | System Recovery | ⚠️ | ⚠️ | ⚠️ | C3-D | 🔴 | QR Code 同步降級設計（Wave 5）；**無實機故障還原 playbook**；step-ca root CA 損毀僅文件描述，無 runbook |
+| CP-10(2) | Transaction Recovery | ⚠️ | ⚠️ | N/A | C3-D + C1-D | 🟡 | WAL 提供 transaction durability；跨 component 一致性還原無流程 |
 
 ### 1.8 IR — Incident Response
 
-_Session C 填入：IR-4/5/6/8_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| IR-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🔴 | `security_policies.md §4 Incident Response` 骨架 |
+| IR-4 | Incident Handling | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 + C3-C | 🔴 | audit_log 捕事件；**無 incident classification / triage 流程** |
+| IR-5 | Incident Monitoring | ⚠️ | ❌ | ❌ | C3-C 擴 | 🟡 | command 有 audit query；**無 anomaly alerting** |
+| IR-6 | Incident Reporting | ❌ | ❌ | ❌ | C1-A Phase 4 | 🔴 | **無內部通報流程；無 PDPC 72h 通報程序**（個資法 §12）|
+| IR-7 | Incident Response Assistance | N/A | N/A | N/A | — | — | 組織層面 |
+| IR-8 | Incident Response Plan | ❌ | ❌ | ❌ | C1-A Phase 4 | 🔴 | **無 IR plan 文件**；security_policies §4 待擴 |
 
 ### 1.9 PL — Planning
 
@@ -318,11 +360,23 @@ _Session D 填入：RA-3/5（含 threat_model）_
 
 ### 1.11 SA — System and Services Acquisition
 
-_Session C 填入：SA-8/11/15（SSDF 相關）_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| SA-8 | Security Engineering | ✅ | ⚠️ | ⚠️ | — | 🟡 | command 分層架構（C0）+ TLS stack（C1-B）；Pi / PWA 架構部分 |
+| SA-11 | Developer Testing | ⚠️ | ❌ | ❌ | C2-A 擴 / W-C2-A / P-C2-* | 🟡 | command 269 測試 / 44% coverage；**Pi / PWA 無 test suite** |
+| SA-11(1) | Static Code Analysis | ⚠️ | ❌ | ❌ | C2-C 擴 | 🟡 | command bandit 在 CI；**無 SAST for Pi / PWA**；CodeQL 待加 |
+| SA-11(8) | Dynamic Code Analysis | ❌ | ❌ | ❌ | C2-A | 🟠 | 無 DAST / fuzzing-based runtime test |
+| SA-15 | Development Process | ⚠️ | ⚠️ | ⚠️ | C2-E + C2-B | 🟡 | feature branch + PR ✅；**無 SBOM / SLSA L2** |
 
 ### 1.12 SR — Supply Chain Risk Management
 
-_Session C 填入：SR-3/5/11（SBOM / SLSA 相關）_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| SR-1 | Policy and Procedures | ❌ | ❌ | ❌ | C1-A Phase 4 | 🟡 | 待補 SR 章節（policies） |
+| SR-3 | Supply Chain Controls | ⚠️ | ⚠️ | ⚠️ | C2-E | 🟡 | requirements.txt pinned；pip-audit 啟用；**npm 端無對應**；無正式 vendor 審查 |
+| SR-4 | Provenance | ❌ | ❌ | ❌ | C2-E + C3-F | 🟡 | 無 SLSA provenance；C3-F Docker 簽章規劃中 |
+| SR-5 | Acquisition Strategies | ⚠️ | ⚠️ | ⚠️ | CLAUDE.md（已有禁中國條款）| 🟢 | 已有「禁止中國供應鏈」規則；待形式化 vendor 評估 |
+| SR-11 | Component Authenticity | ❌ | ❌ | ❌ | C2-E + C3-F | 🟡 | 無 binary 簽章；無 image signing；C3-F Open Core Binary 需簽章 |
 
 ### 1.13 MP — Media Protection
 
@@ -397,7 +451,12 @@ _Session D 填入：治理、風險策略、角色責任_
 
 ### 3.2 IDENTIFY
 
-_Session C 填入：資產清單、風險評估、供應鏈_
+| Category | Status | Notes |
+|---|:---:|---|
+| ID.AM 資產管理 | ❌ | 無 SBOM / asset registry（C2-E）|
+| ID.RA 風險評估 | ⚠️ | threat_model.md 骨架（Session D）|
+| ID.SC 供應鏈 | ⚠️ | 「禁中國供應鏈」CLAUDE.md ✅；無正式評估 |
+| ID.GV 治理 | ⚠️ | security_policies.md 骨架 |
 
 ### 3.3 PROTECT
 
@@ -426,15 +485,29 @@ _Session C 填入：資產清單、風險評估、供應鏈_
 
 ### 3.4 DETECT
 
-_Session C 填入：異常事件、持續監控_
+| Category | Status | Notes |
+|---|:---:|---|
+| DE.AE Anomalies / Events | ⚠️ | audit_log 記錄；**無 anomaly detection / alerting**（C3-C 擴）|
+| DE.CM Continuous Monitoring | ❌ | 無 Prometheus / Grafana；`/api/health` 基礎；C3-C 完整版 |
+| DE.DP Detection Process | ❌ | 無 alert rule 文件；無 SOC playbook |
 
 ### 3.5 RESPOND
 
-_Session C 填入：事件應變、分析、溝通_
+| Category | Status | Notes |
+|---|:---:|---|
+| RS.RP Response Planning | ❌ | 無 IR plan（C1-A Phase 4 + policies §4）|
+| RS.CO Communications | ❌ | 無 stakeholder 通報流程（PDPC / 客戶 / 司法）|
+| RS.AN Analysis | ❌ | 無 forensic 流程 |
+| RS.MI Mitigation | ⚠️ | lockout / rate limit 是 reactive ✅；無 incident-driven mitigation |
+| RS.IM Improvements | ⚠️ | architecture_decisions 記設計變更；無正式 lessons-learned 流程 |
 
 ### 3.6 RECOVER
 
-_Session C 填入：恢復計畫、改善_
+| Category | Status | Notes |
+|---|:---:|---|
+| RC.RP Recovery Planning | ❌ | RTO/RPO 寫了未實作（C3-D 急迫）|
+| RC.IM Improvements | ❌ | 無 recovery drill；無改善追蹤 |
+| RC.CO Communications | ❌ | 無客戶通報程序 |
 
 ---
 
@@ -444,19 +517,43 @@ _Session C 填入：恢復計畫、改善_
 
 ### 4.1 PO — Prepare the Organization
 
-_Session C 填入：PO.1/2/3/4/5_
+| Practice | Status | Evidence / Gap |
+|---|:---:|---|
+| PO.1 軟體開發流程 | ✅ | CLAUDE.md feature branch + PR；DoD 章節 |
+| PO.2 角色責任 | ⚠️ | role 區分有；**無 RACI 表**（policies §1）|
+| PO.3 IT 環境隔離 | ⚠️ | tmp_db fixture 隔離測試；**無 dev/staging/prod 環境分離**；Mac dev / Pi prod 直接跳 |
+| PO.4 標準應用 | ✅ | NIST/OWASP 對應（compliance/matrix）+ ruff 規則 |
+| PO.5 Criteria 評估 | ⚠️ | DoD 隱含 release gate；**無形式化 release checklist** |
 
 ### 4.2 PS — Protect the Software
 
-_Session C 填入：PS.1/2/3_
+| Practice | Status | Evidence / Gap |
+|---|:---:|---|
+| PS.1 保護所有形式 code | ✅ | GitHub repo + branch protection（推論）|
+| PS.2 驗證軟體完整性 | ❌ | **無 commit GPG 簽章要求**；Docker image 簽章規劃在 C3-F |
+| PS.3 保留 artifact | ✅ | CI artifact retention 30 天 |
 
 ### 4.3 PW — Produce Well-Secured Software
 
-_Session C 填入：PW.1-9_
+| Practice | Status | Evidence / Gap |
+|---|:---:|---|
+| PW.1 設計安全 features | ✅ | First-run gate / login lockout / admin PIN / TLS 全做（C1-A/B）|
+| PW.2 Design Review | ⚠️ | architecture_decisions.md 記重大設計；**無正式 design review process** |
+| PW.3 重用 code 安全審查 | ⚠️ | pip-audit + bandit 有；**無 dep review log** |
+| PW.4 Apply 安全函式 | ✅ | PBKDF2-SHA256 100k iter / Mozilla TLS / Fernet（規劃）|
+| PW.5 避免 unsafe patterns | ✅ | 15 fuzzing tests（SQL injection / XSS / oversized）|
+| PW.6 測試 unit/integration/api | ✅ | 269 tests, 4 layers; coverage 44% |
+| PW.7 Code Review | ✅ | feature branch → PR → merge |
+| PW.8 Test Executables | ❌ | 無 binary security testing；C3-F 後加 |
+| PW.9 Default Config 安全 | ✅ | SESSION_TIMEOUT / CSP_MODE / first-run gate 預設安全 |
 
 ### 4.4 RV — Respond to Vulnerabilities
 
-_Session C 填入：RV.1/2/3_
+| Practice | Status | Evidence / Gap |
+|---|:---:|---|
+| RV.1 Identify Vulnerabilities | ⚠️ | pip-audit + bandit each push；**Pi npm 端無對應**；無 Dependabot |
+| RV.2 Assess Vulnerabilities | ❌ | bandit 無 CVSS 輸出；無正式風險評估流程 |
+| RV.3 Root Cause Analysis | ❌ | **無 SECURITY.md / 漏洞通報流程** |
 
 ---
 
@@ -464,45 +561,18 @@ _Session C 填入：RV.1/2/3_
 
 > 原文：ISO/IEC 25010:2023 Systems and software engineering - Systems and software quality models
 
-### 5.1 Functional Suitability（功能性）
-
-_Session C 填入_
-
-### 5.2 Performance Efficiency（效能效率）
-
-_Session C 填入_
-
-### 5.3 Compatibility（相容性）
-
-_Session C 填入_
-
-### 5.4 Interaction Capability（使用性）
-
-_Session C 填入_
-
-### 5.5 Reliability（可靠性）
-
-_Session C 填入_
-
-### 5.6 Security（資訊安全）
-
-_交互 reference NIST + OWASP ASVS；Session A/B/C 貢獻_
-
-### 5.7 Maintainability（可維護性）
-
-_Session C 填入，與 C0 分層架構對照_
-
-### 5.8 Portability（可攜性）
-
-_Session C 填入_
-
-### 5.9 Flexibility（彈性，2023 新增）
-
-_Session C 填入_
-
-### 5.10 Safety（安全，2023 新增）
-
-_Session D 填入（涉及事件操作的生命安全）_
+| 特性 | Status | Evidence / Gap |
+|---|:---:|---|
+| **5.1 Functional Suitability**（功能性）| ✅ | 269 tests 涵蓋 auth / event / exercise / dashboard 工作流 |
+| **5.2 Performance Efficiency**（效能效率）| ❌ | **無 load / stress 測試**；無 profiling；Pi SQLite 並發限制（D Decision B 規劃 retry）|
+| **5.3 Compatibility**（相容性）| ⚠️ | FastAPI 0.136.0 固定；CI 只跑 ubuntu-latest；無 multi-version matrix |
+| **5.4 Interaction Capability**（使用性）| ⚠️ | UI 規格詳實（指揮部規格 + PWA spec）；**無 a11y 測試** |
+| **5.5 Reliability**（可靠性）| ⚠️ | Session cleanup / DB isolation / WAL ✅；**無 chaos testing**；**TOCTOU mutex 已知 xfail** |
+| **5.6 Security**（資訊安全）| ⚠️ | 詳見 NIST + ASVS 各節；C1 完成度 ~50% |
+| **5.7 Maintainability**（可維護性）| ⚠️ | C0 分層架構 ✅；**legacy dead code 未清**（db.py 65KB / main_legacy.py 66KB）；**commander_dashboard.html monolithic 376KB**（C1-F 解）|
+| **5.8 Portability**（可攜性）| ⚠️ | Mac dev / Pi prod 雙平台支援；**無 Windows ops 支援**（dev OK）|
+| **5.9 Flexibility**（彈性，2023 新增）| ✅ | 設定外部化（env + config table）；FastAPI dependency injection |
+| **5.10 Safety**（安全，2023 新增）| ⚠️ | 涉及生命安全（醫療 ISBAR / 後送）；**無 fail-safe mode 文件**（系統故障時 fallback 行為）|
 
 ---
 
@@ -510,21 +580,14 @@ _Session D 填入（涉及事件操作的生命安全）_
 
 > 原文：ISO/IEC 5055:2021 Information technology - Software measurement - Software quality measurement
 
-### 6.1 Reliability
+> ISO/IEC 5055 用 CWE 量測；本系統未做正式 CWE 量測，但下列 CWE 類別由現有測試 / 工具部分覆蓋：
 
-_Session C 填入：CWE 依 ASVS / CIS 輔以測試_
-
-### 6.2 Security
-
-_Session C 填入_
-
-### 6.3 Performance Efficiency
-
-_Session C 填入_
-
-### 6.4 Maintainability
-
-_Session C 填入_
+| 維度 | CWE 覆蓋（部分）| Status |
+|---|---|:---:|
+| **6.1 Reliability** | CWE-415（double-free）/ CWE-401（memory leak）由 Python GC 緩解；CWE-672（resource exhaustion）`push_queue` 24h cleanup ✅ | ⚠️ |
+| **6.2 Security** | CWE-89 SQL injection（fuzzing test ✅）/ CWE-79 XSS（CSP 待 enforce）/ CWE-307 brute force（lockout ✅）/ CWE-311 missing encryption（C1-C 待做）/ CWE-256 plaintext password storage（PBKDF2 ✅）| ⚠️ |
+| **6.3 Performance Efficiency** | CWE-770（resource allocation 無限制）— payload size limit 缺（C2-F）；CWE-405（asymmetric resource）| ⚠️ |
+| **6.4 Maintainability** | CWE-1126（declarative complexity）— commander_dashboard.html monolithic；CWE-1111（incomplete documentation）— 部分 ⚠️ | ⚠️ |
 
 ---
 
@@ -629,9 +692,28 @@ _Session C 填入_
 
 > 原文：https://www.cisecurity.org/controls/
 
-### 18 CIS controls
+> 本系統定位為小型 EOC，目標 **IG1（基礎）+ 部分 IG2**（Implementation Group 1 = 自主小組織）。
 
-_Session A/B/C 分工填入（Control 1-18），每個 control 的 Safeguard level IG1/IG2_
+| Control | 主題 | Status | Cx owner | Notes |
+|---|---|:---:|---|---|
+| 1 | Inventory and Control of Enterprise Assets | ⚠️ | C2-E | 無正式 asset registry；部署清單在 commercialization plan |
+| 2 | Inventory and Control of Software Assets | ❌ | C2-E | 無 SBOM；client device 不在管控（PWA 在客戶 iPad）|
+| 3 | Data Protection | ❌ | C1-C | 三層加密未做；資料分類待補 |
+| 4 | Secure Configuration of Enterprise Assets and Software | ⚠️ | C3-A / C3-B | systemd / nginx 有 baseline；無 CIS Benchmark 驗證 |
+| 5 | Account Management | ⚠️ | C1-A Phase 2 | RBAC 待做；Soft delete 待做 |
+| 6 | Access Control Management | ⚠️ | C1-A Phase 2 | role-based gate 待做；least privilege 待做 |
+| 7 | Continuous Vulnerability Management | ⚠️ | C2-C 擴 + C2-E | pip-audit + bandit ✅；無自動 patch；CodeQL 待加 |
+| 8 | Audit Log Management | ⚠️ | C1-D | audit_log 表 ✅；hash chain / 保存政策 / 跨組件 correlation 待做 |
+| 9 | Email and Web Browser Protections | N/A | — | 不適用（無 email 系統）|
+| 10 | Malware Defenses | N/A | — | 客戶 OS 層責任 |
+| 11 | Data Recovery | ❌ | **C3-D 急迫** | 無自動備份；無還原測試；CP-9/10 全失 |
+| 12 | Network Infrastructure Management | ⚠️ | C3-B + Wave 7 MANET | 部分（nginx 反代）；無 firewall / WiFi AP 設定 |
+| 13 | Network Monitoring and Defense | ❌ | C3-C | 無 IDS / 流量監控 |
+| 14 | Security Awareness and Skills Training | N/A | 組織責任 | 客戶教育訓練（不在系統內）|
+| 15 | Service Provider Management | ❌ | C2-E | 無 vendor 評估流程文件 |
+| 16 | Application Software Security | ⚠️ | C2-A/C/E + C1-F | ruff / detect-secrets / 部分 testing ✅；ASVS L2 完成度 ~60% |
+| 17 | Incident Response Management | ❌ | C1-A Phase 4 | 無 IR plan；security_policies §4 待擴 |
+| 18 | Penetration Testing | ❌ | C6 | 規劃在 v3.2.0 ISO 認證階段 |
 
 ---
 
@@ -639,9 +721,27 @@ _Session A/B/C 分工填入（Control 1-18），每個 control 的 Safeguard lev
 
 > 原文：https://owaspsamm.org/
 
-### 5 Business Functions × 3 Practices × 3 Maturity Levels
+> 5 Business Functions × 3 Practices each = 15 Practices，每個有 3 Maturity Levels（1/2/3）。本系統目標 **Level 2 整體**。
 
-_Session C 填入：目標 Level 2（Governance / Design / Implementation / Verification / Operations）_
+| Function | Practice | Current Level | Notes |
+|---|---|:---:|---|
+| **Governance** | Strategy & Metrics | 1 | DoD 章節有，無 metrics dashboard |
+|  | Policy & Compliance | 1→2 | security_policies.md 骨架；matrix.md 主體；目標 L2 達成 |
+|  | Education & Guidance | 1 | CLAUDE.md + TEST_CATALOG.md；無 secure coding training |
+| **Design** | Threat Assessment | 1→2 | threat_model.md 骨架（Session D 完稿）|
+|  | Security Requirements | 2 | 散在規格書 + matrix；可主張 |
+|  | Security Architecture | 2 | C0 分層 + architecture_decisions |
+| **Implementation** | Secure Build | 1→2 | CI 有；SBOM / signing 缺（C2-E）|
+|  | Secure Deployment | 1 | systemd 有；無 staging；C3 待做 |
+|  | Defect Management | 1 | bug 散在 git issue；無 vulnerability tracker |
+| **Verification** | Architecture Assessment | 2 | compliance audit 進行中（本程式）|
+|  | Requirements-driven Testing | 2 | 269 tests + ASVS 對照 |
+|  | Security Testing | 2 | bandit / detect-secrets / fuzzing；目標 L3（自動 DAST）|
+| **Operations** | Incident Management | 1 | audit_log；無 IR plan（C1-A Phase 4）|
+|  | Environment Management | 1 | 部分（systemd + nginx）；無 staging 環境 |
+|  | Operational Management | 1 | 手動部署；DORA 低成熟度 |
+
+**整體 SAMM Level**：**1.5**（多數 Practice L1，少數 L2）；**目標 L2** 在 v2.1.0 階段達成（C2-E + C3-D + C1-A Phase 4 補齊後）。
 
 ---
 
@@ -649,9 +749,14 @@ _Session C 填入：目標 Level 2（Governance / Design / Implementation / Veri
 
 > 原文：https://slsa.dev/spec/v1.0/
 
-### Build Levels 1-4
+| Level | 要求 | Status | Gap |
+|---|---|:---:|---|
+| **L1** | Provenance（基礎追蹤）| ✅ | GitHub repo + CI 流程可追蹤；artifact retention 30 天 |
+| **L2** | Hosted build platform | ⚠️ → 目標 | 用 GitHub Actions（hosted）✅；**無 SLSA provenance attestation**（C2-E 加 `slsa-github-generator`）|
+| **L3** | Hardened builds | ❌ → C2-E 後 | 無 hermetic build；無 isolated builders |
+| **L4** | Two-party review + reproducible | ❌ → C6 | 規劃 v3.2.0 ISO 階段 |
 
-_Session C 填入：目標 L2（short-term），L3（long-term, C2-E）_
+**目標**：v2.1.0 達 **L2**（C2-E 規劃中，需在 CI 加 SLSA provenance generator）；長期 L3。
 
 ---
 
@@ -859,6 +964,71 @@ _Session D 填入_
 | G-B27 | PT-3 / PT-4 | command + pwa | 無系統內隱私權告知 + 同意紀錄 | C1-A Phase 4 |
 | G-B28 | V8.3 PII redaction by role | command | 觀察員 role 預期能看 dashboard 但**不該看完整病患 PII**；目前無 role-based PII redaction | C1-A Phase 2 + C1-C |
 
+### Session C 發現（2026-04-25）
+
+#### 🔴 Critical（v2.1.0 投標前必補）
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-C01 | CP-9 / CIS §11 / 個資法§27 | command + pi | **無自動備份腳本**（WAL 不夠；無 daily gzip / NAS rsync）| **C3-D 急迫** |
+| G-C02 | CP-10 / CSF RC.RP | command + pi + pwa | **無實機故障還原 playbook**（commercialization 寫了 RTO 4h 但無 runbook）| C3-D + policies §5 |
+| G-C03 | CP-4 | command + pi | **無 DR drill 紀錄 / 流程**（要求每 6 個月）| C3-D + policies §5 |
+| G-C04 | IR-6 / IR-8 / 個資法§12 | command + pi + pwa | **無 IR plan + 無 PDPC 72h 通報程序文件** | C1-A Phase 4 + policies §4 |
+| G-C05 | CIS §16 | command | **TOCTOU mutex bug 已知未修**（演練 concurrent activate xfail）| C2-A 急迫修復（不是新 Cx，是 known issue） |
+| G-C06 | CM-3 / CM-6 | command + pi | **TLS 憑證路徑 hardcoded in systemd unit files**（cert/key 路徑）；renewal / drift 無監控 | C3-A + C3-B 擴 |
+
+#### 🟡 High（v2.1.0 強烈建議補）
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-C07 | SI-4 / DE.CM | command + pi | **無 Prometheus `/metrics`**；`/api/health` 基礎（不查 DB / 子服務）| C3-C 擴 |
+| G-C08 | SI-4 / DE.AE | command + pi | **無異常告警**；audit log 查詢有，無 alert rule | C3-C |
+| G-C09 | RV.1 / CIS §7 | command + pi | **Dependabot / npm audit 無 CI 整合**；npm 端供應鏈不掃 | C2-C 擴 + C2-E |
+| G-C10 | RV.3 / 公開貢獻 | meta | **無 SECURITY.md 漏洞通報流程文件** | 立即可補（policies §4 + repo root SECURITY.md） |
+| G-C11 | CM-8 / SR-4 / SLSA L2 | command | **無 SBOM**（CycloneDX）；無 SLSA provenance | C2-E |
+| G-C12 | PS.2 / SR-11 | command | **無 commit / artifact 簽章**（無 GPG / cosign）| C2-E + C3-F |
+| G-C13 | SA-11 / 25010 Reliability | command | **覆蓋率 44%** — sync_repo 9% / ttx_repo 22% / map 29% / admin 37% | C2-A 擴 |
+| G-C14 | SA-11 | pi + pwa | **Pi 0 測試 / PWA 0 測試**（CI 無對應 job）| P-C2-* / W-C2-A |
+| G-C15 | 25010 Maintainability | command | **legacy dead code 未清**（db.py 65KB + main_legacy.py 66KB，0% coverage 占用）| 立即可清（清廢碼，不必 Cx） |
+| G-C16 | 25010 Performance / SC-5 | command + pi | **無 load / stress 測試**；無 profiling 記錄 | C2-A 擴 + DB 並發決策 B 落實 |
+| G-C17 | CM-3 / SR-1 | command | **無 mypy 型別檢查**（runtime 型別錯誤風險）| C2-B 擴 |
+| G-C18 | DE.CM | command + pi | log 寫 `/tmp/ics_*.log`（**ephemeral, 重啟消失**）；無集中化 | C3-C + C1-D |
+| ~~G-C19~~ | CP-9 | command | ~~DB 在 git repo~~ → **驗證為 false positive**：`.gitignore` 已有 `*.db`；audit agent 誤判 | ✅ 不需修 |
+
+#### 🟠 Medium
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-C20 | CM-2 | command + pi | nginx / step-ca config 無 baseline 文件；散在多檔 | C3-A |
+| G-C21 | MA-4 | command + pi | SSH 遠端維護無 bastion / VPN 文件 | policies + C3-B |
+| G-C22 | CIS §12 | pi | Pi WiFi AP 設定無 IaC（手動）；無 firewall 規則 | C3-B + Wave 7 |
+| G-C23 | 25010 Compatibility | ci | **CI 只跑 ubuntu-latest**；無 multi-OS / multi-Python matrix | C2-B |
+| G-C24 | RV.2 | ci | bandit 無 CVSS / 無 artifact 存檔（只 stdout）| C2-C 擴 |
+| G-C25 | CIS §15 | meta | **無 vendor 評估流程文件**（雖有「禁中國」原則）| policies + C2-E |
+| G-C26 | 25010 Safety | command + pwa | **無 fail-safe mode 文件**（系統故障時 fallback 行為，涉及生命安全）| 規格書 + C3-D |
+| G-C27 | 25010 Portability | command | 無 Windows ops 支援（dev OK）| 文件層（不必修） |
+| G-C28 | PR template | meta | 無 PR template 強制 review 規則 | 立即可補（`.github/PULL_REQUEST_TEMPLATE.md`）|
+
+#### ⚪ Low / Quick wins
+
+| ID | 項目 | 說明 |
+|---|---|---|
+| G-C29 | `.github/CONTRIBUTING.md` 缺 | 開源 Open Core 後需要 |
+| G-C30 | Code of Conduct 缺 | 開源 Open Core 後需要 |
+
+#### ✅ Session C 確認的亮點
+
+| 項目 | 證據 |
+|---|---|
+| 測試體系成熟 | 269 tests / 4 layers / 129 security tests |
+| 安全測試覆蓋 | login lockout 9 / first-run 10 / admin gate 10 / payload fuzzing 15 / token forging 5 |
+| Code quality 工具 | ruff（E/F/I/UP/B）+ ruff-format + detect-secrets + pre-commit |
+| CI 自動化 | ci-backend.yml 每 push 跑 pytest + pip-audit + bandit + coverage |
+| systemd units 結構 | 3 個 service + 依賴 + restart policy + 階梯式 RestartSec |
+| 依賴 pinned | requirements.txt + requirements-test.txt 全 == |
+| Branch 策略文件化 | CLAUDE.md feature branch + PR + DoD |
+| `.secrets.baseline` 已 commit | detect-secrets V1.5.0 設計 |
+
 #### ✅ Session B 確認的亮點（已 comply 項目）
 
 | 項目 | 證據 |
@@ -937,9 +1107,31 @@ _Session D 填入_
 - `AU-3 跨組件 audit 缺串連` → 三組件無 correlation ID（gap）
 - `SC-8 PWA → Pi → Command 資料流` → `server/ws_handler.js` broadcasts deltas → `server/sync.js` 推 command（PII 全程明文）
 
-### Session C/D 索引（待補）
+### Session C 索引（Quality / Deploy / Ops）
 
-_（後續 session 執行時追加，預期會覆蓋 CI/CD、SBOM、SLSA、NIMS 對應）_
+#### CI / 測試 / 工具
+- `PW.6 / SA-11 / CIS §16` → `command-dashboard/tests/` → 269 tests, 4 layers
+- `PW.6 test catalog` → `command-dashboard/tests/TEST_CATALOG.md` → 完整測試型錄 + 覆蓋率分析
+- `PO.1 / CI` → `.github/workflows/ci-backend.yml` → pytest + pip-audit + bandit
+- `PW.4 / CIS §16.11` → `command-dashboard/.pre-commit-config.yaml` → ruff + detect-secrets + 基礎檢查
+- `PW.5 / V14.1` → `command-dashboard/pyproject.toml` → ruff 規則 E/F/I/UP/B
+- `PS.3 / CI artifact` → `.github/workflows/ci-backend.yml` retention 30 days
+
+#### 部署 / Ops
+- `CM-2 / MA-2` → `command-dashboard/setup.sh` → 開發環境初始化（idempotent）
+- `MA-2 / CM-3` → `update_pi.sh` → git pull + 條件式 deps reinstall + systemctl restart
+- `MA-2` → `start_pi.sh` / `start_mac_https.sh` → 多服務啟動順序 + health check
+- `CM-7 / MA-2` → `command-dashboard/systemd/*.service` → 3 個 service + 依賴 + restart 策略
+- `IR-5 / DE.CM` → `command-dashboard/src/routers/dashboard.py:40-42` → `/api/health`（基礎）
+
+#### 配置
+- `CM-6` → `command-dashboard/src/core/config.py` → env var + 預設值
+- `CM-2` → `deploy/nginx/conf.d/*.conf` → nginx baseline + sed runtime substitution
+- `SC-12` → `deploy/step-ca/` → PKI scripts（init / issue / renew）
+
+### Session D 索引（待補）
+
+_（Session D 執行時追加，預期會覆蓋 NIMS / ICS 508 / Taiwan 法規 / 整合）_
 
 ---
 

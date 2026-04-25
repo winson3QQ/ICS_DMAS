@@ -12,8 +12,8 @@ pip3 install -r requirements.txt
 # 建立必要資料夾
 mkdir -p data
 
-# 建立 DB（第一次執行，需在 src/ 目錄下執行）
-cd src && python3 -c "import db; db.init_db(); print('✓ 資料庫建立完成')" && cd ..
+# 建立 DB（C0 重構後使用 core.database.init_db）
+PYTHONPATH=. python3 -c "from src.core.database import init_db; init_db(); print('✓ 資料庫建立完成')"
 
 echo ""
 echo "=== 啟動方式 ==="

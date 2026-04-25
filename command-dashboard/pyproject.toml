@@ -2,10 +2,7 @@
 target-version = "py313"
 line-length = 120
 
-# 排除 legacy 死碼（不計入 coverage 目標，也不強制 lint）
 exclude = [
-    "src/db.py",
-    "src/main_legacy.py",
     "venv",
     "__pycache__",
 ]

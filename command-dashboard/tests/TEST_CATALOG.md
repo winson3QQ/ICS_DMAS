@@ -3,7 +3,7 @@
 > 目前共 **269 個測試案例**（268 passed + 1 xfailed），分四層執行（Unit / Integration / API / Security）。  
 > 最新報告：cmd-v2.0.5，2026-04-24，269 passed + 1 xfailed  
 > 新增：C2-D `TestAdminPinLockout`（7）、C1-E `TestMigrationsTable`（6）+ `TestSchemaMigrationsApi`（4）、Admin PIN 503 測試（1）  
-> Coverage：**44%**（排除 legacy dead code `db.py` / `main_legacy.py`）  
+> Coverage：**44%**（legacy dead code `db.py` / `main_legacy.py` 於 Session C audit 後移除，2026-04-25）  
 > 執行指令：`bash scripts/run_tests.sh`
 
 ---
@@ -625,7 +625,7 @@
 | `routers/admin.py` | 37% | 大量帳號管理 CRUD | C2 |
 | `services/ai_service.py` | 36% | AI stub，C5-C 才實裝 | C5-C |
 | `calc_engine.py` | 61% | 下半段為 Wave 6 功能，尚未實裝 | Wave 6 |
-| `db.py` / `main_legacy.py` | 0% | **Legacy 死碼，不計入 coverage 目標** | 待清除 |
+| ~~`db.py` / `main_legacy.py`~~ | — | **已於 2026-04-25 Session C audit 後刪除** | ✅ |
 
 > **已知風險項（未關閉）**  
 > ⚠️ 演練 mutex TOCTOU：`exercise_repo.update_exercise_status` SELECT→UPDATE 非原子，  
