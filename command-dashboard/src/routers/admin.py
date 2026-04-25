@@ -101,9 +101,13 @@ def _check_admin_pin(request: Request):
 
 
 def _check_no_escalation(sess: dict | None, target_username: str) -> None:
-    """防止低權限角色管理高權限帳號。sess=None 表示 Admin PIN break-glass，直接放行。"""
+    """防止低權限角色管理高權限帳號。sess=None 表示 Admin PIN break-glass，直接放行。
+    自我修改（同帳號）永遠允許。
+    """
     if sess is None:
         return
+    if sess.get("username") == target_username:
+        return  # 允許自我修改（例如改自己的 PIN）
     actor_level  = ROLE_HIERARCHY.get(sess.get("role", ""), 0)
     target       = get_account(target_username)
     if target is None:

@@ -162,7 +162,7 @@ def preview_contents(name: str, request: Request):
                     "AND name NOT LIKE 'sqlite_%' ORDER BY name"
                 ).fetchall()
             ]
-            counts = {t: conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
+            counts = {t: conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}  # nosec B608
             migrations = [
                 {"version": r[0], "name": r[1], "applied_at": r[2]}
                 for r in conn.execute(
@@ -213,7 +213,7 @@ def restore_command(name: str, request: Request):
         "    --overwrite",
         "",
         "# 4. 驗證 schema",
-        f'sqlite3 {DB_PATH_PATH} "SELECT version, name FROM schema_migrations ORDER BY version;"',
+        f'sqlite3 {DB_PATH_PATH} "SELECT version, name FROM schema_migrations ORDER BY version;"',  # nosec B608
         "",
         "# 5. 啟服務",
         "sudo systemctl start ics-command",

@@ -8,6 +8,8 @@ tests/security/test_first_run.py — C1-A 首次設定強制流程測試
 - gate 啟動時 whitelist 外的路徑回 423
 """
 
+import sys
+
 import pytest
 import os
 import re
@@ -36,8 +38,9 @@ class TestEnsureInitialAdminToken:
         token_file = tmp_path / "first_run_token"
         assert token_file.exists()
         assert token_file.read_text().strip() == pin
-        # 權限 0600
-        assert oct(token_file.stat().st_mode & 0o777) == "0o600"
+        # 權限 0600（Windows 不支援 Unix 檔案權限，跳過）
+        if sys.platform != "win32":
+            assert oct(token_file.stat().st_mode & 0o777) == "0o600"
 
     def test_returns_none_if_accounts_exist(self, tmp_db, tmp_path):
         from repositories.account_repo import (
