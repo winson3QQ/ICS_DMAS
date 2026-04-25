@@ -627,10 +627,8 @@
 | `calc_engine.py` | 61% | 下半段為 Wave 6 功能，尚未實裝 | Wave 6 |
 | ~~`db.py` / `main_legacy.py`~~ | — | **已於 2026-04-25 Session C audit 後刪除** | ✅ |
 
-> **已知風險項（未關閉）**  
-> ⚠️ 演練 mutex TOCTOU：`exercise_repo.update_exercise_status` SELECT→UPDATE 非原子，  
-> `test_concurrent.py::test_concurrent_activate_at_most_one_wins` 標記為 `xfail`。  
-> 修正方案：改為 `UPDATE exercises SET status='active', mutex_locked=1 WHERE id=? AND NOT EXISTS(SELECT 1 FROM exercises WHERE status='active' AND id!=?)` 原子寫入。預計 C2 修正。
+> **已關閉的風險項**  
+> ✅ ~~演練 mutex TOCTOU~~：2026-04-25 hotfix（commit 待補）— `exercise_repo.update_exercise_status` 改原子寫入（`UPDATE ... WHERE NOT EXISTS(...)` 單 statement + rowcount 檢查）；`test_concurrent_activate_at_most_one_wins` 從 xfail 改為 passed。
 
 ---
 

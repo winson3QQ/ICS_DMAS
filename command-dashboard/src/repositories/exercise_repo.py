@@ -69,15 +69,26 @@ def update_exercise_status(exercise_id: int, status: str, operator: str) -> bool
     now = now_utc()
     with get_conn() as conn:
         if status == "active":
-            # C5 前向相容：設 mutex，確保唯一 active
-            active_count = conn.execute(
-                "SELECT COUNT(*) as c FROM exercises WHERE status='active' AND id!=?",
-                (exercise_id,)).fetchone()["c"]
-            if active_count > 0:
-                raise ValueError("已有進行中的演練，請先封存後再啟動")
-            conn.execute(
-                "UPDATE exercises SET status=?, started_at=?, mutex_locked=1 WHERE id=?",
-                (status, now, exercise_id))
+            # 原子寫入防 TOCTOU：UPDATE 與 NOT EXISTS 在同一 statement，SQLite
+            # 寫鎖序列化；兩條 thread 並發時只有一條會成功 set active。
+            cur = conn.execute(
+                """
+                UPDATE exercises
+                SET status='active', started_at=?, mutex_locked=1
+                WHERE id=?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM exercises WHERE status='active' AND id != ?
+                  )
+                """,
+                (now, exercise_id, exercise_id))
+            if cur.rowcount == 0:
+                # 0 rows 有兩種可能：(1) 別處已有 active（mutex 衝突）;
+                # (2) exercise_id 不存在。判斷後給對應錯誤訊息。
+                conflict = conn.execute(
+                    "SELECT 1 FROM exercises WHERE status='active' AND id != ?",
+                    (exercise_id,)).fetchone()
+                if conflict:
+                    raise ValueError("已有進行中的演練，請先封存後再啟動")
         elif status == "archived":
             conn.execute(
                 "UPDATE exercises SET status=?, ended_at=?, mutex_locked=0 WHERE id=?",
