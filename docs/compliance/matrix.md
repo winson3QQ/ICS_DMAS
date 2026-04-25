@@ -1053,9 +1053,9 @@ _Session D 填入：治理、風險策略、角色責任_
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-C01 | CP-9 / CIS §11 / 個資法§27 | command + pi | **無自動備份腳本**（WAL 不夠；無 daily gzip / NAS rsync）| **C3-D 急迫** |
-| G-C02 | CP-10 / CSF RC.RP | command + pi + pwa | **無實機故障還原 playbook**（commercialization 寫了 RTO 4h 但無 runbook）| C3-D + policies §5 |
-| G-C03 | CP-4 | command + pi | **無 DR drill 紀錄 / 流程**（要求每 6 個月）| C3-D + policies §5 |
+| ~~G-C01~~ | CP-9 / CIS §11 / 個資法§27 | command | ~~無自動備份腳本~~ | ✅ **2026-04-25 closed**（C3-D 完成 command 端：systemd timer + backup_service + 17 tests；Pi 端待 P-Cx 補）|
+| ~~G-C02~~ | CP-10 / CSF RC.RP | command | ~~無實機故障還原 playbook~~ | ✅ **2026-04-25 closed**（`docs/ops/disaster_recovery.md` 4 情境 playbook + restore CLI）|
+| ~~G-C03~~ | CP-4 | command | ~~無 DR drill 紀錄 / 流程~~ | ✅ **2026-04-25 流程 closed**（playbook §「Recovery Drill」每 6 個月）；首次 drill 待執行 |
 | G-C04 | IR-6 / IR-8 / 個資法§12 | command + pi + pwa | **無 IR plan + 無 PDPC 72h 通報程序文件** | C1-A Phase 4 + policies §4 |
 | ~~G-C05~~ | CIS §16 | command | ~~TOCTOU mutex bug~~ | ✅ **2026-04-25 hotfix 修正**（atomic UPDATE WHERE NOT EXISTS + rowcount 檢查；`exercise_repo.py:71-91`）|
 | G-C06 | CM-3 / CM-6 | command + pi | **TLS 憑證路徑 hardcoded in systemd unit files**（cert/key 路徑）；renewal / drift 無監控 | C3-A + C3-B 擴 |
