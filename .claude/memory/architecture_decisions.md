@@ -330,6 +330,67 @@ Session A（Auth/Transport/Schema）→ B（PII/Audit/Frontend）→ C（Quality
 
 ---
 
+## Decision Set C：Session A audit 4 議題（2026-04-25 決策）
+
+Session A audit 揭露的 4 個跨 session 議題的最終設計決策。
+
+### C1：Session 雙層 timeout（NIST AC-12 / ASVS V3.3.2/V3.3.3）
+
+- **Idle timeout 30 分鐘**：超過閒置自動登出（無 API 呼叫即視為 idle）
+- **絕對 timeout 14 小時**：對應指揮官 12 小時班 + 2 小時交班緩衝（取代現有 8 小時）
+- **28 分鐘警告**：UI 彈警示「2 分鐘後將登出，按一下續期」
+- 對應 **C1-A Phase 2** 範圍
+
+### C2：Session 漸層綁定（IP + UA family）（ASVS V3.7 / NIST SC-23）
+
+不採嚴格 IP 綁定（演練切網會打斷指揮）；改漸層判斷：
+
+| 變化情境 | 處置 |
+|---|---|
+| 全不變 | 通過 |
+| IP 變但網段（/24）不變 | 通過 + audit「IP shifted within network」|
+| UA family 同、網段變 | 通過 + 要求 PIN lightweight re-auth + audit |
+| UA family 變 | 強制完整重登入 |
+| UA family + 網段都變 | 強制重登 + audit SEVERITY=HIGH |
+
+**UA family 規則**：解析 UA 字串只取大類（`Safari-iOS` / `Chrome-Win` 等），不存完整 UA（避免 OS 更新就 mismatch）。
+
+**配套 5 道防線**（與綁定一起構成深度防禦）：
+1. Idle timeout（C1）
+2. TLS 1.2+ 強制（已有）
+3. Token rotation：敏感操作（改 role / 刪帳號 / Transfer of Command）後發新 token
+4. Audit 記所有 session 變化（IP shift / network change / UA mismatch）
+5. 「上次登入 IP / 時間」UI 提示（使用者自己察覺異常）
+
+對應 **C1-A Phase 2** 範圍。
+
+### C3：Soft delete（AC-2(3) / 個資法稽核可追溯）
+
+- `delete_account()` 改為 `UPDATE accounts SET status='archived', deleted_at=now()`
+- 新增欄位：`deleted_at TEXT`（migration M006 一併加）
+- UI 預設不顯示 archived 帳號；admin 可選看
+- 真正物理刪除：個資法資料主體要求時才走獨立流程（留 `deletion_log`）
+- audit_log operator 字串保留歷史（join archived 帳號還能查到 display_name）
+
+對應 **C1-A Phase 2** 範圍。
+
+### C4：Rate limit 持久化 — 純 SQLite（NIST AC-7 / CIS §6.3）
+
+- in-memory dict → SQLite `rate_limit_buckets` 表
+- schema：`(scope, key, timestamp)` — scope=「login」/「admin_pin」/ 未來其他；key=IP；timestamp=每次嘗試時間
+- 查詢時 `DELETE` 過期的 + `COUNT` 視窗內的
+- restart 不清零
+
+**選 SQLite 而非 Redis 的 compliance 理由**：
+- SSDF / SLSA 不加 supply chain dep
+- SBOM（CycloneDX）不增元件
+- 客戶維運：不需多裝一個 service
+- Policies §5 recovery：一個 DB 集中備份
+
+對應 **C2-F** 範圍（與生產韌性 + DB 並發 retry 同步實作）。
+
+---
+
 ## Decision B：DB 並發 — SQLite + retry（短期）/ PG（長期）（2026-04-25 決策）
 
 ### 問題

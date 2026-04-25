@@ -79,10 +79,17 @@
 
 ### 未決定 / 待追問（cross-session issue）
 
-1. **Session idle timeout 要不要加**：目前只有絕對 8hr timeout。現場指揮 14hr 班制相容嗎？（C1-A Phase 2 範圍決定）
-2. **Session cookie vs header**：現在用 X-Session-Token header，天生抗 CSRF，但不利前端簡化。保留？還是改 HttpOnly cookie？（前端決策）
-3. **Rate limit 持久化**：in-memory 是刻意取捨還是技術債？（C1-A 範圍內補還是推後？）
-4. **Hard delete vs soft delete**：accounts 有 status 欄位但 `delete_account()` 是 hard DELETE。這有稽核風險（audit_log 的 operator 指向已不存在的 username）。要補正？
+**Session A 4 議題 — 已決議**（2026-04-25，詳見 architecture_decisions.md Decision Set C）：
+
+1. ✅ **Session 雙層 timeout**：30 min idle + 14 hr 絕對 + 28 min 警告（C1-A Phase 2）
+2. ✅ **Session 漸層綁定 IP + UA family + 5 道配套防線**（C1-A Phase 2）
+3. ✅ **Soft delete**：status='archived' + deleted_at 欄位，物理刪走獨立流程（C1-A Phase 2，M006 一併加欄位）
+4. ✅ **Rate limit 純 SQLite 持久化**：選 A，不用 Redis（C2-F）
+
+**Session cookie vs header**：保留 X-Session-Token header（抗 CSRF），不改 cookie。
+
+**新生議題（Session B 處理）**：
+- 暫無
 
 ### 重大架構發現（觸發 ROADMAP 或 architecture_decisions 更新的）
 
