@@ -391,6 +391,104 @@ Session A audit 揭露的 4 個跨 session 議題的最終設計決策。
 
 ---
 
+## Decision Set D：Session B audit 5 議題 + 實作策略（2026-04-25 決策）
+
+### D0：實作優先順序總原則（橫貫所有 Cx）
+
+> **原則**：command-dashboard 優先實作；Pi server / PWA 改動若**影響 command 行為**也視為優先；其餘 Pi / PWA 改動延後。
+
+落地規則：
+- 設計必須跨組件思考（不能 design 完才發現 Pi 不能配合）
+- 實作排程 command 先，Pi / PWA 後續 wave 補
+- 例外：Pi / PWA 的改動如果**會改 command 收到的資料 / 行為**（例：correlation ID 在 Pi 端產生、WS 訊息簽章 Pi 端要送），那部分要跟 command 同步推進
+
+### D1：C1-F 模組化提前
+
+`commander_dashboard.html` 376KB monolithic（10,000+ 行 inline JS）是後續所有功能的硬阻礙：
+- C1-A Phase 2 RBAC：前端 role-based UI 隱藏需 module 化才好寫
+- C1-D correlation ID：前端發 request 需中介 module
+- W-C1-A PWA 對齊：前後端模組化 pattern 一致才好維護
+
+**決策**：**C1-F 提前到 C1-A Phase 2 之前**（或前 2 週併行起步）。
+
+實際拆解：
+1. **C1-F 第一波**：抽出 module skeleton（ES modules + esbuild bundle 設定）+ 取出 auth / session module
+2. **C1-A Phase 2**：在 C1-F 第一波基礎上實作 RBAC（後端 require_role + 前端 role-based render）
+3. **C1-F 第二波**：CSP 升 enforce + nonce-based + 其他 module 收尾
+
+### D2：跨組件 audit hash chain — 設計跨組件，command 先實作
+
+跨組件 correlation ID + hash chain 設計原則：
+
+**Correlation ID（事件追蹤）**：
+- 起源於最早接收 user action 的組件（PWA 或 command browser）
+- 格式：UUID v4
+- 跨組件傳遞：
+  - PWA → Pi：WS msg payload 帶 `corr_id`
+  - Pi → command：HTTP push body / Bearer header 都帶 `corr_id`
+  - Command 內部：FastAPI middleware 自動 propagate to log + audit
+- 落地階段：
+  - **第一階段**：command 內部 correlation ID（middleware + structlog + audit_log 欄位）
+  - **第二階段**：Pi 端接收 + 轉發
+  - **第三階段**：PWA 端產生 + 上傳
+
+**Audit hash chain**：
+- 設計：每筆 audit_log 含 `prev_hash` + 自身內容 → SHA-256 → `cur_hash`
+- 跨組件：每組件各自維護一條 chain（command / pi / pwa 各一）；command 端再做「meta-chain」串接 Pi 推送的批次 hash
+- 校驗：定期 / 啟動時 verify 整條 chain
+- 落地階段：
+  - **第一階段**：command audit_log 加 `prev_hash` + `cur_hash` 欄位 + verify 邏輯
+  - **第二階段**：Pi audit_log 加同樣欄位
+  - **第三階段**：PWA audit_log 加 + 上傳時帶 chain 簽章
+
+對應 **C1-D**（command）+ **P-C1-D**（pi）+ **W-C1-D**（pwa）。
+
+### D3：PII redaction by role — 必須合規
+
+> 個資法 §6 + §27：特種個資（醫療）必要範圍才能蒐集 / 處理 / 利用。觀察員 role 沒有業務必要性看完整病患姓名 / 過敏 / 用藥。
+
+**決策**：實作 role-based PII redaction：
+
+| Role | 病患資料可見範圍 |
+|---|---|
+| 系統管理員 | 完整（包含姓名、年齡、性別、症狀、過敏、用藥）|
+| 指揮官 | 完整 |
+| 操作員 | 依職責（醫療相關職務 = 完整；其他 = 僅 display_id + 傷情等級）|
+| **觀察員** | **匿名化**：只顯示 display_id（例：M-001）+ 傷情等級色（紅 / 黃 / 綠 / 黑）+ 後送狀態；不顯示姓名 / 年齡 / 症狀細節 |
+
+**實作位置**：
+- 後端 redact layer：`services/pii_filter.py` — 依 session role 過濾 response payload
+- 套用點：所有 endpoint 回 patient / person 資料時 middleware 過濾
+- audit log：observer 看了什麼匿名化資料也要 audit（PT-7 要求）
+
+**收容組（persons）對應**：
+- 觀察員看：床位佔用率 + 入站數，不看姓名
+
+對應 **C1-A Phase 2**（role gate）+ **C1-C**（PII filter）。
+
+### D4：P-C1-E 範圍擴大確認
+
+P-C1-E 從原本「Schema version API + GUI 顯示」擴大為：
+- Pi 端建立 **正式 `schema_migrations` 版本表**（取代現有 ad-hoc CREATE IF NOT EXISTS）
+- 引入 migration runner 邏輯（對齊 command 的 `_MIGRATIONS` list pattern）
+- 提供 `GET /admin/schema-version` API
+- shelter + medical PWA admin 介面顯示 Pi 當前 schema version
+
+對應 **P-C1-E**。
+
+### D5：B-FIX-01 isAuthed bug → 併入 P-C1-G
+
+`server/ws_handler.js` 的 `clear_table` 檢查 `ws.isAuthed`（永遠 false 的 dead-deny）：
+- 不 hotfix（按實作策略 D0：Pi-side 不直接影響 command 當前行為）
+- 併入 **P-C1-G**（Pi WS 安全與可靠性）：
+  - 修正 isAuthed flag（auth 成功時 set）
+  - 或刪除 clear_table msg type（如不需要）
+  - 同時補 WS 訊息簽章 + 重放防護 + heartbeat 完整管理
+
+對應 **P-C1-G**。
+
+---
+
 ## Decision B：DB 並發 — SQLite + retry（短期）/ PG（長期）（2026-04-25 決策）
 
 ### 問題

@@ -16,8 +16,8 @@
 
 | Session | 範圍 | 狀態 | 完成日期 | Context 要點 |
 |:---:|---|:---:|---|---|
-| A | C0 + C1-A + C1-B + C1-E（Auth/Transport/Schema） | 🔄 進行中 | 2026-04-25 | Architecture-level audit 完成；詳下 |
-| B | C1-C + C1-D + C1-F + W-C1-* + P-C1-*（PII/Audit/Frontend） | ⏸ 未開始 | — | — |
+| A | C0 + C1-A + C1-B + C1-E（Auth/Transport/Schema） | ✅ 完成 | 2026-04-25 | 31 個 gap，Decision Set C 4 議題決議 |
+| B | C1-C + C1-D + C1-F + W-C1-* + P-C1-*（PII/Audit/Frontend） | ✅ 完成 | 2026-04-25 | 28 個 gap + 1 個 immediate fix（B-FIX-01 isAuthed bug）+ 6 個亮點 |
 | C | C2 + C3 + P-C2-* + W-C2-*（Quality/Deploy/Ops） | ⏸ 未開始 | — | — |
 | D | Wave 功能 + NIMS + ICS 508 + 整合 | ⏸ 未開始 | — | — |
 
@@ -70,12 +70,17 @@
 - `command-dashboard/src/services/pi_push_service.py` — Pi push 驗證
 - `deploy/step-ca/README.md` — PKI 架構說明
 
-**Session B/C/D 可能需要補讀（本 session 未深讀）**：
-- `command-dashboard/src/routers/events.py` / `decisions.py` / `snapshots.py` — 寫入類 endpoints（Session B 配 C1-D correlation ID）
-- `server/auth.js`, `server/ws_handler.js`, `server/middleware.js` — Pi server auth（Session B 配 P-C1-G）
-- `command-dashboard/static/commander_dashboard.html` — 前端 role gate（Session B 配 W-C1-A 審）
-- `shelter-pwa/`, `medical-pwa/` — PWA 原始碼（Session B 必讀）
+**Session B 已掃 / 已映射**（架構層）：
+- `server/index.js` / `routes.js` / `auth.js` / `middleware.js` / `audit.js` / `migrations.js` / `db.js` / `sync.js` / `ws_handler.js` / `config.js` / `logger.js`（全 Pi server）
+- `shelter-pwa/public/shelter_pwa.html`（3264 行 monolithic）+ `sw.js` + `manifest.json`
+- `medical-pwa/public/medical_pwa.html` + `sw.js` + `manifest.json`
+- `command-dashboard/static/commander_dashboard.html`（376 KB monolithic）
+
+**Session C/D 可能需要補讀**：
 - `.github/workflows/*.yml` — CI 設定（Session C 必讀）
+- `command-dashboard/tests/**` — 測試覆蓋率分析（Session C）
+- `command-dashboard/pyproject.toml` / `requirements.txt` — 依賴清單（Session C SBOM 用）
+- `package.json` 系列 — Node.js 依賴（Session C）
 
 ### 未決定 / 待追問（cross-session issue）
 
@@ -88,8 +93,15 @@
 
 **Session cookie vs header**：保留 X-Session-Token header（抗 CSRF），不改 cookie。
 
-**新生議題（Session B 處理）**：
-- 暫無
+**Session B 5 議題 — 已決議**（2026-04-25，詳見 architecture_decisions.md Decision Set D）：
+
+1. ✅ **B-FIX-01 isAuthed bug**：併入 P-C1-G（按實作策略 D0：Pi-side 不影響 command 當前行為，不 hotfix）
+2. ✅ **C1-F 提前**：移到 C1-A Phase 2 之前或併行（376KB monolithic 是 RBAC 硬阻礙）
+3. ✅ **跨組件 audit hash chain 設計定案**：每組件各維護一條 chain + command 端 meta-chain；correlation ID 跨組件 propagate；command 先實作（C1-D）/ Pi 跟進（P-C1-D）/ PWA 跟進（W-C1-D）
+4. ✅ **P-C1-E 範圍擴大**：Pi 建正式 `schema_migrations` 表 + runner + API + PWA GUI
+5. ✅ **PII redaction by role**：觀察員只看 display_id + 傷情等級色；姓名 / 症狀 / 過敏 / 用藥不顯（個資法 §6 §27 必合規）；redact layer 在 command service 層（C1-A Phase 2 + C1-C）
+
+**實作策略總原則（Decision D0）**：command 優先；Pi/PWA 改動若影響 command 行為視為優先；其餘 Pi/PWA 改動 wave 後補。
 
 ### 重大架構發現（觸發 ROADMAP 或 architecture_decisions 更新的）
 
@@ -204,6 +216,30 @@ Gap 過長時移到最下方「Gap Register」section，matrix 只留編號。
 | AU-11 | Audit Record Retention | ❌ | ❌ | N/A | C1-D / C3-D | 🟡 | **無保存 / 清除策略**；security_policies.md §3 規劃 6 個月 |
 | AU-12 | Audit Generation | ⚠️ | ⚠️ | ❌ | C1-D | 🟡 | 寫入類動作多有 audit，但**非 100% 覆蓋**（需 middleware 層強制，而非 service 層選擇性）|
 
+#### Session B 補充：跨組件 audit 細節
+
+**Pi server audit_log schema**（`server/migrations.js`）：
+```sql
+audit_log(id TEXT PK, action, operator_name, device_id, session_id, timestamp, detail JSON)
+```
+
+**Pi audit 寫入點**（顯式呼叫，非 middleware）：
+- `ws_handler.js`：login_success / login_failed / network_recovery_push / audit_event（PWA 上傳）
+- `routes.js`：admin_pin_setup / account_created / account_status_changed / pin_reset / account_deleted / account_role_changed
+
+**PWA audit_log（IndexedDB）**：
+- shelter：person_exited / full_data_destroy / snapshot_exported / network_recovery_push
+- medical：patient_intake / patient_triage / transfer_initiated / export_completed
+- 經 `SyncManager.sendAuditEvent()` 上傳 Pi（無強制；非 middleware 層）
+
+**Session B 確認的 audit gap**：
+- ❌ 三組件 **無 correlation ID** 串連（同一個操作在三邊各自有獨立 ID）
+- ❌ 三組件 **無 hash chain**（Pi audit_log 也只是 INSERT-only 程式約定）
+- ❌ Pi audit_event msg type 接收**無驗證**（PWA 可送任意 audit）
+- ❌ 三組件 audit log **無 cleanup / 保存政策**
+- ⚠️ Pi 寫 audit **失敗 silent**（try/catch 吞掉不告警）
+- ⚠️ audit detail JSON 可能含 PII（待 C1-C 加 PII tagger 過濾）
+
 ### 1.3 IA — Identification and Authentication
 
 | Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
@@ -248,7 +284,17 @@ Gap 過長時移到最下方「Gap Register」section，matrix 只留編號。
 
 ### 1.5 SI — System and Information Integrity
 
-_Session C 填入：SI-2/3/4/7/10/11/16_
+> Session B 部分填入（與 audit / WS 安全相關）；其餘 Session C 補。
+
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| SI-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🟡 | security_policies.md 骨架 |
+| SI-4 | System Monitoring | ⚠️ | ❌ | N/A | C1-D + C3-C | 🟡 | command 有 audit_log 查詢；Pi 無告警 / 監控；缺 anomaly detection |
+| SI-7 | Software / Firmware Integrity | ❌ | ❌ | ❌ | C2-E + C3-F | 🟡 | 無 binary 簽章驗證；C3-F Docker image signing 計畫處理 |
+| SI-7(15) | AI Model Integrity | N/A | N/A | N/A | C5-E（未來）| ⚪ | 待 AI 部署時加 model weight 簽章（C5-E 範圍）|
+| SI-10 | Information Input Validation | ⚠️ | ⚠️ | ⚠️ | C2-F | 🟡 | Pydantic schema 驗 command；Pi `express.json()` **預設 100kb 上限**；PWA 客端驗無服務端配套 |
+| SI-11 | Error Handling | ⚠️ | ❌ | N/A | C2-F | 🟡 | command HTTPException 不洩 stack；**Pi 無全域 exception handler**；sync.js 有 `catch(err)` 但吞掉不 log |
+| SI-16 | Memory Protection | N/A | N/A | N/A | — | — | 應用層無相關（OS / runtime 提供）|
 
 ### 1.6 CM — Configuration Management
 
@@ -278,9 +324,37 @@ _Session C 填入：SA-8/11/15（SSDF 相關）_
 
 _Session C 填入：SR-3/5/11（SBOM / SLSA 相關）_
 
-### 1.13 MP / PE / PS / AT
+### 1.13 MP — Media Protection
 
-_Session D 評估：本系統多為組織流程層（訓練、實體安全、人員管理），部分 N/A_
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| MP-1 | Policy and Procedures | ❌ | ❌ | ❌ | C1-A Phase 4 | 🟡 | security_policies.md §6 (Privacy) 部分涵蓋；應補 MP 章節 |
+| MP-2 | Media Access | ❌ | ❌ | ❌ | C1-C 擴大 | 🔴 | **PWA IndexedDB 含病患 PII 明文**；Pi SQLite 含病患 PII 明文；Command SQLite 同；C1-C 三層加密解 |
+| MP-4 | Media Storage | ❌ | ❌ | ❌ | C1-C 擴大 / C3-D | 🔴 | 同 MP-2；備份檔（C3-D）也明文 |
+| MP-5 | Media Transport | N/A | N/A | N/A | — | — | 系統內部傳輸由 SC 控制 |
+| MP-6 | Media Sanitization | ❌ | ❌ | ❌ | medical-pwa Phase 3 / C3-D | 🟡 | **Panic Wipe 未實施**（medical-pwa 規劃）；Pi / Command 退場 disk wipe 流程未文件化 |
+| MP-7 | Media Use | ❌ | ❌ | ❌ | C1-C / W-C1-C | 🟡 | PWA 端 export（medical AES-256-GCM 加密 ✅，shelter snapshot 加密 ✅）；無 USB 政策 |
+
+### 1.14 PT — Privacy（800-53 Privacy Controls）
+
+| Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
+|---|---|:---:|:---:|:---:|---|:---:|---|
+| PT-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🔴 | security_policies.md §6 骨架；個資法明訂 |
+| PT-2 | Authority to Process PII | ❌ | ❌ | ❌ | C1-C | 🔴 | **無 purpose limitation 文件化**（蒐集目的）；個資法 §5 要求 |
+| PT-3 | PII Processing Purposes | ❌ | ❌ | ❌ | C1-C | 🟡 | 無告知當事人機制（演練前同意書是流程層，未在系統內）|
+| PT-4 | Consent | ❌ | ❌ | ❌ | C1-C | 🟡 | 無系統內同意紀錄；應由演練表單收 |
+| PT-5 | Privacy Notice | ❌ | ❌ | ❌ | C1-A Phase 4 | 🟡 | 無隱私權告知頁 |
+| PT-6 | System of Records Notice | N/A | N/A | N/A | — | — | 美國聯邦特有（Privacy Act）|
+| PT-7 | Specific Categories of PII | ⚠️ | ⚠️ | ⚠️ | C1-C | 🔴 | **病患醫療資料是個資法 §6 「特種個資」**；需明確記錄 + 加密 + 存取稽核 |
+
+### 1.15 AT / PE / PS / SR
+
+| 族 | 狀態 | 備註 |
+|---|:---:|---|
+| AT（教育訓練）| ❌ | C1-A Phase 4 規劃；security_policies.md 補 |
+| PE（實體環境）| N/A | 由部署現場政策（Pi 鎖櫃、機房門禁）|
+| PS（人員安全）| N/A | 由組織人事流程 |
+| SR（供應鏈）| ⚠️ | C2-E 範圍（SBOM、SLSA L2、dep scan）|
 
 ---
 
@@ -340,13 +414,15 @@ _Session C 填入：資產清單、風險評估、供應鏈_
 | PR.AA-05 | Access permissions enforced（含 least privilege）| ❌ | AC-3/5/6；**核心 gap**，C1-A Phase 2 |
 | PR.AA-06 | Physical access | N/A 軟體 | 由部署現場政策（Pi 鎖櫃）|
 
-#### PR.DS — Data Security（部分）
+#### PR.DS — Data Security（Session B 完整版）
 
-| ID | 子能力 | Status | 對應 |
+| ID | 子能力 | Status | 對應 NIST / Cx |
 |---|---|:---:|---|
-| PR.DS-01 | Data-at-rest 保護 | ❌ | SC-28；C1-C 三層加密待做 |
-| PR.DS-02 | Data-in-transit 保護 | ✅ | SC-8；TLS 完整 |
+| PR.DS-01 | Data-at-rest 保護 | ❌ | SC-28 / MP-2/4；**3 層 storage 全明文**（PWA IndexedDB / Pi SQLite / Command SQLite）；C1-C 三層加密 |
+| PR.DS-02 | Data-in-transit 保護 | ⚠️ | SC-8；command ↔ user TLS ✅；Pi server 可 fallback ws://；C1-B 收尾 + P-C1-B |
 | PR.DS-10 | Data-in-use 保護 | N/A | 單機處理 |
+| PR.DS-11 | Data confidentiality（PII）| ❌ | MP-2 / PT-7；**特種個資（醫療）明文**；C1-C |
+| PR.DS-13 | Software / hardware integrity | ⚠️ | SI-7；無 binary 簽章；C2-E + C3-F |
 
 ### 3.4 DETECT
 
@@ -506,13 +582,46 @@ _Session C 填入_
 
 | Requirement | Status | Evidence / Gap |
 |---|:---:|---|
-| V9.1.1 TLS for all inbound connections | ✅ | nginx 終端 TLS 1.2+；loopback 到 FastAPI 是明文但同主機 |
+| V9.1.1 TLS for all inbound connections | ⚠️ | command nginx ✅；**Pi server 預設可 fallback 到 ws://**（STRICT_TLS=false 時）；C1-B 收尾 + P-C1-B 解 |
 | V9.1.2 Modern TLS configuration | ✅ | Mozilla Intermediate 2024-09 |
 | V9.1.3 Insecure protocols 禁用 | ✅ | TLS 1.0/1.1 禁用 |
-| V9.2.1 Outbound connections 驗證憑證 | ⚠️ | Python requests / urllib 預設 verify=True；待驗證是否有 verify=False 的地方 |
+| V9.2.1 Outbound connections 驗證憑證 | ⚠️ | Python requests / urllib 預設 verify=True；Pi 端 fetch 行為待驗證 |
 | V9.2.2 Encrypted communications with backend components | ⚠️ | Pi↔Command HTTPS + Bearer；**缺 mTLS**（C1-G）|
 | V9.2.3 Authenticated connections with backend | ✅ | Bearer token 驗 |
 | V9.2.4 Certificates validated against trust chain | ✅ | step-ca CA 掛到系統 trust store（trust-root-mac.sh）|
+
+#### V7: Cryptography
+
+| Requirement | Status | Evidence / Gap |
+|---|:---:|---|
+| V7.1.1 主要金鑰由 OS / KMS 管理 | ⚠️ | TLS 私鑰存盤；step-ca 私鑰存盤；無 OS keyring / KMS（暫接受，C3-B 補 LUKS 後改善）|
+| V7.1.2 不在程式碼 hardcode | ✅ | detect-secrets pre-commit；env / config 表 / file 三處取 |
+| V7.1.3 隨機數源強度 | ✅ | command: `secrets.token_*` ✅；Pi: `crypto.randomBytes` ✅；PWA: `crypto.getRandomValues` ✅ |
+| V7.2 演算法選用 | ✅ | PBKDF2-SHA256（100k iter）/ TLS 1.2+ / AES-256-GCM（PWA export）|
+| V7.3 加密金鑰 lifecycle | ⚠️ | 無正式 key rotation 政策（PIN / TLS cert 都靠手動換） |
+
+#### V8: Data Protection
+
+| Requirement | Status | Evidence / Gap |
+|---|:---:|---|
+| V8.1 一般資料保護 | ⚠️ | Memory cache 有；**無加密 at rest** |
+| V8.1.1 敏感資料 logging 排除 | ⚠️ | command audit_log detail 可能含 PII（C1-C 加 tagger）；structlog 過濾規則未定 |
+| V8.1.2 敏感資料 cache control 防護 | ⚠️ | nginx 靜態 Cache-Control 未針對敏感頁設 `no-store`（待 C1-F）|
+| V8.2 client-side data protection | ❌ | **PWA IndexedDB 病患資料明文**（W-C1-C 三層加密）|
+| V8.3 sensitive private data | ❌ | **病患 PII（姓名/年齡/性別/症狀/過敏）全明文** at rest（C1-C + W-C1-C）|
+
+#### V14: Configuration（Frontend / 部署）
+
+| Requirement | Status | Evidence / Gap |
+|---|:---:|---|
+| V14.1 Build / Deploy 流程 | ⚠️ | 有 GitHub Actions CI；**無 SBOM / SLSA**（C2-E）|
+| V14.2 依賴管理 | ⚠️ | `requirements.txt` / `package.json` 鎖版本；**無自動 vuln scan in CI**（C2-C 擴充）|
+| V14.3 Unintended security disclosure | ⚠️ | Pi server **無生產 / 開發模式區分**（NODE_ENV 不檢查）；C2-F 解 |
+| V14.4 HTTP Security Headers | ⚠️ | command nginx ✅；**Pi server `/static/`（PWA HTML 來源）無 security headers**；W-C1-F 補 |
+| V14.4(1) X-Content-Type-Options | ⚠️ | command ✅；Pi `/static/` ❌ |
+| V14.4(3) Content-Security-Policy | ⚠️ | command ✅（report-only，待 enforce）；**PWA 完全無 CSP**（無 meta tag、無 header）|
+| V14.4(5) Referrer-Policy | ⚠️ | command ✅；Pi `/static/` ❌ |
+| V14.5 HTTP Request Header Validation | ⚠️ | FastAPI Pydantic 驗；Pi `express.json()` 預設 100kb limit；**無顯式 size limit / type 檢查** |
 
 ---
 
@@ -603,7 +712,33 @@ _Session D 填入：12 項防護基準對應 NIST 800-53 控制項_
 
 ### 13.2 個資法 PDPA
 
-_Session B 填入：個資欄位清單 / 蒐集目的 / 存取稽核 / 72h 通報_
+#### PII 欄位清單（Session B 確認）
+
+| 表 / 來源 | 欄位 | 個資類別 | 存放位置 | 加密狀態 |
+|---|---|---|---|---|
+| **medical-pwa: patients** | display_id, source_age, source_sex, injury_type, trauma_or_medical (含主訴 / 過敏 / 用藥), current_zone, disposition | **§6 特種個資（醫療）** | IndexedDB | ❌ 明文 |
+| **medical-pwa: triages** | patient_id + triage 細節 | §6 特種個資 | IndexedDB | ❌ 明文 |
+| **shelter-pwa: persons** | display_id, name, age, status, family_unit_id | §6 一般個資 | IndexedDB | ❌ 明文 |
+| **Pi server: current_state / delta_log / snapshots** | 上述全部（透過 sync） | §6 一般 + 特種 | SQLite | ❌ 明文 |
+| **command: pi_received_batches / snapshots** | 上述全部（透過 push） | §6 | SQLite | ❌ 明文 |
+| **command: accounts** | username, display_name | §2 一般個資 | SQLite | hash（PIN）+ 明文（display） |
+| **command: audit_log.detail** | 可能含 operator name / target | §2 一般 | SQLite | ❌ 明文 |
+
+#### 個資法各條對應
+
+| 條文 | 要求 | Status | 缺口 / 對應 Cx |
+|---|---|:---:|---|
+| §5 蒐集 — purpose limitation | 限於特定目的必要範圍 | ❌ | 系統內無 purpose 紀錄；演練表單收集流程未在系統內；C1-A Phase 4 補政策 + C1-C 標欄位 |
+| §6 特種個資（醫療）| 原則禁止蒐集，例外要明文同意 + 法律依據 | ⚠️ | 災害防救法 §35 提供法律依據 ✅；**未在系統內紀錄當事人同意** |
+| §8 告知義務 | 蒐集時告知當事人 | ❌ | 無系統內告知機制；演練前同意書是流程層 |
+| §11 維護資料正確 | 資料不正確應刪除 / 更正 | ⚠️ | medical PWA 有 transfer / disposition；無公開的「請求更正」流程 |
+| §12 資料外洩通報 | 72h 內通報 PDPC + 當事人 | ❌ | **無 incident response 流程文件化**；C1-A Phase 4 + security_policies.md §4 補 |
+| §15 公務機關蒐集 | 法律依據 + 必要 + 安全維護措施 | ⚠️ | 災害防救法依據 ✅；**安全維護措施不足**（無加密 at rest）|
+| §17 公開應由首長負責 | 設立資料保護標準 | ❌ | 需組織政策層；security_policies.md §6 |
+| §18 個資處理人員管理 | 員工管理 / 教育訓練 | ❌ | C1-A Phase 4 + 組織政策 |
+| §19 國際傳輸 | PDPC 限制 | ✅ | 本系統本地優先；雲端 AI 規劃匿名化（C5-E）|
+| §27 / §41 安全維護義務 | 防止竊取 / 竄改 / 毀損 / 滅失 / 洩漏 | ❌ | 同 §15；**未達標**；C1-C + C1-D + C3-D 解 |
+| §41 違反罰則 | 5 萬 ~500 萬 + 刑責 | — | 風險警示：未達 §27 標準會吃罰款 |
 
 ### 13.3 災害防救法
 
@@ -673,6 +808,68 @@ _Session D 填入_
 | G-A30 | V3.7 | command | 無 token rotation（敏感動作後換 token）| C1-A Phase 2（可選）|
 | G-A31 | V3.3.1 | command | 登出未終結所有裝置 session | C1-A Phase 2 |
 
+### Session B 發現（2026-04-25）
+
+#### 🚨 Immediate fix（程式碼 bug，非 compliance gap）
+
+| ID | 問題 | 檔案 | 說明 |
+|---|---|---|---|
+| **B-FIX-01** | `ws.isAuthed` 從未被 set | `server/ws_handler.js` `clear_table` 處 | 檢查 `if (!ws.isAuthed) reject` 永遠 reject（dead code 變相 deny-all）；要嘛刪 dead path、要嘛實作正確的 isAuthed flag；併入 P-C1-G |
+
+#### 🔴 Critical（v2.1.0 投標前必補）
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-B01 | MP-2 / SC-28 / PT-7 / 個資法§27 | pwa | **病患特種個資 + 收容人員個資 IndexedDB 全明文** | W-C1-C |
+| G-B02 | MP-2 / SC-28 | pi | Pi SQLite **整 DB 明文**（current_state / delta_log / snapshots 全帶 PII）| C1-C 擴大（P-C1-C 新項）|
+| G-B03 | SC-28 | command | command SQLite 同（pi_received_batches / snapshots）| C1-C |
+| G-B04 | V14.4(3) | pwa | **PWA 完全無 CSP**（無 meta，無 header，因 Pi 是 Express 不送 security headers）| W-C1-F |
+| G-B05 | SC-23 / V9.2.2 | pi | WebSocket 訊息 **無簽章 / 無 HMAC / 無重放防護** | C1-G + P-C1-G |
+| G-B06 | SC-8 | command + pi | **WS / Pi push 可 fallback 到 ws:// / http://**（STRICT_TLS=false 時）| C1-B 收尾 + P-C1-B |
+| G-B07 | AC-7 | pi | **Pi server admin PIN 無 lockout**（command 有，Pi 沒對齊）| P-C1-A |
+| G-B08 | PT-2 / 個資法§5,§6,§8 | command + pi + pwa | **無 purpose limitation 紀錄 + 無告知 + 無同意紀錄**（系統內）| C1-A Phase 4 + C1-C |
+| G-B09 | 個資法§12 / IR-6 | command + pi + pwa | **無 72h PDPC 通報流程文件化** | security_policies.md §4 + C1-A Phase 4 |
+| G-B10 | AU-12 / AU-3 | command + pi + pwa | **跨組件無 correlation ID**；同操作三邊 audit 無法串連 | C1-D |
+
+#### 🟡 High（v2.1.0 強烈建議補）
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-B11 | AC-3 / SC-7 | pi | **WS broadcast 無 record-level 過濾**：所有 PWA 收所有 delta（包含 PII）| C1-G + W-C1-A |
+| G-B12 | AU-3 | pi + pwa | PWA 上傳的 `audit_event` msg type **無服務端驗證**（任何人可送任意 audit）| P-C1-G |
+| G-B13 | SI-11 / V14.3 | pi | **Pi 無全域 exception handler**；無 NODE_ENV 區分；錯誤可能洩漏 | P-C2-F |
+| G-B14 | V8.1.1 | command + pi | audit_log `detail` JSON **可能含 PII**（無 tagger 過濾）| C1-C + C1-D |
+| G-B15 | AC-2 / 個資法§11 | pi | Pi `accounts` 表帳號管理流程 **與 command 不同步**（雙端維護同帳號）| W-C1-A / P-C1-A 設計 |
+| G-B16 | SC-5 | pi | **Pi server 無 rate limit**（任何層）；`express.json()` 預設 100kb | P-C2-F |
+| G-B17 | AU-11 / 個資法§11 | command + pi + pwa | 三組件 audit_log 無 cleanup 政策；長期累積 | C1-D + security_policies §3 |
+| G-B18 | V14.4 | pi | Pi `/static/` (PWA HTML 來源) **無 security headers**（X-Content-Type-Options / Referrer-Policy 等）| W-C1-F |
+| G-B19 | AU-5 | pi | Pi audit 寫入失敗 silent swallow（try/catch 吞）| P-C1-G + C1-D |
+| G-B20 | AC-3 / V4.1 | command | **commander_dashboard.html 376KB monolithic**（10,000+ 行 inline JS）| **C1-F 急迫**；前端模組化是 RBAC 前置 |
+| G-B21 | SC-18 | pwa | shelter PWA 43× innerHTML / medical PWA 31× innerHTML | W-C1-F |
+| G-B22 | CM-3 | pi | Pi 無 schema_migrations 版本表（migrations.js 是 ad-hoc CREATE IF NOT EXISTS）| P-C1-E |
+
+#### 🟠 Medium
+
+| ID | Control | Component | Gap | Target Cx |
+|---|---|---|---|---|
+| G-B23 | SI-7 | pi + pwa | sw.js cache HTML **無 origin 嚴格驗證**；可能 cache 跨版本髒資料 | W-C1-F |
+| G-B24 | V8.1.2 | command | nginx 靜態 `/static/` 對敏感頁無 `Cache-Control: no-store` | C1-F |
+| G-B25 | V7.3 | command + pi | 無正式 key rotation 政策（PIN / TLS / API key 都靠手動）| C1-A Phase 4 + C3-B |
+| G-B26 | MP-6 | pwa + pi | 退場 disk wipe 流程未文件化 | C3-D + medical Phase 3 (Panic Wipe) |
+| G-B27 | PT-3 / PT-4 | command + pwa | 無系統內隱私權告知 + 同意紀錄 | C1-A Phase 4 |
+| G-B28 | V8.3 PII redaction by role | command | 觀察員 role 預期能看 dashboard 但**不該看完整病患 PII**；目前無 role-based PII redaction | C1-A Phase 2 + C1-C |
+
+#### ✅ Session B 確認的亮點（已 comply 項目）
+
+| 項目 | 證據 |
+|---|---|
+| Medical PWA export 加密 | AES-256-GCM with PBKDF2 derived key（醫療 PWA `ExportCrypto`）|
+| Shelter PWA snapshot 加密 export | 同上 |
+| WS heartbeat ping | 25s ping，無回應 terminate（雖然不夠完整，但有基本機制）|
+| push_queue 24h cleanup | `MAX_QUEUE_AGE_MS=24h` 自動清過期未送資料 |
+| PIN client-side hash | shelter / medical PWA 都用 PBKDF2-SHA256 100k iter（client-side hash before send）|
+| WAL mode | Pi SQLite + command SQLite 都啟 WAL |
+
 ---
 
 ## Evidence Index（關鍵 control 的實作位置）
@@ -712,9 +909,37 @@ _Session D 填入_
 - `CM-3 migrations` → `command-dashboard/src/core/database.py` → _MIGRATIONS list M001-M005, idempotent
 - `CM-6 schema_migrations` → `command-dashboard/src/db.py` → schema_migrations 追蹤表
 
-### Session B/C/D 索引（待補）
+### Session B 索引（PII / Audit 跨組件 / Frontend）
 
-_（後續 session 執行時追加，預期會覆蓋 audit hash chain、PII 加密、CI/CD、NIMS 對應）_
+#### Pi server
+- `AC-7 / IA-2 Pi auth` → `server/auth.js` → PBKDF2 PIN + login_failures 表（30min/5x lockout 帳號層）
+- `IA-2 Pi WS auth` → `server/ws_handler.js` → WS 連線後 `auth` msg + PBKDF2 驗證
+- `AU-2 Pi audit write` → `server/audit.js::writeAuditLog()` → `audit_log` 表 INSERT
+- `AU-2 Pi audit events` → `server/ws_handler.js` + `server/routes.js` → 顯式呼叫各 event
+- `SC-8 Pi TLS load` → `server/config.js:62-84` → CERT_PATH / KEY_PATH / STRICT_TLS 邏輯
+- `SC-8 Pi push to command` → `server/sync.js:144-145` → POST `/api/pi-push/{unit}` + Bearer token
+- `AC-3 Pi admin gate` → `server/middleware.js::adminAuth` → x-admin-pin 比對
+
+#### Shelter PWA
+- `IA-2 PWA login` → `shelter-pwa/public/shelter_pwa.html` → PIN + PBKDF2-SHA256 100k iter（client-side hash）
+- `MP-2 / SC-28 IndexedDB` → `shelter-pwa/public/shelter_pwa.html` → Dexie schema v3（persons / beds / incidents / shifts / audit_log / snapshots / config）
+- `SC-18 frontend` → `shelter-pwa/public/shelter_pwa.html` → 43× innerHTML
+- `SI-7 service worker` → `shelter-pwa/public/sw.js` → Cache-First 策略 + 無 origin 嚴格驗證
+- `MP-7 export` → `shelter-pwa/public/shelter_pwa.html::ExportCrypto` → AES-256-GCM with PBKDF2 key
+
+#### Medical PWA
+- `IA-2 PWA login` → `medical-pwa/public/medical_pwa.html` → 同 shelter
+- `MP-2 / PT-7 / SC-28 IndexedDB` → `medical-pwa/public/medical_pwa.html` → Dexie schema v5（**patients 表含特種個資**：source_age / source_sex / injury_type / trauma_or_medical）
+- `MP-7 export` → `medical-pwa/public/medical_pwa.html::ExportCrypto` → AES-256-GCM
+- `SC-18 frontend` → `medical-pwa/public/medical_pwa.html` → 31× innerHTML
+
+#### Cross-component
+- `AU-3 跨組件 audit 缺串連` → 三組件無 correlation ID（gap）
+- `SC-8 PWA → Pi → Command 資料流` → `server/ws_handler.js` broadcasts deltas → `server/sync.js` 推 command（PII 全程明文）
+
+### Session C/D 索引（待補）
+
+_（後續 session 執行時追加，預期會覆蓋 CI/CD、SBOM、SLSA、NIMS 對應）_
 
 ---
 

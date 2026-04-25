@@ -92,7 +92,7 @@
 | **C1-C** | 個資保護 + 靜態資料加密 | 個資法 PDPA / NIST Privacy Framework / 800-53 PT / SC-28 | **三層加密策略**：① 應用層 Fernet 敏感欄位加密 ② DB 層 SQLCipher（評估導入）③ OS 層 LUKS 全碟加密（Pi 部署時設定）；`pii_access_log`、72h PDPC 通報流程、資料分類表 |
 | **C1-D** | 可觀察性 + 稽核 | NIST 800-53 AU / ASVS V7 / CSF DETECT | **範圍擴大**：跨組件 correlation ID + structlog JSON + append-only audit + hash chain + 6 個月保存（command/pi/pwa 三組件協議統一）；**8 個優先埋 log 位置**：(1) WS 連線/推送 (2) 事件產生與分類 (3) DB 寫入 (4) SDR/無線電錄音 (5) STT 轉錄+CER (6) AI 推薦+採納/拒絕 (7) 登入/權限檢查 (8) calc_engine 計算 |
 | **C1-E** ✅ | Schema 版本追蹤 | NIST 800-53 CM-3 / CM-6 | `schema_migrations` 表，append-only，正式追蹤所有 DB 變更 |
-| **C1-F** | 前端模組化 + 前端安全 | ASVS V14 / CSP3 / 800-53 SC | 抽出 `.js` 模組、esbuild bundle、vitest 前端測試、**CSP enforce 切換**（從 report-only）|
+| **C1-F** ⏫ 提前 | 前端模組化 + 前端安全 | ASVS V14 / CSP3 / 800-53 SC | 抽出 `.js` 模組、esbuild bundle、vitest 前端測試、**CSP enforce 切換**（從 report-only）；**Session B 確認順序提前到 C1-A Phase 2 之前或併行**（376KB monolithic 是 RBAC 硬阻礙；見 architecture_decisions Decision D1）|
 | **C1-G** 🆕 | WebSocket 安全與可靠性 | ASVS V9 / NIST 800-53 SC-8/23 / CIS §13 | ConnectionManager（heartbeat + reconnect backoff + message queue）、WS token 驗證（獨立於 HTTP session）、WS mTLS（Tier 3）、message signing（可選，高安全版本）、DoS 防護（連線數限制 + rate limit per-connection）|
 
 > **註**：C1-A Phase 2 範圍擴大 — 4-role RBAC（系統管理員 / 指揮官 / 操作員 / 觀察員）+ role_detail（ICS 標準職稱下拉）+ `require_role()` gate + operational_periods 表 + Transfer of Command API + duty_log 表 + Unity of Command 偵測 + break-glass admin PIN 收斂。詳細設計見 compliance/ 與 architecture_decisions.md。
@@ -118,7 +118,7 @@
 | **P-C1-A** | C1-A / C2-D | Admin PIN 鎖定 + 首次強制設定（確認 Pi server 無預設 admin PIN 漏洞）| 🔲 |
 | **P-C1-B** 🆕 | C1-B | Pi 端 TLS 憑證管理 + STRICT_TLS 強制 + 憑證到期監控 | 🔲 |
 | **P-C1-D** | C1-D | Audit log hash chain + correlation ID（與 command 跨組件串連）| 🔲 |
-| **P-C1-E** | C1-E | Schema version API + shelter/medical GUI 顯示（`server/migrations.js` 已有邏輯，缺 API）| 🔲 |
+| **P-C1-E** 擴大 | C1-E | **正式 `schema_migrations` 版本表**（取代 ad-hoc CREATE IF NOT EXISTS）+ migration runner（對齊 command pattern）+ `GET /admin/schema-version` API + PWA admin GUI 顯示版本 | 🔲 |
 | **P-C1-G** 🆕 | C1-G | Pi 端 WS 連線管理（heartbeat + reconnect）+ WS token 驗證 + DoS 防護 | 🔲 |
 | **P-C2-C** | C2-C | ESLint + prettier + detect-secrets + GitHub CodeQL（Node.js 等效） | 🔲 |
 | **P-C2-F** 🆕 | C2-F | Pi 端錯誤處理 + 生產 debug off + payload 限制 + Pi 端全域 rate limit + Pi 端 DB 並發 retry | 🔲 |
