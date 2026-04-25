@@ -1,6 +1,7 @@
 
 from fastapi import APIRouter
 
+from auth.rbac import require_role
 from core.config import APP_VERSION, DB_PATH
 from repositories.audit_repo import get_audit_log
 from repositories.snapshot_repo import get_latest_snapshot
@@ -33,7 +34,7 @@ def get_staff():
 
 
 @router.get("/api/audit_log", tags=["系統"])
-def audit_log_endpoint(limit: int = 100):
+def audit_log_endpoint(limit: int = 100, _: dict = require_role("觀察員")):
     return get_audit_log(limit)
 
 

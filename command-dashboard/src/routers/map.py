@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
-from auth.service import get_session
+from auth.rbac import require_role
 from core.config import MBTILES_DIR, SRC_DIR, STATIC_DIR
 
 router = APIRouter(tags=["地圖 Tiles"])
@@ -76,7 +76,7 @@ def serve_pmtiles(filename: str, request: Request):
 
 
 @router.post("/api/map_config", tags=["系統"])
-async def save_map_config(request: Request):
+async def save_map_config(request: Request, _: dict = require_role("操作員")):
     body        = await request.json()
     config_path = STATIC_DIR / "map_config.json"
     config_path.write_text(__import__("json").dumps(body, ensure_ascii=False, indent=2),
@@ -85,11 +85,7 @@ async def save_map_config(request: Request):
 
 
 @router.post("/api/map/upload-image", tags=["系統"])
-async def upload_map_image(request: Request, file: UploadFile = File(...)):
-    token = request.headers.get("X-Session-Token")
-    sess  = get_session(token) if token else None
-    if not sess or sess.get("role") != "指揮官":
-        raise HTTPException(403, "僅指揮官可上傳地圖")
+async def upload_map_image(file: UploadFile = File(...), _: dict = require_role("操作員")):
     filename = file.filename or "map.jpg"
     ext = filename.rsplit(".", 1)[-1].lower()
     if ext not in {"jpg", "jpeg", "png", "gif", "webp", "svg"}:

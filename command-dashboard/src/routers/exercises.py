@@ -4,9 +4,9 @@ exercises.py — 演練場次管理（C0 新增）
 """
 
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
-from auth.service import validate_session
+from auth.rbac import require_role
 from repositories.aar_repo import create_aar_entry, get_aar_entries
 from repositories.exercise_repo import update_exercise_status
 from schemas.exercise import AAREntryIn, ExerciseCreateIn, ExerciseStatusIn
@@ -16,8 +16,7 @@ router = APIRouter(prefix="/api/exercises", tags=["演練"])
 
 
 @router.post("")
-def create_exercise(body: ExerciseCreateIn, request: Request):
-    validate_session(request)
+def create_exercise(body: ExerciseCreateIn, _: dict = require_role("指揮官")):
     return create(body.model_dump())
 
 
@@ -35,8 +34,7 @@ def get_exercise(exercise_id: int):
 
 
 @router.post("/{exercise_id}/activate")
-def activate(exercise_id: int, request: Request):
-    sess = validate_session(request)
+def activate(exercise_id: int, sess: dict = require_role("指揮官")):
     if not get(exercise_id):
         raise HTTPException(404, "演練不存在")
     try:
@@ -46,16 +44,14 @@ def activate(exercise_id: int, request: Request):
 
 
 @router.post("/{exercise_id}/archive")
-def do_archive(exercise_id: int, request: Request):
-    sess = validate_session(request)
+def do_archive(exercise_id: int, sess: dict = require_role("指揮官")):
     if not get(exercise_id):
         raise HTTPException(404, "演練不存在")
     return archive(exercise_id, sess["username"])
 
 
 @router.put("/{exercise_id}/status")
-def update_status(exercise_id: int, body: ExerciseStatusIn, request: Request):
-    sess = validate_session(request)
+def update_status(exercise_id: int, body: ExerciseStatusIn, sess: dict = require_role("指揮官")):
     try:
         update_exercise_status(exercise_id, body.status, sess["username"])
     except ValueError as e:
@@ -66,8 +62,7 @@ def update_status(exercise_id: int, body: ExerciseStatusIn, request: Request):
 # ── AAR ─────────────────────────────────────────────────────────────────────
 
 @router.post("/{exercise_id}/aar")
-def add_aar(exercise_id: int, body: AAREntryIn, request: Request):
-    sess = validate_session(request)
+def add_aar(exercise_id: int, body: AAREntryIn, sess: dict = require_role("操作員")):
     try:
         return create_aar_entry(exercise_id, body.category, body.content,
                                 body.created_by or sess["username"])

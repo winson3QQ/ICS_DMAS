@@ -60,6 +60,87 @@ class TestMigrationsTable:
         assert versions == list(range(1, len(_MIGRATIONS) + 1))
 
 
+class TestM006Migration:
+    def test_accounts_has_deleted_at(self, tmp_db):
+        """M006：accounts 表應有 deleted_at 欄位。"""
+        with get_conn() as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(accounts)")}
+        assert "deleted_at" in cols
+
+    def test_operational_periods_table_exists(self, tmp_db):
+        """M006：operational_periods 表應存在。"""
+        with get_conn() as conn:
+            tables = {r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )}
+        assert "operational_periods" in tables
+
+    def test_duty_log_table_exists(self, tmp_db):
+        """M006：duty_log 表應存在。"""
+        with get_conn() as conn:
+            tables = {r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )}
+        assert "duty_log" in tables
+
+    def test_deleted_at_defaults_null(self, tmp_db):
+        """M006：現有帳號的 deleted_at 應為 NULL（不影響舊資料）。"""
+        from repositories.account_repo import create_account
+        create_account("testuser", "1234", "操作員")
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT deleted_at FROM accounts WHERE username='testuser'"
+            ).fetchone()
+        assert row["deleted_at"] is None
+
+
+class TestM007Migration:
+    def test_admin_role_upgraded_to_sysadmin(self, tmp_db):
+        """M007：username='admin' 且 role='指揮官' 的帳號應自動升級為 '系統管理員'。"""
+        import sqlite3 as _sqlite3
+        # 直接寫入舊版 role（模擬 migration 前的狀態）
+        with get_conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO accounts "
+                "(username, pin_hash, pin_salt, role, status, created_at) "
+                "VALUES ('admin', 'h', 's', '指揮官', 'active', '2024-01-01T00:00:00Z')"
+            )
+            conn.commit()
+        # 重新執行 _migrate（M007 已在 tmp_db 建立時套用過，需手動模擬未套用狀態）
+        # 直接呼叫 migration 函式測試邏輯
+        from core.database import _m007_upgrade_admin_role
+        with get_conn() as conn:
+            _m007_upgrade_admin_role(conn)
+            row = conn.execute(
+                "SELECT role FROM accounts WHERE username='admin'"
+            ).fetchone()
+        assert row["role"] == "系統管理員"
+
+    def test_m007_idempotent_on_sysadmin(self, tmp_db):
+        """M007：對已是 '系統管理員' 的 admin 帳號重跑不影響。"""
+        from repositories.account_repo import create_account
+        from core.database import _m007_upgrade_admin_role
+        create_account("admin", "1234", "系統管理員")
+        with get_conn() as conn:
+            _m007_upgrade_admin_role(conn)
+            row = conn.execute(
+                "SELECT role FROM accounts WHERE username='admin'"
+            ).fetchone()
+        assert row["role"] == "系統管理員"
+
+    def test_m007_does_not_affect_non_admin_users(self, tmp_db):
+        """M007：只升級 username='admin'，其他帳號不受影響。"""
+        from repositories.account_repo import create_account
+        from core.database import _m007_upgrade_admin_role
+        create_account("commander", "1234", "指揮官")
+        with get_conn() as conn:
+            _m007_upgrade_admin_role(conn)
+            row = conn.execute(
+                "SELECT role FROM accounts WHERE username='commander'"
+            ).fetchone()
+        assert row["role"] == "指揮官"
+
+
 class TestSchemaMigrationsApi:
     def test_list_migrations_requires_admin_pin(self, client):
         """/api/admin/schema-migrations Admin PIN 已設定但無 PIN header → 403。"""

@@ -14,11 +14,11 @@
 
 | 項目 | 狀態 |
 |------|------|
-| 程式版號 | `cmd-v2.0.5` / `server-v1.3.0` |
+| 程式版號 | `cmd-v2.1.0` / `server-v1.3.0` |
 | Wave 進度 | Wave 5 尾端（剩 1 項）|
-| cX 進度 | C0 ✅ / **C1-B ✅**（程式碼）/ **C1-A Phase 1 ✅** / **C1-E ✅** / **C2-C ✅** / **C2-D ✅** / C1-A Phase 2 RBAC 待做（擴大範圍）/ Compliance Audit 待做 |
-| 下一個里程碑 | `v0.13.0` Wave 5 完成 |
-| 下一個商業里程碑 | `v2.1.0` 第一個可投標版本（Compliance audit 完成後重估）|
+| cX 進度 | C0 ✅ / **C1-B ✅**（程式碼）/ **C1-A Phase 1 ✅** / **C1-E ✅** / **C2-C ✅** / **C2-D ✅** / **C3-D ✅**（Backup API）/ **C1-A Phase 2 Steps 1–5 ✅**（4-role RBAC core + endpoint gates + privilege escalation）/ C1-A Phase 2 Steps 6–12 🔲（backup UI + operational_periods + duty_log + tests）/ Compliance Audit 待做 |
+| 下一個里程碑 | C1-A Phase 2 Steps 6–12 完成 |
+| 下一個商業里程碑 | `v2.2.0` 第一個可投標版本（Compliance audit 完成後重估）|
 | **Compliance 程式** | ✅ Phase 0 Audit 完成（Session A/B/C/D 全完成 2026-04-25）。88 gap + 14 亮點，全進現有 Cx 範圍。見 [compliance/matrix.md](compliance/matrix.md) |
 
 ---
@@ -125,7 +125,7 @@
 |------|------|------|
 | 子項 | 內容 | 適用標準 | 說明 |
 |------|------|---------|------|
-| **C1-A** ⚠️ Phase 1 完成 | 認證強化 | NIST 800-63-3 AAL2 / 800-53 IA / CIS §6 | ✅ Phase 1（登入鎖定 + 首次強制設定）；🔲 **Phase 2：RBAC 4-role + 作業期間 + Transfer of Command**（範圍擴大，見下註）；🔲 Phase 3 TOTP MFA；🔲 Phase 4 CISO 政策文件（→ security_policies.md 升正式版）|
+| **C1-A** ⚠️ Phase 2 進行中 | 認證強化 | NIST 800-63-3 AAL2 / 800-53 IA / CIS §6 | ✅ Phase 1（登入鎖定 + 首次強制設定）；✅ **Phase 2 Steps 1–5**（M006 migration + 4-role RBAC + `require_role()` gate + Admin 雙重認證 + endpoint gates + privilege escalation protection；30 security tests）；🔲 **Phase 2 Steps 6–12**（backup UI + operational_periods + duty_log + Transfer of Command + role_detail + tests）；🔲 Phase 3 TOTP MFA；🔲 Phase 4 CISO 政策文件（→ security_policies.md 升正式版）|
 | **C1-B** ✅ 程式碼 | 全面加密傳輸 | NIST 800-53 SC-8/12/13 / ASVS V9 | nginx HTTPS（TLS 1.2+）、HSTS、CSP report-only、CORS 收斂、step-ca 內網 PKI；待 step-ca/nginx 安裝實測；strict CSP 留 C1-F 後做 |
 | **C1-C** | 個資保護 + 靜態資料加密 | 個資法 PDPA / NIST Privacy Framework / 800-53 PT / SC-28 | **三層加密策略**：① 應用層 Fernet 敏感欄位加密 ② DB 層 SQLCipher（評估導入）③ OS 層 LUKS 全碟加密（Pi 部署時設定）；`pii_access_log`、72h PDPC 通報流程、資料分類表 |
 | **C1-D** | 可觀察性 + 稽核 | NIST 800-53 AU / ASVS V7 / CSF DETECT | **範圍擴大**：跨組件 correlation ID + structlog JSON + append-only audit + hash chain + 6 個月保存（command/pi/pwa 三組件協議統一）；**8 個優先埋 log 位置**：(1) WS 連線/推送 (2) 事件產生與分類 (3) DB 寫入 (4) SDR/無線電錄音 (5) STT 轉錄+CER (6) AI 推薦+採納/拒絕 (7) 登入/權限檢查 (8) calc_engine 計算 |

@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException
 
+from auth.rbac import require_role
 from repositories.decision_repo import create_decision
 from repositories.event_repo import add_event_note, create_event, get_events, patch_event, update_event_status
 from schemas.event import DeadlinePatch, EventIn, EventNoteIn, EventPatch
@@ -13,7 +14,7 @@ VALID_UNITS      = {"shelter", "medical", "forward", "security", "command"}
 
 
 @router.post("")
-def post_event(ev: EventIn):
+def post_event(ev: EventIn, _: dict = require_role("操作員")):
     if ev.severity not in VALID_SEVERITIES:
         raise HTTPException(422, f"severity 必須是 {VALID_SEVERITIES}")
     if ev.reported_by_unit not in VALID_UNITS:
@@ -38,7 +39,7 @@ def get_ev(status: str | None = None, limit: int = 50):
 
 
 @router.patch("/{event_id}")
-def patch_ev(event_id: str, body: EventPatch):
+def patch_ev(event_id: str, body: EventPatch, _: dict = require_role("操作員")):
     updates = {}
     if body.assigned_unit is not None:
         updates["assigned_unit"]    = body.assigned_unit or None
@@ -52,7 +53,7 @@ def patch_ev(event_id: str, body: EventPatch):
 
 
 @router.patch("/{event_id}/deadline")
-def patch_deadline(event_id: str, body: DeadlinePatch):
+def patch_deadline(event_id: str, body: DeadlinePatch, _: dict = require_role("操作員")):
     events = get_events()
     ev = next((e for e in events if e["id"] == event_id), None)
     if not ev:
@@ -66,7 +67,7 @@ def patch_deadline(event_id: str, body: DeadlinePatch):
 
 
 @router.patch("/{event_id}/status")
-def patch_status(event_id: str, status: str, operator: str):
+def patch_status(event_id: str, status: str, operator: str, _: dict = require_role("操作員")):
     try:
         update_event_status(event_id, status, operator)
     except ValueError as e:
@@ -75,7 +76,7 @@ def patch_status(event_id: str, status: str, operator: str):
 
 
 @router.post("/{event_id}/notes")
-def add_note(event_id: str, body: EventNoteIn):
+def add_note(event_id: str, body: EventNoteIn, _: dict = require_role("操作員")):
     try:
         return add_event_note(event_id, body.text, body.operator)
     except ValueError as e:

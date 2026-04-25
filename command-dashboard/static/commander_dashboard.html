@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<script>const CMD_VERSION='v0.12.14';</script>
+<script>const CMD_VERSION='v0.13.0';</script>
 <title>ICS 指揮部</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
@@ -733,14 +733,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 <div id="settings-panel">
   <div class="stg-header"><span>設定</span><button class="stg-close" onclick="closeSettings()">&times;</button></div>
   <div class="stg-body">
-    <div class="stg-section">
+    <div class="stg-section" id="stg-section-cmd">
       <div class="stg-section-title">指揮部</div>
-      <div class="stg-item" onclick="openConfigModal()">
+      <div class="stg-item" id="stg-item-cmd-config" onclick="openConfigModal()">
         <span class="si-icon">&#9881;</span>
         <div class="si-text"><div class="si-title">指揮部設定</div><div class="si-sub">名稱、位置</div></div>
         <span class="si-arrow">&#x203A;</span>
       </div>
-      <div class="stg-item" onclick="openMapConfigPanel()">
+      <div class="stg-item" id="stg-item-map-config" onclick="openMapConfigPanel()">
         <span class="si-icon">&#128506;</span>
         <div class="si-text"><div class="si-title">地圖設定</div><div class="si-sub">載入站內平面圖</div></div>
         <span class="si-arrow">&#x203A;</span>
@@ -753,19 +753,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
         <div class="si-text"><div class="si-title">資料匯出</div><div class="si-sub">匯出儀表板 JSON 快照</div></div>
         <span class="si-arrow">&#x203A;</span>
       </div>
-      <div class="stg-item" onclick="showAuditLog()">
+      <div class="stg-item" id="stg-item-audit" onclick="showAuditLog()">
         <span class="si-icon">&#128203;</span>
         <div class="si-text"><div class="si-title">稽核日誌</div><div class="si-sub">查看操作紀錄</div></div>
         <span class="si-arrow">&#x203A;</span>
       </div>
-      <div class="stg-item" onclick="confirmResetDB()" style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px;">
+      <div class="stg-item" id="stg-item-reset-db" onclick="confirmResetDB()" style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px;">
         <span class="si-icon" style="color:var(--red);">&#9888;</span>
         <div class="si-text"><div class="si-title" style="color:var(--red);">重設指揮部資料庫</div><div class="si-sub">清除所有快照、事件、Pi 批次（不影響 Pi 端資料）</div></div>
         <span class="si-arrow">&#x203A;</span>
       </div>
     </div>
     <div class="stg-section" id="stg-admin-section">
-      <div class="stg-section-title">管理（僅指揮官）</div>
+      <div class="stg-section-title">管理</div>
       <div class="stg-item" onclick="openAdminPanel()">
         <span class="si-icon">&#128100;</span>
         <div class="si-text"><div class="si-title">帳號管理</div><div class="si-sub">新增、編輯、停用帳號</div></div>
@@ -783,19 +783,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 <div id="admin-panel">
   <div class="adm-header"><span>帳號管理</span><button class="adm-close" onclick="closeAdminPanel()">&times;</button></div>
   <div id="adm-pin-screen">
-    <div class="pinlock-title">管理員驗證</div>
-    <div class="pinlock-sub">輸入管理員 PIN 以繼續</div>
-    <input class="login-input" id="adm-pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="Admin PIN">
+    <div class="pinlock-title">系統管理 PIN</div>
+    <div class="pinlock-sub">緊急專用・一般管理請以系統管理員帳號登入</div>
+    <input class="login-input" id="adm-pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="系統管理 PIN">
     <button class="login-btn" onclick="adminLogin()">驗證</button>
     <div id="adm-pin-warn" style="font-size:11px;color:var(--red);min-height:16px;"></div>
   </div>
   <div id="adm-main">
     <div class="adm-tabs">
-      <div class="adm-tab active" onclick="admShowTab('list')">帳號列表</div>
-      <div class="adm-tab" onclick="admShowTab('add')">新增</div>
-      <div class="adm-tab" onclick="admShowTab('pi')">Pi 節點</div>
-      <div class="adm-tab" onclick="admShowTab('log')">日誌</div>
-      <div class="adm-tab" onclick="admShowTab('sys')">系統</div>
+      <div class="adm-tab active" data-tab="list" onclick="admShowTab('list')">帳號列表</div>
+      <div class="adm-tab" data-tab="add" onclick="admShowTab('add')">新增</div>
+      <div class="adm-tab" data-tab="pi" onclick="admShowTab('pi')">Pi 節點</div>
+      <div class="adm-tab" data-tab="log" onclick="admShowTab('log')">日誌</div>
+      <div class="adm-tab" data-tab="sys" onclick="admShowTab('sys')">系統</div>
     </div>
     <div class="adm-panel-body" id="adm-panel-list"></div>
     <div class="adm-panel-body" id="adm-panel-add" style="display:none;"></div>
@@ -1253,9 +1253,17 @@ async function handleCmdLogin() {
 function _enterDashboard() {
   el('login-screen').style.display = 'none';
   el('cmd-user-badge').textContent = sessionStorage.getItem('cmd_display_name') || sessionStorage.getItem('cmd_username');
-  // 角色限制
-  const isCommander = sessionStorage.getItem('cmd_role') === '指揮官';
-  el('stg-admin-section').style.display = isCommander ? '' : 'none';
+  // 設定頁角色可見性
+  const _role = sessionStorage.getItem('cmd_role');
+  const _canAccessAdmin = ['系統管理員', '指揮官'].includes(_role);
+  const _canWrite       = ['系統管理員', '指揮官', '操作員'].includes(_role);
+  const _isSysAdmin     = _role === '系統管理員';
+  el('stg-admin-section').style.display    = _canAccessAdmin ? '' : 'none';
+  el('stg-section-cmd').style.display      = _canWrite ? '' : 'none';
+  el('stg-item-cmd-config').style.display  = _canWrite ? '' : 'none';
+  el('stg-item-map-config').style.display  = _canWrite ? '' : 'none';
+  el('stg-item-audit').style.display       = '';  // 觀察員+ 可讀稽核日誌
+  el('stg-item-reset-db').style.display    = _isSysAdmin ? '' : 'none';
   // 更新 settings footer
   el('stg-user-info').textContent = (sessionStorage.getItem('cmd_display_name') || '') + ' (' + sessionStorage.getItem('cmd_role') + ')　' + (_fmtLocalDT(sessionStorage.getItem('cmd_login_time') || '') || '').slice(11,19);
   PinLock.start();
@@ -1542,11 +1550,28 @@ function openAdminPanel() {
   closeSettings();
   el('admin-overlay').classList.add('show');
   el('admin-panel').classList.add('show');
-  el('adm-pin-screen').style.display = '';
-  el('adm-main').style.display = 'none';
-  el('adm-pin-input').value = '';
-  el('adm-pin-warn').textContent = '';
-  setTimeout(() => el('adm-pin-input').focus(), 100);
+  const role = sessionStorage.getItem('cmd_role');
+  const isSysAdmin  = role === '系統管理員';
+  const isCommander = role === '指揮官';
+  if (isSysAdmin || isCommander) {
+    // 系統管理員 / 指揮官：session 已認證，直接進入
+    el('adm-pin-screen').style.display = 'none';
+    el('adm-main').style.display = 'flex';
+    // Pi 節點 / 系統 tab 僅系統管理員可見
+    const sysAdminOnly = ['pi', 'sys'];
+    document.querySelectorAll('.adm-tab[data-tab]').forEach(t => {
+      t.style.display = (!isSysAdmin && sysAdminOnly.includes(t.dataset.tab)) ? 'none' : '';
+    });
+    admShowTab('list');
+    _admLoadSysInfo();
+  } else {
+    // 其他角色：Admin PIN break-glass 流程
+    el('adm-pin-screen').style.display = '';
+    el('adm-main').style.display = 'none';
+    el('adm-pin-input').value = '';
+    el('adm-pin-warn').textContent = '';
+    setTimeout(() => el('adm-pin-input').focus(), 100);
+  }
 }
 
 function closeAdminPanel() {
@@ -1813,10 +1838,13 @@ async function admLoadAccounts() {
   const resp = await authFetch(API_BASE + '/api/admin/accounts', {headers:{'X-Admin-PIN':_admPin}});
   if (!resp.ok) return;
   const accounts = await resp.json();
+  const _roleLevel = {'系統管理員':4,'指揮官':3,'操作員':2,'觀察員':1};
+  const _myLevel   = _roleLevel[sessionStorage.getItem('cmd_role')] || 0;
   let html = '';
   for (const a of accounts) {
-    const statusCls = a.status === 'active' ? 'active' : 'suspended';
+    const statusCls   = a.status === 'active' ? 'active' : 'suspended';
     const statusLabel = a.status === 'active' ? '啟用' : '停用';
+    const _canEdit    = _myLevel > (_roleLevel[a.role] || 0);
     html += '<div class="adm-account-card" id="adm-card-' + a.username + '">' +
       '<div class="adm-account-row">' +
         '<div><span class="adm-account-name">' + a.username + '</span>' +
@@ -1828,9 +1856,8 @@ async function admLoadAccounts() {
         '</div>' +
       '</div>' +
       '<div class="adm-btns">' +
-        '<button class="adm-btn" onclick="admToggleEdit(\'' + a.username + '\')">編輯</button>' +
-        '<button class="adm-btn" onclick="admToggleStatus(\'' + a.username + '\',\'' + a.status + '\')">' + (a.status === 'active' ? '停用' : '啟用') + '</button>' +
-        '<button class="adm-btn danger" onclick="admDelete(\'' + a.username + '\')">刪除</button>' +
+        (_canEdit ? '<button class="adm-btn" onclick="admToggleEdit(\'' + a.username + '\')">編輯</button>' : '') +
+        (_canEdit ? '<button class="adm-btn" onclick="admToggleStatus(\'' + a.username + '\',\'' + a.status + '\')">' + (a.status === 'active' ? '停用' : '啟用') + '</button>' : '') +
       '</div>' +
       '<div class="adm-edit-form" id="adm-edit-' + a.username + '" style="display:none;">' +
         '<label>新 PIN（4-6 位數字，留空不改）</label>' +
@@ -1839,6 +1866,8 @@ async function admLoadAccounts() {
         '<select id="adm-role-' + a.username + '">' +
           '<option value="操作員"' + (a.role==='操作員'?' selected':'') + '>操作員</option>' +
           '<option value="指揮官"' + (a.role==='指揮官'?' selected':'') + '>指揮官</option>' +
+          '<option value="觀察員"' + (a.role==='觀察員'?' selected':'') + '>觀察員</option>' +
+          (sessionStorage.getItem('cmd_role') === '系統管理員' ? '<option value="系統管理員"' + (a.role==='系統管理員'?' selected':'') + '>系統管理員</option>' : '') +
         '</select>' +
         '<label>顯示名稱</label>' +
         '<input id="adm-dname-' + a.username + '" value="' + (a.display_name || '') + '">' +
@@ -1893,7 +1922,12 @@ function admShowAddForm() {
     '<div class="adm-add-form">' +
       '<label>帳號</label><input id="adm-add-user" placeholder="帳號">' +
       '<label>PIN（4-6 位數字）</label><input id="adm-add-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">' +
-      '<label>角色</label><select id="adm-add-role"><option value="操作員">操作員</option><option value="指揮官">指揮官</option></select>' +
+      '<label>角色</label><select id="adm-add-role">' +
+        '<option value="操作員">操作員</option>' +
+        '<option value="指揮官">指揮官</option>' +
+        '<option value="觀察員">觀察員</option>' +
+        (sessionStorage.getItem('cmd_role') === '系統管理員' ? '<option value="系統管理員">系統管理員</option>' : '') +
+      '</select>' +
       '<label>顯示名稱（選填）</label><input id="adm-add-dname" placeholder="顯示名稱">' +
       '<button class="adm-add-btn" onclick="admAddAccount()">新增帳號</button>' +
       '<div id="adm-add-warn" style="font-size:11px;color:var(--red);min-height:16px;"></div>' +
@@ -3929,9 +3963,25 @@ function _initLeafletMap() {
 
   const pmtilesUrl = '/tiles/pmtiles/taiwan.pmtiles';
 
-  // ── 底圖：固定 Vector Grayscale（EOC 標準，NAPSG 符號對比最佳）──
+  // ── 底圖：本地 PMTiles（離線首選）→ 失敗則 fallback OSM ──
   // overlays（MGRS 格線、管制區等）待 Phase 3/5 實作後加入 L.control.layers 的 overlays 欄
-  protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' }).addTo(_leafletMap);
+  fetch(pmtilesUrl, { method: 'HEAD' })
+    .then(r => {
+      if (r.ok) {
+        protomapsL.leafletLayer({ url: pmtilesUrl, flavor: 'grayscale' }).addTo(_leafletMap);
+      } else {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        }).addTo(_leafletMap);
+      }
+    })
+    .catch(() => {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(_leafletMap);
+    });
 
   // ── 單擊地圖：據點定位 > 事件標記（表單） > 事件放置（長按） ──
   const _coordPanel = document.getElementById('map-coord-panel');
@@ -3979,7 +4029,7 @@ function _initLeafletMap() {
     const latlng = { lat: e.latlng.lat, lng: e.latlng.lng };
     _lpTimer = setTimeout(() => {
       _lpTimer = null;
-      if (!_lpMoved && !_nodePlaceMode) _openEventPopup(latlng.lat, latlng.lng);
+      if (!_lpMoved && !_nodePlaceMode && sessionStorage.getItem('cmd_role') !== '觀察員') _openEventPopup(latlng.lat, latlng.lng);
     }, 650);
   });
   _leafletMap.on('mousemove', function() {
@@ -4569,6 +4619,7 @@ function showEventProcessModal(zone) {
     return;
   }
 
+  const _ro = sessionStorage.getItem('cmd_role') === '觀察員';
   const sevLabel = {critical:'緊急',warning:'警告',info:'一般'}[ev.severity] || ev.severity;
   const sevColor = ev.severity === 'critical' ? 'var(--red)' : ev.severity === 'warning' ? 'var(--yellow)' : 'var(--text3)';
   const statusLabel = {open:'未結',in_progress:'處理中',resolved:'已結案',closed:'已關閉'}[ev.status] || ev.status;
@@ -4591,7 +4642,11 @@ function showEventProcessModal(zone) {
   html += `<span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${statusC}22;color:${statusC};">${statusLabel}</span>`;
   html += `</div>`;
   if (countdown && isOpen) {
-    html += `<div style="font-size:12px;font-weight:700;color:${countdownColor};cursor:pointer;" onclick="_resetDeadlineMenu('${ev.id}')" title="點擊重設時間">⏱ ${countdown}</div>`;
+    if (_ro) {
+      html += `<div style="font-size:12px;font-weight:700;color:${countdownColor};">⏱ ${countdown}</div>`;
+    } else {
+      html += `<div style="font-size:12px;font-weight:700;color:${countdownColor};cursor:pointer;" onclick="_resetDeadlineMenu('${ev.id}')" title="點擊重設時間">⏱ ${countdown}</div>`;
+    }
   } else if (countdown) {
     html += `<div style="font-size:12px;font-weight:700;color:var(--text3);">⏱ ${countdown}</div>`;
   }
@@ -4603,13 +4658,17 @@ function showEventProcessModal(zone) {
   const assignedColor = ev.assigned_unit ? 'var(--green)' : 'var(--text3)';
   html += `<div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6;">`;
   html += `回報：${unitLabel}　${ev.operator_name}<br>`;
-  html += `<span style="display:inline-flex;align-items:center;gap:6px;">指派處理：<span style="color:${assignedColor};font-weight:600;">${assignedLabel}</span>`;
-  html += `<select style="font-size:10px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;font-family:var(--mono);" onchange="_setAssignedUnit('${ev.id}', this.value)">`;
-  html += `<option value="">—</option>`;
-  ['forward','security','shelter','medical','command'].forEach(u => {
-    html += `<option value="${u}" ${ev.assigned_unit===u?'selected':''}>${unitLabels[u]}</option>`;
-  });
-  html += `</select></span><br>`;
+  if (_ro) {
+    html += `<span>指派處理：<span style="color:${assignedColor};font-weight:600;">${assignedLabel}</span></span><br>`;
+  } else {
+    html += `<span style="display:inline-flex;align-items:center;gap:6px;">指派處理：<span style="color:${assignedColor};font-weight:600;">${assignedLabel}</span>`;
+    html += `<select style="font-size:10px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;font-family:var(--mono);" onchange="_setAssignedUnit('${ev.id}', this.value)">`;
+    html += `<option value="">—</option>`;
+    ['forward','security','shelter','medical','command'].forEach(u => {
+      html += `<option value="${u}" ${ev.assigned_unit===u?'selected':''}>${unitLabels[u]}</option>`;
+    });
+    html += `</select></span><br>`;
+  }
   html += `發生：${_fmtLocal(ev.occurred_at)}　期限：${_fmtLocal(ev.response_deadline)}`;
   html += `</div>`;
 
@@ -4629,8 +4688,8 @@ function showEventProcessModal(zone) {
   }
   html += `</div>`;
 
-  // 操作區（未結案）— 按鈕順序：關閉(ghost) → 處理中 → 結案
-  if (isOpen) {
+  // 操作區（未結案）— 按鈕順序：關閉(ghost) → 處理中 → 結案；觀察員唯讀
+  if (isOpen && !_ro) {
     html += `<div style="border-top:1px solid var(--border);padding-top:8px;">`;
     html += `<input id="ev-proc-note" placeholder="輸入處置紀錄..." autocomplete="off" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);margin-bottom:6px;">`;
     html += `<div style="display:flex;gap:6px;">`;
@@ -5574,12 +5633,8 @@ async function confirmResetDB() {
   closeSettings();
   const ok = await appConfirm('重設指揮部資料庫', '將清除所有快照、事件、裁示、Pi 批次資料。\n帳號和 Pi 節點註冊不受影響。\n\n此操作無法復原，確定繼續？');
   if (!ok) return;
-  const pin = prompt('請輸入管理員 PIN 確認：');
-  if (!pin) return;
   try {
-    const resp = await authFetch(API_BASE + '/api/admin/reset-db', {
-      method: 'POST', headers: {'X-Admin-PIN': pin},
-    });
+    const resp = await authFetch(API_BASE + '/api/admin/reset-db', {method: 'POST'});
     if (!resp.ok) { alert('重設失敗：' + (await resp.json()).detail); return; }
     // 同步清除地圖上所有事件 marker
     if (_mapConfig) {
@@ -5882,8 +5937,9 @@ function _eventCardHTML(ev, dimmed, viewUnit) {
     html += `</div>`;
   }
 
-  // 操作區（未結案）
-  if (isOpen) {
+  // 操作區（未結案）；觀察員唯讀
+  const _roCard = sessionStorage.getItem('cmd_role') === '觀察員';
+  if (isOpen && !_roCard) {
     html += `<div style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px;">`;
     // 追加紀錄
     html += `<div style="display:flex;gap:4px;margin-bottom:4px;">`;
@@ -7333,6 +7389,8 @@ document.querySelector('.h-ver').textContent = 'cmd-' + CMD_VERSION;
 // ── TTX 模式切換 ──
 let _sessionType = 'real';
 function toggleTTXMode() {
+  const _r = sessionStorage.getItem('cmd_role');
+  if (!['系統管理員', '指揮官'].includes(_r)) return;
   _sessionType = _sessionType === 'real' ? 'exercise' : 'real';
   const btn = document.getElementById('ttx-toggle');
   if (_sessionType === 'exercise') {

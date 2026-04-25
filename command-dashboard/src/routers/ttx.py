@@ -11,9 +11,9 @@ import json
 import os
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
-from auth.service import validate_session
+from auth.rbac import require_role
 from core.config import SRC_DIR
 from repositories.decision_repo import create_decision
 from repositories.event_repo import create_event
@@ -36,22 +36,19 @@ _SNAPSHOT_TYPE_MAP = {
 
 
 @router.get("/exercises/{exercise_id}/injects")
-def list_injects(exercise_id: int, request: Request):
-    validate_session(request)
+def list_injects(exercise_id: int):
     return get_ttx_injects(exercise_id)
 
 
 @router.post("/exercises/{exercise_id}/injects")
-def bulk_injects(exercise_id: int, body: TTXInjectBulkIn, request: Request):
-    validate_session(request)
+def bulk_injects(exercise_id: int, body: TTXInjectBulkIn, _: dict = require_role("指揮官")):
     count = bulk_create_ttx_injects(exercise_id, body.injects)
     return {"ok": True, "imported": count}
 
 
 @router.post("/exercises/{exercise_id}/injects/{inject_id}/push")
-def push_inject(exercise_id: int, inject_id: str, request: Request, live: bool = False):
+def push_inject(exercise_id: int, inject_id: str, sess: dict = require_role("指揮官"), live: bool = False):
     """執行單一 inject。live=true 時用當前 UTC 取代固定時間戳。"""
-    sess    = validate_session(request)
     injects = get_ttx_injects(exercise_id)
     inject  = next((i for i in injects if i["id"] == inject_id), None)
     if not inject:
@@ -137,8 +134,7 @@ def push_inject(exercise_id: int, inject_id: str, request: Request, live: bool =
 
 
 @router.get("/scenarios", tags=["TTX"])
-def list_scenarios(request: Request):
-    validate_session(request)
+def list_scenarios():
     scenario_dir = str(SRC_DIR.parent / "scenarios")
     if not os.path.isdir(scenario_dir):
         return []
@@ -159,9 +155,8 @@ def list_scenarios(request: Request):
 
 
 @router.post("/scenarios/{scenario_id}/load", tags=["TTX"])
-def load_scenario(scenario_id: str, exercise_id: int, request: Request):
+def load_scenario(scenario_id: str, exercise_id: int, _: dict = require_role("指揮官")):
     """載入預建情境的 injects 到指定演練"""
-    validate_session(request)
     scenario_dir = str(SRC_DIR.parent / "scenarios")
     fpath        = os.path.join(scenario_dir, f"{scenario_id}.json")
     if not os.path.isfile(fpath):

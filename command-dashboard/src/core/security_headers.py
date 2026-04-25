@@ -36,8 +36,8 @@ def _build_csp() -> str:
         # 字型：本地 + Google Fonts 字型檔
         "font-src 'self' https://fonts.gstatic.com",
 
-        # 圖片：本地 + data:（base64 icon）+ blob:（截圖）
-        "img-src 'self' data: blob:",
+        # 圖片：本地 + data:（base64 icon）+ blob:（截圖）+ OSM（PMTiles 不可用時 fallback）
+        "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
 
         # API / WebSocket：本地（含 wss/ws，PWA Pi WS 連線）
         "connect-src 'self' wss: ws:",

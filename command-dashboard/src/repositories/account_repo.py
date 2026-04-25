@@ -4,6 +4,9 @@ from core.database import get_conn
 
 from ._helpers import audit, hash_pin, now_utc, verify_pin
 
+# ── C1-A Phase 2：合法 role 值（單一真相來源）──────────────────
+VALID_ROLES: frozenset[str] = frozenset({"系統管理員", "指揮官", "操作員", "觀察員"})
+
 # ── C1-A 登入鎖定參數 ───────────────────────────────────────────
 LOCKOUT_THRESHOLD = 5            # 連續失敗次數
 LOCKOUT_DURATION_MIN = 15        # 鎖定時長（分鐘）
@@ -41,20 +44,33 @@ def create_account(username: str, pin: str, role: str = "操作員",
             "status": "active", "created_at": now}
 
 
-def get_all_accounts() -> list[dict]:
+def get_all_accounts(include_deleted: bool = False) -> list[dict]:
+    if include_deleted:
+        sql = ("SELECT username, role, role_detail, display_name, status, "
+               "created_at, updated_at, deleted_at FROM accounts ORDER BY created_at")
+    else:
+        sql = ("SELECT username, role, role_detail, display_name, status, "
+               "created_at, updated_at FROM accounts WHERE deleted_at IS NULL ORDER BY created_at")
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT username, role, role_detail, display_name, status, created_at, updated_at "
-            "FROM accounts ORDER BY created_at"
-        ).fetchall()
+        rows = conn.execute(sql).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_account(username: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT username, role, role_detail, display_name, status "
+            "FROM accounts WHERE username=? AND deleted_at IS NULL",
+            (username,)
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def update_account_status(username: str, status: str, operator: str) -> bool:
     now = now_utc()
     with get_conn() as conn:
         cur = conn.execute(
-            "UPDATE accounts SET status=?, updated_at=? WHERE username=?",
+            "UPDATE accounts SET status=?, updated_at=? WHERE username=? AND deleted_at IS NULL",
             (status, now, username))
     if cur.rowcount:
         audit(operator, None, "account_status_updated", "accounts", username, {"status": status})
@@ -66,7 +82,8 @@ def update_account_pin(username: str, new_pin: str, operator: str) -> bool:
     now = now_utc()
     with get_conn() as conn:
         cur = conn.execute(
-            "UPDATE accounts SET pin_hash=?, pin_salt=?, updated_at=? WHERE username=?",
+            "UPDATE accounts SET pin_hash=?, pin_salt=?, updated_at=? "
+            "WHERE username=? AND deleted_at IS NULL",
             (pin_hash, pin_salt, now, username))
     if cur.rowcount:
         audit(operator, None, "account_pin_reset", "accounts", username, {})
@@ -78,7 +95,8 @@ def update_account_role(username: str, role: str, operator: str,
     now = now_utc()
     with get_conn() as conn:
         cur = conn.execute(
-            "UPDATE accounts SET role=?, role_detail=?, updated_at=? WHERE username=?",
+            "UPDATE accounts SET role=?, role_detail=?, updated_at=? "
+            "WHERE username=? AND deleted_at IS NULL",
             (role, role_detail, now, username))
     if cur.rowcount:
         audit(operator, None, "account_role_updated", "accounts", username,
@@ -86,12 +104,30 @@ def update_account_role(username: str, role: str, operator: str,
     return cur.rowcount > 0
 
 
-def delete_account(username: str, operator: str) -> bool:
+def soft_delete_account(username: str, operator: str) -> bool:
+    """軟刪帳號：設 deleted_at，清除所有 session，寫 audit_log。"""
+    now = now_utc()
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM accounts WHERE username=?", (username,))
+        cur = conn.execute(
+            "UPDATE accounts SET deleted_at=?, updated_at=? "
+            "WHERE username=? AND deleted_at IS NULL",
+            (now, now, username))
+        if cur.rowcount:
+            conn.execute("DELETE FROM sessions WHERE username=?", (username,))
     if cur.rowcount:
-        audit(operator, None, "account_deleted", "accounts", username, {})
+        audit(operator, None, "account_soft_deleted", "accounts", username, {})
     return cur.rowcount > 0
+
+
+def _hard_delete_account(username: str) -> None:
+    """僅供測試使用的真實刪除（不寫 audit_log）。"""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM accounts WHERE username=?", (username,))
+
+
+def delete_account(username: str, operator: str) -> bool:
+    """軟刪帳號（設 deleted_at）並清除所有 session。"""
+    return soft_delete_account(username, operator)
 
 
 def suspend_all_accounts(operator: str) -> int:
@@ -115,7 +151,8 @@ def verify_login(username: str, pin: str) -> tuple[dict | None, str]:
     """
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT * FROM accounts WHERE username=?", (username,)).fetchone()
+            "SELECT * FROM accounts WHERE username=? AND deleted_at IS NULL",
+            (username,)).fetchone()
         if not row:
             return None, "no_user"
         d = dict(row)
@@ -156,7 +193,8 @@ def unlock_account(username: str, operator: str) -> bool:
     """管理員手動解鎖（清失敗計數 + 鎖定時間）。"""
     with get_conn() as conn:
         cur = conn.execute(
-            "UPDATE accounts SET failed_login_count=0, locked_until=NULL WHERE username=?",
+            "UPDATE accounts SET failed_login_count=0, locked_until=NULL "
+            "WHERE username=? AND deleted_at IS NULL",
             (username,))
     if cur.rowcount:
         audit(operator, None, "account_unlocked", "accounts", username, {})
@@ -199,7 +237,7 @@ def ensure_initial_admin_token(token_dir: str | None = None) -> str | None:
 
     # 6 位數 PIN（不可預測）；100 萬種組合配合 5 次/15 分鐘鎖定足夠抵擋暴力
     initial_pin = f"{secrets.randbelow(1_000_000):06d}"
-    create_account("admin", initial_pin, "指揮官", "系統管理員", "admin")
+    create_account("admin", initial_pin, "系統管理員", "系統管理員", "admin")
     with get_conn() as conn:
         conn.execute(
             "UPDATE accounts SET is_default_pin=1 WHERE username='admin'")
@@ -236,9 +274,9 @@ def clear_default_pin_flag(username: str) -> bool:
 
 
 def is_first_run_required() -> bool:
-    """是否仍有 is_default_pin=1 的 admin 帳號（用於 422 gate 檢查）。"""
+    """是否仍有 is_default_pin=1 的帳號（用於 first_run_gate 檢查）。"""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT COUNT(*) as c FROM accounts WHERE is_default_pin=1 AND role='指揮官'"
+            "SELECT COUNT(*) as c FROM accounts WHERE is_default_pin=1 AND deleted_at IS NULL"
         ).fetchone()
     return row["c"] > 0

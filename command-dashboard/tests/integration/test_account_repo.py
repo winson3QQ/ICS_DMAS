@@ -99,6 +99,101 @@ class TestUpdateAccountStatus:
         assert acc is None and reason == "suspended"
 
 
+class TestSoftDelete:
+    def test_soft_delete_hides_account(self, tmp_db):
+        """軟刪後帳號不出現在 get_all_accounts()。"""
+        from repositories.account_repo import create_account, delete_account, get_all_accounts
+        create_account("target", "1234", "操作員")
+        delete_account("target", "admin")
+        accounts = get_all_accounts()
+        assert all(a["username"] != "target" for a in accounts)
+
+    def test_soft_delete_blocks_login(self, tmp_db):
+        """軟刪後帳號無法登入（回傳 no_user）。"""
+        from repositories.account_repo import create_account, delete_account, verify_login
+        create_account("ghost", "1234", "操作員")
+        delete_account("ghost", "admin")
+        acc, reason = verify_login("ghost", "1234")
+        assert acc is None
+        assert reason == "no_user"
+
+    def test_soft_delete_invalidates_sessions(self, tmp_db):
+        """軟刪後帳號的所有 session 被清除。"""
+        from repositories.account_repo import create_account, delete_account
+        from auth.service import create_session
+        from core.database import get_conn
+        create_account("session_user", "1234", "操作員")
+        acct = {"username": "session_user", "role": "操作員", "display_name": None}
+        create_session(acct)
+        # 確認 session 存在
+        with get_conn() as conn:
+            cnt_before = conn.execute(
+                "SELECT COUNT(*) FROM sessions WHERE username='session_user'"
+            ).fetchone()[0]
+        assert cnt_before == 1
+        delete_account("session_user", "admin")
+        with get_conn() as conn:
+            cnt_after = conn.execute(
+                "SELECT COUNT(*) FROM sessions WHERE username='session_user'"
+            ).fetchone()[0]
+        assert cnt_after == 0
+
+    def test_soft_delete_twice_returns_false(self, tmp_db):
+        """對已軟刪帳號再次軟刪回傳 False。"""
+        from repositories.account_repo import create_account, delete_account
+        create_account("once", "1234", "操作員")
+        assert delete_account("once", "admin") is True
+        assert delete_account("once", "admin") is False
+
+    def test_get_all_accounts_include_deleted(self, tmp_db):
+        """include_deleted=True 時可看到軟刪帳號。"""
+        from repositories.account_repo import create_account, delete_account, get_all_accounts
+        create_account("alive", "1234", "操作員")
+        create_account("dead", "5678", "操作員")
+        delete_account("dead", "admin")
+        all_accounts = get_all_accounts(include_deleted=True)
+        usernames = [a["username"] for a in all_accounts]
+        assert "alive" in usernames
+        assert "dead" in usernames
+
+    def test_update_operations_reject_deleted_accounts(self, tmp_db):
+        """軟刪後的帳號，update_account_status/pin/role 均回傳 False。"""
+        from repositories.account_repo import (
+            create_account, delete_account,
+            update_account_status, update_account_pin, update_account_role,
+        )
+        create_account("zombie", "1234", "操作員")
+        delete_account("zombie", "admin")
+        assert update_account_status("zombie", "active", "admin") is False
+        assert update_account_pin("zombie", "9999", "admin") is False
+        assert update_account_role("zombie", "指揮官", "admin") is False
+
+
+class TestValidRoles:
+    def test_valid_roles_contains_four_roles(self, tmp_db):
+        """VALID_ROLES 包含全部 4 個 role。"""
+        from repositories.account_repo import VALID_ROLES
+        assert VALID_ROLES == {"系統管理員", "指揮官", "操作員", "觀察員"}
+
+    def test_ensure_initial_admin_token_creates_sysadmin(self, tmp_db):
+        """ensure_initial_admin_token() 建立 系統管理員 role。"""
+        import tempfile
+        from repositories.account_repo import ensure_initial_admin_token, get_all_accounts
+        with tempfile.TemporaryDirectory() as d:
+            ensure_initial_admin_token(token_dir=d)
+        admins = [a for a in get_all_accounts() if a["username"] == "admin"]
+        assert len(admins) == 1
+        assert admins[0]["role"] == "系統管理員"
+
+    def test_is_first_run_required_works_for_sysadmin(self, tmp_db):
+        """is_first_run_required() 對 系統管理員 is_default_pin=1 正確觸發。"""
+        import tempfile
+        from repositories.account_repo import ensure_initial_admin_token, is_first_run_required
+        with tempfile.TemporaryDirectory() as d:
+            ensure_initial_admin_token(token_dir=d)
+        assert is_first_run_required() is True
+
+
 class TestLoginLockoutReset:
     def test_successful_login_resets_failed_count(self, tmp_db):
         """連續 3 次錯誤 PIN 後，正確登入 → failed_login_count 歸零、locked_until 清除"""

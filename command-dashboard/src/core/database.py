@@ -300,9 +300,33 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         outcome_notes       TEXT
     );
 
-    -- ── RBAC roles（config key）───────────────────────────────────────────
-    -- 用 accounts.role 欄位，合法值：
-    --   'operator' | 'commander' | 'admin' | 'ttx_orchestrator'
+    -- ── RBAC roles（C1-A Phase 2）────────────────────────────────────────
+    -- 用 accounts.role 欄位，合法值（VALID_ROLES）：
+    --   '系統管理員' | '指揮官' | '操作員' | '觀察員'
+    -- deleted_at 由 M006 migration 補入
+
+    -- ── 作業期間（NIMS ICS，C1-A Phase 2）────────────────────────────────
+    CREATE TABLE IF NOT EXISTS operational_periods (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        period_number   INTEGER NOT NULL,
+        commander       TEXT,
+        started_at      TEXT NOT NULL,
+        ended_at        TEXT,
+        notes           TEXT,
+        created_by      TEXT NOT NULL,
+        created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
+
+    -- ── 輪班紀錄（C1-A Phase 2）──────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS duty_log (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        username        TEXT NOT NULL,
+        period_id       INTEGER REFERENCES operational_periods(id),
+        action          TEXT NOT NULL,
+        role_at_time    TEXT NOT NULL,
+        notes           TEXT,
+        logged_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
 
     -- ── Sessions（持久化，server 重啟後仍有效）────────────────────────────
     CREATE TABLE IF NOT EXISTS sessions (
@@ -397,14 +421,54 @@ def _m005_ttx_injects_rebuild(conn: sqlite3.Connection) -> None:
         conn.execute("DROP TABLE IF EXISTS ttx_sessions")
 
 
+def _m006_c1a_phase2(conn: sqlite3.Connection) -> None:
+    """C1-A Phase 2：accounts 補 soft delete；新增 operational_periods + duty_log。"""
+    _add_column_if_missing(conn, "accounts", "deleted_at", "TEXT")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS operational_periods (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_number   INTEGER NOT NULL,
+            commander       TEXT,
+            started_at      TEXT NOT NULL,
+            ended_at        TEXT,
+            notes           TEXT,
+            created_by      TEXT NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS duty_log (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            username        TEXT NOT NULL,
+            period_id       INTEGER REFERENCES operational_periods(id),
+            action          TEXT NOT NULL,
+            role_at_time    TEXT NOT NULL,
+            notes           TEXT,
+            logged_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        )
+    """)
+
+
+def _m007_upgrade_admin_role(conn: sqlite3.Connection) -> None:
+    """舊版 ensure_default_admin/ensure_initial_admin_token 將 admin 建為 '指揮官'。
+    C1-A Phase 2 後系統最高角色改為 '系統管理員'，將現有 admin 帳號一次性升級。
+    idempotent：已是 '系統管理員' 者不受影響。
+    """
+    conn.execute(
+        "UPDATE accounts SET role='系統管理員' WHERE username='admin' AND role='指揮官'"
+    )
+
+
 # ── Migration 清單（version, name, fn）────────────────────────────────────
 
 _MIGRATIONS: list[tuple[int, str, object]] = [
-    (1, "events_columns",       _m001_events_columns),
-    (2, "decisions_columns",    _m002_decisions_columns),
-    (3, "exercise_id_spread",   _m003_exercise_id_spread),
-    (4, "c1a_accounts",         _m004_c1a_accounts),
-    (5, "ttx_injects_rebuild",  _m005_ttx_injects_rebuild),
+    (1, "events_columns",        _m001_events_columns),
+    (2, "decisions_columns",     _m002_decisions_columns),
+    (3, "exercise_id_spread",    _m003_exercise_id_spread),
+    (4, "c1a_accounts",          _m004_c1a_accounts),
+    (5, "ttx_injects_rebuild",   _m005_ttx_injects_rebuild),
+    (6, "c1a_phase2",            _m006_c1a_phase2),
+    (7, "upgrade_admin_role",    _m007_upgrade_admin_role),
 ]
 
 

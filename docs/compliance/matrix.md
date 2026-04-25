@@ -192,16 +192,16 @@ Gap 過長時移到最下方「Gap Register」section，matrix 只留編號。
 | Control | 要求摘要 | C | P | W | Cx owner | Pri | Evidence / Gap |
 |---|---|:---:|:---:|:---:|---|:---:|---|
 | AC-1 | Policy and Procedures | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 4 | 🟡 | `security_policies.md §2` 骨架；Session D 完稿正式版 |
-| AC-2 | Account Management | ⚠️ | ❌ | ❌ | C1-A Phase 2 / P-C1-A / W-C1-A | 🔴 | `account_repo.py` 完整 CRUD + lockout；**gap**：無年度 review 機制；`delete_account()` 是 hard DELETE；Pi / PWA 無對應帳號管理 |
+| AC-2 | Account Management | ✅ | ❌ | ❌ | C1-A Phase 2 / P-C1-A / W-C1-A | 🔴 | `account_repo.py` soft delete（`deleted_at`）+ lockout；`get_account()` 單帳號查詢；UI 移除「刪除」按鈕，只保留停用/啟用；**gap**：無年度 review 機制；Pi / PWA 無對應帳號管理 |
 | AC-2(1) | Automated Account Management | ❌ | ❌ | ❌ | C1-A Phase 2 | 🟠 | 無自動化 review / disable 機制 |
 | AC-2(3) | Disable Accounts | ⚠️ | ❌ | ❌ | C1-A Phase 2 | 🟡 | `accounts.status` 欄位存在（active/suspended）；無 inactivity 自動停用 |
 | AC-2(13) | Disable for High-Risk | ❌ | ❌ | ❌ | C1-A Phase 2 | 🟠 | 無 risk-based disable |
-| AC-3 | Access Enforcement | ⚠️ | ⚠️ | N/A | **C1-A Phase 2** | 🔴 | Admin PIN 閘口 + 粗分 role 有；**後端無 endpoint-level RBAC gate** (核心 gap)；C1-A Phase 2 `require_role()` 補 |
+| AC-3 | Access Enforcement | ✅ | ⚠️ | N/A | C1-A Phase 2 ✅ / P-C1-A | 🔴 | `auth/rbac.py` `require_role()` gate 全端點實施（events/decisions/exercises/ttx/ai/config/map）；4-role hierarchy 向上相容；**gap**：Pi / PWA 無對應 role gate |
 | AC-4 | Information Flow Enforcement | N/A | N/A | N/A | — | — | 單體系統，無跨域資料流（TAK Wave 7 再評估）|
-| AC-5 | Separation of Duties | ❌ | ❌ | ❌ | C1-A Phase 2 | 🔴 | 無 role 分離（Admin PIN 是 all-or-nothing）；**C1-A Phase 2 4-role 解決** |
-| AC-6 | Least Privilege | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🔴 | 非最小權限原則；Admin PIN 全權；C1-A Phase 2 分級解決 |
-| AC-6(1) | Authorize Access to Security Functions | ❌ | ❌ | ❌ | C1-A Phase 2 | 🔴 | 需 require_role(系統管理員) 守門 admin 端點 |
-| AC-6(5) | Privileged Accounts | ❌ | ❌ | ❌ | C1-A Phase 2 | 🔴 | 無明確特權帳號（Admin PIN 匿名）；系統管理員 role 解決 |
+| AC-5 | Separation of Duties | ✅ | ❌ | ❌ | C1-A Phase 2 ✅ / P-C1-A / W-C1-A | 🔴 | 4-role（系統管理員/指揮官/操作員/觀察員）分離；`_require_admin` vs `_require_commander_or_pin` vs `require_role("操作員")` 三層；**gap**：Pi / PWA 無 role 分離 |
+| AC-6 | Least Privilege | ✅ | ⚠️ | ⚠️ | C1-A Phase 2 ✅ / P-C1-A | 🔴 | 各端點按最小所需角色守門；觀察員唯讀；指揮官不得操作系統管理員帳號（`_check_no_escalation`）；**gap**：Pi snap/sync 端點無 key 驗證；PWA 無 role 概念 |
+| AC-6(1) | Authorize Access to Security Functions | ✅ | ❌ | ❌ | C1-A Phase 2 ✅ / P-C1-A | 🔴 | `_require_admin`（系統管理員 session 或 Admin PIN break-glass）守門 `/api/admin/pi-nodes`、`/api/admin/reset-db` 等系統端點 |
+| AC-6(5) | Privileged Accounts | ✅ | ❌ | ❌ | C1-A Phase 2 ✅ / P-C1-A | 🔴 | `系統管理員` role 明確定義特權帳號；Admin PIN 退位為 break-glass；`_check_no_escalation` 防止低權限角色管理高權限帳號；**gap**：Pi 無特權帳號分層 |
 | AC-6(9)(10) | Log / Prohibit privileged use | ⚠️ | ❌ | N/A | C1-A Phase 2 + C1-D | 🟡 | audit_log 記 admin PIN 操作；缺 hash chain（C1-D）|
 | AC-7 | Unsuccessful Logon Attempts | ✅ | ❌ | ❌ | 已完成 / P-C1-A / W-C1-A | 🟡 | Command: 5x15min 帳號鎖定 + 10/min IP rate limit + Admin PIN 5x30min；**Pi / PWA 未對應** |
 | AC-8 | System Use Notification | ❌ | ❌ | ❌ | C1-A Phase 2（併入） | ⚪ | 無登入 banner（法規不強制，但 Moderate baseline 列；加一行容易）|

@@ -1,6 +1,7 @@
 
 from fastapi import APIRouter
 
+from auth.rbac import require_role
 from repositories.manual_repo import create_manual_record, get_manual_records, mark_manual_record_synced
 from schemas.manual import ManualRecordIn
 
@@ -18,7 +19,7 @@ FORM_TARGET_MAP = {
 
 
 @router.post("")
-def post_manual(body: ManualRecordIn):
+def post_manual(body: ManualRecordIn, _: dict = require_role("操作員")):
     meta   = FORM_TARGET_MAP.get(body.form_id, ("手動輸入", "未知"))
     data   = body.model_dump()
     data["form_type"]    = meta[0]
@@ -32,6 +33,6 @@ def get_manual(sync_status: str | None = None, limit: int = 100):
 
 
 @router.patch("/{record_id}/synced")
-def mark_synced(record_id: str, operator: str = "system"):
+def mark_synced(record_id: str, operator: str = "system", _: dict = require_role("操作員")):
     mark_manual_record_synced(record_id, operator)
     return {"ok": True}

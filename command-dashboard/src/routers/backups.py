@@ -30,7 +30,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from core.config import DB_PATH
 from repositories._helpers import audit
-from routers.admin import _check_admin_pin
+from routers.admin import _require_admin
 from services.backup_service import (
     DEFAULT_RETAIN_DAYS,
     cleanup_old_backups,
@@ -58,7 +58,7 @@ def _resolve_backup(name: str) -> Path:
 @router.get("/backups")
 def list_all_backups(request: Request):
     """列出所有 backup（最新在前）+ 系統 backup 狀態。"""
-    _check_admin_pin(request)
+    _require_admin(request)
     backups = list_backups(BACKUP_DIR)
     items = []
     for b in reversed(backups):  # 最新在前
@@ -81,7 +81,7 @@ def list_all_backups(request: Request):
 @router.post("/backups")
 def trigger_backup(request: Request):
     """立即觸發 backup（不等 systemd timer）。"""
-    _check_admin_pin(request)
+    _require_admin(request)
     if not DB_PATH_PATH.exists():
         raise HTTPException(404, f"DB 不存在：{DB_PATH_PATH}")
     try:
@@ -125,7 +125,7 @@ def trigger_backup(request: Request):
 @router.post("/backups/{name}/verify")
 def verify(name: str, request: Request):
     """驗證指定 backup 完整性（SQLite 可開 + schema_migrations 表存在）。"""
-    _check_admin_pin(request)
+    _require_admin(request)
     backup_path = _resolve_backup(name)
     ok = verify_backup(backup_path)
     audit(
@@ -143,7 +143,7 @@ def preview_contents(name: str, request: Request):
 
     用途：稽核 / forensic — 看「2 個月前資料筆數」不接觸 PII 明文。
     """
-    _check_admin_pin(request)
+    _require_admin(request)
     backup_path = _resolve_backup(name)
     if not verify_backup(backup_path):
         raise HTTPException(400, "backup 無效或損毀，請先 verify")
@@ -190,7 +190,7 @@ def preview_contents(name: str, request: Request):
 @router.get("/backups/{name}/restore-cmd")
 def restore_command(name: str, request: Request):
     """產生 production 還原 CLI 指令給 admin 複製（不直接執行 — 需停服務後手動跑）。"""
-    _check_admin_pin(request)
+    _require_admin(request)
     backup_path = _resolve_backup(name)
     audit(
         "admin", None, "backup_restore_cmd_issued", "system", backup_path.name,
