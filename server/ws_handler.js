@@ -39,11 +39,19 @@ wss.on('connection', (ws, req) => {
     log.warn(`[WS] No message in 5s from ${ip} src=${urlSrc} → zombie suspected`);
   }, 5000);
 
+  const _STATE_CHANGING = new Set(['delta', 'sync_push', 'session_restore', 'audit_event', 'clear_table']);
+
   ws.on('message', async (raw) => {
     if (_zombieTimer) { clearTimeout(_zombieTimer); _zombieTimer = null; }
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     log.debug(`[WS] ← ${msg.type} from ${ip} ${msg.table || ''} ${msg.record?._id ?? msg.record?.id ?? ''}`);
+
+    // First-run gate：首次設定完成前阻擋所有 state-changing 訊息
+    if (!getAdminPinHash() && _STATE_CHANGING.has(msg.type)) {
+      ws.send(JSON.stringify({ type: 'error', code: 'FIRST_RUN_REQUIRED', reason: '首次設定未完成' }));
+      return;
+    }
 
     switch (msg.type) {
 

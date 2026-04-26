@@ -10,9 +10,29 @@ const { cfg, PROTOCOL, getCommandUrl, setCommandUrl } = require('./config');
 const { db, nowISO, newUUID, randomHex, getLastSyncToCommand } = require('./db');
 const { hashPin, getAdminPinHash } = require('./auth');
 const { writeAuditLog } = require('./audit');
+const {
+  verifyToken, validateAdminPassword,
+  deleteTokenFile, getTokenPath,
+} = require('./first_run');
 const { adminAuth } = require('./middleware');
 const { clients } = require('./ws_handler');
 const { startPiPush, getPiApiKey } = require('./sync');
+
+// First-run HTTP gate：setup 完成前阻擋非白名單路徑
+const _FIRST_RUN_WHITELIST = new Set([
+  'GET /admin/status',
+  'GET /cert',
+  'GET /cert/install',
+  'GET /',
+  'POST /admin/setup',
+]);
+
+function firstRunGate(req, res, next) {
+  if (getAdminPinHash()) return next(); // 已完成首次設定
+  const normalizedPath = req.path.replace(/\/+$/, '') || '/'; // 去尾部斜線，防 curl trailing slash
+  if (_FIRST_RUN_WHITELIST.has(`${req.method} ${normalizedPath}`)) return next();
+  return res.status(423).json({ ok: false, reason: '首次設定未完成', code: 'FIRST_RUN_REQUIRED' });
+}
 
 function registerRoutes(app) {
   app.use(cors({ origin: '*' }));
@@ -24,6 +44,8 @@ function registerRoutes(app) {
     log.info(`[Static] 提供 PWA 靜態檔案：${PUBLIC_DIR}`);
   }
 
+  app.use(firstRunGate); // 靜態檔案之後、所有 route 之前
+
   app.get('/', (req, res) => {
     const pwaPath   = path.join(PUBLIC_DIR, cfg.pwaHtml);
     const adminPath = path.resolve(__dirname, '..', 'admin_v2.0.html');
@@ -32,18 +54,33 @@ function registerRoutes(app) {
     res.send('<h1>admin_v2.0.html 未找到</h1>');
   });
 
-  /* ── 管理員 PIN 設定 ── */
+  /* ── 管理員首次設定（需 first-run token + admin password）── */
   app.post('/admin/setup', async (req, res) => {
     if (getAdminPinHash()) return res.status(400).json({ ok: false, reason: '管理員 PIN 已設定' });
-    const { admin_pin } = req.body;
-    if (!admin_pin || admin_pin.length < 4 || !/^\d+$/.test(admin_pin))
-      return res.status(400).json({ ok: false, reason: 'PIN 格式不符（4-8 位數字）' });
+
+    const { first_run_token, admin_password } = req.body || {};
+
+    // 明確區分「欄位不存在」(401) 與「欄位存在但錯誤」(403)
+    if (first_run_token === undefined || first_run_token === null || first_run_token === '')
+      return res.status(401).json({ ok: false, reason: '缺少 first_run_token' });
+    if (!verifyToken(first_run_token))
+      return res.status(403).json({ ok: false, reason: 'token 無效或已過期' });
+
+    const validation = validateAdminPassword(admin_password);
+    if (!validation.ok)
+      return res.status(400).json({ ok: false, reason: validation.reason });
+
     const salt = randomHex(16);
-    const hash = await hashPin(admin_pin, salt);
+    const hash = await hashPin(admin_password, salt);
     db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('admin_pin_hash',?)").run(hash);
     db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('admin_pin_salt',?)").run(salt);
+
+    deleteTokenFile();
+    writeAuditLog('first_run_setup_complete', 'system', '', null,
+      { token_path: getTokenPath() });
     writeAuditLog('admin_pin_setup', 'system', '', null, {});
-    res.json({ ok: true, message: '管理員 PIN 設定成功' });
+
+    res.json({ ok: true, message: '管理員設定成功' });
   });
 
   /* ── 帳號管理 ── */
