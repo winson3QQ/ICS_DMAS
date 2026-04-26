@@ -151,43 +151,54 @@ class TestEventFuzzing:
 # ─────────────────────────────────────────────────────────────────
 
 class TestSnapshotFuzzing:
-    def test_missing_snapshot_id_returns_422(self, client):
-        """snapshot_id 缺失 → 422"""
-        r = client.post("/api/snapshots", json={
-            "v": 3, "type": "shelter",
-            "t": "2026-04-24T10:00:00Z", "src": "test",
-        })
+    """TI-01 後 POST /api/snapshots 需要 HMAC，改用 hmac_client fixture。"""
+
+    def test_missing_snapshot_id_returns_422(self, hmac_client):
+        """snapshot_id 缺失 → 422（HMAC 通過後，body 驗證失敗）"""
+        c, sign = hmac_client
+        body = {"v": 3, "type": "shelter", "t": "2026-04-24T10:00:00Z", "src": "test"}
+        body_bytes, hdrs = sign("POST", "/api/snapshots", body)
+        r = c.post("/api/snapshots", content=body_bytes, headers=hdrs)
         assert r.status_code == 422
 
-    def test_unknown_type_returns_400(self, client):
-        """未知的 type='unknown_node' → 400"""
-        r = client.post("/api/snapshots", json={
+    def test_unknown_type_returns_400(self, hmac_client):
+        """未知的 type='unknown_node' → 400（HMAC 通過後，router 驗證失敗）"""
+        c, sign = hmac_client
+        body = {
             "v": 3, "type": "unknown_node",
             "snapshot_id": "fuzz-001",
             "t": "2026-04-24T10:00:00Z", "src": "test",
-        })
+        }
+        body_bytes, hdrs = sign("POST", "/api/snapshots", body)
+        r = c.post("/api/snapshots", content=body_bytes, headers=hdrs)
         assert r.status_code == 400
 
-    def test_extra_unknown_fields_accepted(self, client):
+    def test_extra_unknown_fields_accepted(self, hmac_client):
         """SnapshotIn 設定 extra='allow'，額外欄位不拋錯"""
-        r = client.post("/api/snapshots", json={
+        c, sign = hmac_client
+        body = {
             "v": 3, "type": "shelter",
             "snapshot_id": "fuzz-extra-001",
             "t": "2026-04-24T10:00:00Z", "src": "test",
             "totally_unknown_field": "should_be_ignored",
-        })
+        }
+        body_bytes, hdrs = sign("POST", "/api/snapshots", body)
+        r = c.post("/api/snapshots", content=body_bytes, headers=hdrs)
         assert r.status_code == 200
 
-    def test_negative_bed_values_accepted(self, client):
+    def test_negative_bed_values_accepted(self, hmac_client):
         """
         bed_used=-1 → 目前無 validator，接受存入（已知行為）。
         未來 C2 可加 ge=0 validator。
         """
-        r = client.post("/api/snapshots", json={
+        c, sign = hmac_client
+        body = {
             "v": 3, "type": "shelter",
             "snapshot_id": "fuzz-neg-001",
             "t": "2026-04-24T10:00:00Z", "src": "test",
             "bed_used": -1, "bed_total": 50,
-        })
+        }
+        body_bytes, hdrs = sign("POST", "/api/snapshots", body)
+        r = c.post("/api/snapshots", content=body_bytes, headers=hdrs)
         # 接受或 422 都可，記錄當前行為
         assert r.status_code in (200, 422)

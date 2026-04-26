@@ -1,13 +1,14 @@
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from middleware.trusted_ingest import verify_hmac
 from repositories.sync_repo import execute_three_pass, get_sync_conflicts, get_sync_log, resolve_conflict
 from schemas.sync import ConflictResolveIn, SyncPushIn
 
 router = APIRouter(prefix="/api/sync", tags=["三 Pass 同步"])
 
 
-@router.post("/push")
+@router.post("/push", dependencies=[Depends(verify_hmac)])
 def sync_push(body: SyncPushIn, request: Request):
     operator = request.headers.get("X-Operator", "auto")
     return execute_three_pass(body.source_unit, body.model_dump(), operator)

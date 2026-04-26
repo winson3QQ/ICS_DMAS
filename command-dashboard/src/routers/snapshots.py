@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from middleware.trusted_ingest import verify_hmac
 from repositories.snapshot_repo import get_snapshots, upsert_snapshot
 from schemas.snapshot import SnapshotIn
 
@@ -15,7 +16,7 @@ _TYPE_MAP = {
 }
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(verify_hmac)])
 def post_snapshot(snap: SnapshotIn):
     """各組 Pi 推送快照（idempotent：同 snapshot_id 忽略）"""
     node_type = _TYPE_MAP.get(snap.type)

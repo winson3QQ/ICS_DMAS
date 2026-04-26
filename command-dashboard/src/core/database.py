@@ -2,7 +2,9 @@
 core/database.py — SQLite 連線管理與 schema 初始化
 """
 
+import os
 import sqlite3
+import sys
 from collections.abc import Generator
 
 from .config import DB_PATH
@@ -26,8 +28,18 @@ def get_db() -> Generator[sqlite3.Connection]:
         conn.close()
 
 
+def _ensure_db_permissions() -> None:
+    """DB 檔案權限強制 0600（trusted_keys 含 HMAC secret 明文）。
+    Windows 跳過（NTFS ACL 由 OS 管理）。
+    若檔案不存在則跳過（get_conn 建立後 Phase 2 再設）。
+    """
+    if sys.platform != "win32" and DB_PATH.exists():
+        os.chmod(DB_PATH, 0o600)
+
+
 def init_db() -> None:
     """建立所有資料表（idempotent）"""
+    _ensure_db_permissions()   # Phase 1：DB 已存在時先鎖權限
     conn = get_conn()
     try:
         _create_tables(conn)
@@ -35,6 +47,7 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
+    _ensure_db_permissions()   # Phase 2：get_conn 建立新 DB 後再鎖
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -312,6 +325,23 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         display_name TEXT,
         last_active  TEXT NOT NULL,
         created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
+
+    -- ── TI-01：Trusted Ingest（HMAC 金鑰 + Nonce 快取）────────────────────
+
+    CREATE TABLE IF NOT EXISTS trusted_keys (
+        key_id              TEXT PRIMARY KEY,
+        secret              TEXT NOT NULL,         -- hex 64 chars，明文存儲，需 DB chmod 0600
+        status              TEXT NOT NULL DEFAULT 'active'
+                            CHECK(status IN ('active', 'revoked', 'expired')),
+        created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+        expires_at          TEXT,
+        rotated_from_key_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS nonce_cache (
+        nonce      TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL               -- unix ms，用於 Lazy Expiry
     );
     """)
 
