@@ -29,7 +29,8 @@ const _FIRST_RUN_WHITELIST = new Set([
 
 function firstRunGate(req, res, next) {
   if (getAdminPinHash()) return next(); // 已完成首次設定
-  if (_FIRST_RUN_WHITELIST.has(`${req.method} ${req.path}`)) return next();
+  const normalizedPath = req.path.replace(/\/+$/, '') || '/'; // 去尾部斜線，防 curl trailing slash
+  if (_FIRST_RUN_WHITELIST.has(`${req.method} ${normalizedPath}`)) return next();
   return res.status(423).json({ ok: false, reason: '首次設定未完成', code: 'FIRST_RUN_REQUIRED' });
 }
 
@@ -57,9 +58,10 @@ function registerRoutes(app) {
   app.post('/admin/setup', async (req, res) => {
     if (getAdminPinHash()) return res.status(400).json({ ok: false, reason: '管理員 PIN 已設定' });
 
-    const { first_run_token, admin_password } = req.body;
+    const { first_run_token, admin_password } = req.body || {};
 
-    if (!first_run_token)
+    // 明確區分「欄位不存在」(401) 與「欄位存在但錯誤」(403)
+    if (first_run_token === undefined || first_run_token === null || first_run_token === '')
       return res.status(401).json({ ok: false, reason: '缺少 first_run_token' });
     if (!verifyToken(first_run_token))
       return res.status(403).json({ ok: false, reason: 'token 無效或已過期' });
