@@ -76,9 +76,9 @@ function registerRoutes(app) {
     db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('admin_pin_salt',?)").run(salt);
 
     deleteTokenFile();
-    writeAuditLog('first_run_setup_complete', 'system', '', null,
+    writeAuditLog('first_run_token_consumed', 'system', '', null,
       { token_path: getTokenPath() });
-    writeAuditLog('admin_pin_setup', 'system', '', null, {});
+    writeAuditLog('admin_pin_initialized', 'system', '', null, {});
 
     res.json({ ok: true, message: '管理員設定成功' });
   });

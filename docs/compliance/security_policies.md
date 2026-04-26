@@ -72,13 +72,39 @@ _Session A 填。草稿：_
 - Session timeout 依 role 風險級別（SYSTEM_ADMIN 30 min、其他 14 hours）
 - Account lockout：5 失敗 / 15 min（一般）或 5 失敗 / 30 min（admin PIN）
 
-### 2.4 Procedures
+### 2.4 AC-14 Permitted Actions Without Authentication（明確定義免驗清單）
+
+> 對應：NIST 800-53 AC-14；Evidence：`server/routes.js` `_FIRST_RUN_WHITELIST`、`server/ws_handler.js` `_STATE_CHANGING`
+
+#### Pi Server HTTP First-run Allowlist（first-run gate 解除前）
+
+| Method | Path | 放行理由 |
+|---|---|---|
+| `GET` | `/admin/status` | 狀態查詢，無敏感資料，無寫入 |
+| `GET` | `/cert` | CA 憑證下載，無敏感資料 |
+| `GET` | `/cert/install` | 憑證安裝說明，靜態內容 |
+| `GET` | `/` | PWA 入口頁，setup 前需可存取 |
+| `POST` | `/admin/setup` | First-run setup，內部另驗 token + 密碼複雜度 |
+
+靜態檔案（`express.static`）在 gate 之前處理，自動繞過 gate。所有其他路徑回 423 Locked。
+
+#### Pi Server WebSocket Gate（first-run gate 解除前）
+
+寫入類（`_STATE_CHANGING`）回 `FIRST_RUN_REQUIRED`：`delta`、`sync_push`、`session_restore`、`audit_event`、`clear_table`
+
+放行（只讀 / 心跳）：`auth`、`debug_ping`、`catchup_req`、`time_sync_req`、`ping`
+
+#### Token 產生時機與防 SD 卡 clone（L2）
+
+First-run token 在 Pi Server **首次啟動時**寫入 `~/.ics/first_run_token`（chmod 600）。此路徑位於 `/home/ics/` 目錄，屬 home partition，**不在 SD 卡系統分區**。SD 卡 clone 只複製系統分區映像，不含 home partition 內容，因此 clone 後的 Pi 不帶 token，無法通過 first-run gate，必須重新完成 setup 流程。
+
+### 2.5 Procedures
 _Session A 填：建立 / 修改 / 停用帳號流程_
 
-### 2.5 Audit
+### 2.6 Audit
 _每次 role 變更、帳號建立 / 刪除均寫 audit log_
 
-### 2.6 Review
+### 2.7 Review
 
 ---
 

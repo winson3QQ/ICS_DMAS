@@ -152,6 +152,25 @@ test('first_run_integration__full_happy_path', async () => {
     const token = fs.readFileSync(tmpToken, 'utf8').trim();
     assert.ok(token.length >= 64, 'token 應 ≥ 64 chars');
 
+    // B4a. POST /admin/setup/ trailing slash 無 token → 401（非 423，gate 應正常放行）
+    {
+      const res = await fetch(`${base}/admin/setup/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_password: 'Str0ng@Pass1!' }),
+      });
+      assert.equal(res.status, 401, 'trailing slash 無 token 應為 401，非 423');
+    }
+
+    // B4b. POST /admin/setup 缺 Content-Type → 401（非 423，req.body guard 應生效）
+    {
+      const res = await fetch(`${base}/admin/setup`, {
+        method: 'POST',
+        body: 'not-json',
+      });
+      assert.equal(res.status, 401, '缺 Content-Type 無 token 應為 401，非 423');
+    }
+
     // 6. POST /admin/setup 弱密碼（長度不足）→ 400
     {
       const res  = await fetch(`${base}/admin/setup`, {

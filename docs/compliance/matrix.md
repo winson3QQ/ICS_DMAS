@@ -208,7 +208,7 @@ Gap 過長時移到最下方「Gap Register」section，matrix 只留編號。
 | AC-10 | Concurrent Session Control | ❌ | ❌ | ❌ | C1-A Phase 2 | 🟡 | 同一帳號可多 session 同時登入；建議上限 N=2（電腦+手機） |
 | AC-11 | Device Lock | ⚠️ | N/A | ⚠️ | C1-A Phase 2（併入） | 🟠 | 靠 session timeout (8hr) 絕對終結；**無 idle lock 觸發畫面鎖定** |
 | AC-12 | Session Termination | ⚠️ | N/A | ⚠️ | C1-A Phase 2（併入） | 🟡 | 有絕對 timeout；**無 idle timeout**；logout 確實刪 session |
-| AC-14 | Permitted Actions Without Auth | ✅ | ✅ | N/A | — | — | `config.py PUBLIC_PATHS`: /health, /docs, /static 明確定義 |
+| AC-14 | Permitted Actions Without Auth | ✅ | ✅ | N/A | — | — | Cmd: `config.py PUBLIC_PATHS` /health /docs /static；Pi: `server/routes.js _FIRST_RUN_WHITELIST`（5 路徑）+ `ws_handler.js _STATE_CHANGING` gate；詳見 `security_policies.md §2.4` |
 | AC-17 | Remote Access | ✅ | ✅ | ✅ | — | 🟡 | TLS 1.2+ 強制（STRICT_TLS env）；HSTS 1yr；**gap**：無 remote access policy 文件 → security_policies.md §2 補 |
 | AC-17(2) | Protection of Confidentiality | ⚠️ | ⚠️ | ⚠️ | C1-G + C1-B | 🟡 | nginx TLS ✅；**mTLS 未啟用**（Tier 3 才做）；WS 層認證模糊 |
 | AC-18 | Wireless Access | ⚠️ | ⚠️ | ⚠️ | Wave 7 MANET | 🟡 | Pi 500 WiFi 用；**無 WPA3 policy / access point hardening 規範** |
@@ -271,7 +271,7 @@ audit_log(id TEXT PK, action, operator_name, device_id, session_id, timestamp, d
 | IA-3 | Device Identification | ⚠️ | ✅ | ⚠️ | P-C1-A | 🟡 | Pi 端 `pi_nodes.api_key` 為 device credential；PWA 無 device ID |
 | IA-4 | Identifier Management | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | `username` UNIQUE；**無 reuse 禁止期**；Phase 2 補政策 |
 | IA-5 | Authenticator Management | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2/3 | 🟡 | PBKDF2 + salt 已有；**PIN 強度 4-6 位**；缺密碼複雜度檢查（無連號 / 無重複）|
-| IA-5(1) | Password-Based Auth | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | PBKDF2-SHA256, 100k iter, 16-byte salt ✅；**4 碼 PIN 太弱**（Moderate baseline 建議 8+ char） |
+| IA-5(1) | Password-Based Auth | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | PBKDF2-SHA256, 100k iter, 16-byte salt ✅；Pi admin password ≥8 chars + 大寫+小寫+數字+特殊符號（HOTFIX-PI-01）✅ Evidence: `server/first_run.js::validateAdminPassword` + `server/__tests__/first_run.test.js:140-173`（5 reject + 1 accept）；**Operator PIN 仍 4-6 位**（Moderate baseline 建議 8+ char，待 C1-A Phase 2） |
 | IA-5(2) | PKI-Based Auth | N/A | ⚠️ | N/A | C1-B / C1-G mTLS | 🟠 | step-ca PKI 基礎有；mTLS 是未來項 |
 | IA-5(6) | Protection of Authenticators | ⚠️ | ⚠️ | ⚠️ | C1-C | 🟡 | PIN hash 存 DB；Admin PIN 寫 `~/.ics/first_run_token` chmod 600 ✅；**無定期強制換 PIN 機制** |
 | IA-5(13) | Expiration of Cached Authenticators | N/A | N/A | N/A | — | — | 無 cache auth |
