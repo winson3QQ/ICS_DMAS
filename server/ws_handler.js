@@ -34,12 +34,13 @@ wss.on('connection', (ws, req) => {
 
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
+  const wsId = `ws_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   let _zombieTimer = setTimeout(() => {
     log.warn(`[WS] No message in 5s from ${ip} src=${urlSrc} → zombie suspected`);
   }, 5000);
 
-  const _STATE_CHANGING = new Set(['delta', 'sync_push', 'session_restore', 'audit_event', 'clear_table']);
+  const _STATE_CHANGING = new Set(['delta', 'sync_push', 'session_restore', 'audit_event', 'clear_table', 'catchup_req']);
 
   ws.on('message', async (raw) => {
     if (_zombieTimer) { clearTimeout(_zombieTimer); _zombieTimer = null; }
@@ -47,9 +48,25 @@ wss.on('connection', (ws, req) => {
     try { msg = JSON.parse(raw); } catch { return; }
     log.debug(`[WS] ← ${msg.type} from ${ip} ${msg.table || ''} ${msg.record?._id ?? msg.record?.id ?? ''}`);
 
-    // First-run gate：首次設定完成前阻擋所有 state-changing 訊息
+    // Layer 0：首次設定完成前阻擋所有 state-changing 訊息
     if (!getAdminPinHash() && _STATE_CHANGING.has(msg.type)) {
-      ws.send(JSON.stringify({ type: 'error', code: 'FIRST_RUN_REQUIRED', reason: '首次設定未完成' }));
+      ws.close(4423, 'setup_required');
+      return;
+    }
+
+    // Layer 1：未認證客戶端阻擋所有 state-changing 訊息
+    if (!clients.has(ws) && _STATE_CHANGING.has(msg.type)) {
+      const isRestore  = msg.type === 'session_restore';
+      const closeReason = isRestore ? 'session_expired' : 'unauthorized';
+      ws.send(JSON.stringify({ type: 'error', reason: closeReason }));
+      writeAuditLog(
+        isRestore ? 'ws_session_restore_rejected' : 'ws_unauthorized_message_blocked',
+        'system', ip, null,
+        isRestore
+          ? { ws_id: wsId, reason: 'no_token', source_ip: ip }
+          : { ws_id: wsId, message_type: msg.type, source_ip: ip, close_code: 4401 }
+      );
+      ws.close(4401, closeReason);
       return;
     }
 
@@ -86,6 +103,8 @@ wss.on('connection', (ws, req) => {
         db.prepare('UPDATE accounts SET last_login=?, device_id=? WHERE username=?').run(nowISO(), device_id || null, username);
         clients.set(ws, { deviceId: device_id || ip, username, role: account.role, connectedAt: nowISO() });
         writeAuditLog('login_success', username, device_id || '', null, { role: account.role });
+        writeAuditLog('ws_auth_success', username, device_id || '', null,
+          { ws_id: wsId, username, role: account.role, session_id: wsId, source_ip: ip });
         ws.send(JSON.stringify({
           type: 'auth_result', ok: true, username, role: account.role,
           pi_time:              nowISO(),
@@ -113,15 +132,13 @@ wss.on('connection', (ws, req) => {
         break;
       }
 
-      /* ── session_restore ── */
+      /* ── session_restore（Option A：一律拒絕，要求重新 auth）── */
       case 'session_restore': {
-        const { username, role: rawRole, device_id } = msg;
-        const role = cfg.roles.includes(rawRole) ? rawRole : cfg.defaultRole;
-        if (username && role) {
-          const existing = clients.get(ws);
-          clients.set(ws, { deviceId: device_id || ip, username, role, connectedAt: existing?.connectedAt || nowISO() });
-          log.info(`[WS] Session restored: ${username} (${role}) device=${device_id || '?'}`);
-        }
+        writeAuditLog('ws_session_restore_rejected',
+          'system', ip, null,
+          { ws_id: wsId, reason: 'no_token', source_ip: ip });
+        ws.send(JSON.stringify({ type: 'error', reason: 'session_expired' }));
+        ws.close(4401, 'session_expired');
         break;
       }
 
@@ -229,7 +246,7 @@ wss.on('connection', (ws, req) => {
 
       /* ── 清除指定 table（床位重建） ── */
       case 'clear_table': {
-        if (!ws.isAuthed) { ws.send(JSON.stringify({ type: 'error', reason: '未認證' })); break; }
+        if (!clients.has(ws)) { ws.send(JSON.stringify({ type: 'error', reason: '未認證' })); break; }
         const CLEARABLE = ['beds', 'persons', 'resources', 'incidents', 'shifts'];
         const tbl = msg.table;
         if (!CLEARABLE.includes(tbl)) {
@@ -237,7 +254,7 @@ wss.on('connection', (ws, req) => {
           break;
         }
         db.prepare('DELETE FROM current_state WHERE table_name=?').run(tbl);
-        log.info(`[clear_table] ${tbl} cleared by ${ws.username || 'unknown'}`);
+        log.info(`[clear_table] ${tbl} cleared by ${clients.get(ws)?.username || 'unknown'}`);
         ws.send(JSON.stringify({ type: 'clear_table_ack', table: tbl, ok: true }));
         break;
       }
