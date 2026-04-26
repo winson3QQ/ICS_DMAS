@@ -153,7 +153,7 @@
 
 | 子項 | 對應 | 內容 | 狀態 |
 |------|------|------|------|
-| **P-C1-A** | C1-A / C2-D | Admin PIN 鎖定 + 首次強制設定（確認 Pi server 無預設 admin PIN 漏洞）| 🔲 |
+| **P-C1-A** | C1-A / C2-D | Admin PIN 鎖定 + 首次強制設定（確認 Pi server 無預設 admin PIN 漏洞）| ✅ |
 | **P-C1-B** 🆕 | C1-B | Pi 端 TLS 憑證管理 + STRICT_TLS 強制 + 憑證到期監控 | 🔲 |
 | **P-C1-C** 🆕 | C1-C | Pi 端靜態加密：better-sqlite3 + SQLCipher（整 DB）+ 對應的 backup 加密；策略 A「分層各自加密」（Pi 自管 key）；保護 accounts / audit_log / sessions（PWA 上傳資料若已 PWA 端加密則 Pi 不需重加密，但 Pi 本機表仍需）| 🔲 |
 | **P-C1-D** | C1-D | Audit log hash chain + correlation ID（與 command 跨組件串連）| 🔲 |
