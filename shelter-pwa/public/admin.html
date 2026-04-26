@@ -66,23 +66,28 @@
     <div class="card" style="box-shadow:none;border:1px solid var(--border);">
       <div id="setup-section">
         <div style="background:var(--red-bg);border:1px solid var(--red);border-radius:var(--r-sm);padding:12px;margin-bottom:16px;font-size:14px;color:var(--red);">
-          ⚠️ 尚未設定管理員 PIN，請先完成設定
+          ⚠️ 尚未設定管理員密碼，請先完成設定
         </div>
         <div class="form-group">
-          <label>設定管理員 PIN（4-6 位數字）</label>
-          <input id="setup-pin" type="password" inputmode="numeric" maxlength="6" placeholder="例：1234" style="padding:13px 16px;font-size:16px;">
+          <label>First-Run Token</label>
+          <input id="setup-token" type="text" autocomplete="off" placeholder="貼上 ~/.ics/first_run_token 內容" style="padding:13px 16px;font-size:14px;font-family:monospace;">
+          <div class="hint">部署 IT 執行 <code>sudo cat ~/.ics/first_run_token</code> 取得</div>
         </div>
         <div class="form-group">
-          <label>確認 PIN</label>
-          <input id="setup-pin2" type="password" inputmode="numeric" maxlength="6" placeholder="再輸入一次" style="padding:13px 16px;font-size:16px;">
+          <label>設定管理員密碼</label>
+          <input id="setup-pw" type="password" placeholder="8 字元以上，含大小寫+數字+特殊符號" style="padding:13px 16px;font-size:16px;">
         </div>
-        <button class="btn btn-primary" onclick="doSetup()">設定 PIN</button>
+        <div class="form-group">
+          <label>確認密碼</label>
+          <input id="setup-pw2" type="password" placeholder="再輸入一次" style="padding:13px 16px;font-size:16px;">
+        </div>
+        <button class="btn btn-primary" onclick="doSetup()">設定管理員</button>
         <div id="setup-error" class="error"></div>
       </div>
       <div id="login-section" style="display:none;">
         <div class="form-group">
-          <label>管理員 PIN</label>
-          <input id="login-pin" type="password" inputmode="numeric" maxlength="6" placeholder="輸入 PIN" style="padding:13px 16px;font-size:16px;" onkeydown="if(event.key==='Enter')doLogin()">
+          <label>管理員密碼</label>
+          <input id="login-pin" type="password" placeholder="輸入管理員密碼" style="padding:13px 16px;font-size:16px;" onkeydown="if(event.key==='Enter')doLogin()">
         </div>
         <button class="btn btn-primary" onclick="doLogin()">進入管理</button>
         <div id="login-error" class="error"></div>
@@ -209,16 +214,22 @@ async function init() {
 }
 
 async function doSetup() {
-  const pin = document.getElementById('setup-pin').value.trim();
-  const pin2 = document.getElementById('setup-pin2').value.trim();
-  const err = document.getElementById('setup-error');
-  if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN 需為 4-6 位數字'; return; }
-  if (pin !== pin2) { err.textContent = '兩次輸入不一致'; return; }
-  const r = await fetch('/admin/setup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({admin_pin: pin}) });
+  const token = document.getElementById('setup-token').value.trim();
+  const pw    = document.getElementById('setup-pw').value;
+  const pw2   = document.getElementById('setup-pw2').value;
+  const err   = document.getElementById('setup-error');
+  if (!token) { err.textContent = '請輸入 First-Run Token'; return; }
+  if (pw.length < 8) { err.textContent = '密碼長度至少 8 字元'; return; }
+  if (!/[A-Z]/.test(pw)) { err.textContent = '密碼須含至少 1 個大寫英文字母'; return; }
+  if (!/[a-z]/.test(pw)) { err.textContent = '密碼須含至少 1 個小寫英文字母'; return; }
+  if (!/[0-9]/.test(pw)) { err.textContent = '密碼須含至少 1 個數字'; return; }
+  if (!/[!@#$%^&*()\-_=+\[\]{};':"\\|,.<>/?`~]/.test(pw)) { err.textContent = '密碼須含至少 1 個特殊符號'; return; }
+  if (pw !== pw2) { err.textContent = '兩次密碼不一致'; return; }
+  const r = await fetch('/admin/setup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({first_run_token: token, admin_password: pw}) });
   const d = await r.json();
   if (d.ok) {
-    _adminPin = pin;
-    sessionStorage.setItem('admin_pin', pin);
+    _adminPin = pw;
+    sessionStorage.setItem('admin_pin', pw);
     showMain();
   } else {
     err.textContent = d.reason || '設定失敗';
@@ -346,7 +357,7 @@ async function addAccount() {
   const username = document.getElementById('new-username').value.trim();
   const pin = document.getElementById('new-pin').value.trim();
   const role_detail = document.getElementById('new-role').value;
-  const role = role_detail === '組長' ? '指揮官' : '操作員';
+  const role = role_detail;
   const display_name = document.getElementById('new-display').value.trim();
   const errEl = document.getElementById('add-error');
   const okEl = document.getElementById('add-result');
