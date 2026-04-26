@@ -149,3 +149,12 @@ After implementation, report:
 3. Tests run
 4. Remaining risks
 5. Matrix update suggestion
+
+## Decision Handling
+
+If implementation reveals a decision that affects scope, security, schema, acceptance criteria, maturity, edition gate, or matrix status:
+
+- Stop implementation.
+- Post a Decision Point comment.
+- Wait for human approval.
+- Do not continue until the issue has an approved Human Decision comment.

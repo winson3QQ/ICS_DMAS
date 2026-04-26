@@ -55,6 +55,19 @@ Copy acceptance criteria from the linked issue.
 - [ ] AC2:
 - [ ] AC3:
 
+## Implementation Decisions
+
+Were any implementation decisions made that affect scope, security, schema, acceptance criteria, or matrix status?
+
+- [ ] No
+- [ ] Yes, documented in linked issue
+
+Decision links:
+-
+
+Matrix impact:
+-
+
 ## Automated Tests Run
 
 <!--
