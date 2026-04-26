@@ -1,6 +1,6 @@
 {
   "name": "ics-dmas-pi-server",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -10,7 +10,8 @@
     "shelter": "node server/index.js --unit shelter",
     "medical": "node server/index.js --unit medical",
     "dev:shelter": "node --watch server/index.js --unit shelter",
-    "dev:medical": "node --watch server/index.js --unit medical"
+    "dev:medical": "node --watch server/index.js --unit medical",
+    "test": "node --test server/__tests__/"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

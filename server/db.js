@@ -35,25 +35,8 @@ runMigrations(db);
     }
   }
 
-  if (!db.prepare("SELECT value FROM config WHERE key='admin_pin_hash'").get()) {
-    const salt = randomHex(16);
-    crypto.pbkdf2('1234', Buffer.from(salt, 'hex'), 200000, 32, 'sha256', (err, key) => {
-      if (err) { log.warn('[Seed] admin PIN hash error:', err.message); return; }
-      db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('admin_pin_hash',?)").run(key.toString('hex'));
-      db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('admin_pin_salt',?)").run(salt);
-      log.info('[Seed] 預設管理員 PIN 已設定（1234）');
-      if (!db.prepare('SELECT id FROM accounts WHERE username=?').get('admin')) {
-        const acctSalt = randomHex(16);
-        crypto.pbkdf2('1234', Buffer.from(acctSalt, 'hex'), 200000, 32, 'sha256', (e2, k2) => {
-          if (e2) return;
-          db.prepare(`INSERT INTO accounts(id,username,role,pin_hash,pin_salt,status,created_at,created_by)
-                      VALUES(?,?,?,?,?,?,?,?)`)
-            .run(newUUID(), 'admin', cfg.roles[0], k2.toString('hex'), acctSalt, 'active', nowISO(), 'system');
-          log.info(`[Seed] 預設帳號 admin/${cfg.roles[0]} 已建立`);
-        });
-      }
-    });
-  }
+  // 不再 seed 預設 admin/1234；fresh DB 啟動由 first_run.js 產生一次性 token，
+  // 等部署 IT 透過 /admin/setup 完成首次設定。
 })();
 
 // Delta log（in-memory buffer + persistent）

@@ -4,7 +4,7 @@ const path = require('path');
 const fs   = require('fs');
 const { log } = require('./logger');
 
-const SERVER_VERSION = 'v1.3.0';
+const SERVER_VERSION = 'v1.3.1';
 
 const UNIT_CONFIGS = {
   shelter: {
