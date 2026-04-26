@@ -84,6 +84,17 @@
           "icon": "shield",
           "event_id": "0300d4ba-162a-4780-beb3-0b43b302ede0",
           "event_code": "EV-0424-001"
+        },
+        {
+          "id": "evt_1777111818831",
+          "label": "暴力事件",
+          "sub": "",
+          "lat": 24.819946,
+          "lng": 121.018619,
+          "node_type": "security",
+          "icon": "shield",
+          "event_id": "63efbd92-342c-4f10-a176-3f1821cbc10f",
+          "event_code": "EV-0425-001"
         }
       ],
       "flows": [],
