@@ -137,9 +137,37 @@ No new dependencies added beyond those listed in §4
 
 Step C — after merge (human only, not coding agent):
 
-Matrix row Status and Evidence fields updated if applicable
-ROADMAP item marked ✅ if applicable
-Any known limitations noted in PR description under ## Known Limitations
+A task card is considered CLOSED only when ALL of the following are recorded.
+Any single missing item means the task is not closed, regardless of verbal or
+chat-based statements to the contrary.
+
+C-1. PR merge confirmed
+     - PR is merged to main on the canonical repo
+     - Merge commit hash recorded in the GitHub Issue
+
+C-2. GitHub Issue closed with close comment
+     - Gatekeeper Final Verdict pasted as a close comment
+     - Issue moved to closed state
+     - Any scope expansion beyond Step A approval logged in the Issue
+       as a separate "Scope Expansion Observed" comment
+
+C-3. Master Capability Matrix updated
+     - Status field updated for affected CAP rows (e.g. Needs Hardening
+       → Partial Hardened)
+     - Evidence Required field updated with PR number, commit hash, and
+       any policies/section references created or modified
+     - Maturity field MUST NOT be raised unless all dependency tasks are
+       also closed and the dependency chain is complete
+
+C-4. ROADMAP and PR description finalised
+     - ROADMAP item marked ✅ if applicable, with task ID and close date
+     - PR description includes ## Known Limitations section listing every
+       intentional gap with tracking reference
+
+External Claim field on the Master Capability Matrix is owned by the human
+owner, not the Matrix Steward and not the coding agent. It is updated
+independently of Step C and may intentionally lag behind C-1 through C-4
+when claims depend on multiple tasks closing together.
 
 
 Prohibited Behaviours for Coding Agent
@@ -151,7 +179,7 @@ Make a design decision not explicitly resolved in §3.7 before Step A approval
 Expand scope beyond §9 Out of Scope, even if the expansion seems beneficial
 Add npm or PyPI dependencies not listed in §4
 Modify matrix.md, ROADMAP.md, or any compliance document
-Create new long documents (hotfix summary comments on the GitHub Issue are acceptable)
+Create new long documents (hotfix summary comments and scope expansion comments on the GitHub Issue are acceptable; close comments produced by Gatekeeper for Step C are also acceptable)
 Re-open a decision point that has been resolved by the human owner
 Interpret an ambiguous §6 item unilaterally — stop and report instead
 
