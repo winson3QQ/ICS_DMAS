@@ -79,7 +79,7 @@
 | TBD | Fix — rate limit XFF fix | P1 | 🔲 |
 | TBD | Fix — Pi API key hash store | P1 | 🔲 |
 | TBD | Fix — prod debug/prod mode switch | P2 | 🔲 |
-| TBD | Fix — frontend modularise + CSP | P1 | 🔲 |
+| TBD | Fix — frontend modularise + CSP | P0 | 🔲 |
 | TBD | Fix — 4-role RBAC + endpoint gate | P0 | 🔲 |
 | TBD | Fix — audit hash chain + correlation ID | P0 | 🔲 |
 | TBD | Fix — WS full security | P0 | 🔲 |
@@ -107,6 +107,8 @@
 > ⚠️ **Gate**: #8 ✅ + #11 close → Exercise Pro edition 才開放
 
 ---
+
+> **C2-B** (esbuild bundle + minify + vitest coverage) → 另開 task，待 v2.2.0 CI/CD 強化規劃
 
 ## Edition: GovOps
 
