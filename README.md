@@ -46,7 +46,7 @@ PTT 錄音 → STT        WebSocket          WebSocket
 ### 規劃 / 里程碑 / 目前在哪
 
 → [docs/ROADMAP.md](docs/ROADMAP.md)
-Wave（功能）與 cX（工程品質）統一里程碑，含每個版本的進度狀態
+Edition → Release → Items 人類視角。技術細節在 matrix.md
 
 ### 指揮部儀表板開發
 
@@ -103,7 +103,7 @@ python tests/gen_test_snapshots.py --batch
 
 | 元件 | 目前版號 | 開發階段 |
 |------|---------|---------|
-| 指揮部（FastAPI + 儀表板） | cmd-v0.12.14 | Phase 1（HTTP/WS） |
+| 指揮部（FastAPI + 儀表板） | cmd-v2.0.5 | Phase 1 ✅ / Security hardening in progress |
 | 收容組 PWA | shelter-v2.2.53 | Phase 1 |
 | 醫療組 PWA | medical-v0.6.7-alpha | Phase 1 |
 | Pi Server（共用） | server-v1.2.0 | Phase 1 |

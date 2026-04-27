@@ -43,10 +43,10 @@
 
 ### Branch 工作流（Feature Branch）
 
-- 每個功能 / Cx 項目建立獨立分支，命名規則：
-  - `feat/<scope>` — 新功能（如 `feat/c2-c-ruff`、`feat/c1-e-migrations`）
-  - `fix/<scope>` — bug fix（如 `fix/archive-404`）
-  - `docs/<scope>` — 純文件更新
+- 每個 Issue 建立獨立分支，命名規則：
+  - `feat/issue-NN-short-title` — Feature 類 Issue（如 `feat/issue-12-cop-heatmap`）
+  - `fix/issue-NN-short-title` — Fix 類 Issue（如 `fix/issue-8-ws-preauth`）
+  - `docs/issue-NN-short-title` — 純文件更新
 - 分支完成後透過 PR merge 回 `main`
 - `main` 只接受 merge commit（不直接 push feature code）
 - hotfix 或純文件更新可直接在 `main` commit
@@ -96,17 +96,17 @@
 
 ## 功能完成定義（Definition of Done）
 
-任何 Cx 項目 / Wave feature / bug fix，**同時滿足以下條件**才算完成：
+任何 Fix / Feature item，**同時滿足以下條件**才算完成：
 
 1. **程式碼 merged**（main 分支）
 2. **CI 測試補齊** — 對應的 unit / integration / security 測試已加並 green
-   - 對應 ROADMAP `C2-A`（測試補完）/ `C2-B`（CI/CD 強化）
+   - 對應 matrix Tab 2 中的 Quality 工程目標
    - 符合 NIST SSDF PW.7 / ASVS V14 / ISO 25010 可靠性
 3. **規格書同步** — 若有介面、資料格式、或功能行為變更
 4. **Compliance matrix 更新**（若該項有對應 control）
    - `docs/compliance/matrix.md` 的 Evidence 欄位指向新增的 code / test
    - Gap Register 移除該項（若原本列為 gap）
-5. **ROADMAP.md 狀態改 ✅**
+5. **Issue 在 GitHub 關閉，ROADMAP.md 由 Matrix Steward 同步**
 
 **缺測不算完成。** 這是為了：
 - 每次 release 都有 regression 防線

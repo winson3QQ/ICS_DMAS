@@ -1,10 +1,41 @@
-# ICS_DMAS Compliance Matrix
+# ICS_DMAS Compliance & Capability Matrix
 
-> **主 deliverable**：控制項 × 組件 × 狀態對照表。投標 / 稽核 / 行銷主要依據。
-> **最後更新**：2026-04-25（骨架建立，Session A/B/C/D 填入內容）
-> **審查原則**：架構層級對照，非 line-by-line code review。
->
-> 狀態代號：✅ 符合 / ⚠️ 部分符合 / ❌ 未實作 / N/A 不適用（附理由）
+> **Tab 1 — Release Dashboard（Human view）** 見下方。
+> **Tab 2 — Capability Matrix（Agent view）** 見 Tab 1 下方。
+> XLSX 主表以同樣雙欄結構維護，以 XLSX 為欄位更新的主權威。
+
+---
+
+## Tab 1 — Release Dashboard
+
+> 受眾：Human owner。每次 Issue close 後由 Matrix Steward 同步。
+> 完整 Release 計劃 → ROADMAP.md
+
+| Release | Edition | P0 Issues | P1 Issues | Status | Claims unlocked |
+|---------|---------|-----------|-----------|--------|-----------------|
+| v0.12.x | Demo | — | — | ✅ closed | COP basic demo |
+| v0.13.0 | Demo | #6 ✅ | — | 🔄 in progress | Pi first-run secure deploy |
+| v2.1.0 | Exercise Pro | #8 🔄, #9 🔲 + others | TBD | 🔲 planned | NIST 800-53 scoped · 個資法 §27 · 附表十 |
+| v2.2.0 | GovOps | — | TBD | 🔲 planned | First sellable version |
+| v3.0.0 | TTX moat | — | — | 🔲 planned | HSEEP / NIMS alignment |
+| v3.1.0 | AI | — | — | 🔲 planned | AI differentiation |
+| v3.2.0 | Flagship | — | — | 🔲 planned | ISO 27001 / CNS 27001 |
+
+### Issue → Capability traceability index
+
+| Issue# | Title | CAP affected | GAP closed | Release | Status |
+|--------|-------|-------------|------------|---------|--------|
+| #6 | Pi first-run security | CAP-010 | GAP-AUTH-PI-01 | v0.13.0 + v2.1.0 | ✅ closed 2026-04-26 |
+| #8 | WS pre-auth gate | CAP-013, CAP-010 | GAP-AUTH-02, GAP-SYNC-17 | v2.1.0 | 🔄 in progress |
+| #9 | Trusted Ingest HMAC | CAP-012, CAP-010 | GAP-SYNC-05 | v2.1.0 | 🔲 next |
+
+---
+
+## Tab 2 — Capability Matrix (Agent view)
+
+> 受眾：AI agents（Matrix Steward、Security Review、Auditor）。
+> Human 只在需要追查技術細節時查閱。
+> 命名說明：GAP-DOM-NN = 新格式（括號內為舊 G-XNN 格式，供 alias 查詢）
 
 ---
 
@@ -98,7 +129,7 @@
 1. ✅ **B-FIX-01 isAuthed bug**：併入 P-C1-G（按實作策略 D0：Pi-side 不影響 command 當前行為，不 hotfix）
 2. ✅ **C1-F 提前**：移到 C1-A Phase 2 之前或併行（376KB monolithic 是 RBAC 硬阻礙）
 3. ✅ **跨組件 audit hash chain 設計定案**：每組件各維護一條 chain + command 端 meta-chain；correlation ID 跨組件 propagate；command 先實作（C1-D）/ Pi 跟進（P-C1-D）/ PWA 跟進（W-C1-D）
-4. ✅ **P-C1-E 範圍擴大**：Pi 建正式 `schema_migrations` 表 + runner + API + PWA GUI
+4. ✅ **Pi-C1-E 範圍擴大**：Pi 建正式 `schema_migrations` 表 + runner + API + PWA GUI
 5. ✅ **PII redaction by role**：觀察員只看 display_id + 傷情等級色；姓名 / 症狀 / 過敏 / 用藥不顯（個資法 §6 §27 必合規）；redact layer 在 command service 層（C1-A Phase 2 + C1-C）
 
 **實作策略總原則（Decision D0）**：command 優先；Pi/PWA 改動若影響 command 行為視為優先；其餘 Pi/PWA 改動 wave 後補。
@@ -110,7 +141,7 @@
 #### 立即可動（已完成於本 commit）
 - ✅ **G-C10 SECURITY.md**：`SECURITY.md` 已建（含 PDPC 72h 通報流程、SLA、scope）
 - ✅ **G-C15 legacy dead code**：`src/db.py` + `src/main_legacy.py` 已刪；`setup.sh` 改用 `core.database.init_db`；`pyproject.toml` 移除排除清單
-- ❌ **G-C19**：driving driving false positive（`.gitignore` 已涵蓋 `*.db`），實際無此問題
+- ❌ **GAP-QUAL-19c**：driving driving false positive（`.gitignore` 已涵蓋 `*.db`），實際無此問題
 - ✅ **G-C28 PR template**：`.github/PULL_REQUEST_TEMPLATE.md` 已建（含 DoD checklist + compliance 欄位）
 
 #### 已知 bug 待修
@@ -208,7 +239,7 @@ Gap 過長時移到最下方「Gap Register」section，matrix 只留編號。
 | AC-10 | Concurrent Session Control | ❌ | ❌ | ❌ | C1-A Phase 2 | 🟡 | 同一帳號可多 session 同時登入；建議上限 N=2（電腦+手機） |
 | AC-11 | Device Lock | ⚠️ | N/A | ⚠️ | C1-A Phase 2（併入） | 🟠 | 靠 session timeout (8hr) 絕對終結；**無 idle lock 觸發畫面鎖定** |
 | AC-12 | Session Termination | ⚠️ | N/A | ⚠️ | C1-A Phase 2（併入） | 🟡 | 有絕對 timeout；**無 idle timeout**；logout 確實刪 session |
-| AC-14 | Permitted Actions Without Auth | ✅ | ✅ | N/A | — | — | Cmd: `config.py PUBLIC_PATHS` /health /docs /static；Pi: `server/routes.js _FIRST_RUN_WHITELIST`（5 路徑）+ `ws_handler.js _STATE_CHANGING` gate；詳見 `security_policies.md §2.4` |
+| AC-14 | Permitted Actions Without Auth | ✅ | ✅ | N/A | — | — | `config.py PUBLIC_PATHS`: /health, /docs, /static 明確定義 |
 | AC-17 | Remote Access | ✅ | ✅ | ✅ | — | 🟡 | TLS 1.2+ 強制（STRICT_TLS env）；HSTS 1yr；**gap**：無 remote access policy 文件 → security_policies.md §2 補 |
 | AC-17(2) | Protection of Confidentiality | ⚠️ | ⚠️ | ⚠️ | C1-G + C1-B | 🟡 | nginx TLS ✅；**mTLS 未啟用**（Tier 3 才做）；WS 層認證模糊 |
 | AC-18 | Wireless Access | ⚠️ | ⚠️ | ⚠️ | Wave 7 MANET | 🟡 | Pi 500 WiFi 用；**無 WPA3 policy / access point hardening 規範** |
@@ -271,7 +302,7 @@ audit_log(id TEXT PK, action, operator_name, device_id, session_id, timestamp, d
 | IA-3 | Device Identification | ⚠️ | ✅ | ⚠️ | P-C1-A | 🟡 | Pi 端 `pi_nodes.api_key` 為 device credential；PWA 無 device ID |
 | IA-4 | Identifier Management | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | `username` UNIQUE；**無 reuse 禁止期**；Phase 2 補政策 |
 | IA-5 | Authenticator Management | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2/3 | 🟡 | PBKDF2 + salt 已有；**PIN 強度 4-6 位**；缺密碼複雜度檢查（無連號 / 無重複）|
-| IA-5(1) | Password-Based Auth | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | PBKDF2-SHA256, 100k iter, 16-byte salt ✅；Pi admin password ≥8 chars + 大寫+小寫+數字+特殊符號（HOTFIX-PI-01）✅ Evidence: `server/first_run.js::validateAdminPassword` + `server/__tests__/first_run.test.js:140-173`（5 reject + 1 accept）；**Operator PIN 仍 4-6 位**（Moderate baseline 建議 8+ char，待 C1-A Phase 2） |
+| IA-5(1) | Password-Based Auth | ⚠️ | ⚠️ | ⚠️ | C1-A Phase 2 | 🟡 | PBKDF2-SHA256, 100k iter, 16-byte salt ✅；**4 碼 PIN 太弱**（Moderate baseline 建議 8+ char） |
 | IA-5(2) | PKI-Based Auth | N/A | ⚠️ | N/A | C1-B / C1-G mTLS | 🟠 | step-ca PKI 基礎有；mTLS 是未來項 |
 | IA-5(6) | Protection of Authenticators | ⚠️ | ⚠️ | ⚠️ | C1-C | 🟡 | PIN hash 存 DB；Admin PIN 寫 `~/.ics/first_run_token` chmod 600 ✅；**無定期強制換 PIN 機制** |
 | IA-5(13) | Expiration of Cached Authenticators | N/A | N/A | N/A | — | — | 無 cache auth |
@@ -949,52 +980,52 @@ _Session D 填入：治理、風險策略、角色責任_
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-A01 | AC-3 / AC-5 / AC-6 / V4.1.1 / V4.1.5 | command + pi + pwa | **後端無 role-based endpoint gate**（核心 RBAC 缺）；deny-by-default 未實施 | C1-A Phase 2 |
-| G-A02 | AC-6(1) / AC-6(5) | command | 無特權帳號分離（Admin PIN 匿名 + all-or-nothing）| C1-A Phase 2 |
-| G-A03 | SC-28 / PR.DS-01 | command + pi + pwa | **靜態資料未加密**：應用層 Fernet / DB SQLCipher / OS LUKS 全缺 | C1-C 擴大 |
-| G-A04 | AU-9(3) | command + pi | Audit log **無 hash chain / 簽章**（INSERT-only 是程式約定可繞）| C1-D |
-| G-A05 | AU-8 | command + pi | **時間來源不可信**（系統時鐘無 NTP 強制）→ ICS 214 法律效力受質疑 | C3-B 擴充（NTP）|
-| G-A06 | SC-5 / V14 | command + pi | 全域 rate limit 缺；**只有 /login 有限速**；無 payload size limit | C2-F |
+| GAP-AUTH-01 (G-A01) | AC-3 / AC-5 / AC-6 / V4.1.1 / V4.1.5 | command + pi + pwa | **後端無 role-based endpoint gate**（核心 RBAC 缺）；deny-by-default 未實施 | C1-A Phase 2 |
+| GAP-AUTH-02 (G-A02) | AC-6(1) / AC-6(5) | command | 無特權帳號分離（Admin PIN 匿名 + all-or-nothing）| C1-A Phase 2 |
+| GAP-DATA-03 (G-A03) | SC-28 / PR.DS-01 | command + pi + pwa | **靜態資料未加密**：應用層 Fernet / DB SQLCipher / OS LUKS 全缺 | C1-C 擴大 |
+| GAP-AUDIT-04 (G-A04) | AU-9(3) | command + pi | Audit log **無 hash chain / 簽章**（INSERT-only 是程式約定可繞）| C1-D |
+| GAP-DEPLOY-05 (G-A05) | AU-8 | command + pi | **時間來源不可信**（系統時鐘無 NTP 強制）→ ICS 214 法律效力受質疑 | C3-B 擴充（NTP）|
+| GAP-AUTH-06 (G-A06) | SC-5 / V14 | command + pi | 全域 rate limit 缺；**只有 /login 有限速**；無 payload size limit | C2-F |
 
 #### 🟡 High（v2.1.0 強烈建議補）
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-A07 | AC-2 | command | `delete_account()` hard DELETE，**audit_log operator 會指向不存在的 user**；應改 soft delete | C1-A Phase 2 |
-| G-A08 | AC-7 / IA-2 | pi + pwa | Pi 端 / PWA 端**無登入 lockout / rate limit** | P-C1-A / W-C1-A |
-| G-A09 | AC-12 / V3.3.2 | command + pwa | 無 idle session timeout；只有絕對 timeout | C1-A Phase 2 |
-| G-A10 | AC-17(2) / SC-23 | command + pi | session token **無 IP / UA binding**（偷 token 即可用）| C1-A Phase 2 |
-| G-A11 | AU-2 / AU-12 | command + pi + pwa | 寫入 audit 散在 service 層（非 100% 覆蓋）；應改 middleware 強制 | C1-D |
-| G-A12 | AU-3 | command + pi | audit_log 缺 source IP / user agent / **correlation ID** | C1-D |
-| G-A13 | AU-11 | command + pi | 無 audit log 保存 / 清除策略 | C1-D + security_policies §3 |
-| G-A14 | IA-2(1)(2) | command + pi + pwa | **無 MFA**（單因素 PIN）；達不到 AAL2 | C1-A Phase 3 |
-| G-A15 | IA-5(1) | command + pi + pwa | 4 位 PIN 可受暴力（lockout 緩解，但不夠）；**無連號 / 重複防** | C1-A Phase 2 |
-| G-A16 | SC-12 / SC-17 | command + pi | step-ca **實機部署 + renew timer 未實測**；OCSP stapling 在 dev 關閉 | C1-B 收尾 / P-C1-B |
-| G-A17 | SC-10 / V3 | pi + pwa | WebSocket **無 heartbeat 管理 / 認證模糊**；auth token 層細節待 Session B 驗 | C1-G |
-| G-A18 | AU-4 / AU-5 | command + pi | log 容量無監控；寫 fail silent | C1-D + C3-C |
+| GAP-AUTH-07 (G-A07) | AC-2 | command | `delete_account()` hard DELETE，**audit_log operator 會指向不存在的 user**；應改 soft delete | C1-A Phase 2 |
+| GAP-AUTH-08 (G-A08) | AC-7 / IA-2 | pi + pwa | Pi 端 / PWA 端**無登入 lockout / rate limit** | P-C1-A / W-C1-A |
+| GAP-AUTH-09 (G-A09) | AC-12 / V3.3.2 | command + pwa | 無 idle session timeout；只有絕對 timeout | C1-A Phase 2 |
+| GAP-AUTH-10 (G-A10) | AC-17(2) / SC-23 | command + pi | session token **無 IP / UA binding**（偷 token 即可用）| C1-A Phase 2 |
+| GAP-AUDIT-11 (G-A11) | AU-2 / AU-12 | command + pi + pwa | 寫入 audit 散在 service 層（非 100% 覆蓋）；應改 middleware 強制 | C1-D |
+| GAP-AUDIT-12 (G-A12) | AU-3 | command + pi | audit_log 缺 source IP / user agent / **correlation ID** | C1-D |
+| GAP-AUDIT-13 (G-A13) | AU-11 | command + pi | 無 audit log 保存 / 清除策略 | C1-D + security_policies §3 |
+| GAP-AUTH-14 (G-A14) | IA-2(1)(2) | command + pi + pwa | **無 MFA**（單因素 PIN）；達不到 AAL2 | C1-A Phase 3 |
+| GAP-AUTH-15 (G-A15) | IA-5(1) | command + pi + pwa | 4 位 PIN 可受暴力（lockout 緩解，但不夠）；**無連號 / 重複防** | C1-A Phase 2 |
+| GAP-DEPLOY-16 (G-A16) | SC-12 / SC-17 | command + pi | step-ca **實機部署 + renew timer 未實測**；OCSP stapling 在 dev 關閉 | C1-B 收尾 / P-C1-B |
+| GAP-SYNC-17 (G-A17) | SC-10 / V3 | pi + pwa | WebSocket **無 heartbeat 管理 / 認證模糊**；auth token 層細節待 Session B 驗 | C1-G |
+| GAP-AUDIT-18 (G-A18) | AU-4 / AU-5 | command + pi | log 容量無監控；寫 fail silent | C1-D + C3-C |
 
 #### 🟠 Medium
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-A19 | AC-2(1) / AC-2(13) | command | 無自動化帳號 review / risk-based disable | C1-A Phase 2 |
-| G-A20 | AC-10 | command | 同帳號可多 session 同時登入（無上限）| C1-A Phase 2 |
-| G-A21 | AC-11 | command + pwa | 無 UI idle lock 觸發畫面鎖 | C1-A Phase 2 |
-| G-A22 | AC-19 | pwa | PWA 無 MDM / device enrollment | W-C1-A / Wave 7 |
-| G-A23 | AU-6 | command | audit log 查詢有，**異常告警規則無** | C1-D + C3-C |
-| G-A24 | IA-3 | pwa | PWA 無 device identifier | W-C1-A |
-| G-A25 | IA-11 | command | 敏感操作（改 role / 刪帳號）無強制重認證 | C1-A Phase 2 |
-| G-A26 | SC-18 | pwa | CSP `unsafe-inline`（600+ inline styles/handlers）| C1-F |
-| G-A27 | V2.5 | command | admin PIN 忘記恢復政策未文件化 | C1-A Phase 4 / security_policies §2 |
+| GAP-AUTH-19 (G-A19) | AC-2(1) / AC-2(13) | command | 無自動化帳號 review / risk-based disable | C1-A Phase 2 |
+| GAP-AUTH-20 (G-A20) | AC-10 | command | 同帳號可多 session 同時登入（無上限）| C1-A Phase 2 |
+| GAP-AUTH-21 (G-A21) | AC-11 | command + pwa | 無 UI idle lock 觸發畫面鎖 | C1-A Phase 2 |
+| GAP-AUTH-22 (G-A22) | AC-19 | pwa | PWA 無 MDM / device enrollment | W-C1-A / Wave 7 |
+| GAP-AUDIT-23 (G-A23) | AU-6 | command | audit log 查詢有，**異常告警規則無** | C1-D + C3-C |
+| GAP-AUTH-24 (G-A24) | IA-3 | pwa | PWA 無 device identifier | W-C1-A |
+| GAP-AUTH-25 (G-A25) | IA-11 | command | 敏感操作（改 role / 刪帳號）無強制重認證 | C1-A Phase 2 |
+| GAP-AUTH-26 (G-A26) | SC-18 | pwa | CSP `unsafe-inline`（600+ inline styles/handlers）| C1-F |
+| GAP-AUTH-27 (G-A27) | V2.5 | command | admin PIN 忘記恢復政策未文件化 | C1-A Phase 4 / security_policies §2 |
 
 #### ⚪ Low
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-A28 | AC-8 | command | 無登入 banner | C1-A Phase 2（小項，併入）|
-| G-A29 | V2.1.5 | command + pwa | PIN 欄位 paste 行為未驗（autocomplete=off？）| C1-A Phase 2 |
-| G-A30 | V3.7 | command | 無 token rotation（敏感動作後換 token）| C1-A Phase 2（可選）|
-| G-A31 | V3.3.1 | command | 登出未終結所有裝置 session | C1-A Phase 2 |
+| GAP-AUTH-28 (G-A28) | AC-8 | command | 無登入 banner | C1-A Phase 2（小項，併入）|
+| GAP-AUTH-29 (G-A29) | V2.1.5 | command + pwa | PIN 欄位 paste 行為未驗（autocomplete=off？）| C1-A Phase 2 |
+| GAP-AUTH-30 (G-A30) | V3.7 | command | 無 token rotation（敏感動作後換 token）| C1-A Phase 2（可選）|
+| GAP-AUTH-31 (G-A31) | V3.3.1 | command | 登出未終結所有裝置 session | C1-A Phase 2 |
 
 ### Session B 發現（2026-04-25）
 
@@ -1008,44 +1039,44 @@ _Session D 填入：治理、風險策略、角色責任_
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-B01 | MP-2 / SC-28 / PT-7 / 個資法§27 | pwa | **病患特種個資 + 收容人員個資 IndexedDB 全明文** | W-C1-C |
-| G-B02 | MP-2 / SC-28 | pi | Pi SQLite **整 DB 明文**（current_state / delta_log / snapshots 全帶 PII）| C1-C 擴大（P-C1-C 新項）|
-| G-B03 | SC-28 | command | command SQLite 同（pi_received_batches / snapshots）| C1-C |
-| G-B04 | V14.4(3) | pwa | **PWA 完全無 CSP**（無 meta，無 header，因 Pi 是 Express 不送 security headers）| W-C1-F |
-| G-B05 | SC-23 / V9.2.2 | pi | WebSocket 訊息 **無簽章 / 無 HMAC / 無重放防護** | C1-G + P-C1-G |
-| G-B06 | SC-8 | command + pi | **WS / Pi push 可 fallback 到 ws:// / http://**（STRICT_TLS=false 時）| C1-B 收尾 + P-C1-B |
-| G-B07 | AC-7 | pi | **Pi server admin PIN 無 lockout**（command 有，Pi 沒對齊）| P-C1-A |
-| G-B08 | PT-2 / 個資法§5,§6,§8 | command + pi + pwa | **無 purpose limitation 紀錄 + 無告知 + 無同意紀錄**（系統內）| C1-A Phase 4 + C1-C |
-| G-B09 | 個資法§12 / IR-6 | command + pi + pwa | **無 72h PDPC 通報流程文件化** | security_policies.md §4 + C1-A Phase 4 |
-| G-B10 | AU-12 / AU-3 | command + pi + pwa | **跨組件無 correlation ID**；同操作三邊 audit 無法串連 | C1-D |
+| GAP-DATA-01 (G-B01) | MP-2 / SC-28 / PT-7 / 個資法§27 | pwa | **病患特種個資 + 收容人員個資 IndexedDB 全明文** | W-C1-C |
+| GAP-DATA-02 (G-B02) | MP-2 / SC-28 | pi | Pi SQLite **整 DB 明文**（current_state / delta_log / snapshots 全帶 PII）| C1-C 擴大（P-C1-C 新項）|
+| GAP-DATA-03b (G-B03) | SC-28 | command | command SQLite 同（pi_received_batches / snapshots）| C1-C |
+| GAP-AUTH-04b (G-B04) | V14.4(3) | pwa | **PWA 完全無 CSP**（無 meta，無 header，因 Pi 是 Express 不送 security headers）| W-C1-F |
+| GAP-SYNC-05 (G-B05) | SC-23 / V9.2.2 | pi | WebSocket 訊息 **無簽章 / 無 HMAC / 無重放防護** | C1-G + P-C1-G |
+| GAP-SYNC-06 (G-B06) | SC-8 | command + pi | **WS / Pi push 可 fallback 到 ws:// / http://**（STRICT_TLS=false 時）| C1-B 收尾 + P-C1-B |
+| GAP-AUTH-07b (G-B07) | AC-7 | pi | **Pi server admin PIN 無 lockout**（command 有，Pi 沒對齊）| P-C1-A |
+| GAP-DATA-08 (G-B08) | PT-2 / 個資法§5,§6,§8 | command + pi + pwa | **無 purpose limitation 紀錄 + 無告知 + 無同意紀錄**（系統內）| C1-A Phase 4 + C1-C |
+| GAP-DATA-09 (G-B09) | 個資法§12 / IR-6 | command + pi + pwa | **無 72h PDPC 通報流程文件化** | security_policies.md §4 + C1-A Phase 4 |
+| GAP-AUDIT-10b (G-B10) | AU-12 / AU-3 | command + pi + pwa | **跨組件無 correlation ID**；同操作三邊 audit 無法串連 | C1-D |
 
 #### 🟡 High（v2.1.0 強烈建議補）
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-B11 | AC-3 / SC-7 | pi | **WS broadcast 無 record-level 過濾**：所有 PWA 收所有 delta（包含 PII）| C1-G + W-C1-A |
-| G-B12 | AU-3 | pi + pwa | PWA 上傳的 `audit_event` msg type **無服務端驗證**（任何人可送任意 audit）| P-C1-G |
-| G-B13 | SI-11 / V14.3 | pi | **Pi 無全域 exception handler**；無 NODE_ENV 區分；錯誤可能洩漏 | P-C2-F |
-| G-B14 | V8.1.1 | command + pi | audit_log `detail` JSON **可能含 PII**（無 tagger 過濾）| C1-C + C1-D |
-| G-B15 | AC-2 / 個資法§11 | pi | Pi `accounts` 表帳號管理流程 **與 command 不同步**（雙端維護同帳號）| W-C1-A / P-C1-A 設計 |
-| G-B16 | SC-5 | pi | **Pi server 無 rate limit**（任何層）；`express.json()` 預設 100kb | P-C2-F |
-| G-B17 | AU-11 / 個資法§11 | command + pi + pwa | 三組件 audit_log 無 cleanup 政策；長期累積 | C1-D + security_policies §3 |
-| G-B18 | V14.4 | pi | Pi `/static/` (PWA HTML 來源) **無 security headers**（X-Content-Type-Options / Referrer-Policy 等）| W-C1-F |
-| G-B19 | AU-5 | pi | Pi audit 寫入失敗 silent swallow（try/catch 吞）| P-C1-G + C1-D |
-| G-B20 | AC-3 / V4.1 | command | **commander_dashboard.html 376KB monolithic**（10,000+ 行 inline JS）| **C1-F 急迫**；前端模組化是 RBAC 前置 |
-| G-B21 | SC-18 | pwa | shelter PWA 43× innerHTML / medical PWA 31× innerHTML | W-C1-F |
-| G-B22 | CM-3 | pi | Pi 無 schema_migrations 版本表（migrations.js 是 ad-hoc CREATE IF NOT EXISTS）| P-C1-E |
+| GAP-SYNC-11 (G-B11) | AC-3 / SC-7 | pi | **WS broadcast 無 record-level 過濾**：所有 PWA 收所有 delta（包含 PII）| C1-G + W-C1-A |
+| GAP-AUDIT-12b (G-B12) | AU-3 | pi + pwa | PWA 上傳的 `audit_event` msg type **無服務端驗證**（任何人可送任意 audit）| P-C1-G |
+| GAP-QUAL-13 (G-B13) | SI-11 / V14.3 | pi | **Pi 無全域 exception handler**；無 NODE_ENV 區分；錯誤可能洩漏 | P-C2-F |
+| GAP-AUDIT-14b (G-B14) | V8.1.1 | command + pi | audit_log `detail` JSON **可能含 PII**（無 tagger 過濾）| C1-C + C1-D |
+| GAP-AUTH-15b (G-B15) | AC-2 / 個資法§11 | pi | Pi `accounts` 表帳號管理流程 **與 command 不同步**（雙端維護同帳號）| W-C1-A / P-C1-A 設計 |
+| GAP-QUAL-16 (G-B16) | SC-5 | pi | **Pi server 無 rate limit**（任何層）；`express.json()` 預設 100kb | P-C2-F |
+| GAP-AUDIT-17b (G-B17) | AU-11 / 個資法§11 | command + pi + pwa | 三組件 audit_log 無 cleanup 政策；長期累積 | C1-D + security_policies §3 |
+| GAP-AUTH-18b (G-B18) | V14.4 | pi | Pi `/static/` (PWA HTML 來源) **無 security headers**（X-Content-Type-Options / Referrer-Policy 等）| W-C1-F |
+| GAP-AUDIT-19b (G-B19) | AU-5 | pi | Pi audit 寫入失敗 silent swallow（try/catch 吞）| P-C1-G + C1-D |
+| GAP-AUTH-20b (G-B20) | AC-3 / V4.1 | command | **commander_dashboard.html 376KB monolithic**（10,000+ 行 inline JS）| **C1-F 急迫**；前端模組化是 RBAC 前置 |
+| GAP-AUTH-21b (G-B21) | SC-18 | pwa | shelter PWA 43× innerHTML / medical PWA 31× innerHTML | W-C1-F |
+| GAP-DEPLOY-22 (G-B22) | CM-3 | pi | Pi 無 schema_migrations 版本表（migrations.js 是 ad-hoc CREATE IF NOT EXISTS）| P-C1-E |
 
 #### 🟠 Medium
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-B23 | SI-7 | pi + pwa | sw.js cache HTML **無 origin 嚴格驗證**；可能 cache 跨版本髒資料 | W-C1-F |
-| G-B24 | V8.1.2 | command | nginx 靜態 `/static/` 對敏感頁無 `Cache-Control: no-store` | C1-F |
-| G-B25 | V7.3 | command + pi | 無正式 key rotation 政策（PIN / TLS / API key 都靠手動）| C1-A Phase 4 + C3-B |
-| G-B26 | MP-6 | pwa + pi | 退場 disk wipe 流程未文件化 | C3-D + medical Phase 3 (Panic Wipe) |
-| G-B27 | PT-3 / PT-4 | command + pwa | 無系統內隱私權告知 + 同意紀錄 | C1-A Phase 4 |
-| G-B28 | V8.3 PII redaction by role | command | 觀察員 role 預期能看 dashboard 但**不該看完整病患 PII**；目前無 role-based PII redaction | C1-A Phase 2 + C1-C |
+| GAP-AUTH-23b (G-B23) | SI-7 | pi + pwa | sw.js cache HTML **無 origin 嚴格驗證**；可能 cache 跨版本髒資料 | W-C1-F |
+| GAP-AUTH-24b (G-B24) | V8.1.2 | command | nginx 靜態 `/static/` 對敏感頁無 `Cache-Control: no-store` | C1-F |
+| GAP-AUTH-25b (G-B25) | V7.3 | command + pi | 無正式 key rotation 政策（PIN / TLS / API key 都靠手動）| C1-A Phase 4 + C3-B |
+| GAP-DATA-26 (G-B26) | MP-6 | pwa + pi | 退場 disk wipe 流程未文件化 | C3-D + medical Phase 3 (Panic Wipe) |
+| GAP-DATA-27 (G-B27) | PT-3 / PT-4 | command + pwa | 無系統內隱私權告知 + 同意紀錄 | C1-A Phase 4 |
+| GAP-DATA-28 (G-B28) | V8.3 PII redaction by role | command | 觀察員 role 預期能看 dashboard 但**不該看完整病患 PII**；目前無 role-based PII redaction | C1-A Phase 2 + C1-C |
 
 ### Session C 發現（2026-04-25）
 
@@ -1056,48 +1087,48 @@ _Session D 填入：治理、風險策略、角色責任_
 | ~~G-C01~~ | CP-9 / CIS §11 / 個資法§27 | command | ~~無自動備份腳本~~ | ✅ **2026-04-25 closed**（C3-D 完成 command 端：systemd timer + backup_service + 17 tests；Pi 端待 P-Cx 補）|
 | ~~G-C02~~ | CP-10 / CSF RC.RP | command | ~~無實機故障還原 playbook~~ | ✅ **2026-04-25 closed**（`docs/ops/disaster_recovery.md` 4 情境 playbook + restore CLI）|
 | ~~G-C03~~ | CP-4 | command | ~~無 DR drill 紀錄 / 流程~~ | ✅ **2026-04-25 流程 closed**（playbook §「Recovery Drill」每 6 個月）；首次 drill 待執行 |
-| G-C04 | IR-6 / IR-8 / 個資法§12 | command + pi + pwa | **無 IR plan + 無 PDPC 72h 通報程序文件** | C1-A Phase 4 + policies §4 |
+| GAP-QUAL-04c (G-C04) | IR-6 / IR-8 / 個資法§12 | command + pi + pwa | **無 IR plan + 無 PDPC 72h 通報程序文件** | C1-A Phase 4 + policies §4 |
 | ~~G-C05~~ | CIS §16 | command | ~~TOCTOU mutex bug~~ | ✅ **2026-04-25 hotfix 修正**（atomic UPDATE WHERE NOT EXISTS + rowcount 檢查；`exercise_repo.py:71-91`）|
-| G-C06 | CM-3 / CM-6 | command + pi | **TLS 憑證路徑 hardcoded in systemd unit files**（cert/key 路徑）；renewal / drift 無監控 | C3-A + C3-B 擴 |
+| GAP-DEPLOY-06c (G-C06) | CM-3 / CM-6 | command + pi | **TLS 憑證路徑 hardcoded in systemd unit files**（cert/key 路徑）；renewal / drift 無監控 | C3-A + C3-B 擴 |
 
 #### 🟡 High（v2.1.0 強烈建議補）
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-C07 | SI-4 / DE.CM | command + pi | **無 Prometheus `/metrics`**；`/api/health` 基礎（不查 DB / 子服務）| C3-C 擴 |
-| G-C08 | SI-4 / DE.AE | command + pi | **無異常告警**；audit log 查詢有，無 alert rule | C3-C |
-| G-C09 | RV.1 / CIS §7 | command + pi | **Dependabot / npm audit 無 CI 整合**；npm 端供應鏈不掃 | C2-C 擴 + C2-E |
-| G-C10 | RV.3 / 公開貢獻 | meta | **無 SECURITY.md 漏洞通報流程文件** | 立即可補（policies §4 + repo root SECURITY.md） |
-| G-C11 | CM-8 / SR-4 / SLSA L2 | command | **無 SBOM**（CycloneDX）；無 SLSA provenance | C2-E |
-| G-C12 | PS.2 / SR-11 | command | **無 commit / artifact 簽章**（無 GPG / cosign）| C2-E + C3-F |
-| G-C13 | SA-11 / 25010 Reliability | command | **覆蓋率 44%** — sync_repo 9% / ttx_repo 22% / map 29% / admin 37% | C2-A 擴 |
-| G-C14 | SA-11 | pi + pwa | **Pi 0 測試 / PWA 0 測試**（CI 無對應 job）| P-C2-* / W-C2-A |
-| G-C15 | 25010 Maintainability | command | **legacy dead code 未清**（db.py 65KB + main_legacy.py 66KB，0% coverage 占用）| 立即可清（清廢碼，不必 Cx） |
-| G-C16 | 25010 Performance / SC-5 | command + pi | **無 load / stress 測試**；無 profiling 記錄 | C2-A 擴 + DB 並發決策 B 落實 |
-| G-C17 | CM-3 / SR-1 | command | **無 mypy 型別檢查**（runtime 型別錯誤風險）| C2-B 擴 |
-| G-C18 | DE.CM | command + pi | log 寫 `/tmp/ics_*.log`（**ephemeral, 重啟消失**）；無集中化 | C3-C + C1-D |
+| GAP-DEPLOY-07c (G-C07) | SI-4 / DE.CM | command + pi | **無 Prometheus `/metrics`**；`/api/health` 基礎（不查 DB / 子服務）| C3-C 擴 |
+| GAP-DEPLOY-08c (G-C08) | SI-4 / DE.AE | command + pi | **無異常告警**；audit log 查詢有，無 alert rule | C3-C |
+| GAP-QUAL-09c (G-C09) | RV.1 / CIS §7 | command + pi | **Dependabot / npm audit 無 CI 整合**；npm 端供應鏈不掃 | C2-C 擴 + C2-E |
+| GAP-QUAL-10c (G-C10) | RV.3 / 公開貢獻 | meta | **無 SECURITY.md 漏洞通報流程文件** | 立即可補（policies §4 + repo root SECURITY.md） |
+| GAP-QUAL-11c (G-C11) | CM-8 / SR-4 / SLSA L2 | command | **無 SBOM**（CycloneDX）；無 SLSA provenance | C2-E |
+| GAP-QUAL-12c (G-C12) | PS.2 / SR-11 | command | **無 commit / artifact 簽章**（無 GPG / cosign）| C2-E + C3-F |
+| GAP-QUAL-13c (G-C13) | SA-11 / 25010 Reliability | command | **覆蓋率 44%** — sync_repo 9% / ttx_repo 22% / map 29% / admin 37% | C2-A 擴 |
+| GAP-QUAL-14c (G-C14) | SA-11 | pi + pwa | **Pi 0 測試 / PWA 0 測試**（CI 無對應 job）| P-C2-* / W-C2-A |
+| GAP-QUAL-15c (G-C15) | 25010 Maintainability | command | **legacy dead code 未清**（db.py 65KB + main_legacy.py 66KB，0% coverage 占用）| 立即可清（清廢碼，不必 Cx） |
+| GAP-QUAL-16c (G-C16) | 25010 Performance / SC-5 | command + pi | **無 load / stress 測試**；無 profiling 記錄 | C2-A 擴 + DB 並發決策 B 落實 |
+| GAP-QUAL-17c (G-C17) | CM-3 / SR-1 | command | **無 mypy 型別檢查**（runtime 型別錯誤風險）| C2-B 擴 |
+| GAP-DEPLOY-18c (G-C18) | DE.CM | command + pi | log 寫 `/tmp/ics_*.log`（**ephemeral, 重啟消失**）；無集中化 | C3-C + C1-D |
 | ~~G-C19~~ | CP-9 | command | ~~DB 在 git repo~~ → **驗證為 false positive**：`.gitignore` 已有 `*.db`；audit agent 誤判 | ✅ 不需修 |
 
 #### 🟠 Medium
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-C20 | CM-2 | command + pi | nginx / step-ca config 無 baseline 文件；散在多檔 | C3-A |
-| G-C21 | MA-4 | command + pi | SSH 遠端維護無 bastion / VPN 文件 | policies + C3-B |
-| G-C22 | CIS §12 | pi | Pi WiFi AP 設定無 IaC（手動）；無 firewall 規則 | C3-B + Wave 7 |
-| G-C23 | 25010 Compatibility | ci | **CI 只跑 ubuntu-latest**；無 multi-OS / multi-Python matrix | C2-B |
-| G-C24 | RV.2 | ci | bandit 無 CVSS / 無 artifact 存檔（只 stdout）| C2-C 擴 |
-| G-C25 | CIS §15 | meta | **無 vendor 評估流程文件**（雖有「禁中國」原則）| policies + C2-E |
-| G-C26 | 25010 Safety | command + pwa | **無 fail-safe mode 文件**（系統故障時 fallback 行為，涉及生命安全）| 規格書 + C3-D |
-| G-C27 | 25010 Portability | command | 無 Windows ops 支援（dev OK）| 文件層（不必修） |
-| G-C28 | PR template | meta | 無 PR template 強制 review 規則 | 立即可補（`.github/PULL_REQUEST_TEMPLATE.md`）|
+| GAP-DEPLOY-20c (G-C20) | CM-2 | command + pi | nginx / step-ca config 無 baseline 文件；散在多檔 | C3-A |
+| GAP-DEPLOY-21c (G-C21) | MA-4 | command + pi | SSH 遠端維護無 bastion / VPN 文件 | policies + C3-B |
+| GAP-DEPLOY-22c (G-C22) | CIS §12 | pi | Pi WiFi AP 設定無 IaC（手動）；無 firewall 規則 | C3-B + Wave 7 |
+| GAP-QUAL-23c (G-C23) | 25010 Compatibility | ci | **CI 只跑 ubuntu-latest**；無 multi-OS / multi-Python matrix | C2-B |
+| GAP-QUAL-24c (G-C24) | RV.2 | ci | bandit 無 CVSS / 無 artifact 存檔（只 stdout）| C2-C 擴 |
+| GAP-QUAL-25c (G-C25) | CIS §15 | meta | **無 vendor 評估流程文件**（雖有「禁中國」原則）| policies + C2-E |
+| GAP-QUAL-26c (G-C26) | 25010 Safety | command + pwa | **無 fail-safe mode 文件**（系統故障時 fallback 行為，涉及生命安全）| 規格書 + C3-D |
+| GAP-QUAL-27c (G-C27) | 25010 Portability | command | 無 Windows ops 支援（dev OK）| 文件層（不必修） |
+| GAP-QUAL-28c (G-C28) | PR template | meta | 無 PR template 強制 review 規則 | 立即可補（`.github/PULL_REQUEST_TEMPLATE.md`）|
 
 #### ⚪ Low / Quick wins
 
 | ID | 項目 | 說明 |
 |---|---|---|
-| G-C29 | `.github/CONTRIBUTING.md` 缺 | 開源 Open Core 後需要 |
-| G-C30 | Code of Conduct 缺 | 開源 Open Core 後需要 |
+| GAP-QUAL-29c (G-C29) | `.github/CONTRIBUTING.md` 缺 | 開源 Open Core 後需要 |
+| GAP-QUAL-30c (G-C30) | Code of Conduct 缺 | 開源 Open Core 後需要 |
 
 #### ✅ Session C 確認的亮點
 
@@ -1118,36 +1149,36 @@ _Session D 填入：治理、風險策略、角色責任_
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-D01 | NIMS Unity of Command | command | **無 commander_account_id 概念**；無 Transfer of Command API；exercises.mutex_locked 預留未啟用 | C1-A Phase 2 |
-| G-D02 | NIMS Operational Period | command | **無 `operational_periods` 表**；無 12hr 週期管理；ICS 201 無法產對應 op_period | C1-A Phase 2 |
-| G-D03 | ICS 214 / NIMS Personnel Roster | command | duty_log 規劃但**未實作 schema**；ICS 214 來源不全 | C1-A Phase 2 |
-| G-D04 | ICS 213RR / NIMS Resource Mgmt | command | **無 resource_types taxonomy**；無資源請求工作流；NIMS Typing 未對齊 | Wave 8 + 新表 |
-| G-D05 | ICS 209 / NIMS SitRep | command | **無自動 SitRep 摘要**；events / snapshots 需手動彙整 | Wave 6 + Wave 8 |
-| G-D06 | 附表十 §3 營運持續 / 12 項 §8 | command + pi | 對應 G-C01/02/03 — 備份 / DR / drill 全失 | C3-D |
-| G-D07 | 附表十 §4 資料安全 / 12 項 §11 | all | 對應 G-B01/02/03 — 三層加密全缺 | C1-C 擴大 |
-| G-D08 | 附表十 §10 媒體保護 | all | 對應 G-A03 + G-B01/02/03 — 同上 | C1-C + C3-D |
+| GAP-NIMS-01 (G-D01) | NIMS Unity of Command | command | **無 commander_account_id 概念**；無 Transfer of Command API；exercises.mutex_locked 預留未啟用 | C1-A Phase 2 |
+| GAP-NIMS-02 (G-D02) | NIMS Operational Period | command | **無 `operational_periods` 表**；無 12hr 週期管理；ICS 201 無法產對應 op_period | C1-A Phase 2 |
+| GAP-NIMS-03 (G-D03) | ICS 214 / NIMS Personnel Roster | command | duty_log 規劃但**未實作 schema**；ICS 214 來源不全 | C1-A Phase 2 |
+| GAP-NIMS-04 (G-D04) | ICS 213RR / NIMS Resource Mgmt | command | **無 resource_types taxonomy**；無資源請求工作流；NIMS Typing 未對齊 | Wave 8 + 新表 |
+| GAP-NIMS-05 (G-D05) | ICS 209 / NIMS SitRep | command | **無自動 SitRep 摘要**；events / snapshots 需手動彙整 | Wave 6 + Wave 8 |
+| GAP-NIMS-06 (G-D06) | 附表十 §3 營運持續 / 12 項 §8 | command + pi | 對應 G-C01/02/03 — 備份 / DR / drill 全失 | C3-D |
+| GAP-DATA-07d (G-D07) | 附表十 §4 資料安全 / 12 項 §11 | all | 對應 G-B01/02/03 — 三層加密全缺 | C1-C 擴大 |
+| GAP-DATA-08d (G-D08) | 附表十 §10 媒體保護 | all | 對應 G-A03 + G-B01/02/03 — 同上 | C1-C + C3-D |
 
 #### 🟡 High
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-D09 | NIMS ICS 結構 / Section Chiefs | command | role_detail 預留但**未強制 ICS 標準職稱**；無 Section Chief 階層 | C1-A Phase 2 + 4-role enum |
-| G-D10 | ICS 201 Incident Briefing | command | **缺 IC name / Deputy / Objectives / Op Period 欄**；無格式化 export | C1-A Phase 2 + Wave 8 |
-| G-D11 | ICS 202 Objectives | command | 完全無 objectives 欄位 | Wave 8 |
-| G-D12 | ICS 203 Organization | command | 缺 Section Chief 結構 | C1-A Phase 2 + Wave 8 |
-| G-D13 | NIMS MACS / ICS 205 | command | TAK Wave 7 規劃；ComPlan 完全無 | Wave 7a + 未來 |
-| G-D14 | 災害防救法 §43 | command | 跨機關互通機制無；TAK Wave 7 | Wave 7a |
-| G-D15 | 12 項 §7 事件應變 | all | 對應 G-C04 — IR plan 全缺 | C1-A Phase 4 + policies §4 |
-| G-D16 | NIMS Public Information | command | 無對外資訊發布 | 未規劃（Wave 9+ 評估）|
+| GAP-NIMS-09 (G-D09) | NIMS ICS 結構 / Section Chiefs | command | role_detail 預留但**未強制 ICS 標準職稱**；無 Section Chief 階層 | C1-A Phase 2 + 4-role enum |
+| GAP-NIMS-10 (G-D10) | ICS 201 Incident Briefing | command | **缺 IC name / Deputy / Objectives / Op Period 欄**；無格式化 export | C1-A Phase 2 + Wave 8 |
+| GAP-NIMS-11 (G-D11) | ICS 202 Objectives | command | 完全無 objectives 欄位 | Wave 8 |
+| GAP-NIMS-12 (G-D12) | ICS 203 Organization | command | 缺 Section Chief 結構 | C1-A Phase 2 + Wave 8 |
+| GAP-NIMS-13 (G-D13) | NIMS MACS / ICS 205 | command | TAK Wave 7 規劃；ComPlan 完全無 | Wave 7a + 未來 |
+| GAP-NIMS-14 (G-D14) | 災害防救法 §43 | command | 跨機關互通機制無；TAK Wave 7 | Wave 7a |
+| GAP-NIMS-15 (G-D15) | 12 項 §7 事件應變 | all | 對應 G-C04 — IR plan 全缺 | C1-A Phase 4 + policies §4 |
+| GAP-NIMS-16 (G-D16) | NIMS Public Information | command | 無對外資訊發布 | 未規劃（Wave 9+ 評估）|
 
 #### 🟠 Medium
 
 | ID | Control | Component | Gap | Target Cx |
 |---|---|---|---|---|
-| G-D17 | ICS 215A IAP Safety | command | 無 safety analysis 表 | Wave 8 |
-| G-D18 | ICS 211 Check-in | shelter pwa | 60% 對應；缺 211 格式 export | Wave 6 收容 + Wave 8 |
-| G-D19 | ICS 206 Medical Plan | medical pwa | 80% 對應；缺 206 格式 export | Wave 6 醫療 + Wave 8 |
-| G-D20 | ICS 218/220/221 | command | 30-40% 對應；演練 demo 不急 | 未排（評估價值後做）|
+| GAP-NIMS-17 (G-D17) | ICS 215A IAP Safety | command | 無 safety analysis 表 | Wave 8 |
+| GAP-NIMS-18 (G-D18) | ICS 211 Check-in | shelter pwa | 60% 對應；缺 211 格式 export | Wave 6 收容 + Wave 8 |
+| GAP-NIMS-19 (G-D19) | ICS 206 Medical Plan | medical pwa | 80% 對應；缺 206 格式 export | Wave 6 醫療 + Wave 8 |
+| GAP-NIMS-20 (G-D20) | ICS 218/220/221 | command | 30-40% 對應；演練 demo 不急 | 未排（評估價值後做）|
 
 #### ✅ Session D 確認的亮點
 
