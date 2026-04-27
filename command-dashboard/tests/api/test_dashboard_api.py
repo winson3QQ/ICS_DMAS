@@ -27,8 +27,15 @@ def medical_node(tmp_db):
     return create_pi_node("medical", "醫療組")
 
 
-def bearer(api_key: str) -> dict:
-    return {"Authorization": f"Bearer {api_key}"}
+def _push(c, sign, unit_id: str, records: list, api_key: str):
+    """Pi push helper：HMAC 簽名 + Bearer token。
+
+    Option-A：/api/pi-push/{unit_id} 現在需要 HMAC 驗證，
+    測試必須同時提供 HMAC 簽名和 Bearer token。
+    """
+    body_bytes, hdrs = sign("POST", f"/api/pi-push/{unit_id}", {"records": records})
+    hdrs["Authorization"] = f"Bearer {api_key}"
+    return c.post(f"/api/pi-push/{unit_id}", content=body_bytes, headers=hdrs)
 
 
 SHELTER_RECORDS = [
@@ -74,30 +81,27 @@ class TestEmptyDashboard:
 # ── Shelter 推送後 Dashboard ──────────────────────────────────────────────────
 
 class TestDashboardAfterShelterPush:
-    def test_pi_node_appears_after_push(self, client, shelter_node, auth):
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        nodes = client.get("/api/dashboard", headers=auth).json()["pi_nodes"]
+    def test_pi_node_appears_after_push(self, hmac_client, shelter_node, auth):
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        nodes = c.get("/api/dashboard", headers=auth).json()["pi_nodes"]
         unit_ids = [n["unit_id"] for n in nodes]
         assert "shelter" in unit_ids
 
-    def test_shelter_bed_used(self, client, shelter_node, auth):
+    def test_shelter_bed_used(self, hmac_client, shelter_node, auth):
         """2 人已安置 → shelter 快照 bed_used = 2"""
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        dash = client.get("/api/dashboard", headers=auth).json()
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        dash = c.get("/api/dashboard", headers=auth).json()
         history = dash.get("shelter_history", [])
         assert len(history) > 0
         assert history[0]["bed_used"] == 2
 
-    def test_shelter_pending_intake(self, client, shelter_node, auth):
+    def test_shelter_pending_intake(self, hmac_client, shelter_node, auth):
         """1 人等候中 → pending_intake = 1"""
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        dash = client.get("/api/dashboard", headers=auth).json()
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        dash = c.get("/api/dashboard", headers=auth).json()
         history = dash.get("shelter_history", [])
         assert len(history) > 0
         assert history[0]["pending_intake"] == 1
@@ -106,22 +110,20 @@ class TestDashboardAfterShelterPush:
 # ── Medical 推送後 Dashboard ──────────────────────────────────────────────────
 
 class TestDashboardAfterMedicalPush:
-    def test_medical_red_casualties(self, client, medical_node, auth):
+    def test_medical_red_casualties(self, hmac_client, medical_node, auth):
         """1 位紅傷患在場 → casualties_red = 1"""
-        client.post("/api/pi-push/medical",
-                    json={"records": MEDICAL_RECORDS},
-                    headers=bearer(medical_node["api_key"]))
-        dash = client.get("/api/dashboard", headers=auth).json()
+        c, sign = hmac_client
+        _push(c, sign, "medical", MEDICAL_RECORDS, medical_node["api_key"])
+        dash = c.get("/api/dashboard", headers=auth).json()
         history = dash.get("medical_history", [])
         assert len(history) > 0
         assert history[0]["casualties_red"] == 1
 
-    def test_medical_excludes_discharged(self, client, medical_node, auth):
+    def test_medical_excludes_discharged(self, hmac_client, medical_node, auth):
         """已離區的不計入 active bed_used"""
-        client.post("/api/pi-push/medical",
-                    json={"records": MEDICAL_RECORDS},
-                    headers=bearer(medical_node["api_key"]))
-        dash = client.get("/api/dashboard", headers=auth).json()
+        c, sign = hmac_client
+        _push(c, sign, "medical", MEDICAL_RECORDS, medical_node["api_key"])
+        dash = c.get("/api/dashboard", headers=auth).json()
         history = dash.get("medical_history", [])
         assert len(history) > 0
         assert history[0]["bed_used"] == 2  # M001 + M002，M003 已離區不算
@@ -130,25 +132,19 @@ class TestDashboardAfterMedicalPush:
 # ── 多節點同時上線 ────────────────────────────────────────────────────────────
 
 class TestMultiNodeDashboard:
-    def test_both_nodes_in_pi_nodes_list(self, client, shelter_node, medical_node, auth):
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        client.post("/api/pi-push/medical",
-                    json={"records": MEDICAL_RECORDS},
-                    headers=bearer(medical_node["api_key"]))
-        nodes = client.get("/api/dashboard", headers=auth).json()["pi_nodes"]
+    def test_both_nodes_in_pi_nodes_list(self, hmac_client, shelter_node, medical_node, auth):
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        _push(c, sign, "medical", MEDICAL_RECORDS, medical_node["api_key"])
+        nodes = c.get("/api/dashboard", headers=auth).json()["pi_nodes"]
         unit_ids = {n["unit_id"] for n in nodes}
         assert "shelter" in unit_ids
         assert "medical" in unit_ids
 
-    def test_both_histories_populated(self, client, shelter_node, medical_node, auth):
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        client.post("/api/pi-push/medical",
-                    json={"records": MEDICAL_RECORDS},
-                    headers=bearer(medical_node["api_key"]))
-        dash = client.get("/api/dashboard", headers=auth).json()
+    def test_both_histories_populated(self, hmac_client, shelter_node, medical_node, auth):
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        _push(c, sign, "medical", MEDICAL_RECORDS, medical_node["api_key"])
+        dash = c.get("/api/dashboard", headers=auth).json()
         assert len(dash.get("shelter_history", [])) > 0
         assert len(dash.get("medical_history", [])) > 0

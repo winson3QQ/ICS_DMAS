@@ -236,8 +236,8 @@ function registerRoutes(app) {
 
   app.post('/admin/command-url', adminAuth, async (req, res) => {
     const { url } = req.body || {};
-    if (!url || !url.startsWith('http'))
-      return res.status(400).json({ ok: false, error: '格式錯誤，範例：http://192.168.1.100:8000' });
+    if (!url || !url.startsWith('https://'))
+      return res.status(400).json({ ok: false, error: '格式錯誤，範例：https://192.168.1.100:8000（必須使用 HTTPS）' });
     const cleaned = url.replace(/\/$/, '');
     setCommandUrl(cleaned);
     db.prepare("INSERT OR REPLACE INTO config(key,value) VALUES('command_url',?)").run(cleaned);

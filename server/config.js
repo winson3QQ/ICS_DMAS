@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs   = require('fs');
+const os   = require('os');
 const { log } = require('./logger');
 
 const SERVER_VERSION = 'v1.3.1';
@@ -88,6 +89,28 @@ let _commandUrl = process.env.COMMAND_URL || '';
 const getCommandUrl = ()    => _commandUrl;
 const setCommandUrl = (url) => { _commandUrl = url; };
 
+// ── TI-01 HMAC 憑證（Pi 端）──────────────────────────────────────────────
+// 路徑: ~/.ics/hmac_secret (hex string, 64 chars) chmod 0600
+//       ~/.ics/hmac_key_id (UUID v4 plaintext)    chmod 0600
+// 產生時機: first-run（需 IT 手動將 key_id + secret 輸入 Command 端 trusted_keys）
+// 若檔案不存在，HMAC 功能停用並在每次 push 時 console.warn
+
+function loadHmacCredentials() {
+  const secretPath = path.join(os.homedir(), '.ics', 'hmac_secret');
+  const keyIdPath  = path.join(os.homedir(), '.ics', 'hmac_key_id');
+  try {
+    const secret = fs.readFileSync(secretPath, 'utf8').trim();
+    const keyId  = fs.readFileSync(keyIdPath,  'utf8').trim();
+    if (!secret || !keyId) throw new Error('empty credentials');
+    return { secret, keyId };
+  } catch (e) {
+    log.warn(`[TI-01] HMAC credentials not found: ${e.message} — ingest push will be rejected by Command dashboard`);
+    return { secret: null, keyId: null };
+  }
+}
+
+const HMAC_CREDENTIALS = loadHmacCredentials();
+
 log.info(`${cfg.logPrefix} WS Server ${SERVER_VERSION} | unit=${unitArg} | Log level: ${process.env.LOG_LEVEL || 'debug'}`);
 
 module.exports = {
@@ -96,4 +119,6 @@ module.exports = {
   DELTA_LOG_MAX, PI_PUSH_INTERVAL_MS, MAX_QUEUE_AGE_MS,
   CERT_PATH, KEY_PATH, CA_CERT, tlsOpts, PROTOCOL, WS_PROTOCOL,
   getCommandUrl, setCommandUrl,
+  HMAC_SECRET: HMAC_CREDENTIALS.secret,
+  HMAC_KEY_ID: HMAC_CREDENTIALS.keyId,
 };

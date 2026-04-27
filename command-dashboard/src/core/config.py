@@ -55,3 +55,9 @@ AUTH_EXEMPT_PREFIXES: tuple[str, ...] = (
     "/static/",
     "/api/map/tiles/",
 )
+
+# ── Trusted Ingest（TI-01）────────────────────────────────────────────────
+# HMAC 時間戳記容差（ms）。超出此窗口的請求一律拒絕。
+HMAC_TIMESTAMP_SKEW_MS: int = int(os.getenv("HMAC_TIMESTAMP_SKEW_MS", "300000"))
+# Nonce TTL（ms）：Lazy Expiry 清理週期。應 ≥ HMAC_TIMESTAMP_SKEW_MS。
+NONCE_TTL_MS: int = int(os.getenv("NONCE_TTL_MS", "600000"))

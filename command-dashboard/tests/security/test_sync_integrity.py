@@ -65,15 +65,19 @@ class TestReplayDuplicateSync:
         assert len(match) == 1
         assert match[0]["bed_used"] == 10  # 原始值保留
 
-    def test_duplicate_via_api_both_return_200(self, client):
+    def test_duplicate_via_api_both_return_200(self, hmac_client):
         """透過 API 重複推送：兩次都回 HTTP 200（不拋錯）"""
+        c, sign = hmac_client
         snap = {
             "v": 3, "type": "shelter", "snapshot_id": "api-replay-001",
             "t": "2026-04-24T09:00:00Z", "src": "test",
             "bed_used": 5, "bed_total": 50,
         }
-        r1 = client.post("/api/snapshots", json=snap)
-        r2 = client.post("/api/snapshots", json=snap)
+        body_bytes, hdrs = sign("POST", "/api/snapshots", snap)
+        r1 = c.post("/api/snapshots", content=body_bytes, headers=hdrs)
+        # 第二次使用新 nonce（sign 每次呼叫都產生新 nonce）
+        body_bytes2, hdrs2 = sign("POST", "/api/snapshots", snap)
+        r2 = c.post("/api/snapshots", content=body_bytes2, headers=hdrs2)
         assert r1.status_code == 200
         assert r2.status_code == 200
         assert r1.json()["inserted"] is True
@@ -89,16 +93,17 @@ class TestReplayDuplicateSync:
 # ─────────────────────────────────────────────────────────────────
 
 class TestWithinPayloadDuplicate:
-    def test_duplicate_snapshot_id_in_single_sync_payload_last_wins(self, client):
+    def test_duplicate_snapshot_id_in_single_sync_payload_last_wins(self, hmac_client):
         """
         同一 /api/sync/push payload 內，兩筆相同 snapshot_id：
         Three-Pass 逐筆串行處理 → 第一筆 INSERT，第二筆 UPDATE（last wins）。
         設計備忘：/api/snapshots 是 INSERT OR IGNORE（first wins），
                   /api/sync/push Pass 1 對已存在 row 執行 UPDATE（last wins）。
         """
+        c, sign = hmac_client
         payload = {
-            "source_unit": "shelter",            # SyncPushIn 必填
-            "sync_start_ts": "2026-04-24T07:00:00Z",  # 必填
+            "source_unit": "shelter",
+            "sync_start_ts": "2026-04-24T07:00:00Z",
             "snapshots": [
                 {
                     "v": 3, "type": "shelter",
@@ -117,7 +122,8 @@ class TestWithinPayloadDuplicate:
             "manual_records": [],
         }
 
-        r = client.post("/api/sync/push", json=payload)
+        body_bytes, hdrs = sign("POST", "/api/sync/push", payload)
+        r = c.post("/api/sync/push", content=body_bytes, headers=hdrs)
         assert r.status_code == 200
         # Pass 1 merged=1（第二筆 UPDATE）；只有 1 筆 snapshot 進 DB
         assert r.json()["pass1_merged"] == 1

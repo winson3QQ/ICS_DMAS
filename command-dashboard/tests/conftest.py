@@ -1,6 +1,10 @@
 """
 tests/conftest.py — 共用 fixtures
 
+TI-01 補充：
+  hmac_client fixture 在 test DB 插入測試 trusted_key，
+  並提供 sign(method, path, body_dict) → headers dict 供需要 HMAC 的測試使用。
+
 DB 隔離策略：
   每個測試使用 tmp_path 建立獨立 SQLite 檔案，
   並 monkeypatch core.database.DB_PATH，確保測試之間不互汙染。
@@ -11,13 +15,51 @@ Session 隔離：
   防止跨測試 session 洩漏（包含無 tmp_db 的測試情境）。
 """
 
+import hashlib
+import hmac as _hmac
+import json
 import sys
+import time
+import uuid
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode
 
 # 讓測試能 import src/ 下的模組
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import pytest
+
+# ── TI-01：共用 HMAC 測試憑證 ─────────────────────────────────────────────────
+_CONFTEST_HMAC_KEY_ID = "conftest-hmac-key-001"
+_CONFTEST_HMAC_SECRET = "f" * 64  # 64 hex chars（test-only）
+
+
+def _make_hmac_sign_fn(key_id: str, secret: str):
+    """回傳 sign(method, path, body_dict, query="") → (body_bytes, headers dict)。
+
+    用法（確保 HMAC bytes 與送出 body 一致）：
+        c, sign = hmac_client
+        body, hdrs = sign("POST", "/api/snapshots", {"v": 1, ...})
+        r = c.post("/api/snapshots", content=body, headers=hdrs)
+    """
+    def sign(method: str, path: str, body_dict: dict, query: str = "") -> tuple[bytes, dict]:
+        # 以 json.dumps 序列化（與 TestClient json= 相同格式，字典順序 Python 3.7+ 穩定）
+        body_bytes = json.dumps(body_dict).encode()
+        ts = str(int(time.time() * 1000))
+        nc = str(uuid.uuid4())
+        query_canonical = urlencode(sorted(parse_qsl(query, keep_blank_values=True))) if query else ""
+        body_hash = hashlib.sha256(body_bytes).hexdigest()
+        canonical = "\n".join([method.upper(), path, query_canonical, ts, nc, body_hash])
+        sig = _hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+        headers = {
+            "X-ICS-Key-Id": key_id,
+            "X-ICS-Timestamp": ts,
+            "X-ICS-Nonce": nc,
+            "X-ICS-Signature": sig,
+            "Content-Type": "application/json",
+        }
+        return body_bytes, headers
+    return sign
 
 
 # ── Session 隔離（autouse，所有測試自動套用）────────────────────────────────
@@ -118,6 +160,28 @@ def session_token(client):
 def auth(session_token):
     """帶認證的 header dict，直接傳給 client.get(..., headers=auth)"""
     return {"X-Session-Token": session_token}
+
+
+@pytest.fixture
+def hmac_client(client):
+    """在 test DB 插入 HMAC 測試金鑰，回傳 (client, sign) 。
+
+    sign(method, path, body_dict, query="") → headers dict（含 X-ICS-* + Content-Type）
+    用法：
+        c, sign = hmac_client
+        r = c.post("/api/snapshots",
+                   content=json.dumps(body).encode(),
+                   headers=sign("POST", "/api/snapshots", body))
+    """
+    from core.database import get_conn
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR REPLACE INTO trusted_keys (key_id, secret, status) VALUES (?, ?, 'active')",
+        (_CONFTEST_HMAC_KEY_ID, _CONFTEST_HMAC_SECRET),
+    )
+    conn.commit()
+    conn.close()
+    return client, _make_hmac_sign_fn(_CONFTEST_HMAC_KEY_ID, _CONFTEST_HMAC_SECRET)
 
 
 @pytest.fixture

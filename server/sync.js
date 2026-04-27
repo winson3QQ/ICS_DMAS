@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { db, nowISO } = require('./db');
 const { log } = require('./logger');
-const { cfg, CA_CERT, PI_PUSH_INTERVAL_MS, MAX_QUEUE_AGE_MS, getCommandUrl } = require('./config');
+const { cfg, CA_CERT, PI_PUSH_INTERVAL_MS, MAX_QUEUE_AGE_MS, getCommandUrl, HMAC_SECRET, HMAC_KEY_ID } = require('./config');
 
 // 由 index.js 在兩個模組都載入後注入，避免循環依賴
 let _broadcast = () => {};
@@ -51,12 +51,109 @@ function _postWithBearer(urlStr, body, bearerToken, timeoutMs = 8000) {
   return _postJSON(urlStr, body, { Authorization: `Bearer ${bearerToken}` }, timeoutMs);
 }
 
+/* ─── TI-01 HMAC-SHA256 helpers ────────────────────────────── */
+
+/**
+ * query string → sorted key=value&key=value（Decision-2）
+ * @param {string} qs
+ * @returns {string}
+ */
+function _queryCanonical(qs) {
+  if (!qs) return '';
+  return qs.split('&')
+    .map(p => p.split('='))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v ?? ''}`)
+    .join('&');
+}
+
+/**
+ * Compute HMAC-SHA256 headers（Decision-2 canonical string）。
+ * @param {string} method   HTTP method（"POST"）
+ * @param {string} urlStr   Full URL string
+ * @param {Buffer|string} bodyBytes  Raw request body
+ * @returns {Object}  Four X-ICS-* headers，or {} if credentials missing
+ */
+function _buildHmacHeaders(method, urlStr, bodyBytes) {
+  if (!HMAC_SECRET || !HMAC_KEY_ID) {
+    log.warn('[TI-01] HMAC credentials missing — push will be rejected by Command dashboard');
+    return {};
+  }
+  const url         = new URL(urlStr);
+  const timestampMs = String(Date.now());
+  const nonce       = crypto.randomUUID();  // UUID v4，Node.js 18+
+  const bodyBuf     = Buffer.isBuffer(bodyBytes)
+                        ? bodyBytes
+                        : Buffer.from(bodyBytes, 'utf8');
+  const bodyHash    = crypto.createHash('sha256').update(bodyBuf).digest('hex');
+
+  const canonical = [
+    method.toUpperCase(),
+    url.pathname,
+    _queryCanonical(url.search.replace(/^\?/, '')),
+    timestampMs,
+    nonce,
+    bodyHash,
+  ].join('\n');
+
+  const signature = crypto
+    .createHmac('sha256', HMAC_SECRET)
+    .update(canonical)
+    .digest('hex');
+
+  return {
+    'X-ICS-Key-Id'    : HMAC_KEY_ID,
+    'X-ICS-Timestamp' : timestampMs,
+    'X-ICS-Nonce'     : nonce,
+    'X-ICS-Signature' : signature,
+  };
+}
+
+/**
+ * POST JSON with Bearer + HMAC headers。
+ * AC-8b：收到 401 reason="replay" 時自動換新 nonce 重試一次。
+ * @param {string} urlStr
+ * @param {Object} body
+ * @param {string} bearerToken
+ * @param {number} [timeoutMs=8000]
+ * @returns {Promise<{status:number, body:any}>}
+ */
+function _postWithHmac(urlStr, body, bearerToken, timeoutMs = 8000) {
+  const bodyStr = JSON.stringify(body);
+
+  function attempt() {
+    const hmacHeaders = _buildHmacHeaders('POST', urlStr, bodyStr);
+    return _postJSON(urlStr, body, {
+      Authorization: `Bearer ${bearerToken}`,
+      ...hmacHeaders,
+    }, timeoutMs);
+  }
+
+  return attempt().then(res => {
+    // AC-8b：replay 拒絕 → 換新 nonce 重試一次
+    if (res.status === 401) {
+      let reason = '';
+      try {
+        const parsed = typeof res.body === 'string' ? JSON.parse(res.body) : res.body;
+        reason = (parsed && parsed.detail && parsed.detail.reason) || parsed.reason || '';
+      } catch (_) {}
+      if (reason === 'replay') {
+        log.warn('[TI-01] nonce replay rejected, retrying with new nonce');
+        return attempt();  // _buildHmacHeaders 會產生全新 nonce
+      }
+    }
+    return res;
+  });
+}
+
 /* ─── 舊 snapshot 推送（§10.4，仍保留供外部直接呼叫）─────── */
 async function pushToCommand(snapshotPayload) {
   const target = getCommandUrl();
   if (!target) return;
   try {
-    const res = await _postJSON(`${target}/api/snapshots`, snapshotPayload);
+    const res = await _postWithHmac(
+      `${target}/api/snapshots`, snapshotPayload, getPiApiKey() || ''
+    );
     if (res.status >= 200 && res.status < 300) {
       log.info(`[Command] Snapshot pushed OK: ${snapshotPayload.snapshot_id}`);
     } else {
@@ -83,7 +180,7 @@ async function _replayUnsentQueue(target, apiKey) {
   for (const row of unsent.slice(0, -1)) {
     try {
       const records = JSON.parse(row.records_json);
-      const res = await _postWithBearer(
+      const res = await _postWithHmac(
         `${target}/api/pi-push/${cfg.unitId}`, { records, pushed_at: row.pushed_at }, apiKey
       );
       if (res.status >= 200 && res.status < 300) {
@@ -111,7 +208,7 @@ async function piPushOnce() {
 
   if (hash === _lastPushHash || rows.length === 0) {
     try {
-      const hbRes = await _postWithBearer(
+      const hbRes = await _postWithHmac(
         `${target}/api/pi-push/${cfg.unitId}`, { records: [], pushed_at: nowISO(), heartbeat: true }, apiKey
       );
       if (hbRes.status >= 200 && hbRes.status < 300) {
@@ -141,7 +238,7 @@ async function piPushOnce() {
   const qid  = info.lastInsertRowid;
 
   try {
-    const res = await _postWithBearer(
+    const res = await _postWithHmac(
       `${target}/api/pi-push/${cfg.unitId}`, { records, pushed_at: now }, apiKey
     );
     if (res.status >= 200 && res.status < 300) {

@@ -81,13 +81,16 @@ class TestPiPushProtection:
         r = client.post("/api/pi-push/shelter", json={"records": []})
         assert r.status_code == 401
 
-    def test_pi_push_wrong_token_returns_403(self, client):
-        """錯誤 Bearer token → 403"""
-        r = client.post(
-            "/api/pi-push/shelter",
-            json={"records": []},
-            headers={"Authorization": "Bearer INVALID_TOKEN"}
-        )
+    def test_pi_push_wrong_token_returns_403(self, hmac_client):
+        """valid HMAC + 錯誤 Bearer token → HMAC 通過，Bearer 驗證失敗 → 403。
+
+        Option-A：pi-push 現在需要 HMAC，無 HMAC headers 會先得到 401 (no_sig)。
+        本測試送 valid HMAC + 無效 Bearer，確認 Bearer 層仍正確攔截。
+        """
+        c, sign = hmac_client
+        body_bytes, hdrs = sign("POST", "/api/pi-push/shelter", {"records": []})
+        hdrs["Authorization"] = "Bearer INVALID_TOKEN"
+        r = c.post("/api/pi-push/shelter", content=body_bytes, headers=hdrs)
         assert r.status_code == 403
 
 
@@ -131,17 +134,20 @@ class TestTokenForging:
 # ─────────────────────────────────────────────────────────────────
 
 class TestOpenEndpointsByDesign:
-    def test_snapshot_post_is_open_by_design(self, client):
+    def test_snapshot_post_requires_hmac_not_session(self, client):
         """
-        POST /api/snapshots 無需 session（機對機設計）。
-        此為已知開放端點，測試確認行為符合設計而非疏漏。
+        POST /api/snapshots 無需 session token（機對機設計），
+        但 TI-01 後需要 HMAC-SHA256 簽名（verify_hmac Depends）。
+        無 HMAC headers → 401（非 session 相關的 401，是 HMAC 驗證失敗）。
+        此行為已知且有記錄（非漏洞）。
         """
         r = client.post("/api/snapshots", json={
             "v": 3, "type": "shelter", "snapshot_id": "bypass-check-001",
             "t": "2026-04-24T10:00:00Z", "src": "test",
         })
-        # 200 是預期行為（設計決策），不是漏洞
-        assert r.status_code == 200
+        # 401 = HMAC 驗證失敗（無 X-ICS-* headers），設計決策
+        assert r.status_code == 401
+        assert r.json().get("detail", {}).get("reason") == "no_sig"
 
     def test_snapshot_get_is_open_by_design(self, client):
         """

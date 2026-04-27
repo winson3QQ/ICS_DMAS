@@ -162,7 +162,7 @@ def preview_contents(name: str, request: Request):
                     "AND name NOT LIKE 'sqlite_%' ORDER BY name"
                 ).fetchall()
             ]
-            counts = {t: conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
+            counts = {t: conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}  # nosec B608 — t 來自 sqlite_master（系統 table 名稱），非使用者輸入
             migrations = [
                 {"version": r[0], "name": r[1], "applied_at": r[2]}
                 for r in conn.execute(
@@ -213,7 +213,7 @@ def restore_command(name: str, request: Request):
         "    --overwrite",
         "",
         "# 4. 驗證 schema",
-        f'sqlite3 {DB_PATH_PATH} "SELECT version, name FROM schema_migrations ORDER BY version;"',
+        f'sqlite3 {DB_PATH_PATH} "SELECT version, name FROM schema_migrations ORDER BY version;"',  # nosec B608 — 純說明文字字串，不被 Python 執行為 SQL
         "",
         "# 5. 啟服務",
         "sudo systemctl start ics-command",
