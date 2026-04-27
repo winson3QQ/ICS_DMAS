@@ -45,22 +45,29 @@
 
 ## Edition Gates
 
-| Edition | 適用定位 |
-|---------|---------|
-| Demo | 受控展示、假資料 |
-| Exercise Pro | 正式演訓、TTX、AAR、基本資安 |
-| GovOps | 政府採購、個資、audit、DR、正式驗收 |
-| Tactical | Field Node、戰術敏感、高安全部署 |
+| Edition | 適用定位 | GP scope |
+|---------|---------|----------|
+| Demo | 受控展示、假資料 | — |
+| Exercise Pro | **現場演練（field drill）**、基本資安 | GP2 + GP3 |
+| GovOps | 政府採購、個資、audit、DR、正式驗收 | GP2 + GP3 + GP4 |
+| GovOps + TTX | 完整 TTX、MSEL inject、自動 AAR | GP1 + GP2 + GP3 + GP4 |
+| AI | AI 決策支援、Silent Scribe | GP1–GP4 + AI |
+| Flagship | ISO 認證、真實災害輔助 | GP1–GP5 |
+| Tactical | Field Node、戰術敏感、高安全部署 | GP2 + GP3 (hardened) |
+
+> ⚠️ Exercise Pro **不支援** TTX MSEL inject 與自動 AAR report（見 v3.0.0 GovOps+TTX）
 
 ---
 
-## Priority（GitHub Issue Labels）
+## Priority → Edition 對應
 
-| Label | 意義 |
-|-------|------|
-| priority:P0 | 阻擋 Edition gate，當前 sprint 必須先做 |
-| priority:P1 | Edition 強烈建議 |
-| priority:P2 | Quality hardening |
+| Priority | 定義 | Blocks Edition |
+|----------|------|----------------|
+| **P0** | 當前 stage 必修；任何對外宣稱的最低前提 | 所有 Edition |
+| **P1** | Exercise Pro / GovOps 前必完成 | Exercise Pro 以上 |
+| **P2** | GovOps 採購強化項 | GovOps 以上 |
+| **P3** | 護城河 / 完整合規 | Flagship |
+| **P4** | Tactical 高敏感場景專屬 | Tactical only |
 
 ---
 

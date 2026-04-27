@@ -15,7 +15,7 @@
 |---------|---------|-----------|-----------|--------|-----------------|
 | v0.12.x | Demo | — | — | ✅ closed | COP basic demo |
 | v0.13.0 | Demo | #6 ✅ | — | 🔄 in progress | Pi first-run secure deploy |
-| v2.1.0 | Exercise Pro | #8 ✅, #11 🔄 + TBD | TBD | 🔄 in progress | NIST 800-53 scoped · 個資法 §27 · 附表十 |
+| v2.1.0 | Exercise Pro | #8 ✅, #11 🔄 + TBD | TBD | 🔄 in progress | GP2+GP3 field drill · NIST 800-53 scoped · 個資法 §27 · 附表十 · ❌TTX不支援 |
 | v2.2.0 | GovOps | — | TBD | 🔲 planned | First sellable version |
 | v3.0.0 | TTX moat | — | — | 🔲 planned | HSEEP / NIMS alignment |
 | v3.1.0 | AI | — | — | 🔲 planned | AI differentiation |
@@ -29,6 +29,9 @@
 | #8 | WS pre-auth gate | CAP-013 (WSAuth), CAP-010 | GAP-AUTH-02, GAP-SYNC-17 | v2.1.0 | ✅ closed 2026-04-26 · PR#9 |
 | #11 | Trusted Ingest HMAC | CAP-012 (TrustedIngest), CAP-010 | GAP-SYNC-05 | v2.1.0 | 🔄 in progress · PR#12 |
 | TBD | Frontend modularise + CSP | CAP-014 (CommanderFrontend) | GAP-AUTH-20b, GAP-AUTH-26 | v2.1.0 | 🔲 planned |
+| TBD | Structured logging + collect_debug.sh | CAP-NEW (Logging) | GAP-DEPLOY-18c, GAP-AUDIT-10b | v2.1.0 (序列A) | 🔲 planned |
+| TBD | /health liveness endpoint | CAP-NEW (Health) | GAP-DEPLOY-07c | v2.1.0 (序列A) | 🔲 planned |
+| TBD | Release Acceptance (GP2+GP3 E2E) | All GP2/GP3 CAPs | — | v2.1.0 (序列E) | 🔲 planned |
 
 ---
 
