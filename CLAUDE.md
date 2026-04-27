@@ -104,8 +104,8 @@
    - 符合 NIST SSDF PW.7 / ASVS V14 / ISO 25010 可靠性
 3. **規格書同步** — 若有介面、資料格式、或功能行為變更
 4. **Compliance matrix 更新**（若該項有對應 control）
-   - `docs/compliance/matrix.md` 的 Evidence 欄位指向新增的 code / test
-   - Gap Register 移除該項（若原本列為 gap）
+   - `matrix.md` Tab 2 的 Evidence 欄位指向新增的 code / test（PR# + commit hash）
+   - Matrix Steward 在 Step 7 更新對應 GAP 狀態
 5. **Issue 在 GitHub 關閉，ROADMAP.md 由 Matrix Steward 同步**
 
 **缺測不算完成。** 這是為了：
@@ -185,4 +185,4 @@ Copy-Item "$repo\.claude\memory\*" $dest
 - `threat_model.md` — STRIDE 威脅建模
 - `security_policies.md` — 6 份資安政策（InfoSec / AC / AU / IR / CP / Privacy）
 
-所有 Cx 項目在 `docs/ROADMAP.md` 標註「適用標準」欄位，反向指向 matrix 對應 row。
+所有 Issue 在 GitHub 透過 Close Verdict 與 matrix Tab 2 雙向連結。ROADMAP.md 是人類視角，matrix.md 是技術映射。

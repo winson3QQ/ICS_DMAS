@@ -9,12 +9,14 @@
 
 ## 現在位置（2026-04-27）
 
+> **注意**：#8 (WS-01) 已於 2026-04-26 closed (PR #9)。目前 #11 (TI-01) open，PR #12 in progress。
+
 | 項目 | 狀態 |
 |------|------|
 | 目前 Edition | Exercise Pro（進行中） |
 | 目前 Release | v2.1.0（building） |
-| 目前進行中 Issue | #8 Fix — WS pre-auth gate 🔄 |
-| 下一個 Issue | #9 Fix — Trusted Ingest HMAC 🔲 |
+| 最新完成 Issue | #8 Fix — WS pre-auth gate ✅ (PR #9 merged) |
+| 目前進行中 Issue | #11 Fix — Trusted Ingest HMAC (PR #12 in progress) 🔄 |
 
 ---
 
@@ -71,8 +73,8 @@
 | Issue | Title | Priority | Status |
 |-------|-------|----------|--------|
 | #6 | Fix — Pi first-run security | P0 | ✅ |
-| #8 | Fix — WebSocket pre-auth gate | P0 | 🔄 |
-| #9 | Fix — Trusted Ingest HMAC | P0 | 🔲 |
+| #8 | Fix — WebSocket pre-auth gate | P0 | ✅ |
+| #11 | Fix — Trusted Ingest HMAC | P0 | 🔄 |
 | TBD | Fix — session revoke on suspend | P1 | 🔲 |
 | TBD | Fix — rate limit XFF fix | P1 | 🔲 |
 | TBD | Fix — Pi API key hash store | P1 | 🔲 |
@@ -102,7 +104,7 @@
 - ✅ 附表十 12項 Moderate
 - ✅ 可用於縣市政府正式演訓採購
 
-> ⚠️ **Gate**: #8 + #9 兩者都 close → Exercise Pro edition 才開放
+> ⚠️ **Gate**: #8 ✅ + #11 close → Exercise Pro edition 才開放
 
 ---
 
@@ -183,7 +185,7 @@
 ## 守線原則
 
 1. **Claims** 在 Issue Close Verdict 發布後才可宣稱，不得預先主張
-2. **Exercise Pro gate** 需要 #8 WS pre-auth + #9 Trusted Ingest 全部 close
+2. **Exercise Pro gate** 需要 #8 ✅ WS pre-auth + #11 Trusted Ingest close
 3. **正式演訓** 在 v2.1.0 + Exercise Pro gate 驗收前為 No-Go
 4. **外部宣稱邊界** 以每個 Issue 的 Close Verdict 為準
 

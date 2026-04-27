@@ -15,7 +15,7 @@
 |---------|---------|-----------|-----------|--------|-----------------|
 | v0.12.x | Demo | — | — | ✅ closed | COP basic demo |
 | v0.13.0 | Demo | #6 ✅ | — | 🔄 in progress | Pi first-run secure deploy |
-| v2.1.0 | Exercise Pro | #8 🔄, #9 🔲 + others | TBD | 🔲 planned | NIST 800-53 scoped · 個資法 §27 · 附表十 |
+| v2.1.0 | Exercise Pro | #8 ✅, #11 🔄 + TBD | TBD | 🔄 in progress | NIST 800-53 scoped · 個資法 §27 · 附表十 |
 | v2.2.0 | GovOps | — | TBD | 🔲 planned | First sellable version |
 | v3.0.0 | TTX moat | — | — | 🔲 planned | HSEEP / NIMS alignment |
 | v3.1.0 | AI | — | — | 🔲 planned | AI differentiation |
@@ -25,9 +25,9 @@
 
 | Issue# | Title | CAP affected | GAP closed | Release | Status |
 |--------|-------|-------------|------------|---------|--------|
-| #6 | Pi first-run security | CAP-010 | GAP-AUTH-PI-01 | v0.13.0 + v2.1.0 | ✅ closed 2026-04-26 |
-| #8 | WS pre-auth gate | CAP-013, CAP-010 | GAP-AUTH-02, GAP-SYNC-17 | v2.1.0 | 🔄 in progress |
-| #9 | Trusted Ingest HMAC | CAP-012, CAP-010 | GAP-SYNC-05 | v2.1.0 | 🔲 next |
+| #6 | Pi first-run security | CAP-010 (FieldSync) | GAP-AUTH-PI-01 (HOTFIX-PI-01) | v0.13.0 + v2.1.0 | ✅ closed 2026-04-26 · PR#7 |
+| #8 | WS pre-auth gate | CAP-013 (WSAuth), CAP-010 | GAP-AUTH-02, GAP-SYNC-17 | v2.1.0 | ✅ closed 2026-04-26 · PR#9 |
+| #11 | Trusted Ingest HMAC | CAP-012 (TrustedIngest), CAP-010 | GAP-SYNC-05 | v2.1.0 | 🔄 in progress · PR#12 |
 
 ---
 
@@ -39,9 +39,10 @@
 
 ---
 
-## Session Log（給下一個 session 的 context）
+## Compliance Audit History（歷史紀錄，唯讀）
 
-> **重要**：每個 session 結束前必須更新此區。切換 session 讀此區就能延續工作。
+> **說明**：以下為 2026-04-25 完成的 Compliance Audit Session A/B/C/D 的歷史記錄。
+> 此後新 gap 的發現與解決以 GitHub Issue + Close Verdict 為記錄方式，不再使用 Session 格式。
 
 ### 整體進度
 
@@ -101,13 +102,13 @@
 - `command-dashboard/src/services/pi_push_service.py` — Pi push 驗證
 - `deploy/step-ca/README.md` — PKI 架構說明
 
-**Session B 已掃 / 已映射**（架構層）：
+**Audit Session B 已掃 / 已映射（歷史，2026-04-25）**：
 - `server/index.js` / `routes.js` / `auth.js` / `middleware.js` / `audit.js` / `migrations.js` / `db.js` / `sync.js` / `ws_handler.js` / `config.js` / `logger.js`（全 Pi server）
 - `shelter-pwa/public/shelter_pwa.html`（3264 行 monolithic）+ `sw.js` + `manifest.json`
 - `medical-pwa/public/medical_pwa.html` + `sw.js` + `manifest.json`
 - `command-dashboard/static/commander_dashboard.html`（376 KB monolithic）
 
-**Session C/D 可能需要補讀**：
+**Audit Session C/D 已掃（歷史，2026-04-25）**：
 - `.github/workflows/*.yml` — CI 設定（Session C 必讀）
 - `command-dashboard/tests/**` — 測試覆蓋率分析（Session C）
 - `command-dashboard/pyproject.toml` / `requirements.txt` — 依賴清單（Session C SBOM 用）

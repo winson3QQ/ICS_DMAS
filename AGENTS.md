@@ -40,9 +40,11 @@ docs/issue-NN-short-title     （純文件更新）
 範例：`fix/issue-8-ws-preauth`、`feat/issue-12-cop-heatmap`
 
 ### Priority Labels（GitHub Issue Labels）
-- `priority:P0` — 阻擋 Edition gate，當前 sprint 必須先做
-- `priority:P1` — Edition 強烈建議
-- `priority:P2` — Quality hardening
+- `P0` — 阻擋 Edition gate，當前 sprint 必須先做
+- `P1` — Edition 強烈建議
+- `P2` — Quality hardening
+
+現有 labels 參考：`P0` · `P1` · `hotfix` · `pi-server` · `security` · `C1-A` 等
 
 ---
 
