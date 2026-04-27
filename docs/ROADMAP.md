@@ -9,14 +9,14 @@
 
 ## 現在位置（2026-04-27）
 
-> **注意**：#8 (WS-01) 已於 2026-04-26 closed (PR #9)。目前 #11 (TI-01) open，PR #12 in progress。
+> **注意**：#8 (WS-01) ✅ 已 closed (PR #9)。#11 (TI-01) ✅ 已 closed (PR #12)。Exercise Pro gate 開放。
 
 | 項目 | 狀態 |
 |------|------|
 | 目前 Edition | Exercise Pro（進行中） |
 | 目前 Release | v2.1.0（building） |
 | 最新完成 Issue | #8 Fix — WS pre-auth gate ✅ (PR #9 merged) |
-| 目前進行中 Issue | #11 Fix — Trusted Ingest HMAC (PR #12 in progress) 🔄 |
+| 最新完成 Issue | #11 Fix — Trusted Ingest HMAC ✅ (PR #12, commits 6bda2dc + 5e855c6) |
 
 ---
 
@@ -105,7 +105,7 @@
 |-------|-------|----------|--------|
 | #6 | Fix — Pi first-run security | P0 | ✅ |
 | #8 | Fix — WebSocket pre-auth gate | P0 | ✅ |
-| #11 | Fix — Trusted Ingest HMAC | P0 | 🔄 |
+| #11 | Fix — Trusted Ingest HMAC | P0 | ✅ |
 | TBD | Fix — frontend modularise + CSP | P0 | 🔲 |
 | TBD | Fix — 4-role RBAC + endpoint gate | P0 | 🔲 |
 | TBD | Fix — WS full security | P0 | 🔲 |
@@ -156,7 +156,8 @@
 
 ---
 
-> ⚠️ **Exercise Pro gate**: #8 ✅ + #11 close → Edition 開放
+> ✅ **Exercise Pro gate OPEN**: #8 ✅ + #11 ✅ → Exercise Pro Edition 已開放
+> ⚠️ 但 Release Acceptance (序列 E) 仍需完成才可正式宣稱
 > ⚠️ **Release Acceptance** 必須在 6 月演練前 **2 週** 完成（留 buffer 修問題）
 
 **Claims on v2.1.0 close**:

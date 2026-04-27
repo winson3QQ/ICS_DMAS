@@ -15,7 +15,7 @@
 |---------|---------|-----------|-----------|--------|-----------------|
 | v0.12.x | Demo | — | — | ✅ closed | COP basic demo |
 | v0.13.0 | Demo | #6 ✅ | — | 🔄 in progress | Pi first-run secure deploy |
-| v2.1.0 | Exercise Pro | #8 ✅, #11 🔄 + TBD | TBD | 🔄 in progress | GP2+GP3 field drill · NIST 800-53 scoped · 個資法 §27 · 附表十 · ❌TTX不支援 |
+| v2.1.0 | Exercise Pro | #6✅ #8✅ #11✅ + TBD P0s | TBD | 🔄 in progress | GP2+GP3 field drill · NIST 800-53 scoped · 個資法 §27 · 附表十 · ❌TTX不支援 |
 | v2.2.0 | GovOps | — | TBD | 🔲 planned | First sellable version |
 | v3.0.0 | TTX moat | — | — | 🔲 planned | HSEEP / NIMS alignment |
 | v3.1.0 | AI | — | — | 🔲 planned | AI differentiation |
@@ -27,8 +27,8 @@
 |--------|-------|-------------|------------|---------|--------|
 | #6 | Pi first-run security | CAP-010 (FieldSync) | GAP-AUTH-PI-01 (HOTFIX-PI-01) | v0.13.0 + v2.1.0 | ✅ closed 2026-04-26 · PR#7 |
 | #8 | WS pre-auth gate | CAP-013 (WSAuth), CAP-010 | GAP-AUTH-02, GAP-SYNC-17 | v2.1.0 | ✅ closed 2026-04-26 · PR#9 |
-| #11 | Trusted Ingest HMAC | CAP-012 (TrustedIngest), CAP-010 | GAP-SYNC-05 | v2.1.0 | 🔄 in progress · PR#12 |
-| #13 | Frontend modularise + CSP | CAP-014 (CommanderFrontend) | GAP-AUTH-20b, GAP-AUTH-26 | v2.1.0 | 🔲 planned |
+| #11 | Trusted Ingest HMAC | CAP-012 (TrustedIngest) → Partial Hardened L1; CAP-010 evidence appended | GAP-SYNC-05 | v2.1.0 | ✅ closed · PR#12 · commit 6bda2dc + 5e855c6 |
+| TBD | Frontend modularise + CSP | CAP-014 (CommanderFrontend) | GAP-AUTH-20b, GAP-AUTH-26 | v2.1.0 | 🔲 planned |
 | TBD | Structured logging + collect_debug.sh | CAP-036 (Operational Logging) | GAP-DEPLOY-18c, GAP-AUDIT-10b | v2.1.0 (序列A) | 🔲 planned |
 | TBD | /health liveness endpoint | CAP-024 (Deployment/Health) | GAP-DEPLOY-07c | v2.1.0 (序列A) | 🔲 planned |
 | TBD | Release Acceptance (GP2+GP3 E2E) | All GP2/GP3 CAPs | — | v2.1.0 (序列E) | 🔲 planned |
@@ -42,6 +42,17 @@
 > 命名說明：GAP-DOM-NN = 新格式（括號內為舊 G-XNN 格式，供 alias 查詢）
 
 ---
+
+
+### CAP-012 / CAP-010 / CAP-013 L2 升級條件（TI-01 close 後確認，此 PR 內不執行）
+
+| CAP | 升 L2 候選條件 | 狀態 |
+|---|---|---|
+| CAP-012 (TrustedIngest) | TI-01 close ✅ | 由 Matrix Steward 評估 |
+| CAP-010 (FieldSync) | WS-01 ✅ + TI-01 ✅ | 由 Matrix Steward 評估 |
+| CAP-013 (WSAuth) | WS message signing (C1-G) close | 不在 TI-01 軌道 |
+
+**External Claim**：PI-01 + WS-01 + TI-01 三 hotfix 全 close，達合併更新條件。歸 Human owner 決定。
 
 ## Compliance Audit History（歷史紀錄，唯讀）
 
