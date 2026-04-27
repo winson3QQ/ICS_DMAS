@@ -2,10 +2,11 @@
 tests/api/test_pi_push_api.py — Pi 節點推送 API 測試
 
 模擬 shelter / medical 兩個 Pi 節點推送資料的完整流程：
+- HMAC-SHA256 簽名（Option-A：/api/pi-push 現在需要 HMAC）
 - Bearer token 認證
 - 心跳（空 records）
 - 實際資料推送（多 table_name）
-- 錯誤路徑（無效 token、未知節點）
+- 錯誤路徑（無效 token、未知節點、無 HMAC）
 - 推送後查詢 /api/pi-data/{unit_id}/list
 """
 
@@ -27,26 +28,31 @@ def medical_node(tmp_db):
     return create_pi_node("medical", "醫療組測試節點")
 
 
-# ── 輔助：產生 Bearer header ──────────────────────────────────────────────────
+# ── 輔助：HMAC + Bearer push ──────────────────────────────────────────────────
 
-def bearer(api_key: str) -> dict:
-    return {"Authorization": f"Bearer {api_key}"}
+def _push(c, sign, unit_id: str, records: list, api_key: str):
+    """Pi push helper：HMAC 簽名 + Bearer token。
+
+    Option-A：/api/pi-push/{unit_id} 現在需要 HMAC 驗證，
+    測試必須同時提供 HMAC 簽名和 Bearer token。
+    """
+    body_bytes, hdrs = sign("POST", f"/api/pi-push/{unit_id}", {"records": records})
+    hdrs["Authorization"] = f"Bearer {api_key}"
+    return c.post(f"/api/pi-push/{unit_id}", content=body_bytes, headers=hdrs)
 
 
 # ── 心跳測試 ──────────────────────────────────────────────────────────────────
 
 class TestHeartbeat:
-    def test_shelter_heartbeat(self, client, shelter_node):
-        r = client.post("/api/pi-push/shelter",
-                        json={"records": []},
-                        headers=bearer(shelter_node["api_key"]))
+    def test_shelter_heartbeat(self, hmac_client, shelter_node):
+        c, sign = hmac_client
+        r = _push(c, sign, "shelter", [], shelter_node["api_key"])
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
-    def test_medical_heartbeat(self, client, medical_node):
-        r = client.post("/api/pi-push/medical",
-                        json={"records": []},
-                        headers=bearer(medical_node["api_key"]))
+    def test_medical_heartbeat(self, hmac_client, medical_node):
+        c, sign = hmac_client
+        r = _push(c, sign, "medical", [], medical_node["api_key"])
         assert r.status_code == 200
 
 
@@ -54,26 +60,28 @@ class TestHeartbeat:
 
 class TestAuthErrors:
     def test_no_bearer_returns_401(self, client, shelter_node):
+        """無 Bearer 且無 HMAC headers → 401（HMAC 層先攔截 no_sig）。"""
         r = client.post("/api/pi-push/shelter", json={"records": []})
         assert r.status_code == 401
 
-    def test_wrong_token_returns_403(self, client, shelter_node):
-        r = client.post("/api/pi-push/shelter",
-                        json={"records": []},
-                        headers=bearer("wrongtoken"))
+    def test_wrong_token_returns_403(self, hmac_client, shelter_node):
+        """valid HMAC + 錯誤 Bearer → HMAC 通過，Bearer 驗證失敗 → 403。"""
+        c, sign = hmac_client
+        body_bytes, hdrs = sign("POST", "/api/pi-push/shelter", {"records": []})
+        hdrs["Authorization"] = "Bearer wrongtoken"
+        r = c.post("/api/pi-push/shelter", content=body_bytes, headers=hdrs)
         assert r.status_code == 403
 
-    def test_unknown_unit_returns_403(self, client, shelter_node):
-        r = client.post("/api/pi-push/unknown_unit",
-                        json={"records": []},
-                        headers=bearer(shelter_node["api_key"]))
+    def test_unknown_unit_returns_403(self, hmac_client, shelter_node):
+        """valid HMAC + shelter token → 推到 unknown_unit → pi_nodes 查無 → 403。"""
+        c, sign = hmac_client
+        r = _push(c, sign, "unknown_unit", [], shelter_node["api_key"])
         assert r.status_code == 403
 
-    def test_cross_unit_token_rejected(self, client, shelter_node, medical_node):
-        """shelter 的 token 不能用來推 medical"""
-        r = client.post("/api/pi-push/medical",
-                        json={"records": []},
-                        headers=bearer(shelter_node["api_key"]))
+    def test_cross_unit_token_rejected(self, hmac_client, shelter_node, medical_node):
+        """shelter 的 token 不能用來推 medical → 403。"""
+        c, sign = hmac_client
+        r = _push(c, sign, "medical", [], shelter_node["api_key"])
         assert r.status_code == 403
 
 
@@ -96,30 +104,27 @@ SHELTER_RECORDS = [
 
 
 class TestShelterPush:
-    def test_push_returns_ok(self, client, shelter_node):
-        r = client.post("/api/pi-push/shelter",
-                        json={"records": SHELTER_RECORDS},
-                        headers=bearer(shelter_node["api_key"]))
+    def test_push_returns_ok(self, hmac_client, shelter_node):
+        c, sign = hmac_client
+        r = _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
         assert r.status_code == 200
         data = r.json()
         assert data["ok"] is True
         assert data["records_count"] == len(SHELTER_RECORDS)
 
-    def test_push_stores_batch(self, client, shelter_node, auth):
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        r = client.get("/api/pi-data/shelter/list", headers=auth)
+    def test_push_stores_batch(self, hmac_client, shelter_node, auth):
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        r = c.get("/api/pi-data/shelter/list", headers=auth)
         assert r.status_code == 200
         data = r.json()
         assert data["offline"] is False
         assert len(data["records"]) == len(SHELTER_RECORDS)
 
-    def test_push_groups_by_table(self, client, shelter_node, auth):
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        grouped = client.get("/api/pi-data/shelter/list", headers=auth).json()["grouped"]
+    def test_push_groups_by_table(self, hmac_client, shelter_node, auth):
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        grouped = c.get("/api/pi-data/shelter/list", headers=auth).json()["grouped"]
         assert "persons" in grouped
         assert "beds" in grouped
         assert len(grouped["persons"]) == 2
@@ -146,23 +151,21 @@ MEDICAL_RECORDS = [
 
 
 class TestMedicalPush:
-    def test_push_returns_ok(self, client, medical_node):
-        r = client.post("/api/pi-push/medical",
-                        json={"records": MEDICAL_RECORDS},
-                        headers=bearer(medical_node["api_key"]))
+    def test_push_returns_ok(self, hmac_client, medical_node):
+        c, sign = hmac_client
+        r = _push(c, sign, "medical", MEDICAL_RECORDS, medical_node["api_key"])
         assert r.status_code == 200
         assert r.json()["records_count"] == len(MEDICAL_RECORDS)
 
-    def test_push_stores_batch(self, client, medical_node, auth):
-        client.post("/api/pi-push/medical",
-                    json={"records": MEDICAL_RECORDS},
-                    headers=bearer(medical_node["api_key"]))
-        r = client.get("/api/pi-data/medical/list", headers=auth)
+    def test_push_stores_batch(self, hmac_client, medical_node, auth):
+        c, sign = hmac_client
+        _push(c, sign, "medical", MEDICAL_RECORDS, medical_node["api_key"])
+        r = c.get("/api/pi-data/medical/list", headers=auth)
         assert r.status_code == 200
         assert r.json()["offline"] is False
 
     def test_offline_before_push(self, client, medical_node, auth):
-        """推送前查詢應回傳 offline: True"""
+        """推送前查詢應回傳 offline: True（不需要 HMAC，只是 GET）"""
         r = client.get("/api/pi-data/medical/list", headers=auth)
         assert r.status_code == 200
         assert r.json()["offline"] is True
@@ -171,16 +174,13 @@ class TestMedicalPush:
 # ── 多節點同時推送 ────────────────────────────────────────────────────────────
 
 class TestMultiNodePush:
-    def test_two_nodes_push_independently(self, client, shelter_node, medical_node, auth):
-        client.post("/api/pi-push/shelter",
-                    json={"records": SHELTER_RECORDS},
-                    headers=bearer(shelter_node["api_key"]))
-        client.post("/api/pi-push/medical",
-                    json={"records": MEDICAL_RECORDS},
-                    headers=bearer(medical_node["api_key"]))
+    def test_two_nodes_push_independently(self, hmac_client, shelter_node, medical_node, auth):
+        c, sign = hmac_client
+        _push(c, sign, "shelter", SHELTER_RECORDS, shelter_node["api_key"])
+        _push(c, sign, "medical", MEDICAL_RECORDS, medical_node["api_key"])
 
-        shelter_data = client.get("/api/pi-data/shelter/list", headers=auth).json()
-        medical_data = client.get("/api/pi-data/medical/list", headers=auth).json()
+        shelter_data = c.get("/api/pi-data/shelter/list", headers=auth).json()
+        medical_data = c.get("/api/pi-data/medical/list", headers=auth).json()
 
         assert shelter_data["offline"] is False
         assert medical_data["offline"] is False

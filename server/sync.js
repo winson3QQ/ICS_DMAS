@@ -180,7 +180,7 @@ async function _replayUnsentQueue(target, apiKey) {
   for (const row of unsent.slice(0, -1)) {
     try {
       const records = JSON.parse(row.records_json);
-      const res = await _postWithBearer(
+      const res = await _postWithHmac(
         `${target}/api/pi-push/${cfg.unitId}`, { records, pushed_at: row.pushed_at }, apiKey
       );
       if (res.status >= 200 && res.status < 300) {
@@ -208,7 +208,7 @@ async function piPushOnce() {
 
   if (hash === _lastPushHash || rows.length === 0) {
     try {
-      const hbRes = await _postWithBearer(
+      const hbRes = await _postWithHmac(
         `${target}/api/pi-push/${cfg.unitId}`, { records: [], pushed_at: nowISO(), heartbeat: true }, apiKey
       );
       if (hbRes.status >= 200 && hbRes.status < 300) {
@@ -238,7 +238,7 @@ async function piPushOnce() {
   const qid  = info.lastInsertRowid;
 
   try {
-    const res = await _postWithBearer(
+    const res = await _postWithHmac(
       `${target}/api/pi-push/${cfg.unitId}`, { records, pushed_at: now }, apiKey
     );
     if (res.status >= 200 && res.status < 300) {

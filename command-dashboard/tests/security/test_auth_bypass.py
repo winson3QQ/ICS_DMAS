@@ -81,13 +81,16 @@ class TestPiPushProtection:
         r = client.post("/api/pi-push/shelter", json={"records": []})
         assert r.status_code == 401
 
-    def test_pi_push_wrong_token_returns_403(self, client):
-        """錯誤 Bearer token → 403"""
-        r = client.post(
-            "/api/pi-push/shelter",
-            json={"records": []},
-            headers={"Authorization": "Bearer INVALID_TOKEN"}
-        )
+    def test_pi_push_wrong_token_returns_403(self, hmac_client):
+        """valid HMAC + 錯誤 Bearer token → HMAC 通過，Bearer 驗證失敗 → 403。
+
+        Option-A：pi-push 現在需要 HMAC，無 HMAC headers 會先得到 401 (no_sig)。
+        本測試送 valid HMAC + 無效 Bearer，確認 Bearer 層仍正確攔截。
+        """
+        c, sign = hmac_client
+        body_bytes, hdrs = sign("POST", "/api/pi-push/shelter", {"records": []})
+        hdrs["Authorization"] = "Bearer INVALID_TOKEN"
+        r = c.post("/api/pi-push/shelter", content=body_bytes, headers=hdrs)
         assert r.status_code == 403
 
 

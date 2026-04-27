@@ -365,3 +365,69 @@ def test_trusted_keys_schema_has_required_columns():
         pass  # 預期行為
 
     conn.close()
+
+
+# ─── AC-15：POST /api/pi-push/{unit_id} 無 HMAC headers → 401 ───────────────
+# Option-A scope 擴充：主推送路徑也受 HMAC 保護
+
+_VALID_PI_PUSH = {
+    "records": [],
+    "pushed_at": "2026-04-27T00:00:00Z",
+    "heartbeat": True,
+}
+
+
+class TestPiPushHmacProtection:
+    """AC-15：/api/pi-push/{unit_id} HMAC 保護驗證。"""
+
+    def test_pi_push_no_signature_returns_401(self, authed_client):
+        """AC-15a：無 X-ICS-Signature → 401 no_sig（HMAC 在 Bearer 之前執行）。"""
+        c, _, _ = authed_client
+        body = json.dumps(_VALID_PI_PUSH).encode()
+        r = c.post(
+            "/api/pi-push/shelter",
+            content=body,
+            headers={"Content-Type": "application/json",
+                     "Authorization": "Bearer any-token"},
+        )
+        assert r.status_code == 401, f"期待 401，收到 {r.status_code}: {r.text}"
+        detail = r.json().get("detail", {})
+        assert detail.get("reason") == "no_sig"
+
+    def test_pi_push_unknown_key_returns_401(self, authed_client):
+        """AC-15b：未知 key_id → 401 unknown_key。"""
+        c, _, secret = authed_client
+        body = json.dumps(_VALID_PI_PUSH).encode()
+        headers = _make_hmac_headers("nonexistent-key-xyz", secret,
+                                     "POST", "/api/pi-push/shelter", body)
+        headers["Content-Type"] = "application/json"
+        headers["Authorization"] = "Bearer any-token"
+        r = c.post("/api/pi-push/shelter", content=body, headers=headers)
+        assert r.status_code == 401
+        assert r.json().get("detail", {}).get("reason") == "unknown_key"
+
+    def test_pi_push_replay_returns_401(self, authed_client):
+        """AC-15c：相同 nonce 重送 → 401 replay。
+
+        注意：第一次送會通過 HMAC，但 Bearer/pi_nodes 驗證可能回 403（pi_node 不存在）。
+        第二次送相同 nonce → HMAC 層先攔截 replay，回 401。
+        """
+        c, key_id, secret = authed_client
+        body = json.dumps(_VALID_PI_PUSH).encode()
+        shared_nonce = str(uuid.uuid4())
+
+        # 第一次送（nonce 儲存至 nonce_cache；HMAC 通過後進入 pi_nodes 驗證）
+        h1 = _make_hmac_headers(key_id, secret, "POST", "/api/pi-push/shelter", body,
+                                 nonce=shared_nonce)
+        h1["Content-Type"] = "application/json"
+        h1["Authorization"] = "Bearer any-token"
+        c.post("/api/pi-push/shelter", content=body, headers=h1)  # 不斷言狀態碼（pi_nodes 未設）
+
+        # 第二次送同一 nonce → HMAC 層攔截 replay
+        h2 = _make_hmac_headers(key_id, secret, "POST", "/api/pi-push/shelter", body,
+                                 nonce=shared_nonce)
+        h2["Content-Type"] = "application/json"
+        h2["Authorization"] = "Bearer any-token"
+        r2 = c.post("/api/pi-push/shelter", content=body, headers=h2)
+        assert r2.status_code == 401
+        assert r2.json().get("detail", {}).get("reason") == "replay"

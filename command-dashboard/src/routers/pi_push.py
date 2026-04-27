@@ -1,15 +1,16 @@
 import json
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from auth.service import validate_session
+from middleware.trusted_ingest import verify_hmac
 from repositories.pi_batch_repo import get_latest_pi_batch
 from services.pi_push_service import process_push
 
 router = APIRouter(tags=["Pi 推送"])
 
 
-@router.post("/api/pi-push/{unit_id}")
+@router.post("/api/pi-push/{unit_id}", dependencies=[Depends(verify_hmac)])
 async def receive_pi_push(unit_id: str, request: Request):
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
