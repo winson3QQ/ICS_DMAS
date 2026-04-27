@@ -28,9 +28,9 @@
 | #6 | Pi first-run security | CAP-010 (FieldSync) | GAP-AUTH-PI-01 (HOTFIX-PI-01) | v0.13.0 + v2.1.0 | ✅ closed 2026-04-26 · PR#7 |
 | #8 | WS pre-auth gate | CAP-013 (WSAuth), CAP-010 | GAP-AUTH-02, GAP-SYNC-17 | v2.1.0 | ✅ closed 2026-04-26 · PR#9 |
 | #11 | Trusted Ingest HMAC | CAP-012 (TrustedIngest), CAP-010 | GAP-SYNC-05 | v2.1.0 | 🔄 in progress · PR#12 |
-| TBD | Frontend modularise + CSP | CAP-014 (CommanderFrontend) | GAP-AUTH-20b, GAP-AUTH-26 | v2.1.0 | 🔲 planned |
-| TBD | Structured logging + collect_debug.sh | CAP-NEW (Logging) | GAP-DEPLOY-18c, GAP-AUDIT-10b | v2.1.0 (序列A) | 🔲 planned |
-| TBD | /health liveness endpoint | CAP-NEW (Health) | GAP-DEPLOY-07c | v2.1.0 (序列A) | 🔲 planned |
+| #13 | Frontend modularise + CSP | CAP-014 (CommanderFrontend) | GAP-AUTH-20b, GAP-AUTH-26 | v2.1.0 | 🔲 planned |
+| TBD | Structured logging + collect_debug.sh | CAP-036 (Operational Logging) | GAP-DEPLOY-18c, GAP-AUDIT-10b | v2.1.0 (序列A) | 🔲 planned |
+| TBD | /health liveness endpoint | CAP-024 (Deployment/Health) | GAP-DEPLOY-07c | v2.1.0 (序列A) | 🔲 planned |
 | TBD | Release Acceptance (GP2+GP3 E2E) | All GP2/GP3 CAPs | — | v2.1.0 (序列E) | 🔲 planned |
 
 ---
