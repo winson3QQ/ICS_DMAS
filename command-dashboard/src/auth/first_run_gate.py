@@ -25,6 +25,7 @@ _WHITELIST_EXACT = frozenset({
     ("GET",  "/api/auth/heartbeat"),
     ("GET",  "/api/health"),
     ("GET",  "/api/status"),
+    ("GET",  "/api/version"),   # 前端啟動時 fetch，first-run 期間也需可讀
     ("GET",  "/docs"),
     ("GET",  "/openapi.json"),
     ("GET",  "/"),

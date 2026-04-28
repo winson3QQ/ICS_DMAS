@@ -343,6 +343,19 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         nonce      TEXT PRIMARY KEY,
         created_at INTEGER NOT NULL               -- unix ms，用於 Lazy Expiry
     );
+
+    -- ── CSP 違規記錄（C1-F RV2-01）────────────────────────────────────────
+    -- browser 送 Content-Security-Policy violation report 至 /api/security/csp-report
+    -- 用於 24h Report-Only 收集期間 + 切換 enforce 後的監測
+    CREATE TABLE IF NOT EXISTS csp_violations (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        reported_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+        source_ip           TEXT,
+        violated_directive  TEXT,
+        blocked_uri         TEXT,
+        document_uri        TEXT,
+        raw_report          TEXT  -- JSON blob 全文，供後查
+    );
     """)
 
 
@@ -416,6 +429,21 @@ def _m004_c1a_accounts(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "accounts", "is_default_pin",     "INTEGER NOT NULL DEFAULT 0")
 
 
+def _m006_csp_violations(conn: sqlite3.Connection) -> None:
+    """C1-F RV2-01：補建 csp_violations 表（已存在的 DB 也跑一次）。"""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS csp_violations (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            reported_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+            source_ip           TEXT,
+            violated_directive  TEXT,
+            blocked_uri         TEXT,
+            document_uri        TEXT,
+            raw_report          TEXT
+        )
+    """)
+
+
 def _m005_ttx_injects_rebuild(conn: sqlite3.Connection) -> None:
     """ttx_injects：舊版有 session_id（FK → ttx_sessions），整表重建；清除 ttx_sessions。"""
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -435,6 +463,7 @@ _MIGRATIONS: list[tuple[int, str, object]] = [
     (3, "exercise_id_spread",   _m003_exercise_id_spread),
     (4, "c1a_accounts",         _m004_c1a_accounts),
     (5, "ttx_injects_rebuild",  _m005_ttx_injects_rebuild),
+    (6, "csp_violations",       _m006_csp_violations),
 ]
 
 

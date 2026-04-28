@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter
 
-from core.config import APP_VERSION, DB_PATH
+from core.config import APP_VERSION, CMD_VERSION, DB_PATH
 from repositories.audit_repo import get_audit_log
 from repositories.snapshot_repo import get_latest_snapshot
 from services.dashboard_service import build_dashboard
@@ -35,6 +35,20 @@ def get_staff():
 @router.get("/api/audit_log", tags=["系統"])
 def audit_log_endpoint(limit: int = 100):
     return get_audit_log(limit)
+
+
+@router.get("/api/version", tags=["系統"])
+def version():
+    """
+    前端啟動時 fetch 取版本號（C1-F Q1）。
+    - cmd_version：前端 UI 功能版本（Wave 里程碑）
+    - server_version：後端 API SemVer
+    無需認證（版號非敏感資訊）。
+    """
+    return {
+        "cmd_version":    CMD_VERSION,
+        "server_version": APP_VERSION,
+    }
 
 
 @router.get("/api/health", tags=["系統"])
