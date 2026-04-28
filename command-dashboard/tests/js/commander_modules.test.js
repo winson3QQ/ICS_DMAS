@@ -79,6 +79,12 @@ describe('C1-F commander modules', () => {
     const map = await import('../../static/js/map.js');
     await expect(map.initMap()).resolves.toBeUndefined();
     expect(map.getMapConfig()).toEqual({ maps: { indoor: { zones: [] }, outdoor: { zones: [] } } });
+    const source = file('static/js/map.js');
+    expect(source).toMatch(/protomapsL\.leafletLayer/);
+    expect(source).toMatch(/\/tiles\/pmtiles\/taiwan\.pmtiles/);
+    expect(source).toMatch(/_napsgIcon/);
+    expect(source).toMatch(/_renderPolygons/);
+    expect(source).toMatch(/_renderRoutes/);
   });
 
   test('events_crud_renders', async () => {

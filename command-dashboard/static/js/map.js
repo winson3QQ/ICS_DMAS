@@ -20,8 +20,17 @@ let _mapConfig = null;
 let _currentMap = 'indoor';
 let _leafletMap = null;
 let _leafletMarkers = [];
+let _polygonLayer = null;
+let _infraLayer = null;
+let _flowLayer = null;
+let _routeLayer = null;
 let _pinEditMode = false;
 let _coordDisplayMode = 'mgrs';
+let _mgrsGridVisible = false;
+const _layerVis = { zones: true, polygons: true, infra: true, flows: true, routes: true, mgrs: false };
+
+const _HSINCHU_CENTER = [24.8283, 121.0149];
+const _HSINCHU_ZOOM = 15;
 
 const _PERM_NODES = [
   { id: 'node_shelter', label: '收容組', node_type: 'shelter', icon: 'pin' },
@@ -63,6 +72,40 @@ const _EVENT_GROUPS = {
   care: '收容照護',
   infra: '基礎設施',
   ops: '行動管理',
+};
+
+const _NAPSG_GROUP_ABBR = { security: '安', rescue: '救', medical: '醫', care: '護', infra: '設', ops: '行' };
+const _NODE_ABBR = { shelter: '收', medical: '醫', forward: '前', security: '安', command: '指' };
+const _NODE_COLORS = { shelter: '#f0883e', medical: '#e05555', forward: '#58a6ff', security: '#e3b341', command: '#8b949e' };
+const _SEV_COLORS = { critical: '#e05555', warning: '#e3b341', info: '#3a4149' };
+const _RAG_COLORS = { ok: '#1a9e52', warn: '#d49000', crit: '#cc2a2a' };
+
+const POLY_TYPES = {
+  control:    { label: '管制區', color: '#e05555', dash: true },
+  evacuation: { label: '疏散範圍', color: '#e3b341', dash: true },
+  assembly:   { label: '集結點', color: '#3fb950', dash: false },
+  danger:     { label: '危險區域', color: '#c0392b', dash: false },
+  ops:        { label: '作業區', color: '#58a6ff', dash: false },
+};
+
+const INFRA_TYPES = {
+  hospital: { label: '醫院', color: '#e05555', abbr: 'H' },
+  shelter:  { label: '收容所', color: '#e3b341', abbr: 'S' },
+  police:   { label: '警察局', color: '#58a6ff', abbr: 'P' },
+  fire:     { label: '消防站', color: '#ff7f50', abbr: 'F' },
+  utility:  { label: '公用設施', color: '#8b949e', abbr: 'U' },
+};
+
+const ROUTE_TYPES = {
+  primary:   { label: '主要疏散路線', color: '#56d364', dash: false },
+  secondary: { label: '次要路線', color: '#e3b341', dash: true },
+  emergency: { label: '緊急通道', color: '#e05555', dash: false },
+};
+
+const FLOW_TYPES = {
+  casualty:   { label: '傷患後送', color: '#e05555' },
+  evacuation: { label: '疏散人員', color: '#e3b341' },
+  resource:   { label: '資源調度', color: '#56d364' },
 };
 
 export function initMap(deps = {}) {
@@ -120,12 +163,43 @@ export function switchMap(key) {
 function _initLeaflet() {
   if (!window.L || !el('leaflet-map')) return;
   if (!_leafletMap) {
-    _leafletMap = L.map('leaflet-map', { zoomControl: false }).setView([24.8283, 121.0149], 15);
+    _leafletMap = L.map('leaflet-map', {
+      zoomControl: true,
+      attributionControl: true,
+      doubleClickZoom: false,
+    }).setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
+
+    if (window.protomapsL?.leafletLayer) {
+      window.protomapsL.leafletLayer({
+        url: '/tiles/pmtiles/taiwan.pmtiles',
+        flavor: 'grayscale',
+      }).addTo(_leafletMap);
+    }
+
     _leafletMap.on('click', e => {
       if (el('map-coord-panel')) {
         el('map-coord-panel').style.display = 'block';
         el('map-coord-panel').textContent = _coordValue(e.latlng.lat, e.latlng.lng);
       }
+    });
+
+    const savedView = sessionStorage.getItem('_mapView');
+    if (savedView) {
+      try {
+        const { lat, lng, zoom } = JSON.parse(savedView);
+        _leafletMap.setView([lat, lng], zoom);
+      } catch (e) {
+        _leafletMap.setView(_HSINCHU_CENTER, _HSINCHU_ZOOM);
+      }
+    }
+
+    _leafletMap.on('moveend zoomend', () => {
+      const c = _leafletMap.getCenter();
+      sessionStorage.setItem('_mapView', JSON.stringify({
+        lat: Math.round(c.lat * 100000) / 100000,
+        lng: Math.round(c.lng * 100000) / 100000,
+        zoom: _leafletMap.getZoom(),
+      }));
     });
   }
   setTimeout(() => _leafletMap.invalidateSize(), 0);
@@ -166,15 +240,123 @@ export function refreshLeafletMarkers() {
   if (!_leafletMap || !_mapConfig) return;
   _leafletMarkers.forEach(m => m.remove());
   _leafletMarkers = [];
+  _renderPolygons();
+  _renderInfra();
+  _renderFlows();
+  _renderRoutes();
+  if (!_layerVis.zones) return;
   const map = _mapConfig.maps?.outdoor;
   if (!map?.zones || !window.L) return;
+  const data = _deps.getData?.() || {};
   for (const zone of map.zones) {
     if (zone.lat == null || zone.lng == null) continue;
-    const marker = L.marker([zone.lat, zone.lng], { title: zone.label || zone.id });
-    marker.on('click', () => zone.event_id ? _deps.showEventProcessModal?.(zone) : showZoneDetail(zone));
+    const isEvent = !!(zone.event_id || zone.event_code);
+    let severity = 'warning';
+    if (isEvent) {
+      const ev = (data.events || []).find(item => item.id === zone.event_id);
+      if (!ev) severity = 'info';
+      else if (['resolved', 'closed'].includes(ev.status)) continue;
+      else severity = ev.severity || 'warning';
+    }
+
+    const nodeOpts = {};
+    if (!isEvent && zone.icon === 'pin' && (zone.node_type === 'shelter' || zone.node_type === 'medical')) {
+      const calc = data.calc || {};
+      const piNode = (data.pi_nodes || []).find(n => n.unit_id === zone.node_type);
+      let linkLevel = 'lkp';
+      if (piNode?.last_seen_at) {
+        const age = Date.now() - new Date(piNode.last_seen_at).getTime();
+        linkLevel = age < 30000 ? 'ok' : age < 90000 ? 'warn' : 'crit';
+      }
+      const snapshot = calc[zone.node_type]?.snapshot;
+      if (snapshot) {
+        const used = snapshot.bed_used || 0;
+        const total = snapshot.bed_total || 1;
+        const pct = used / total * 100;
+        nodeOpts.rag = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : 'ok';
+        nodeOpts.badge = used;
+      } else {
+        nodeOpts.rag = 'ok';
+        nodeOpts.badge = '—';
+      }
+      if (linkLevel === 'crit' || linkLevel === 'lkp') nodeOpts.stale = true;
+      if (linkLevel === 'warn') nodeOpts.linkWarn = true;
+    }
+
+    const marker = L.marker([zone.lat, zone.lng], {
+      icon: _napsgIcon(zone.node_type, severity, isEvent, nodeOpts),
+      draggable: true,
+      title: zone.label || zone.id,
+    });
+    marker.bindTooltip(
+      `<span>${zone.label || zone.id}</span>${zone.event_code ? ` <span style="color:var(--yellow)">${zone.event_code}</span>` : ''}`,
+      { className: 'napsg-tooltip', direction: 'top', offset: [0, -16], permanent: false }
+    );
+    marker.on('click', e => {
+      L.DomEvent.stopPropagation(e);
+      if (isEvent) _deps.showEventProcessModal?.(zone);
+      else showZoneDetail(zone);
+    });
+    marker.on('dragend', async () => {
+      const ll = marker.getLatLng();
+      zone.lat = Math.round(ll.lat * 1000000) / 1000000;
+      zone.lng = Math.round(ll.lng * 1000000) / 1000000;
+      await saveMapConfig();
+    });
     marker.addTo(_leafletMap);
     _leafletMarkers.push(marker);
   }
+}
+
+function _napsgIcon(nodeType, severity, isEvent, opts = {}) {
+  if (isEvent) {
+    const color = _SEV_COLORS[severity] || '#8b949e';
+    const abbr = _NAPSG_GROUP_ABBR[nodeType] || _NODE_ABBR[nodeType] || '?';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">
+      <polygon points="13,1 25,13 13,25 1,13" fill="${color}" stroke="#fff" stroke-width="2"/>
+      <text x="13" y="17" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
+            font-family="sans-serif">${abbr}</text>
+    </svg>`;
+    return L.divIcon({ html: svg, className: '', iconSize: [26, 26], iconAnchor: [13, 13] });
+  }
+
+  const abbr = _NODE_ABBR[nodeType] || '?';
+  let color = _NODE_COLORS[nodeType] || '#8b949e';
+  if ((nodeType === 'shelter' || nodeType === 'medical') && opts.rag) {
+    color = _RAG_COLORS[opts.rag] || color;
+  }
+  const ragCls = opts.rag ? ' ' + opts.rag : '';
+  const staleCls = opts.stale ? ' napsg-stale' : '';
+  const linkWarnCls = opts.linkWarn ? ' link-warn' : '';
+  let badgeHtml = '';
+  if (opts.stale && (nodeType === 'shelter' || nodeType === 'medical')) {
+    badgeHtml = '<div class="napsg-badge off">OFF</div>';
+  } else if (opts.badge != null && opts.badge !== '') {
+    const badgeClass = opts.rag === 'crit' ? 'crit' : opts.rag === 'warn' ? 'warn' : '';
+    badgeHtml = `<div class="napsg-badge ${badgeClass}">${opts.badge}</div>`;
+  }
+
+  if (nodeType === 'forward' || nodeType === 'security') {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+      <rect x="1" y="1" width="22" height="22" rx="2" fill="${color}" stroke="#fff" stroke-width="2"/>
+      <text x="12" y="16" text-anchor="middle" font-size="9" font-weight="700" fill="#fff"
+            font-family="sans-serif">${abbr}</text>
+    </svg>`;
+    return L.divIcon({
+      html: `<div class="napsg-wrap${ragCls}${staleCls}${linkWarnCls}">${svg}${badgeHtml}</div>`,
+      className: '', iconSize: [24, 24], iconAnchor: [12, 12],
+    });
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" fill="${color}" stroke="#fff" stroke-width="2"/>
+    <text x="14" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="#fff"
+          font-family="sans-serif">${abbr}</text>
+  </svg>`;
+  return L.divIcon({
+    html: `<div class="napsg-wrap${ragCls}${staleCls}${linkWarnCls}">${svg}${badgeHtml}</div>`,
+    className: '', iconSize: [28, 28], iconAnchor: [14, 14],
+  });
 }
 
 function _icon(zone) {
@@ -287,13 +469,198 @@ function _coordValue(lat, lng) {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-export function _toggleMgrsGrid() {}
+function _renderPolygons() {
+  if (!_leafletMap) return;
+  if (!_polygonLayer) _polygonLayer = L.layerGroup().addTo(_leafletMap);
+  _polygonLayer.clearLayers();
+  if (!_layerVis.polygons) return;
+  const polygons = _mapConfig?.maps?.outdoor?.polygons || [];
+  for (const poly of polygons) {
+    const dash = poly.dash ? '8 5' : null;
+    const layer = L.polygon(poly.latlngs, {
+      color: poly.color,
+      weight: 2,
+      dashArray: dash,
+      fillColor: poly.color,
+      fillOpacity: 0.12,
+      interactive: true,
+    }).addTo(_polygonLayer);
+    layer.on('click', () => _deps.openModal?.(`▱ ${poly.label}`, _simpleInfo(POLY_TYPES[poly.poly_type]?.label || poly.poly_type)));
+    if (poly.label) {
+      const labelPos = poly.label_anchor ? [poly.label_anchor[0], poly.label_anchor[1]] : _polyCentroid(poly.latlngs);
+      L.marker(labelPos, {
+        icon: L.divIcon({
+          html: `<div style="font-size:10px;font-weight:700;color:${poly.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;padding:2px 4px;">${poly.label}</div>`,
+          className: '',
+          iconSize: [120, 20],
+          iconAnchor: [0, 10],
+        }),
+        interactive: false,
+        zIndexOffset: 100,
+      }).addTo(_polygonLayer);
+    }
+  }
+}
+
+function _polyCentroid(latlngs) {
+  const lat = latlngs.reduce((sum, point) => sum + point[0], 0) / latlngs.length;
+  const lng = latlngs.reduce((sum, point) => sum + point[1], 0) / latlngs.length;
+  return [lat, lng];
+}
+
+function _infraIcon(infraType) {
+  const def = INFRA_TYPES[infraType] || INFRA_TYPES.utility;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+    <circle cx="14" cy="14" r="12" fill="${def.color}" stroke="#fff" stroke-width="2" opacity=".92"/>
+    <text x="14" y="18.5" text-anchor="middle" font-size="11" font-weight="700"
+          font-family="sans-serif" fill="#fff">${def.abbr}</text>
+  </svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 14] });
+}
+
+function _renderInfra() {
+  if (!_leafletMap) return;
+  if (!_infraLayer) _infraLayer = L.layerGroup().addTo(_leafletMap);
+  _infraLayer.clearLayers();
+  if (!_layerVis.infra) return;
+  const items = _mapConfig?.maps?.outdoor?.infrastructure || [];
+  for (const item of items) {
+    const def = INFRA_TYPES[item.infra_type] || INFRA_TYPES.utility;
+    const marker = L.marker([item.lat, item.lng], {
+      icon: _infraIcon(item.infra_type),
+      title: item.label,
+      zIndexOffset: -100,
+    });
+    marker.bindTooltip(`<span style="color:${def.color}">${def.label}</span> ${item.label}`, {
+      className: 'napsg-tooltip',
+      direction: 'top',
+      offset: [0, -16],
+    });
+    marker.on('click', e => {
+      L.DomEvent.stopPropagation(e);
+      _deps.openModal?.(`${def.abbr} ${item.label}`, _simpleInfo(def.label));
+    });
+    marker.addTo(_infraLayer);
+  }
+}
+
+function _bearing(lat1, lng1, lat2, lng2) {
+  const rad = Math.PI / 180;
+  const dLng = (lng2 - lng1) * rad;
+  const y = Math.sin(dLng) * Math.cos(lat2 * rad);
+  const x = Math.cos(lat1 * rad) * Math.sin(lat2 * rad) -
+    Math.sin(lat1 * rad) * Math.cos(lat2 * rad) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+function _arrowIcon(angle, color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="-11 -11 22 22">
+    <polygon points="0,-9 5,4 0,1 -5,4" fill="${color}" stroke="rgba(14,22,29,.6)" stroke-width="1"
+      transform="rotate(${angle})"/>
+  </svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [22, 22], iconAnchor: [11, 11] });
+}
+
+function _renderRoutes() {
+  if (!_leafletMap) return;
+  if (!_routeLayer) _routeLayer = L.layerGroup().addTo(_leafletMap);
+  _routeLayer.clearLayers();
+  if (!_layerVis.routes) return;
+  const routes = _mapConfig?.maps?.outdoor?.routes || [];
+  for (const route of routes) {
+    const line = L.polyline(route.latlngs, {
+      color: route.color,
+      weight: 3,
+      dashArray: route.dash ? '8 5' : null,
+      opacity: 0.9,
+    }).addTo(_routeLayer);
+    line.on('click', () => _deps.openModal?.(`↗ ${route.label}`, _simpleInfo(ROUTE_TYPES[route.route_type]?.label || route.route_type)));
+    for (let i = 0; i < route.latlngs.length - 1; i += 1) {
+      const [lat1, lng1] = route.latlngs[i];
+      const [lat2, lng2] = route.latlngs[i + 1];
+      L.marker([(lat1 + lat2) / 2, (lng1 + lng2) / 2], {
+        icon: _arrowIcon(_bearing(lat1, lng1, lat2, lng2), route.color),
+        interactive: false,
+        zIndexOffset: 50,
+      }).addTo(_routeLayer);
+    }
+    if (route.label) {
+      const labelPos = route.label_anchor || route.latlngs[Math.floor(route.latlngs.length / 2)];
+      L.marker(labelPos, {
+        icon: L.divIcon({
+          html: `<div style="font-size:10px;font-weight:700;color:${route.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;padding:2px 4px;">${route.label}</div>`,
+          className: '',
+          iconSize: [120, 20],
+          iconAnchor: [0, 10],
+        }),
+        interactive: false,
+        zIndexOffset: 100,
+      }).addTo(_routeLayer);
+    }
+  }
+}
+
+function _resolveRef(ref, flow) {
+  if (!ref) {
+    const zoneId = flow?.from_zone_id || flow?.to_zone_id;
+    if (!zoneId) return null;
+    ref = `zone:${zoneId}`;
+  }
+  const sep = ref.indexOf(':');
+  const type = sep > 0 ? ref.slice(0, sep) : 'zone';
+  const id = sep > 0 ? ref.slice(sep + 1) : ref;
+  if (type === 'infra') {
+    const item = (_mapConfig?.maps?.outdoor?.infrastructure || []).find(i => i.id === id);
+    return item ? { lat: item.lat, lng: item.lng, label: item.label } : null;
+  }
+  const zone = (_mapConfig?.maps?.outdoor?.zones || []).find(z => z.id === id);
+  return zone ? { lat: zone.lat, lng: zone.lng, label: zone.label } : null;
+}
+
+function _renderFlows() {
+  if (!_leafletMap) return;
+  if (!_flowLayer) _flowLayer = L.layerGroup().addTo(_leafletMap);
+  _flowLayer.clearLayers();
+  if (!_layerVis.flows) return;
+  const flows = _mapConfig?.maps?.outdoor?.flows || [];
+  for (const flow of flows) {
+    const from = _resolveRef(flow.from_ref || (flow.from_zone_id ? `zone:${flow.from_zone_id}` : null), flow);
+    const to = _resolveRef(flow.to_ref || (flow.to_zone_id ? `zone:${flow.to_zone_id}` : null), flow);
+    if (!from?.lat || !to?.lat) continue;
+    const def = FLOW_TYPES[flow.flow_type] || FLOW_TYPES.casualty;
+    const line = L.polyline([[from.lat, from.lng], [to.lat, to.lng]], {
+      color: def.color,
+      weight: 2.5,
+      opacity: 0.85,
+    }).addTo(_flowLayer);
+    line.on('click', () => _deps.openModal?.(`→ ${flow.label || def.label}`, _simpleInfo(`${from.label || '?'} → ${to.label || '?'}`)));
+    L.marker([(from.lat + to.lat) / 2, (from.lng + to.lng) / 2], {
+      icon: _arrowIcon(_bearing(from.lat, from.lng, to.lat, to.lng), def.color),
+      interactive: false,
+      zIndexOffset: 50,
+    }).addTo(_flowLayer);
+  }
+}
+
+function _simpleInfo(text) {
+  return `<div style="font-size:12px;line-height:1.7;color:var(--text2);">${text || ''}</div>`;
+}
+
+export function _toggleMgrsGrid() {
+  _mgrsGridVisible = !_mgrsGridVisible;
+  _layerVis.mgrs = _mgrsGridVisible;
+  document.getElementById('btn-mgrs-grid')?.classList.toggle('active', _mgrsGridVisible);
+}
 export function _toggleLayerPanel() {
   const panel = el('layer-panel');
   if (panel) panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
 }
 export function _closeLayerPanel() { if (el('layer-panel')) el('layer-panel').style.display = 'none'; }
-export function _toggleLayer() {}
+export function _toggleLayer(key) {
+  if (!key || !(key in _layerVis)) return;
+  _layerVis[key] = !_layerVis[key];
+  refreshLeafletMarkers();
+}
 export function _startPolyDraw() {}
 export function _cancelPolyDraw() {}
 export function _finishPolyDraw() {}
