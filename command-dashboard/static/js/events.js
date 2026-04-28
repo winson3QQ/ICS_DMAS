@@ -1206,6 +1206,4 @@ export function openEventByCode(eventId) {
 }
 
 // ── events.js 對 map.js 通知的監聽 ──
-document.addEventListener('map:loadL3Records', (e) => {
-  document.dispatchEvent(new CustomEvent('map:doLoadL3Records', { detail: e.detail }));
-});
+// map.js 直接監聽 'map:loadL3Records' 並執行載入；events.js 不再需要轉發。

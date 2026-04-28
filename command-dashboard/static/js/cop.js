@@ -29,11 +29,11 @@ import { initDecisions, renderDecisionList } from './decisions.js';
 import {
   initEvents, renderZoneC as evRenderZoneC,
   _evtCardDidHighlight, openEventForm,
+  showZoneDetail,
 } from './events.js';
 import {
   initMap, renderMapOverlay, refreshLeafletMarkers,
   getMapConfig, findZoneByEventId,
-  showZoneDetail,
 } from './map.js';
 import { getCurrentOperator } from './auth.js';
 

@@ -184,6 +184,30 @@ function _initLeaflet() {
       _refreshCoordPanel();
     });
 
+    // 長按地圖（650ms）→ 開啟事件回報 popup（NAPSG 兩階段選單）
+    let _lpTimer = null, _lpMoved = false;
+    _leafletMap.on('mousedown', (e) => {
+      if (e.originalEvent && e.originalEvent.button !== 0) return;
+      _lpMoved = false;
+      if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+      const latlng = { lat: e.latlng.lat, lng: e.latlng.lng };
+      _lpTimer = setTimeout(() => {
+        _lpTimer = null;
+        if (!_lpMoved) _openEventPopup(latlng.lat, latlng.lng);
+      }, 650);
+    });
+    _leafletMap.on('mousemove', () => {
+      _lpMoved = true;
+      if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+    });
+    _leafletMap.on('mouseup', () => {
+      if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+    });
+    _leafletMap.on('dragstart', () => {
+      _lpMoved = true;
+      if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
+    });
+
     const savedView = sessionStorage.getItem('_mapView');
     if (savedView) {
       try {
@@ -250,7 +274,7 @@ export function renderMapOverlay() {
       <div class="zone-info"><div class="zone-label">${zone.event_code || zone.label || zone.id}</div></div>`;
     marker.addEventListener('click', () => {
       if (zone.event_id) _deps.showEventProcessModal?.(zone);
-      else showZoneDetail(zone);
+      else (_deps.showZoneDetail || showZoneDetail)(zone);
     });
     overlay.appendChild(marker);
   }
@@ -315,7 +339,7 @@ export function refreshLeafletMarkers() {
     marker.on('click', e => {
       L.DomEvent.stopPropagation(e);
       if (isEvent) _deps.showEventProcessModal?.(zone);
-      else showZoneDetail(zone);
+      else (_deps.showZoneDetail || showZoneDetail)(zone);
     });
     marker.on('dragend', async () => {
       const ll = marker.getLatLng();
@@ -626,6 +650,184 @@ function _drawMgrsGrid() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// 長按地圖 → 事件回報 popup（NAPSG 兩階段選單）
+// 使用 L.DomUtil + L.DomEvent，避免 inline onclick 失效
+// ══════════════════════════════════════════════════════════════
+
+let _evPopup = null;
+let _evPopupLatLng = null;
+
+function _evPopupBuildGroups(mgrs, reportUnit) {
+  const wrap = L.DomUtil.create('div', 'ev-popup-inner');
+
+  const header = L.DomUtil.create('div', 'ev-popup-header', wrap);
+  const repWrap = L.DomUtil.create('div', 'ev-popup-reporter-wrap', header);
+  const lbl = L.DomUtil.create('label', '', repWrap);
+  lbl.textContent = '回報：';
+  const sel = L.DomUtil.create('select', '', repWrap);
+  sel.id = 'ev-popup-unit';
+  [['command', '指揮部'], ['forward', '前進組'], ['security', '安全組'],
+   ['shelter', '收容組'], ['medical', '醫療組']].forEach(([v, t]) => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = t;
+    if (v === reportUnit) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  L.DomEvent.on(sel, 'change', () => {
+    const bar = el('place-report-unit');
+    if (bar) bar.value = sel.value;
+  });
+
+  const mgrsSpan = L.DomUtil.create('span', 'ev-popup-mgrs', header);
+  mgrsSpan.textContent = `📍 ${mgrs}`;
+
+  const grid = L.DomUtil.create('div', 'ev-popup-groups', wrap);
+  Object.entries(_EVENT_GROUPS).forEach(([k, label]) => {
+    const btn = L.DomUtil.create('button', 'ev-popup-group-btn', grid);
+    btn.type = 'button';
+    btn.textContent = label;
+    L.DomEvent.on(btn, 'click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      _evPopupGroup(k);
+    });
+  });
+  return wrap;
+}
+
+function _evPopupBuildTypes(groupKey) {
+  const wrap = L.DomUtil.create('div', 'ev-popup-inner');
+  const header = L.DomUtil.create('div', 'ev-popup-header', wrap);
+  const back = L.DomUtil.create('span', 'ev-popup-back', header);
+  back.style.marginBottom = '0';
+  back.textContent = '← 返回';
+  L.DomEvent.on(back, 'click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    _evPopupBack();
+  });
+  const grpSpan = L.DomUtil.create('span', 'ev-popup-mgrs', header);
+  grpSpan.textContent = _EVENT_GROUPS[groupKey] || groupKey;
+
+  const list = L.DomUtil.create('div', 'ev-popup-types', wrap);
+  Object.entries(_EVENT_TYPES)
+    .filter(([, v]) => v.group === groupKey)
+    .forEach(([k, v]) => {
+      const sev = v.severity || 'info';
+      const btn = L.DomUtil.create('button', `ev-popup-type-btn sev-${sev}`, list);
+      btn.type = 'button';
+      btn.textContent = v.label;
+      L.DomEvent.on(btn, 'click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        _evPopupSubmit(k);
+      });
+    });
+  return wrap;
+}
+
+function _openEventPopup(lat, lng) {
+  if (!window.L || !_leafletMap) return;
+  if (_evPopup) { _leafletMap.closePopup(_evPopup); _evPopup = null; }
+  _evPopupLatLng = { lat, lng };
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  const reportUnit = el('place-report-unit')?.value || 'command';
+  _evPopup = L.popup({
+    className: 'ev-popup',
+    closeButton: true,
+    autoClose: false,
+    closeOnClick: false,
+    maxWidth: 280,
+    offset: [0, -6],
+  })
+    .setLatLng([lat, lng])
+    .setContent(_evPopupBuildGroups(mgrs, reportUnit))
+    .openOn(_leafletMap);
+  _evPopup.on('remove', () => { _evPopup = null; });
+}
+
+function _evPopupGroup(groupKey) {
+  if (!_evPopup || !_evPopupLatLng) return;
+  _evPopup.setContent(_evPopupBuildTypes(groupKey));
+}
+
+function _evPopupBack() {
+  if (!_evPopupLatLng) return;
+  const { lat, lng } = _evPopupLatLng;
+  _openEventPopup(lat, lng);
+}
+
+async function _evPopupSubmit(typeKey) {
+  if (!_evPopupLatLng) return;
+  const evDef = _EVENT_TYPES[typeKey];
+  if (!evDef) return;
+
+  const popupSel = document.getElementById('ev-popup-unit');
+  const reportedBy = popupSel ? popupSel.value : (el('place-report-unit')?.value || 'command');
+  const { lat, lng } = _evPopupLatLng;
+  _evPopupLatLng = null;
+  if (_evPopup) { _leafletMap.closePopup(_evPopup); _evPopup = null; }
+
+  const id = 'evt_' + Date.now();
+  const mgrs = _latlngToMGRS(lat, lng, 5);
+  const operator = _deps.getCurrentOperator?.() || '';
+  const sessionType = (() => {
+    try { return window.__sessionType || 'real'; } catch { return 'real'; }
+  })();
+
+  const zone = {
+    id,
+    label: evDef.label,
+    sub: '',
+    lat: Math.round(lat * 1000000) / 1000000,
+    lng: Math.round(lng * 1000000) / 1000000,
+    node_type: evDef.group || 'ops',
+    icon: 'event',
+  };
+
+  try {
+    const resp = await authFetch(API_BASE + '/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reported_by_unit: reportedBy,
+        event_type: typeKey,
+        severity: evDef.severity || 'warning',
+        description: evDef.label,
+        operator_name: operator,
+        location_zone_id: id,
+        location_desc: mgrs,
+        session_type: sessionType,
+      }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      zone.event_id = data.id;
+      zone.event_code = data.event_code;
+    } else {
+      console.warn('[map.js] 事件建立失敗', resp.status);
+    }
+  } catch (e) {
+    console.error('[map.js] _evPopupSubmit', e);
+  }
+
+  if (zone.event_id) {
+    if (!_mapConfig.maps.outdoor.zones) _mapConfig.maps.outdoor.zones = [];
+    _mapConfig.maps.outdoor.zones.push(zone);
+    saveMapConfig();
+    refreshLeafletMarkers();
+    // 顯示放置確認
+    const panel = el('map-coord-panel');
+    if (panel) {
+      panel.style.display = 'flex';
+      panel.innerHTML =
+        `<span style="color:#3fb950">✓ 放置</span>&nbsp;<b>${zone.event_code}</b>` +
+        `<span style="color:#8b949e;margin-left:8px">MGRS</span>&nbsp;${mgrs}`;
+      setTimeout(() => _refreshCoordPanel(), 3000);
+    }
+    // 觸發 poll 讓右側事件追蹤欄即時更新
+    _deps.doPoll?.();
+  }
+}
+
 function _napsgIcon(nodeType, severity, isEvent, opts = {}) {
   if (isEvent) {
     const color = _SEV_COLORS[severity] || '#8b949e';
@@ -680,6 +882,16 @@ function _napsgIcon(nodeType, severity, isEvent, opts = {}) {
 function _icon(zone) {
   if (zone.icon === 'pin') return '●';
   if (zone.event_id || zone.event_code) return '!';
+  return '◆';
+}
+
+// events.js 透過 dynamic import 取用此函式更新 modal-title icon
+// 簡化版：以單字表示（pin=●、事件=▲、其他=◆）— legacy SVG icon 集若需可擴充
+export function renderIcon(icon) {
+  if (icon === 'pin' || icon === 'pin_shelter' || icon === 'pin_medical') return '●';
+  if (icon === 'event' || icon === 'shield' || icon === 'explosive'
+      || icon === 'drone' || icon === 'eye' || icon === 'run'
+      || icon === 'handshake' || icon === 'person' || icon === 'threat') return '▲';
   return '◆';
 }
 
@@ -825,7 +1037,13 @@ function _renderPolygons() {
       fillOpacity: 0.12,
       interactive: true,
     }).addTo(_polygonLayer);
-    layer.on('click', () => _deps.openModal?.(`▱ ${poly.label}`, _simpleInfo(POLY_TYPES[poly.poly_type]?.label || poly.poly_type)));
+    layer.on('click', () => {
+      const typeLabel = POLY_TYPES[poly.poly_type]?.label || poly.poly_type;
+      const desc = `${typeLabel}　${poly.latlngs.length} 個頂點`;
+      _deps.openModal?.(`▱ ${poly.label || '範圍'}`,
+        _featureInfo(desc, 'deletePolygon', poly.id,
+          poly.label_anchor ? { resetAnchorAction: 'resetPolyLabelAnchor' } : {}));
+    });
     if (poly.label) {
       const labelPos = poly.label_anchor ? [poly.label_anchor[0], poly.label_anchor[1]] : _polyCentroid(poly.latlngs);
       L.marker(labelPos, {
@@ -878,7 +1096,8 @@ function _renderInfra() {
     });
     marker.on('click', e => {
       L.DomEvent.stopPropagation(e);
-      _deps.openModal?.(`${def.abbr} ${item.label}`, _simpleInfo(def.label));
+      _deps.openModal?.(`${def.abbr} ${item.label}`,
+        _featureInfo(def.label, 'deleteInfra', item.id));
     });
     marker.addTo(_infraLayer);
   }
@@ -914,7 +1133,13 @@ function _renderRoutes() {
       dashArray: route.dash ? '8 5' : null,
       opacity: 0.9,
     }).addTo(_routeLayer);
-    line.on('click', () => _deps.openModal?.(`↗ ${route.label}`, _simpleInfo(ROUTE_TYPES[route.route_type]?.label || route.route_type)));
+    line.on('click', () => {
+      const typeLabel = ROUTE_TYPES[route.route_type]?.label || route.route_type;
+      const desc = `${typeLabel}　${route.latlngs.length} 個節點`;
+      _deps.openModal?.(`↗ ${route.label || '路線'}`,
+        _featureInfo(desc, 'deleteRoute', route.id,
+          route.label_anchor ? { resetAnchorAction: 'resetRouteLabelAnchor' } : {}));
+    });
     for (let i = 0; i < route.latlngs.length - 1; i += 1) {
       const [lat1, lng1] = route.latlngs[i];
       const [lat2, lng2] = route.latlngs[i + 1];
@@ -973,7 +1198,11 @@ function _renderFlows() {
       weight: 2.5,
       opacity: 0.85,
     }).addTo(_flowLayer);
-    line.on('click', () => _deps.openModal?.(`→ ${flow.label || def.label}`, _simpleInfo(`${from.label || '?'} → ${to.label || '?'}`)));
+    line.on('click', () => {
+      const desc = `${def.label || flow.flow_type}　${from.label || '?'} → ${to.label || '?'}`;
+      _deps.openModal?.(`→ ${flow.label || def.label || '流向'}`,
+        _featureInfo(desc, 'deleteFlow', flow.id));
+    });
     L.marker([(from.lat + to.lat) / 2, (from.lng + to.lng) / 2], {
       icon: _arrowIcon(_bearing(from.lat, from.lng, to.lat, to.lng), def.color),
       interactive: false,
@@ -984,6 +1213,27 @@ function _renderFlows() {
 
 function _simpleInfo(text) {
   return `<div style="font-size:12px;line-height:1.7;color:var(--text2);">${text || ''}</div>`;
+}
+
+/**
+ * 範圍 / 路線 / 流向 / 設施的詳情 modal body
+ * 含「刪除」（紅）與選用的「重設標籤位置」（中性）按鈕
+ * @param {string} desc 主說明文字
+ * @param {string} action 對應 main.js 的 data-action（如 deletePolygon）
+ * @param {string} id     對象 id（用於 data-id）
+ * @param {object} extra  選用：{ resetAnchorAction: 'resetPolyLabelAnchor' } 顯示重設標籤鈕
+ */
+function _featureInfo(desc, action, id, extra = {}) {
+  let html = `<div style="font-size:12px;line-height:1.7;color:var(--text2);margin-bottom:12px;">${desc || ''}</div>`;
+  if (extra.resetAnchorAction) {
+    html += `<button data-action="${extra.resetAnchorAction}" data-id="${id}"
+      style="width:100%;padding:7px;background:transparent;border:1px solid var(--border);color:var(--text2);
+      border-radius:6px;cursor:pointer;margin-bottom:8px;font-family:var(--mono);font-size:11px;">↺ 重設標籤至自動位置</button>`;
+  }
+  html += `<button data-action="${action}" data-id="${id}"
+    style="width:100%;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;
+    font-weight:700;cursor:pointer;font-family:var(--mono);font-size:12px;">🗑 刪除</button>`;
+  return html;
 }
 
 export function _toggleMgrsGrid() {
@@ -1024,32 +1274,268 @@ export function _startPolyDraw() {}
 export function _cancelPolyDraw() {}
 export function _finishPolyDraw() {}
 export function _savePolygon() {}
-export function _deletePolygon() {}
-export function _resetPolyLabelAnchor() {}
+
+export async function _deletePolygon(id) {
+  if (!_mapConfig?.maps?.outdoor?.polygons || !id) return;
+  _mapConfig.maps.outdoor.polygons = _mapConfig.maps.outdoor.polygons.filter(p => p.id !== id);
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderPolygons();
+}
+
+export async function _resetPolyLabelAnchor(id) {
+  const poly = (_mapConfig?.maps?.outdoor?.polygons || []).find(p => p.id === id);
+  if (!poly) return;
+  delete poly.label_anchor;
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderPolygons();
+}
+
 export function _openPolyForm() {}
 export function _openInfraForm() {}
 export function _startInfraPlace() {}
-export function _deleteInfra() {}
+
+export async function _deleteInfra(id) {
+  if (!_mapConfig?.maps?.outdoor?.infrastructure || !id) return;
+  _mapConfig.maps.outdoor.infrastructure = _mapConfig.maps.outdoor.infrastructure.filter(i => i.id !== id);
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderInfra();
+}
+
 export function _saveInfraPosition() {}
 export function _openFlowForm() {}
 export function _saveFlow() {}
-export function _deleteFlow() {}
+
+export async function _deleteFlow(id) {
+  if (!_mapConfig?.maps?.outdoor?.flows || !id) return;
+  _mapConfig.maps.outdoor.flows = _mapConfig.maps.outdoor.flows.filter(f => f.id !== id);
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderFlows();
+}
+
 export function _startRouteDraw() {}
 export function _cancelRouteDraw() {}
 export function _finishRouteDraw() {}
 export function _openRouteForm() {}
 export function _saveRoute() {}
-export function _deleteRoute() {}
-export function _resetRouteLabelAnchor() {}
+
+export async function _deleteRoute(id) {
+  if (!_mapConfig?.maps?.outdoor?.routes || !id) return;
+  _mapConfig.maps.outdoor.routes = _mapConfig.maps.outdoor.routes.filter(r => r.id !== id);
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderRoutes();
+}
+
+export async function _resetRouteLabelAnchor(id) {
+  const route = (_mapConfig?.maps?.outdoor?.routes || []).find(r => r.id === id);
+  if (!route) return;
+  delete route.label_anchor;
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderRoutes();
+}
 export function _cancelNodePlace() {}
 export function _cancelEventPin() {}
 export function admUploadMapImage() {}
 export function admRemoveMapImage() {}
-export function l3SubTab() {}
-export function openL4Detail() {}
-export function backToL3() {}
-export function loadL3Records() {}
-export function _loadPwaIncidents() {}
+export function l3SubTab(tabId, activeId) {
+  if (!tabId) return;
+  sessionStorage.setItem('_l3SubTab', JSON.stringify({ tabId, activeId }));
+  const bar = document.getElementById(tabId + '_bar');
+  if (!bar) return;
+  const wrap = bar.parentElement;
+  wrap?.querySelectorAll(`[id^="${tabId}_panel_"]`).forEach(p => { p.style.display = 'none'; });
+  bar.querySelectorAll(`[id^="${tabId}_btn_"]`).forEach(b => {
+    b.style.background = 'var(--surface)';
+    b.style.color = 'var(--text2)';
+    b.style.fontWeight = '400';
+  });
+  const panel = document.getElementById(`${tabId}_panel_${activeId}`);
+  if (panel) panel.style.display = 'block';
+  const btn = document.getElementById(`${tabId}_btn_${activeId}`);
+  if (btn) {
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#fff';
+    btn.style.fontWeight = '700';
+  }
+}
+
+let _l3Data = null;
+
+export async function loadL3Records(unitId) {
+  const container = document.getElementById('l3-container');
+  if (!container) return;
+  container.innerHTML = '<div style="color:var(--text3);font-size:11px;">載入中...</div>';
+  try {
+    const resp = await authFetch(API_BASE + `/api/pi-data/${unitId}/list`);
+    if (!resp.ok) {
+      container.innerHTML = '<div style="color:var(--red);font-size:11px;">載入失敗</div>';
+      return;
+    }
+    const data = await resp.json();
+    _l3Data = data;
+    if (data.offline) {
+      container.innerHTML = '<div style="color:var(--yellow);font-size:11px;">⚠ Pi 節點離線，無即時資料</div>';
+      return;
+    }
+
+    const grouped = data.grouped || {};
+    const tableLabels = { persons: '收容人員', resources: '物資', incidents: '組內事件', shifts: '值班', patients: '傷患' };
+    let html = '';
+
+    // 醫療：傷患階段摘要表
+    if (unitId === 'medical' && grouped.patients) {
+      const pts = grouped.patients.map(r => r.record || {});
+      const colors = ['red', 'yellow', 'green', 'black'];
+      const colorLabels = { red: '紅', yellow: '黃', green: '綠', black: '黑' };
+      const colorBg = { red: '#cc2a2a', yellow: '#c8a82a', green: '#2a8c2a', black: '#333' };
+      const isActive = p => p.current_zone !== '已離區' && p.disposition !== '離開' && p.disposition !== '死亡';
+      const stages = [
+        { label: '待評估', fn: p => (p.care_status || 'triaged') === 'triaged' && p.disposition !== '後送' && isActive(p) },
+        { label: '治療中', fn: p => p.care_status === 'assessed' && p.disposition !== '後送' && isActive(p) },
+        { label: '留觀中', fn: p => p.care_status === 'monitoring' && p.disposition !== '後送' && isActive(p) },
+        { label: '等待後送', fn: p => p.disposition === '後送' && isActive(p) },
+        { label: '已後送／離區', fn: p => !isActive(p) },
+      ];
+      html += `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;text-align:center;">`;
+      html += `<tr style="background:var(--surface2);"><td></td>${stages.map(s => `<td style="padding:3px 4px;font-weight:700;color:var(--text2);font-size:10px;">${s.label}</td>`).join('')}<td style="padding:3px 4px;font-weight:700;color:var(--text);font-size:10px;">合計</td></tr>`;
+      let grandTotal = 0;
+      for (const c of colors) {
+        const cPts = pts.filter(p => p.triage_color === c);
+        const counts = stages.map(s => cPts.filter(s.fn).length);
+        const rowTotal = counts.reduce((a, b) => a + b, 0);
+        grandTotal += rowTotal;
+        html += `<tr><td style="padding:3px 8px;background:${colorBg[c]};color:#fff;font-weight:700;border-radius:2px;">${colorLabels[c]}</td>`;
+        html += counts.map(v => `<td style="padding:3px;color:${v > 0 ? 'var(--text)' : 'var(--text3)'};">${v || '—'}</td>`).join('');
+        html += `<td style="padding:3px;font-weight:700;">${rowTotal}</td></tr>`;
+      }
+      html += `<tr style="border-top:1px solid var(--border);"><td style="padding:3px 8px;font-weight:700;">合計</td><td colspan="${stages.length}"></td><td style="padding:3px;font-weight:900;">${grandTotal}</td></tr></table>`;
+    }
+
+    // 收容：人員/床位摘要
+    if (unitId === 'shelter' && grouped.persons) {
+      const prs = grouped.persons.map(r => r.record || {});
+      const totalBeds = (grouped.beds || []).length || Math.max(prs.filter(p => p.status === '已安置').length + 2, 12);
+      const usedBeds = prs.filter(p => p.status === '已安置').length;
+      const capPct = Math.round(usedBeds / totalBeds * 100);
+      const capColor = capPct >= 90 ? 'var(--red)' : capPct >= 70 ? 'var(--yellow)' : 'var(--green)';
+      html += `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">`;
+      html += `<span style="font-size:28px;font-weight:800;">${usedBeds}</span>`;
+      html += `<span style="font-size:12px;color:var(--text3);">/ ${totalBeds} 床</span>`;
+      html += `<span style="font-size:22px;font-weight:700;color:${capColor};margin-left:auto;">${capPct}%</span>`;
+      html += `</div>`;
+      html += `<div style="height:4px;background:var(--surface2);border-radius:2px;margin-bottom:10px;"><div style="height:100%;width:${capPct}%;background:${capColor};border-radius:2px;"></div></div>`;
+    }
+
+    // 物資
+    if (grouped.resources) {
+      const resList = grouped.resources.map(r => r.record || {}).filter(r => !r.disabled);
+      if (resList.length > 0) {
+        html += `<div style="font-size:10px;font-weight:700;margin:6px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">物資</div>`;
+        for (const r of resList) {
+          const cur = r.qty_current ?? 0;
+          const max = r.qty_initial || cur || 1;
+          const pct = Math.round(cur / max * 100);
+          const c = pct <= 20 ? 'var(--red)' : pct <= 40 ? 'var(--yellow)' : 'var(--green)';
+          html += `<div style="display:flex;justify-content:space-between;font-size:11px;margin:2px 0;"><span>${r.name || '?'}</span><span style="color:${c};font-weight:600;">${cur}/${max}</span></div>`;
+          html += `<div style="height:3px;background:var(--surface2);border-radius:2px;margin-bottom:3px;"><div style="height:100%;width:${pct}%;background:${c};border-radius:2px;"></div></div>`;
+        }
+      }
+    }
+
+    // 通用記錄列表
+    const triageColorDot = { red: '🔴', yellow: '🟡', green: '🟢', black: '⚫' };
+    for (const tableName of ['patients', 'persons', 'incidents', 'shifts']) {
+      const records = grouped[tableName];
+      if (!records || records.length === 0) continue;
+      const label = tableLabels[tableName] || tableName;
+      html += `<div style="font-size:10px;font-weight:700;margin:8px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">${label}（${records.length}）</div>`;
+      records.forEach((r, i) => {
+        const rec = r.record || {};
+        const did = rec.display_id || rec._id || rec.id || r.record_id || '?';
+        let extra = '';
+        if (tableName === 'patients') {
+          const dot = triageColorDot[rec.triage_color] || '';
+          const chief = rec.chief_issue ? ` — ${rec.chief_issue.slice(0, 20)}` : '';
+          extra = `${dot} <b>${did}</b>${chief}`;
+        } else if (tableName === 'persons') {
+          extra = `<b>${did}</b> · ${rec.status || ''}`;
+        } else if (tableName === 'incidents') {
+          const incLabels = { security_threat: '安全威脅', infectious_risk: '傳染疑慮', resource_shortage: '物資短缺', capacity_overload: '量能超載', medication_mgmt: '藥品管理', language_assist: '語言協助', other: '其他' };
+          extra = `${incLabels[rec.type] || rec.type} · ${rec.severity || ''}`;
+        } else {
+          extra = did;
+        }
+        html += `<div data-action="openL4Detail" data-unit="${unitId}" data-table="${tableName}" data-index="${i}" style="padding:5px 8px;margin:2px 0;background:var(--surface);border-radius:3px;cursor:pointer;font-size:11px;">${extra}</div>`;
+      });
+    }
+
+    if (!html) html = '<div style="color:var(--text3);font-size:11px;">無資料</div>';
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div style="color:var(--red);font-size:11px;">網路錯誤：' + e.message + '</div>';
+  }
+}
+
+export function openL4Detail(unitId, tableName, index) {
+  if (!_l3Data || !_l3Data.grouped) return;
+  const records = _l3Data.grouped[tableName];
+  if (!records || !records[index]) return;
+  const r = records[index];
+  const rec = r.record || {};
+  const container = document.getElementById('l3-container');
+  if (!container) return;
+  if (!container.dataset.prevHtml) container.dataset.prevHtml = container.innerHTML;
+  const tableLabels = { persons: '收容人員', incidents: '組內事件', patients: '傷患', shifts: '值班', resources: '物資' };
+  const label = tableLabels[tableName] || tableName;
+  const name = rec.display_id || rec.name || rec._id || rec.id || r.record_id || '?';
+  let fields = '';
+  for (const [k, v] of Object.entries(rec)) {
+    if (k === '_id' || k === '_enc') continue;
+    let val = typeof v === 'object' ? JSON.stringify(v) : v;
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) {
+      const d = new Date(val);
+      if (!isNaN(d)) {
+        const p = n => String(n).padStart(2, '0');
+        val = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+    }
+    fields += `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px;"><span style="color:var(--text3);">${k}</span><span style="font-weight:600;text-align:right;max-width:60%;">${val ?? '—'}</span></div>`;
+  }
+  container.innerHTML = `
+    <div style="margin-bottom:8px;">
+      <button data-action="backToL3" style="padding:3px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;font-size:10px;cursor:pointer;font-family:var(--mono);">← 返回列表</button>
+      <span style="font-size:11px;font-weight:700;margin-left:8px;">${label}：${name}</span>
+    </div>
+    <div style="background:var(--surface);border-radius:5px;padding:10px;font-size:11px;">${fields}</div>
+  `;
+}
+
+export function backToL3() {
+  sessionStorage.removeItem('_openL4');
+  const container = document.getElementById('l3-container');
+  if (container && container.dataset.prevHtml) {
+    container.innerHTML = container.dataset.prevHtml;
+    delete container.dataset.prevHtml;
+  }
+}
+
+export async function _loadPwaIncidents(unitId) {
+  // events.js 已 export 同名函式，此處保留 stub 以維持 main.js 介面相容
+  // 實際載入由 events.js _renderZoneModal 觸發
+  void unitId;
+}
+
 export let _zoneModalTab = 'events';
 export function setZoneModalTab(tab) { _zoneModalTab = tab; }
 export function _renderZoneModal() {}
+
+// 監聽 events.js 派發的 L3 載入請求
+document.addEventListener('map:loadL3Records', (e) => {
+  const unit = e.detail?.unit;
+  if (unit) loadL3Records(unit);
+});

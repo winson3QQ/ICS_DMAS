@@ -43,6 +43,7 @@ import {
   _dlSetSign, _dlAdjust, _dlSetMin, _applyDeadline,
   toggleRightExpand, _evtCardDown, _evtCardUp,
   _addEventNote, _updateEvAndRefresh, _updateEvTypeFromCategories, _syncEvSeverity,
+  _renderZoneModal, setZoneModalTab,
 } from './events.js';
 import {
   initMap, switchMap, cancelPlaceMode, togglePinEditMode,
@@ -55,10 +56,9 @@ import {
   _resetPolyLabelAnchor, _resetRouteLabelAnchor,
   _panToCoordTarget, _mgrsSearch, _toggleCoordMode,
   _populateNapsgCsel,
-  onPlaceTypeChange, showZoneDetail,
+  onPlaceTypeChange,
   l3SubTab, openL4Detail, backToL3,
   loadL3Records, _loadPwaIncidents,
-  _renderZoneModal, _zoneModalTab, setZoneModalTab,
   saveMapConfig, _saveInfraPosition,
   openMapConfigPanel, closeMapConfigPanel, admUploadMapImage,
   admRemoveMapImage, _cancelNodePlace, _cancelEventPin,
@@ -152,7 +152,7 @@ document.addEventListener('click', function (e) {
     }
     case 'autoSaveAndAction': _autoSaveAndAction(id, btn.dataset.evAction); break;
     case 'addEventNote': _addEventNote(id); break;
-    case 'updateEvAndRefresh': _updateEvAndRefresh(id, btn.dataset.status); break;
+    case 'updateEvAndRefresh': _updateEvAndRefresh(id, btn.dataset.evAction); break;
     case 'setAssignedUnit': _setAssignedUnit(id, btn.dataset.unit); break;
     case 'resetDeadlineMenu': {
       import('./events.js').then(m => m._resetDeadlineMenu(id));
