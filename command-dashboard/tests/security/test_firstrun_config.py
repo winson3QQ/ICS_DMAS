@@ -23,7 +23,6 @@ class TestCSPModeSwitch:
         """CSP_MODE='report-only' → header 名稱為 Content-Security-Policy-Report-Only"""
         import core.security_headers as sh
         monkeypatch.setattr(sh, "CSP_MODE", "report-only")
-        monkeypatch.setattr(sh, "CSP_HEADER_NAME", "Content-Security-Policy-Report-Only")
 
         r = client.get("/api/status")
         assert "content-security-policy-report-only" in (k.lower() for k in r.headers)
@@ -33,19 +32,17 @@ class TestCSPModeSwitch:
         ]
 
     def test_enforce_mode_uses_correct_header_name(self, client, monkeypatch):
-        """CSP_MODE='enforce' → header 名稱為 Content-Security-Policy"""
+        """CSP_MODE='enforce' → ENFORCE_PATHS 使用 Content-Security-Policy"""
         import core.security_headers as sh
         monkeypatch.setattr(sh, "CSP_MODE", "enforce")
-        monkeypatch.setattr(sh, "CSP_HEADER_NAME", "Content-Security-Policy")
 
-        r = client.get("/api/status")
+        r = client.get("/static/commander_dashboard.html")
         assert "content-security-policy" in (k.lower() for k in r.headers)
 
     def test_csp_report_only_does_not_block_requests(self, client, monkeypatch):
         """report-only 模式：CSP 違規不阻擋請求（只回報）"""
         import core.security_headers as sh
         monkeypatch.setattr(sh, "CSP_MODE", "report-only")
-        monkeypatch.setattr(sh, "CSP_HEADER_NAME", "Content-Security-Policy-Report-Only")
         # 正常請求在 report-only 下仍 200（不被 CSP 擋）
         r = client.get("/api/status")
         assert r.status_code == 200
