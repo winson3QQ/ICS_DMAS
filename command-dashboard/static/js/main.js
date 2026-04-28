@@ -427,6 +427,8 @@ function _loadClassicScript(src) {
 
 function _configureLeafletAssets() {
   if (!window.L?.Icon?.Default) return;
+  // Leaflet 1.x otherwise prepends CSS-detected "images/" to absolute URLs.
+  delete window.L.Icon.Default.prototype._getIconUrl;
   window.L.Icon.Default.mergeOptions({
     iconUrl: '/static/lib/marker-icon.png',
     iconRetinaUrl: '/static/lib/marker-icon-2x.png',

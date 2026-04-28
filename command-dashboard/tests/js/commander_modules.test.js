@@ -151,5 +151,6 @@ describe('C1-F commander modules', () => {
     expect(main).toMatch(/\/static\/lib\/marker-icon\.png/);
     expect(main).toMatch(/\/static\/lib\/marker-icon-2x\.png/);
     expect(main).toMatch(/\/static\/lib\/marker-shadow\.png/);
+    expect(main).toMatch(/delete window\.L\.Icon\.Default\.prototype\._getIconUrl/);
   });
 });
