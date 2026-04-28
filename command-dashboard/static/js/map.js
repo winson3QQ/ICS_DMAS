@@ -24,8 +24,10 @@ let _polygonLayer = null;
 let _infraLayer = null;
 let _flowLayer = null;
 let _routeLayer = null;
+let _mgrsGridLayer = null;
+let _coordPin = null;            // 雙擊放置的藍色十字 marker
 let _pinEditMode = false;
-let _coordDisplayMode = 'mgrs';
+let _coordDisplayMode = 'mgrs';  // 'mgrs' | 'wgs84'
 let _mgrsGridVisible = false;
 const _layerVis = { zones: true, polygons: true, infra: true, flows: true, routes: true, mgrs: false };
 
@@ -176,11 +178,10 @@ function _initLeaflet() {
       }).addTo(_leafletMap);
     }
 
-    _leafletMap.on('click', e => {
-      if (el('map-coord-panel')) {
-        el('map-coord-panel').style.display = 'block';
-        el('map-coord-panel').textContent = _coordValue(e.latlng.lat, e.latlng.lng);
-      }
+    // 雙擊：放置藍色十字座標 pin（doubleClickZoom 已關閉，不會觸發縮放）
+    _leafletMap.on('dblclick', (e) => {
+      _showCoordPin(e.latlng.lat, e.latlng.lng);
+      _refreshCoordPanel();
     });
 
     const savedView = sessionStorage.getItem('_mapView');
@@ -200,9 +201,28 @@ function _initLeaflet() {
         lng: Math.round(c.lng * 100000) / 100000,
         zoom: _leafletMap.getZoom(),
       }));
+      _updateMgrsPlaceholder();
+      if (_mgrsGridVisible) _drawMgrsGrid();
     });
+
+    _initMapTools();
+    _updateMgrsPlaceholder();
   }
   setTimeout(() => _leafletMap.invalidateSize(), 0);
+}
+
+// ── 站外地圖工具列（☰ 圖層 / ▱ 範圍 / ↗ 路線 / → 流向）──
+function _initMapTools() {
+  const tools = el('map-tools');
+  if (!tools || tools.dataset.initialised === '1') return;
+  tools.dataset.initialised = '1';
+  // CSP 合規：用 data-action 委派，main.js 全域 click handler 會接住
+  tools.innerHTML =
+    `<button class="map-btn" id="btn-layer-panel" data-action="toggleLayerPanel" title="圖層面板" style="font-size:14px;">☰</button>
+     <button class="map-btn" id="btn-poly-draw"  data-action="startPolyDraw"   title="繪製範圍" style="font-size:16px;">▱</button>
+     <button class="map-btn" id="btn-route-draw" data-action="startRouteDraw"  title="繪製路線" style="font-size:14px;">↗</button>
+     <button class="map-btn" id="btn-flow-add"   data-action="openFlowForm"    title="新增流向" style="font-size:14px;">→</button>
+     <button class="map-btn" id="btn-mgrs-grid"  data-action="toggleMgrsGrid"  title="MGRS 格線" style="font-size:13px;">⊞</button>`;
 }
 
 export function renderMapOverlay() {
@@ -305,6 +325,304 @@ export function refreshLeafletMarkers() {
     });
     marker.addTo(_leafletMap);
     _leafletMarkers.push(marker);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// MGRS / WGS84 座標轉換（DMA TM 8358.2 規格）
+// ══════════════════════════════════════════════════════════════
+
+function _latlngToMGRS(lat, lng, precision) {
+  precision = (precision === undefined) ? 5 : precision;
+  const zoneNum = Math.floor((lng + 180) / 6) + 1;
+  const latBands = 'CDEFGHJKLMNPQRSTUVWX';
+  const latBand = latBands[Math.min(Math.floor((lat + 80) / 8), 19)];
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const b = a * (1 - f), e2 = 1 - (b * b) / (a * a), ep2 = e2 / (1 - e2), k0 = 0.9996;
+  const phi = lat * Math.PI / 180, lam = lng * Math.PI / 180;
+  const lam0 = ((zoneNum - 1) * 6 - 180 + 3) * Math.PI / 180;
+  const sinp = Math.sin(phi), cosp = Math.cos(phi), tanp = Math.tan(phi);
+  const N = a / Math.sqrt(1 - e2 * sinp * sinp);
+  const T = tanp * tanp, C = ep2 * cosp * cosp, A = cosp * (lam - lam0);
+  const M = a * (
+    (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi
+    - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi)
+    + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi)
+    - (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi));
+  let E = k0 * N * (A + (1 - T + C) * A * A * A / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * A * A * A * A * A / 120) + 500000;
+  let Nn = k0 * (M + N * tanp * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * A * A * A * A / 24
+    + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * A * A * A * A * A * A / 720));
+  if (lat < 0) Nn += 10000000;
+  const colSets = ['ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
+  const rowOdd = 'ABCDEFGHJKLMNPQRSTUV';
+  const rowEven = 'FGHJKLMNPQRSTUVABCDE';
+  const colIdx = Math.floor(E / 100000) - 1;
+  const rowIdx = Math.floor(Nn / 100000) % 20;
+  if (colIdx < 0 || colIdx > 7) return `${zoneNum}${latBand} ??`;
+  const colLetter = colSets[(zoneNum - 1) % 3][colIdx];
+  const rowLetter = (zoneNum % 2 === 1 ? rowOdd : rowEven)[rowIdx];
+  const ep = String(Math.round(E % 100000)).padStart(5, '0').substring(0, precision);
+  const np = String(Math.round(Nn % 100000)).padStart(5, '0').substring(0, precision);
+  return `${zoneNum}${latBand} ${colLetter}${rowLetter} ${ep} ${np}`;
+}
+
+function _utmToLatLng(zoneNum, E, N) {
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const b = a * (1 - f), e2 = 1 - (b * b) / (a * a), ep2 = e2 / (1 - e2), k0 = 0.9996;
+  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+  const x = E - 500000;
+  const M = N / k0;
+  const mu = M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256));
+  const phi1 = mu
+    + (3 * e1 / 2 - 27 * e1 * e1 * e1 / 32) * Math.sin(2 * mu)
+    + (21 * e1 * e1 / 16 - 55 * e1 * e1 * e1 * e1 / 32) * Math.sin(4 * mu)
+    + (151 * e1 * e1 * e1 / 96) * Math.sin(6 * mu)
+    + (1097 * e1 * e1 * e1 * e1 / 512) * Math.sin(8 * mu);
+  const sinp = Math.sin(phi1), cosp = Math.cos(phi1), tanp = Math.tan(phi1);
+  const N1 = a / Math.sqrt(1 - e2 * sinp * sinp);
+  const T1 = tanp * tanp, C1 = ep2 * cosp * cosp;
+  const R1 = a * (1 - e2) / Math.pow(1 - e2 * sinp * sinp, 1.5);
+  const D = x / (N1 * k0);
+  const latRad = phi1 - (N1 * tanp / R1) * (
+    D * D / 2
+    - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * D * D * D * D / 24
+    + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * D * D * D * D * D * D / 720
+  );
+  const lngRad = (D
+    - (1 + 2 * T1 + C1) * D * D * D / 6
+    + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * D * D * D * D * D / 120
+  ) / cosp;
+  const lam0 = ((zoneNum - 1) * 6 - 180 + 3) * Math.PI / 180;
+  return { lat: latRad * 180 / Math.PI, lng: (lam0 + lngRad) * 180 / Math.PI };
+}
+
+function _latlngToUtm(lat, lng) {
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const b = a * (1 - f), e2 = 1 - (b * b) / (a * a), ep2 = e2 / (1 - e2), k0 = 0.9996;
+  const zoneNum = Math.floor((lng + 180) / 6) + 1;
+  const phi = lat * Math.PI / 180, lam = lng * Math.PI / 180;
+  const lam0 = ((zoneNum - 1) * 6 - 180 + 3) * Math.PI / 180;
+  const sinp = Math.sin(phi), cosp = Math.cos(phi), tanp = Math.tan(phi);
+  const N = a / Math.sqrt(1 - e2 * sinp * sinp);
+  const T = tanp * tanp, C = ep2 * cosp * cosp, A = cosp * (lam - lam0);
+  const M = a * (
+    (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi
+    - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi)
+    + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi)
+    - (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi));
+  let E = k0 * N * (A + (1 - T + C) * A * A * A / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * A * A * A * A * A / 120) + 500000;
+  let Nn = k0 * (M + N * tanp * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * A * A * A * A / 24
+    + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * A * A * A * A * A * A / 720));
+  if (lat < 0) Nn += 10000000;
+  return { zoneNum, easting: E, northing: Nn };
+}
+
+function _mgrsToLatLng(mgrsStr) {
+  const s = mgrsStr.trim().toUpperCase().replace(/\s+/g, '');
+  const m = s.match(/^(\d{1,2})([C-HJ-NP-X])([A-HJ-NP-Z])([A-HJ-NP-V])(\d{2,10})$/);
+  if (!m) return null;
+  const zoneNum = parseInt(m[1], 10);
+  const latBand = m[2];
+  const colLtr = m[3];
+  const rowLtr = m[4];
+  const digits = m[5];
+  if (digits.length % 2 !== 0) return null;
+  const half = digits.length / 2;
+  const scale = Math.pow(10, 5 - half);
+  const eOff = parseInt(digits.substring(0, half), 10) * scale;
+  const nOff = parseInt(digits.substring(half), 10) * scale;
+  const colSets = ['ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
+  const colSet = colSets[(zoneNum - 1) % 3];
+  const colIdx = colSet.indexOf(colLtr);
+  if (colIdx < 0) return null;
+  const utmE = (colIdx + 1) * 100000 + eOff;
+  const rowOdd = 'ABCDEFGHJKLMNPQRSTUV';
+  const rowEven = 'FGHJKLMNPQRSTUVABCDE';
+  const rowSet = (zoneNum % 2 === 1) ? rowOdd : rowEven;
+  const rowIdx = rowSet.indexOf(rowLtr);
+  if (rowIdx < 0) return null;
+  const latBands = 'CDEFGHJKLMNPQRSTUVWX';
+  const bandIdx = latBands.indexOf(latBand);
+  if (bandIdx < 0) return null;
+  const approxLat = (bandIdx * 8 - 80) + 4;
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const b = a * (1 - f), e2 = 1 - (b * b) / (a * a), k0 = 0.9996;
+  const phi = approxLat * Math.PI / 180;
+  const Mapprox = a * (
+    (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi
+    - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi)
+    + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi)
+    - (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi));
+  let approxNn = k0 * Mapprox;
+  if (approxLat < 0) approxNn += 10000000;
+  let nBand = Math.floor(approxNn / 100000);
+  const approxRowIdx = nBand % 20;
+  let diff = (rowIdx - approxRowIdx + 20) % 20;
+  if (diff > 10) diff -= 20;
+  nBand += diff;
+  const utmN = nBand * 100000 + nOff;
+  return _utmToLatLng(zoneNum, utmE, utmN);
+}
+
+function _parseWgs84(str) {
+  const m = str.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+function _currentMgrsGzd() {
+  if (!_leafletMap) return null;
+  const c = _leafletMap.getCenter();
+  const full = _latlngToMGRS(c.lat, c.lng, 5);
+  const m = full.match(/^(\d+[A-Z])\s+([A-Z]{2})/);
+  return m ? m[1] + m[2] : null;
+}
+
+function _updateMgrsPlaceholder() {
+  const input = el('mgrs-search-input');
+  if (!input) return;
+  const gzd = _currentMgrsGzd();
+  input.placeholder = gzd ? `${gzd.slice(3)} 00000 00000` : 'MGRS 或 lat, lng';
+}
+
+// ══════════════════════════════════════════════════════════════
+// 座標 pin（雙擊放置的藍色十字）+ 中央浮島
+// ══════════════════════════════════════════════════════════════
+
+function _showCoordPin(lat, lng) {
+  if (!_leafletMap || !window.L) return;
+  if (_coordPin) { _leafletMap.removeLayer(_coordPin); _coordPin = null; }
+  const svg =
+    `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">` +
+    `<line x1="12" y1="1" x2="12" y2="23" stroke="#58a6ff" stroke-width="1.5" opacity=".9"/>` +
+    `<line x1="1" y1="12" x2="23" y2="12" stroke="#58a6ff" stroke-width="1.5" opacity=".9"/>` +
+    `<circle cx="12" cy="12" r="3.5" stroke="#58a6ff" stroke-width="1.5" fill="rgba(88,166,255,.18)"/>` +
+    `</svg>`;
+  _coordPin = L.marker([lat, lng], {
+    icon: L.divIcon({ html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12] }),
+    interactive: false,
+    zIndexOffset: -200,
+  }).addTo(_leafletMap);
+}
+
+function _clearCoordPin() {
+  if (_coordPin && _leafletMap) { _leafletMap.removeLayer(_coordPin); _coordPin = null; }
+  _refreshCoordPanel();
+}
+
+function _refreshCoordPanel() {
+  const panel = el('map-coord-panel');
+  if (!panel) return;
+  if (_coordPin) {
+    const ll = _coordPin.getLatLng();
+    panel.style.display = 'flex';
+    panel.style.alignItems = 'center';
+    panel.classList.add('clickable');
+    panel.innerHTML =
+      `<span style="color:#58a6ff;flex-shrink:0;">✛</span>&nbsp;${_coordValueHTML(ll.lat, ll.lng)}${_coordToggleBtn()}`;
+    return;
+  }
+  panel.style.display = 'none';
+  panel.classList.remove('clickable');
+}
+
+function _coordToggleBtn() {
+  const next = _coordDisplayMode === 'mgrs' ? 'WGS84' : 'MGRS';
+  // CSP 合規：用 data-action="toggleCoordMode"，main.js 委派處理
+  return `<span data-action="toggleCoordMode"
+    style="font-size:9px;color:var(--text3);border:1px solid var(--border);border-radius:3px;
+    padding:1px 5px;margin-left:8px;cursor:pointer;flex-shrink:0;white-space:nowrap;"
+    title="切換座標系統">${next}</span>`;
+}
+
+function _coordValueHTML(lat, lng) {
+  const lbl = `<span style="color:#8b949e;font-size:9px;flex-shrink:0;">`;
+  if (_coordDisplayMode === 'wgs84') {
+    return `${lbl}WGS84</span>&nbsp;${lat.toFixed(6)}°N,&nbsp;${lng.toFixed(6)}°E`;
+  }
+  return `${lbl}MGRS</span>&nbsp;<b>${_latlngToMGRS(lat, lng, 5)}</b>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 圖層面板（layer-panel 內容重建）
+// ══════════════════════════════════════════════════════════════
+
+function _rebuildLayerPanel() {
+  const panel = el('layer-panel');
+  if (!panel) return;
+  _layerVis.mgrs = _mgrsGridVisible;
+  const layers = [
+    { key: 'zones',    icon: '◆', label: '節點' },
+    { key: 'polygons', icon: '▱', label: '範圍' },
+    { key: 'infra',    icon: '＋', label: '設施' },
+    { key: 'flows',    icon: '→', label: '流向' },
+    { key: 'routes',   icon: '↗', label: '路線' },
+    { key: 'mgrs',     icon: '⊞', label: 'MGRS 格線' },
+  ];
+  let html = '<h4>圖層</h4>';
+  for (const layer of layers) {
+    const on = _layerVis[layer.key];
+    // CSP 合規：data-action="toggleLayer" data-layer="..."（與 main.js dataset.layer 對齊）
+    html += `<div class="layer-row" data-action="toggleLayer" data-layer="${layer.key}">`;
+    html += `<div class="layer-check${on ? ' on' : ''}">${on ? '✓' : ''}</div>`;
+    html += `<span style="font-size:11px;color:${on ? 'var(--text)' : 'var(--text3)'};">${layer.icon} ${layer.label}</span>`;
+    html += `</div>`;
+  }
+  html += `<div style="border-top:1px solid var(--border);margin:4px 0 2px;padding:4px 12px 2px;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;">地圖設定</div>`;
+  html += `<div class="layer-row" data-action="openInfraForm">
+    <span style="font-size:11px;color:var(--text2);">＋ 新增設施</span></div>`;
+  panel.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════
+// MGRS 格線（簡化版：依像素密度自動決定間距）
+// ══════════════════════════════════════════════════════════════
+
+function _mgrsGridSpacing() {
+  const MIN_PX = 60;
+  const zoom = _leafletMap.getZoom();
+  const lat = _leafletMap.getCenter().lat;
+  const metersPerPx = (40075016.686 / (256 * Math.pow(2, zoom))) / Math.cos(lat * Math.PI / 180);
+  const minMeters = metersPerPx * MIN_PX;
+  const levels = [1, 10, 100, 1000, 10000, 100000];
+  return levels.find(s => s >= minMeters) || 100000;
+}
+
+function _drawMgrsGrid() {
+  if (!_leafletMap || !window.L) return;
+  if (!_mgrsGridLayer) _mgrsGridLayer = L.layerGroup();
+  _mgrsGridLayer.clearLayers();
+  if (!_mgrsGridVisible) {
+    if (_mgrsGridLayer._map) _mgrsGridLayer.remove();
+    return;
+  }
+  if (!_mgrsGridLayer._map) _mgrsGridLayer.addTo(_leafletMap);
+  const sp = _mgrsGridSpacing();
+  const b = _leafletMap.getBounds();
+  const ctr = _latlngToUtm(b.getCenter().lat, b.getCenter().lng);
+  const sw = _latlngToUtm(b.getSouth(), b.getWest());
+  const ne = _latlngToUtm(b.getNorth(), b.getEast());
+  const zn = ctr.zoneNum;
+  const lineOpt = { color: 'rgba(90,150,215,.55)', weight: 1, interactive: false };
+
+  const n0 = Math.floor(sw.northing / sp) * sp;
+  const n1 = Math.ceil(ne.northing / sp) * sp;
+  for (let n = n0; n <= n1; n += sp) {
+    const p1 = _utmToLatLng(zn, sw.easting - sp, n);
+    const p2 = _utmToLatLng(zn, ne.easting + sp, n);
+    if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
+    L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
+  }
+  const e0 = Math.floor(sw.easting / sp) * sp;
+  const e1 = Math.ceil(ne.easting / sp) * sp;
+  for (let e = e0; e <= e1; e += sp) {
+    const p1 = _utmToLatLng(zn, e, sw.northing - sp);
+    const p2 = _utmToLatLng(zn, e, ne.northing + sp);
+    if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
+    L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
   }
 }
 
@@ -451,22 +769,44 @@ export function onPlaceTypeChange() {
 }
 
 export function _mgrsSearch() {
-  const input = el('mgrs-input');
+  const input = el('mgrs-search-input');
   if (!input || !_leafletMap) return;
-  input.blur();
+  let val = (input.value || '').trim().toUpperCase();
+  if (!val) return;
+  input.classList.remove('error');
+  // 三段式自動補前綴
+  if (/^[\d\s]+$/.test(val)) {
+    const gzd = _currentMgrsGzd();
+    if (gzd) val = gzd + val.replace(/\s/g, '');
+  } else if (/^[A-Z]{2}[\d\s]+$/.test(val)) {
+    const gzd = _currentMgrsGzd();
+    if (gzd) val = gzd.slice(0, 3) + val.replace(/\s/g, '');
+  }
+  const ll = _mgrsToLatLng(val) || _parseWgs84(val);
+  if (!ll) {
+    input.classList.add('error');
+    return;
+  }
+  _leafletMap.setView([ll.lat, ll.lng], Math.max(_leafletMap.getZoom(), 16));
+  _showCoordPin(ll.lat, ll.lng);
+  _refreshCoordPanel();
+  input.value = '';
 }
 
-export function _toggleCoordMode() {
+export function _toggleCoordMode(event) {
+  event?.stopPropagation?.();
+  event?.preventDefault?.();
   _coordDisplayMode = _coordDisplayMode === 'mgrs' ? 'wgs84' : 'mgrs';
+  _refreshCoordPanel();
 }
 
 export function _panToCoordTarget(event) {
+  // 點擊浮島本體 → pan 到 crosshair；點到內部的 toggle 按鈕則略過（由 toggleCoordMode 處理）
+  if (event?.target?.closest?.('[data-action="toggleCoordMode"]')) return;
   event?.stopPropagation?.();
-}
-
-function _coordValue(lat, lng) {
-  if (_coordDisplayMode === 'wgs84') return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  event?.preventDefault?.();
+  if (!_leafletMap) return;
+  if (_coordPin) _leafletMap.panTo(_coordPin.getLatLng());
 }
 
 function _renderPolygons() {
@@ -650,16 +990,35 @@ export function _toggleMgrsGrid() {
   _mgrsGridVisible = !_mgrsGridVisible;
   _layerVis.mgrs = _mgrsGridVisible;
   document.getElementById('btn-mgrs-grid')?.classList.toggle('active', _mgrsGridVisible);
+  _drawMgrsGrid();
 }
 export function _toggleLayerPanel() {
   const panel = el('layer-panel');
-  if (panel) panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+  if (!panel) return;
+  if (panel.style.display !== 'none' && panel.style.display !== '') {
+    _closeLayerPanel();
+  } else {
+    _rebuildLayerPanel();
+    panel.style.display = 'block';
+    document.getElementById('btn-layer-panel')?.classList.add('active');
+  }
 }
-export function _closeLayerPanel() { if (el('layer-panel')) el('layer-panel').style.display = 'none'; }
+export function _closeLayerPanel() {
+  const panel = el('layer-panel');
+  if (panel) panel.style.display = 'none';
+  document.getElementById('btn-layer-panel')?.classList.remove('active');
+}
 export function _toggleLayer(key) {
-  if (!key || !(key in _layerVis)) return;
+  if (!key) return;
+  if (key === 'mgrs') {
+    _toggleMgrsGrid();
+    _rebuildLayerPanel();
+    return;
+  }
+  if (!(key in _layerVis)) return;
   _layerVis[key] = !_layerVis[key];
   refreshLeafletMarkers();
+  _rebuildLayerPanel();
 }
 export function _startPolyDraw() {}
 export function _cancelPolyDraw() {}
