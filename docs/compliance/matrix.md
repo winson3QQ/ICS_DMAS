@@ -15,7 +15,7 @@
 |---------|---------|-----------|-----------|--------|-----------------|
 | v0.12.x | Demo | — | — | ✅ closed | COP basic demo |
 | v0.13.0 | Demo | #6 ✅ | — | 🔄 in progress | Pi first-run secure deploy |
-| v2.1.0 | Exercise Pro | #6✅ #8✅ #11✅ + TBD P0s | TBD | 🔄 in progress | GP2+GP3 field drill · NIST 800-53 scoped · 個資法 §27 · 附表十 · ❌TTX不支援 |
+| v2.1.0 | Exercise Pro | #6✅ #8✅ #11✅ + #13✅ + TBD P0s | TBD | 🔄 in progress | GP2+GP3 field drill · NIST 800-53 scoped · 個資法 §27 · 附表十 · ❌TTX不支援 |
 | v2.2.0 | GovOps | — | TBD | 🔲 planned | First sellable version |
 | v3.0.0 | TTX moat | — | — | 🔲 planned | HSEEP / NIMS alignment |
 | v3.1.0 | AI | — | — | 🔲 planned | AI differentiation |
@@ -28,8 +28,8 @@
 | #6 | Pi first-run security | CAP-010 (FieldSync) | GAP-AUTH-PI-01 (HOTFIX-PI-01) | v0.13.0 + v2.1.0 | ✅ closed 2026-04-26 · PR#7 |
 | #8 | WS pre-auth gate | CAP-013 (WSAuth), CAP-010 | GAP-AUTH-02, GAP-SYNC-17 | v2.1.0 | ✅ closed 2026-04-26 · PR#9 |
 | #11 | Trusted Ingest HMAC | CAP-012 (TrustedIngest) → Partial Hardened L1; CAP-010 evidence appended | GAP-SYNC-05 | v2.1.0 | ✅ closed · PR#12 · commit 6bda2dc + 5e855c6 |
-| TBD | Frontend modularise + CSP | CAP-014 (CommanderFrontend) | GAP-AUTH-20b, GAP-AUTH-26 | v2.1.0 | 🔲 planned |
-| TBD | Structured logging + collect_debug.sh | CAP-036 (Operational Logging) | GAP-DEPLOY-18c, GAP-AUDIT-10b | v2.1.0 (序列A) | 🔲 planned |
+| #13 | Frontend modularise + CSP | CAP-035 (CommanderFrontend) → Partial Hardened L1 | GAP-AUTH-20b ✅, GAP-AUTH-26 ✅ (commander only) | v2.1.0 | ✅ closed 2026-04-28 · PR#15 · ca8ea5c |
+| #14 | Structured logging + collect_debug.sh | CAP-036 (Operational Logging) | GAP-DEPLOY-18c, GAP-AUDIT-10b | v2.1.0 (序列A) | 🔲 planned |
 | TBD | /health liveness endpoint | CAP-024 (Deployment/Health) | GAP-DEPLOY-07c | v2.1.0 (序列A) | 🔲 planned |
 | TBD | Release Acceptance (GP2+GP3 E2E) | All GP2/GP3 CAPs | — | v2.1.0 (序列E) | 🔲 planned |
 
@@ -53,6 +53,37 @@
 | CAP-013 (WSAuth) | WS message signing (C1-G) close | 不在 TI-01 軌道 |
 
 **External Claim**：PI-01 + WS-01 + TI-01 三 hotfix 全 close，達合併更新條件。歸 Human owner 決定。
+
+
+### C1-F Evidence Entries (2026-04-28)
+
+#### NIST AC-3 (Access Enforcement)
+```
+追加 evidence:
+  C1-F (PR#15, ca8ea5c) — commander_dashboard CSP path-conditional enforce;
+  XSS via inline script 注入路徑被阻擋
+```
+
+#### NIST SC-18 (Mobile Code)
+```
+追加 evidence:
+  C1-F (PR#15, ca8ea5c) — commander 路徑 script-src 移除 unsafe-inline;
+  inline JS 153 → 0; 10 ES modules + main.js entry
+```
+
+#### ASVS V14.4(3)
+```
+追加 evidence:
+  C1-F (PR#15, ca8ea5c) — CSP enforce 模式 (commander only);
+  path-conditional 雙白名單 (ENFORCE_PATHS / REPORT_ONLY_PATHS)
+```
+
+#### New GAPs discovered during C1-F Step B (2026-04-28)
+
+| GAP ID | NIST | Title | Status | Tracking |
+|---|---|---|---|---|
+| GAP-AUTH-XX | IA-2, IA-11, AC-3 | 指揮官 vs 系統管理員 PIN 分離 | open | Issue #16 |
+| GAP-CM-XX | CM-2 | map_config.json runtime state 未隔離 | open | Issue #17 |
 
 ## Compliance Audit History（歷史紀錄，唯讀）
 
@@ -1031,7 +1062,7 @@ _Session D 填入：治理、風險策略、角色責任_
 | GAP-AUDIT-23 (G-A23) | AU-6 | command | audit log 查詢有，**異常告警規則無** | C1-D + C3-C |
 | GAP-AUTH-24 (G-A24) | IA-3 | pwa | PWA 無 device identifier | W-C1-A |
 | GAP-AUTH-25 (G-A25) | IA-11 | command | 敏感操作（改 role / 刪帳號）無強制重認證 | C1-A Phase 2 |
-| GAP-AUTH-26 (G-A26) | SC-18 | pwa | CSP `unsafe-inline`（600+ inline styles/handlers）| C1-F |
+| GAP-AUTH-26 (G-A26) | SC-18 | command | CSP `unsafe-inline`（600+ inline styles/handlers）✅ **RESOLVED (commander only) by C1-F PR#15 2026-04-28** — commander path: unsafe-inline removed; admin/PWA paths: still Report-Only → W-C1-F | C1-F ✅ (partial) |
 | GAP-AUTH-27 (G-A27) | V2.5 | command | admin PIN 忘記恢復政策未文件化 | C1-A Phase 4 / security_policies §2 |
 
 #### ⚪ Low
@@ -1079,7 +1110,7 @@ _Session D 填入：治理、風險策略、角色責任_
 | GAP-AUDIT-17b (G-B17) | AU-11 / 個資法§11 | command + pi + pwa | 三組件 audit_log 無 cleanup 政策；長期累積 | C1-D + security_policies §3 |
 | GAP-AUTH-18b (G-B18) | V14.4 | pi | Pi `/static/` (PWA HTML 來源) **無 security headers**（X-Content-Type-Options / Referrer-Policy 等）| W-C1-F |
 | GAP-AUDIT-19b (G-B19) | AU-5 | pi | Pi audit 寫入失敗 silent swallow（try/catch 吞）| P-C1-G + C1-D |
-| GAP-AUTH-20b (G-B20) | AC-3 / V4.1 | command | **commander_dashboard.html 376KB monolithic**（10,000+ 行 inline JS）| **C1-F 急迫**；前端模組化是 RBAC 前置 |
+| GAP-AUTH-20b (G-B20) | AC-3 / V4.1 | command | **commander_dashboard.html 376KB monolithic** ✅ **RESOLVED by C1-F PR#15 2026-04-28** — 376KB → 10 ES modules + main.js; 153 inline handlers → 0 | **C1-F 急迫**；前端模組化是 RBAC 前置 |
 | GAP-AUTH-21b (G-B21) | SC-18 | pwa | shelter PWA 43× innerHTML / medical PWA 31× innerHTML | W-C1-F |
 | GAP-DEPLOY-22 (G-B22) | CM-3 | pi | Pi 無 schema_migrations 版本表（migrations.js 是 ad-hoc CREATE IF NOT EXISTS）| P-C1-E |
 
