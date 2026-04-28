@@ -27,6 +27,7 @@ export default [
         fetch: 'readonly',
         location: 'readonly',
         navigator: 'readonly',
+        prompt: 'readonly',
         requestAnimationFrame: 'readonly',
         sessionStorage: 'readonly',
         setInterval: 'readonly',

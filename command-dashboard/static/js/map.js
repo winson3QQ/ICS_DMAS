@@ -1019,7 +1019,7 @@ export function showZoneDetail(zone) {
   if (!zone) return;
   const body = `<div style="font-size:12px;line-height:1.7;">
     <div>類型：${zone.node_type || '—'}</div>
-    <div>座標：${zone.lat != null ? _coordValue(zone.lat, zone.lng) : '站內相對位置'}</div>
+    <div>座標：${zone.lat != null ? _coordValueHTML(zone.lat, zone.lng) : '站內相對位置'}</div>
   </div>`;
   _deps.openModal?.(zone.label || zone.id || '節點', body);
 }
