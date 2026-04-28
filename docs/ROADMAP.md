@@ -106,7 +106,7 @@
 | #6 | Fix — Pi first-run security | P0 | ✅ |
 | #8 | Fix — WebSocket pre-auth gate | P0 | ✅ |
 | #11 | Fix — Trusted Ingest HMAC | P0 | ✅ |
-| TBD | Fix — frontend modularise + CSP | P0 | 🔲 |
+| #13 | Fix — frontend modularise + CSP | P0 | ✅ |
 | TBD | Fix — 4-role RBAC + endpoint gate | P0 | 🔲 |
 | TBD | Fix — WS full security | P0 | 🔲 |
 | TBD | Fix — 3-layer encryption | P0 | 🔲 |
