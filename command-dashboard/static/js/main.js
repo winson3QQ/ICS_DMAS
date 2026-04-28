@@ -425,6 +425,15 @@ function _loadClassicScript(src) {
   });
 }
 
+function _configureLeafletAssets() {
+  if (!window.L?.Icon?.Default) return;
+  window.L.Icon.Default.mergeOptions({
+    iconUrl: '/static/lib/marker-icon.png',
+    iconRetinaUrl: '/static/lib/marker-icon-2x.png',
+    shadowUrl: '/static/lib/marker-shadow.png',
+  });
+}
+
 // ══════════════════════════════════════════════════════════════
 // 啟動
 // ══════════════════════════════════════════════════════════════
@@ -433,6 +442,7 @@ function _loadClassicScript(src) {
   await _loadClassicScript('/static/lib/leaflet.min.js').catch(() => null);
   await _loadClassicScript('/static/lib/protomaps-leaflet.js').catch(() => null);
   await _waitForGlobal('L').catch(() => null);
+  _configureLeafletAssets();
 
   // 1. 版號
   await _loadVersion();

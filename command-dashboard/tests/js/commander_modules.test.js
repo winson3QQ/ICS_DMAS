@@ -147,5 +147,9 @@ describe('C1-F commander modules', () => {
     expect(html).not.toMatch(/CMD_VERSION/);
     expect(main).toMatch(/\/api\/version/);
     expect(main).toMatch(/cmd_version/);
+    expect(html).toMatch(/href="\/static\/lib\/leaflet\.min\.css"/);
+    expect(main).toMatch(/\/static\/lib\/marker-icon\.png/);
+    expect(main).toMatch(/\/static\/lib\/marker-icon-2x\.png/);
+    expect(main).toMatch(/\/static\/lib\/marker-shadow\.png/);
   });
 });
