@@ -52,7 +52,7 @@ import {
   _startInfraPlace, _startRouteDraw, _cancelRouteDraw, _finishRouteDraw,
   _savePolygon, _saveFlow, _saveRoute,
   _openFlowForm, _openPolyForm, _openInfraForm, _openRouteForm,
-  _deletePolygon, _deleteFlow, _deleteRoute, _deleteInfra,
+  _deletePolygon, _deleteFlow, _deleteRoute, _deleteInfra, _deleteEventZone,
   _resetPolyLabelAnchor, _resetRouteLabelAnchor,
   _panToCoordTarget, _mgrsSearch, _toggleCoordMode,
   _populateNapsgCsel,
@@ -202,6 +202,7 @@ document.addEventListener('click', function (e) {
     case 'finishPolyDraw': _finishPolyDraw(); break;
     case 'savePolygon':    _savePolygon(); break;
     case 'deletePolygon':  _deletePolygon(id); break;
+    case 'deleteEventZone': _deleteEventZone(id); break;
     case 'resetPolyLabelAnchor': _resetPolyLabelAnchor(id); break;
     case 'startInfraPlace': _startInfraPlace(btn.dataset.infraType); break;
     case 'openInfraForm':  _openInfraForm(); break;

@@ -26,6 +26,10 @@ let _flowLayer = null;
 let _routeLayer = null;
 let _mgrsGridLayer = null;
 let _coordPin = null;            // 雙擊放置的藍色十字 marker
+let _polyDrawState = null;       // { latlngs, markers, previewPoly }
+let _routeDrawState = null;      // { latlngs, markers, previewLine }
+let _pendingPolyLatlngs = null;  // _openPolyForm → _savePolygon 暫存
+let _pendingRouteLatlngs = null; // _openRouteForm → _saveRoute 暫存
 let _pinEditMode = false;
 let _coordDisplayMode = 'mgrs';  // 'mgrs' | 'wgs84'
 let _mgrsGridVisible = false;
@@ -178,8 +182,15 @@ function _initLeaflet() {
       }).addTo(_leafletMap);
     }
 
+    // 單擊：繪製模式時新增頂點
+    _leafletMap.on('click', (e) => {
+      if (_polyDrawState) { _addPolyVertex(e.latlng.lat, e.latlng.lng); return; }
+      if (_routeDrawState) { _addRouteVertex(e.latlng.lat, e.latlng.lng); return; }
+    });
+
     // 雙擊：放置藍色十字座標 pin（doubleClickZoom 已關閉，不會觸發縮放）
     _leafletMap.on('dblclick', (e) => {
+      if (_polyDrawState || _routeDrawState) return;  // 繪製模式不放 coord pin
       _showCoordPin(e.latlng.lat, e.latlng.lng);
       _refreshCoordPanel();
     });
@@ -188,6 +199,7 @@ function _initLeaflet() {
     let _lpTimer = null, _lpMoved = false;
     _leafletMap.on('mousedown', (e) => {
       if (e.originalEvent && e.originalEvent.button !== 0) return;
+      if (_polyDrawState || _routeDrawState) return;  // 繪製模式不觸發 popup
       _lpMoved = false;
       if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; }
       const latlng = { lat: e.latlng.lat, lng: e.latlng.lng };
@@ -231,6 +243,20 @@ function _initLeaflet() {
 
     _initMapTools();
     _updateMgrsPlaceholder();
+
+    // 防止 Leaflet 把覆蓋在地圖上的 banner / 浮島 / 工具列按鈕的點擊
+    // 誤判為地圖 click（會在繪製模式下產生幽靈頂點）
+    [
+      'poly-draw-banner', 'route-draw-banner',
+      'node-place-banner', 'event-pin-banner',
+      'mgrs-island', 'layer-panel', 'map-coord-panel',
+    ].forEach(id => {
+      const node = document.getElementById(id);
+      if (node) {
+        L.DomEvent.disableClickPropagation(node);
+        L.DomEvent.disableScrollPropagation(node);
+      }
+    });
   }
   setTimeout(() => _leafletMap.invalidateSize(), 0);
 }
@@ -259,9 +285,11 @@ export function renderMapOverlay() {
 
   const data = _deps.getData?.() || {};
   for (const zone of map.zones) {
+    let orphanZone = false;
     if (zone.event_id) {
       const ev = (data.events || []).find(item => item.id === zone.event_id);
-      if (ev && ['resolved', 'closed'].includes(ev.status)) continue;
+      if (!ev) orphanZone = true;
+      else if (['resolved', 'closed'].includes(ev.status)) continue;
     }
     const marker = document.createElement('button');
     marker.type = 'button';
@@ -273,7 +301,8 @@ export function renderMapOverlay() {
     marker.innerHTML = `<div class="zone-dot">${_icon(zone)}</div>
       <div class="zone-info"><div class="zone-label">${zone.event_code || zone.label || zone.id}</div></div>`;
     marker.addEventListener('click', () => {
-      if (zone.event_id) _deps.showEventProcessModal?.(zone);
+      if (orphanZone) _showOrphanZoneModal(zone);
+      else if (zone.event_id) _deps.showEventProcessModal?.(zone);
       else (_deps.showZoneDetail || showZoneDetail)(zone);
     });
     overlay.appendChild(marker);
@@ -296,9 +325,10 @@ export function refreshLeafletMarkers() {
     if (zone.lat == null || zone.lng == null) continue;
     const isEvent = !!(zone.event_id || zone.event_code);
     let severity = 'warning';
+    let isOrphan = false;
     if (isEvent) {
       const ev = (data.events || []).find(item => item.id === zone.event_id);
-      if (!ev) severity = 'info';
+      if (!ev) { severity = 'info'; isOrphan = true; }
       else if (['resolved', 'closed'].includes(ev.status)) continue;
       else severity = ev.severity || 'warning';
     }
@@ -338,14 +368,43 @@ export function refreshLeafletMarkers() {
     );
     marker.on('click', e => {
       L.DomEvent.stopPropagation(e);
-      if (isEvent) _deps.showEventProcessModal?.(zone);
+      if (isEvent && isOrphan) _showOrphanZoneModal(zone);
+      else if (isEvent) _deps.showEventProcessModal?.(zone);
       else (_deps.showZoneDetail || showZoneDetail)(zone);
     });
     marker.on('dragend', async () => {
       const ll = marker.getLatLng();
       zone.lat = Math.round(ll.lat * 1000000) / 1000000;
       zone.lng = Math.round(ll.lng * 1000000) / 1000000;
+      const mgrs = _latlngToMGRS(zone.lat, zone.lng, 5);
       await saveMapConfig();
+
+      // 座標面板顯示確認，2.5 秒後恢復
+      const panel = el('map-coord-panel');
+      if (panel) {
+        panel.style.display = 'flex';
+        panel.innerHTML =
+          `<span style="color:#8b949e">移動至</span>&nbsp;<b>${mgrs}</b>` +
+          `<span style="color:#56d364;margin-left:10px">✓ 已儲存</span>`;
+        setTimeout(() => _refreshCoordPanel(), 2500);
+      }
+
+      // 事件 marker：把新座標寫入該事件的處置紀錄
+      if (zone.event_id) {
+        try {
+          await authFetch(API_BASE + '/api/events/' + zone.event_id + '/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: `地圖位置已移動 → ${mgrs}`,
+              operator: _deps.getCurrentOperator?.() || '',
+            }),
+          });
+          _deps.doPoll?.();
+        } catch (e) {
+          console.warn('[map.js] dragend note failed', e);
+        }
+      }
     });
     marker.addTo(_leafletMap);
     _leafletMarkers.push(marker);
@@ -615,6 +674,19 @@ function _mgrsGridSpacing() {
   return levels.find(s => s >= minMeters) || 100000;
 }
 
+function _mgrsGridLabel(val, spacing) {
+  // 位數 = log10(100000 / spacing)：10km→1位、1km→2位、100m→3位、10m→4位
+  const digits = Math.max(3, Math.round(Math.log10(100000 / spacing)));
+  const divisor = Math.pow(10, 5 - digits);
+  const v = Math.round(val % 100000);
+  return String(Math.floor(v / divisor)).padStart(digits, '0');
+}
+
+function _mgrsLabelIconW(spacing) {
+  const digits = Math.max(1, Math.round(Math.log10(100000 / spacing)));
+  return 16 + digits * 6;
+}
+
 function _drawMgrsGrid() {
   if (!_leafletMap || !window.L) return;
   if (!_mgrsGridLayer) _mgrsGridLayer = L.layerGroup();
@@ -632,6 +704,18 @@ function _drawMgrsGrid() {
   const zn = ctr.zoneNum;
   const lineOpt = { color: 'rgba(90,150,215,.55)', weight: 1, interactive: false };
 
+  // 將標籤定位於距 viewport 邊緣固定像素的位置（避免被 UI 元件遮蓋）
+  const mapW = _leafletMap.getContainer().offsetWidth;
+  const mapH = _leafletMap.getContainer().offsetHeight;
+  const leftPx = 24;     // Y 標籤距左側
+  const bottomPx = 60;   // X 標籤距底部（避開 MGRS 搜尋欄）
+  const llLeft   = _leafletMap.containerPointToLatLng(L.point(leftPx,   mapH / 2));
+  const llBottom = _leafletMap.containerPointToLatLng(L.point(mapW / 2, mapH - bottomPx));
+  const labelE = _latlngToUtm(llLeft.lat,   llLeft.lng).easting;
+  const labelN = _latlngToUtm(llBottom.lat, llBottom.lng).northing;
+  const labelW = _mgrsLabelIconW(sp);
+
+  // 東西向 northing 線 + 左側 Y 軸標籤
   const n0 = Math.floor(sw.northing / sp) * sp;
   const n1 = Math.ceil(ne.northing / sp) * sp;
   for (let n = n0; n <= n1; n += sp) {
@@ -639,7 +723,19 @@ function _drawMgrsGrid() {
     const p2 = _utmToLatLng(zn, ne.easting + sp, n);
     if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
     L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
+    const ll = _utmToLatLng(zn, labelE, n);
+    if (isFinite(ll.lat)) {
+      L.marker([ll.lat, ll.lng], {
+        icon: L.divIcon({
+          html: `<div class="mgrs-gl">${_mgrsGridLabel(n, sp)}</div>`,
+          className: '', iconSize: [labelW, 14], iconAnchor: [labelW / 2, 7],
+        }),
+        interactive: false, zIndexOffset: -900,
+      }).addTo(_mgrsGridLayer);
+    }
   }
+
+  // 南北向 easting 線 + 底部 X 軸標籤
   const e0 = Math.floor(sw.easting / sp) * sp;
   const e1 = Math.ceil(ne.easting / sp) * sp;
   for (let e = e0; e <= e1; e += sp) {
@@ -647,6 +743,16 @@ function _drawMgrsGrid() {
     const p2 = _utmToLatLng(zn, e, ne.northing + sp);
     if (!isFinite(p1.lat) || !isFinite(p2.lat)) continue;
     L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], lineOpt).addTo(_mgrsGridLayer);
+    const ll = _utmToLatLng(zn, e, labelN);
+    if (isFinite(ll.lat)) {
+      L.marker([ll.lat, ll.lng], {
+        icon: L.divIcon({
+          html: `<div class="mgrs-gl">${_mgrsGridLabel(e, sp)}</div>`,
+          className: '', iconSize: [labelW, 14], iconAnchor: [labelW / 2, 7],
+        }),
+        interactive: false, zIndexOffset: -900,
+      }).addTo(_mgrsGridLayer);
+    }
   }
 }
 
@@ -1046,16 +1152,26 @@ function _renderPolygons() {
     });
     if (poly.label) {
       const labelPos = poly.label_anchor ? [poly.label_anchor[0], poly.label_anchor[1]] : _polyCentroid(poly.latlngs);
-      L.marker(labelPos, {
+      const labelMarker = L.marker(labelPos, {
         icon: L.divIcon({
-          html: `<div style="font-size:10px;font-weight:700;color:${poly.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;padding:2px 4px;">${poly.label}</div>`,
+          html: `<div style="font-size:10px;font-weight:700;color:${poly.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;padding:2px 4px;cursor:grab;user-select:none;" title="拖曳可移動標籤位置">${poly.label}</div>`,
           className: '',
           iconSize: [120, 20],
           iconAnchor: [0, 10],
         }),
-        interactive: false,
+        draggable: true,
         zIndexOffset: 100,
+        bubblingMouseEvents: false,
       }).addTo(_polygonLayer);
+      labelMarker.on('mousedown touchstart', (e) => L.DomEvent.stopPropagation(e));
+      labelMarker.on('dragend', async () => {
+        const ll = labelMarker.getLatLng();
+        poly.label_anchor = [
+          Math.round(ll.lat * 1000000) / 1000000,
+          Math.round(ll.lng * 1000000) / 1000000,
+        ];
+        await saveMapConfig();
+      });
     }
   }
 }
@@ -1151,16 +1267,26 @@ function _renderRoutes() {
     }
     if (route.label) {
       const labelPos = route.label_anchor || route.latlngs[Math.floor(route.latlngs.length / 2)];
-      L.marker(labelPos, {
+      const labelMarker = L.marker(labelPos, {
         icon: L.divIcon({
-          html: `<div style="font-size:10px;font-weight:700;color:${route.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;padding:2px 4px;">${route.label}</div>`,
+          html: `<div style="font-size:10px;font-weight:700;color:${route.color};text-shadow:0 0 4px rgba(14,22,29,.9),0 0 4px rgba(14,22,29,.9);white-space:nowrap;padding:2px 4px;cursor:grab;user-select:none;" title="拖曳可移動標籤位置">${route.label}</div>`,
           className: '',
           iconSize: [120, 20],
           iconAnchor: [0, 10],
         }),
-        interactive: false,
+        draggable: true,
         zIndexOffset: 100,
+        bubblingMouseEvents: false,
       }).addTo(_routeLayer);
+      labelMarker.on('mousedown touchstart', (e) => L.DomEvent.stopPropagation(e));
+      labelMarker.on('dragend', async () => {
+        const ll = labelMarker.getLatLng();
+        route.label_anchor = [
+          Math.round(ll.lat * 1000000) / 1000000,
+          Math.round(ll.lng * 1000000) / 1000000,
+        ];
+        await saveMapConfig();
+      });
     }
   }
 }
@@ -1270,10 +1396,132 @@ export function _toggleLayer(key) {
   refreshLeafletMarkers();
   _rebuildLayerPanel();
 }
-export function _startPolyDraw() {}
-export function _cancelPolyDraw() {}
-export function _finishPolyDraw() {}
-export function _savePolygon() {}
+// ══════════════════════════════════════════════════════════════
+// 孤兒事件 zone（map_config 裡有 zone 但 _data.events 找不到）
+// ══════════════════════════════════════════════════════════════
+
+function _showOrphanZoneModal(zone) {
+  const code = zone.event_code || zone.id || '?';
+  const desc = `此事件標記在地圖上仍存在，但對應的事件紀錄已不在資料庫（可能已被清除或重設）。`
+    + `<br><br><span style="color:var(--text3);font-size:11px;">標記：${code}　·　類型：${zone.label || zone.node_type || '—'}</span>`;
+  _deps.openModal?.(`⚠ 孤兒事件標記`,
+    _featureInfo(desc, 'deleteEventZone', zone.id));
+}
+
+export async function _deleteEventZone(id) {
+  if (!_mapConfig?.maps || !id) return;
+  let removed = false;
+  for (const m of Object.values(_mapConfig.maps)) {
+    if (!m.zones) continue;
+    const before = m.zones.length;
+    m.zones = m.zones.filter(z => z.id !== id);
+    if (m.zones.length !== before) removed = true;
+    // 同時清掉指向此 zone 的 flow（避免另一種孤兒）
+    if (m.flows) {
+      m.flows = m.flows.filter(f =>
+        f.from_ref !== `zone:${id}` && f.to_ref !== `zone:${id}` &&
+        f.from_zone_id !== id && f.to_zone_id !== id
+      );
+    }
+  }
+  if (!removed) return;
+  await saveMapConfig();
+  _deps.closeModal?.();
+  if (_currentMap === 'outdoor') refreshLeafletMarkers();
+  else renderMapOverlay();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 繪製範圍（Polygon）
+// ══════════════════════════════════════════════════════════════
+
+export function _startPolyDraw() {
+  if (_polyDrawState) _cancelPolyDraw();
+  if (_routeDrawState) _cancelRouteDraw();
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  _polyDrawState = { latlngs: [], markers: [], previewPoly: null };
+  const banner = el('poly-draw-banner');
+  if (banner) banner.style.display = 'flex';
+  if (el('map-coord-panel')) el('map-coord-panel').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+  document.getElementById('btn-poly-draw')?.classList.add('active');
+}
+
+export function _cancelPolyDraw() {
+  if (!_polyDrawState) return;
+  _polyDrawState.markers.forEach(m => m.remove());
+  if (_polyDrawState.previewPoly) _polyDrawState.previewPoly.remove();
+  _polyDrawState = null;
+  const banner = el('poly-draw-banner');
+  if (banner) banner.style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  document.getElementById('btn-poly-draw')?.classList.remove('active');
+}
+
+function _addPolyVertex(lat, lng) {
+  if (!_polyDrawState || !window.L || !_leafletMap) return;
+  _polyDrawState.latlngs.push([lat, lng]);
+  const m = L.circleMarker([lat, lng], {
+    radius: 4, color: '#fff', weight: 2, fillColor: '#58a6ff', fillOpacity: 1, interactive: false,
+  }).addTo(_leafletMap);
+  _polyDrawState.markers.push(m);
+  if (_polyDrawState.previewPoly) _polyDrawState.previewPoly.remove();
+  if (_polyDrawState.latlngs.length >= 2) {
+    _polyDrawState.previewPoly = L.polygon(_polyDrawState.latlngs, {
+      color: '#58a6ff', weight: 1.5, dashArray: '6 3', fillOpacity: 0.08, interactive: false,
+    }).addTo(_leafletMap);
+  }
+  const finBtn = document.getElementById('poly-finish-btn');
+  if (finBtn) finBtn.disabled = _polyDrawState.latlngs.length < 3;
+}
+
+export function _finishPolyDraw() {
+  if (!_polyDrawState || _polyDrawState.latlngs.length < 3) return;
+  const latlngs = [..._polyDrawState.latlngs];
+  _cancelPolyDraw();
+  _openPolyForm(latlngs);
+}
+
+export function _openPolyForm(latlngs) {
+  if (!latlngs || latlngs.length < 3) return;
+  _pendingPolyLatlngs = latlngs;
+  const typeOpts = Object.entries(POLY_TYPES).map(([k, v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  const SEL = 'width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;';
+  let html = '';
+  html += `<div style="margin-bottom:12px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">範圍名稱</label>`;
+  html += `<input id="poly-name" placeholder="例：北側管制區" autocomplete="off" style="${SEL}"></div>`;
+  html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="poly-type" style="${SEL}">${typeOpts}</select></div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">${latlngs.length} 個頂點</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button data-action="closeModal" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-family:var(--mono);">取消</button>`;
+  html += `<button data-action="savePolygon" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:var(--mono);">儲存</button>`;
+  html += `</div>`;
+  _deps.openModal?.('✏ 新增範圍', html);
+}
+
+export async function _savePolygon() {
+  const name = (document.getElementById('poly-name')?.value || '').trim();
+  const typeKey = document.getElementById('poly-type')?.value || 'ops';
+  const latlngs = _pendingPolyLatlngs;
+  if (!name || !latlngs) return;
+  const def = POLY_TYPES[typeKey];
+  const poly = {
+    id: 'poly_' + Date.now(),
+    label: name,
+    poly_type: typeKey,
+    color: def.color,
+    dash: def.dash,
+    latlngs,
+  };
+  if (!_mapConfig.maps.outdoor.polygons) _mapConfig.maps.outdoor.polygons = [];
+  _mapConfig.maps.outdoor.polygons.push(poly);
+  _pendingPolyLatlngs = null;
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderPolygons();
+}
 
 export async function _deletePolygon(id) {
   if (!_mapConfig?.maps?.outdoor?.polygons || !id) return;
@@ -1292,7 +1540,8 @@ export async function _resetPolyLabelAnchor(id) {
   _renderPolygons();
 }
 
-export function _openPolyForm() {}
+// 設施新增（_openInfraForm / _startInfraPlace / _saveInfraPosition）— 暫未實作
+// 目前用「圖層面板 → 新增設施」進入點，待後續補上
 export function _openInfraForm() {}
 export function _startInfraPlace() {}
 
@@ -1305,8 +1554,73 @@ export async function _deleteInfra(id) {
 }
 
 export function _saveInfraPosition() {}
-export function _openFlowForm() {}
-export function _saveFlow() {}
+// ══════════════════════════════════════════════════════════════
+// 流向（Flow）表單
+// ══════════════════════════════════════════════════════════════
+
+export function _openFlowForm() {
+  const zones = (_mapConfig?.maps?.outdoor?.zones || []).filter(z => z.lat != null);
+  const infras = _mapConfig?.maps?.outdoor?.infrastructure || [];
+  if (zones.length + infras.length < 2) {
+    _deps.openModal?.('● → ● 新增調度指示',
+      `<div style="color:var(--text2);font-size:12px;padding:12px 0;">需要至少兩個已定位的節點（或設施）才能建立流向。</div>
+       <button data-action="closeModal" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;font-family:var(--mono);">關閉</button>`);
+    return;
+  }
+  const SEL = 'width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;';
+  const nodeZones = zones.filter(z => !(z.event_id || z.event_code));
+  const eventZones = zones.filter(z => !!(z.event_id || z.event_code));
+  const endpointOpts =
+    (nodeZones.length ? `<optgroup label="── ICS 節點">` +
+      nodeZones.map(z => `<option value="zone:${z.id}">${z.label}</option>`).join('') +
+      `</optgroup>` : '') +
+    (eventZones.length ? `<optgroup label="── 事件標記">` +
+      eventZones.map(z => {
+        const typeName = _EVENT_TYPES[z.node_type]?.label || z.label;
+        const code = z.event_code ? ` · ${z.event_code.replace(/-\d{4}-/, '-')}` : '';
+        return `<option value="zone:${z.id}">${typeName}${code}</option>`;
+      }).join('') + `</optgroup>` : '') +
+    (infras.length ? `<optgroup label="── 基礎設施">` + infras.map(i => {
+      const def = INFRA_TYPES[i.infra_type] || {};
+      return `<option value="infra:${i.id}">${def.abbr || '+'} ${i.label}</option>`;
+    }).join('') + `</optgroup>` : '');
+  const typeOpts = Object.entries(FLOW_TYPES).map(([k, v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  let html = '';
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">流向類型</label>`;
+  html += `<select id="flow-type-sel" style="${SEL}">${typeOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">起點</label>`;
+  html += `<select id="flow-from-sel" style="${SEL}">${endpointOpts}</select></div>`;
+  html += `<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">終點</label>`;
+  html += `<select id="flow-to-sel" style="${SEL}">${endpointOpts}</select></div>`;
+  html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">標籤（可選）</label>`;
+  html += `<input id="flow-label" placeholder="例：傷患後送路徑" autocomplete="off" style="${SEL}"></div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button data-action="closeModal" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-family:var(--mono);">取消</button>`;
+  html += `<button data-action="saveFlow" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:var(--mono);">儲存</button>`;
+  html += `</div>`;
+  _deps.openModal?.('● → ● 新增調度指示', html);
+}
+
+export async function _saveFlow() {
+  const typeVal = document.getElementById('flow-type-sel')?.value || 'casualty';
+  const fromRef = document.getElementById('flow-from-sel')?.value || '';
+  const toRef = document.getElementById('flow-to-sel')?.value || '';
+  const labelVal = (document.getElementById('flow-label')?.value || '').trim();
+  if (!fromRef || !toRef || fromRef === toRef) return;
+  const flow = {
+    id: 'flow_' + Date.now(),
+    flow_type: typeVal,
+    from_ref: fromRef,
+    to_ref: toRef,
+    label: labelVal,
+  };
+  if (!_mapConfig.maps.outdoor.flows) _mapConfig.maps.outdoor.flows = [];
+  _mapConfig.maps.outdoor.flows.push(flow);
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderFlows();
+}
 
 export async function _deleteFlow(id) {
   if (!_mapConfig?.maps?.outdoor?.flows || !id) return;
@@ -1316,11 +1630,97 @@ export async function _deleteFlow(id) {
   _renderFlows();
 }
 
-export function _startRouteDraw() {}
-export function _cancelRouteDraw() {}
-export function _finishRouteDraw() {}
-export function _openRouteForm() {}
-export function _saveRoute() {}
+// ══════════════════════════════════════════════════════════════
+// 繪製路線（Route）
+// ══════════════════════════════════════════════════════════════
+
+export function _startRouteDraw() {
+  if (_routeDrawState) _cancelRouteDraw();
+  if (_polyDrawState) _cancelPolyDraw();
+  if (_currentMap !== 'outdoor') switchMap('outdoor');
+  _routeDrawState = { latlngs: [], markers: [], previewLine: null };
+  const banner = el('route-draw-banner');
+  if (banner) banner.style.display = 'flex';
+  if (el('map-coord-panel')) el('map-coord-panel').style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.cursor = 'crosshair';
+  document.getElementById('btn-route-draw')?.classList.add('active');
+}
+
+export function _cancelRouteDraw() {
+  if (!_routeDrawState) return;
+  _routeDrawState.markers.forEach(m => m.remove());
+  if (_routeDrawState.previewLine) _routeDrawState.previewLine.remove();
+  _routeDrawState = null;
+  const banner = el('route-draw-banner');
+  if (banner) banner.style.display = 'none';
+  if (_leafletMap) _leafletMap.getContainer().style.removeProperty('cursor');
+  document.getElementById('btn-route-draw')?.classList.remove('active');
+}
+
+function _addRouteVertex(lat, lng) {
+  if (!_routeDrawState || !window.L || !_leafletMap) return;
+  _routeDrawState.latlngs.push([lat, lng]);
+  const m = L.circleMarker([lat, lng], {
+    radius: 4, color: '#fff', weight: 2, fillColor: '#56d364', fillOpacity: 1, interactive: false,
+  }).addTo(_leafletMap);
+  _routeDrawState.markers.push(m);
+  if (_routeDrawState.previewLine) _routeDrawState.previewLine.remove();
+  if (_routeDrawState.latlngs.length >= 2) {
+    _routeDrawState.previewLine = L.polyline(_routeDrawState.latlngs, {
+      color: '#56d364', weight: 2, dashArray: '6 3', opacity: 0.7, interactive: false,
+    }).addTo(_leafletMap);
+  }
+  const finBtn = document.getElementById('route-finish-btn');
+  if (finBtn) finBtn.disabled = _routeDrawState.latlngs.length < 2;
+}
+
+export function _finishRouteDraw() {
+  if (!_routeDrawState || _routeDrawState.latlngs.length < 2) return;
+  const latlngs = [..._routeDrawState.latlngs];
+  _cancelRouteDraw();
+  _openRouteForm(latlngs);
+}
+
+export function _openRouteForm(latlngs) {
+  if (!latlngs || latlngs.length < 2) return;
+  _pendingRouteLatlngs = latlngs;
+  const typeOpts = Object.entries(ROUTE_TYPES).map(([k, v]) =>
+    `<option value="${k}">${v.label}</option>`).join('');
+  const SEL = 'width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;';
+  let html = '';
+  html += `<div style="margin-bottom:12px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">路線名稱</label>`;
+  html += `<input id="route-name" placeholder="例：北側主疏散路線" autocomplete="off" style="${SEL}"></div>`;
+  html += `<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">類型</label>`;
+  html += `<select id="route-type-sel" style="${SEL}">${typeOpts}</select></div>`;
+  html += `<div style="font-size:10px;color:var(--text3);margin-bottom:16px;">${latlngs.length} 個節點</div>`;
+  html += `<div style="display:flex;gap:8px;">`;
+  html += `<button data-action="closeModal" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-family:var(--mono);">取消</button>`;
+  html += `<button data-action="saveRoute" style="flex:2;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:var(--mono);">儲存</button>`;
+  html += `</div>`;
+  _deps.openModal?.('↗ 新增路線', html);
+}
+
+export async function _saveRoute() {
+  const name = (document.getElementById('route-name')?.value || '').trim();
+  const typeKey = document.getElementById('route-type-sel')?.value || 'primary';
+  const latlngs = _pendingRouteLatlngs;
+  if (!name || !latlngs) return;
+  const def = ROUTE_TYPES[typeKey];
+  const route = {
+    id: 'route_' + Date.now(),
+    route_type: typeKey,
+    label: name,
+    color: def.color,
+    dash: def.dash,
+    latlngs,
+  };
+  if (!_mapConfig.maps.outdoor.routes) _mapConfig.maps.outdoor.routes = [];
+  _mapConfig.maps.outdoor.routes.push(route);
+  _pendingRouteLatlngs = null;
+  await saveMapConfig();
+  _deps.closeModal?.();
+  _renderRoutes();
+}
 
 export async function _deleteRoute(id) {
   if (!_mapConfig?.maps?.outdoor?.routes || !id) return;
