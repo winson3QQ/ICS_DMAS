@@ -27,13 +27,13 @@ import {
 } from './charts.js';
 import { initDecisions, renderDecisionList } from './decisions.js';
 import {
-  initEvents, renderEventList, renderZoneC as evRenderZoneC,
-  _evtCardDidHighlight,
+  initEvents, renderZoneC as evRenderZoneC,
+  _evtCardDidHighlight, openEventForm,
 } from './events.js';
 import {
   initMap, renderMapOverlay, refreshLeafletMarkers,
   getMapConfig, findZoneByEventId,
-  showZoneDetail, openEventForm,
+  showZoneDetail,
 } from './map.js';
 import { getCurrentOperator } from './auth.js';
 

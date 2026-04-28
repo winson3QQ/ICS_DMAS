@@ -20,6 +20,9 @@ const API_BASE = location.origin;
 
 // ── session callbacks ──────────────────────────────────────────
 const _authListeners = [];
+let _onEnterDashboard = null;
+let _openModal = null;
+let _closeModal = null;
 
 /** 登入 / 登出時通知訂閱者 */
 function _notifyAuth(type) {
@@ -67,7 +70,7 @@ export function clearSession() {
 }
 
 // ── 登入 ───────────────────────────────────────────────────────
-async function handleCmdLogin() {
+export async function handleCmdLogin() {
   const btn = el('cmd-login-btn');
   const warn = el('cmd-login-warn');
   const username = el('cmd-username').value.trim();
@@ -121,6 +124,7 @@ function _enterDashboard() {
   el('stg-user-info').textContent = (sessionStorage.getItem('cmd_display_name') || '') + ' (' + sessionStorage.getItem('cmd_role') + ')　' + (_fmtLocalDT(sessionStorage.getItem('cmd_login_time') || '') || '').slice(11,19);
   PinLock.start();
   _notifyAuth('login');
+  if (typeof _onEnterDashboard === 'function') _onEnterDashboard();
 }
 
 // ── 登出 ───────────────────────────────────────────────────────
@@ -207,6 +211,15 @@ export const PinLock = (() => {
   return { start, clear, unlock, resetIdle: _reset };
 })();
 
+export function unlockPinLock() {
+  return PinLock.unlock();
+}
+
+export function setModalHandlers({ openModal, closeModal } = {}) {
+  _openModal = typeof openModal === 'function' ? openModal : null;
+  _closeModal = typeof closeModal === 'function' ? closeModal : null;
+}
+
 // ── Settings ───────────────────────────────────────────────────
 export function openSettings() {
   el('settings-overlay').classList.add('show');
@@ -254,11 +267,15 @@ export function exportDashboardJSON(data) {
   URL.revokeObjectURL(a.href);
 }
 
-export async function showAuditLog() {
+export async function showAuditLog(existingLogs = null, activeFilter = 'all') {
+  if (Array.isArray(existingLogs)) {
+    _auditRenderModal(existingLogs, activeFilter);
+    return;
+  }
   const resp = await authFetch(API_BASE + '/api/audit_log?limit=200');
   if (!resp.ok) return;
   const logs = await resp.json();
-  _auditRenderModal(logs, 'all');
+  _auditRenderModal(logs, activeFilter);
 }
 
 // ── 日期格式化 ─────────────────────────────────────────────────
@@ -427,9 +444,8 @@ async function _admLoadSysInfo() {
     const d = await r.json();
     const si = el('adm-sysinfo');
     if (si) {
-      // CMD_VERSION 在 main.js 初始化後寫入 window.CMD_VERSION
       si.innerHTML =
-        `<span>cmd <b>${window.CMD_VERSION || '—'}</b></span>` +
+        `<span>cmd <b>${document.body.dataset.cmdVersion || '—'}</b></span>` +
         `<span>DB schema <b>v${d.schema_version ?? '—'}</b></span>` +
         `<span>帳號 <b>${d.active_accounts}</b></span>`;
     }
@@ -761,15 +777,12 @@ export async function admPushKeyToPi() {
   }
 }
 
-// ── 通用 Modal（由 cop.js 注入，此處僅佔位）─────────────────────
-// openModal / closeModal 由 cop.js export 並在 main.js 掛上 window
+// ── 通用 Modal（由 main.js 注入 handler，auth.js 不 import 業務模組）───────
 function openModal(title, body, footer) {
-  if (typeof window.openModal === 'function') {
-    window.openModal(title, body, footer);
-  }
+  if (_openModal) _openModal(title, body, footer);
 }
 function closeModal() {
-  if (typeof window.closeModal === 'function') window.closeModal();
+  if (_closeModal) _closeModal();
 }
 
 // ── 鍵盤快捷鍵（Enter 觸發登入 / 解鎖）──────────────────────────
@@ -792,7 +805,8 @@ document.addEventListener('keydown', e => {
 });
 
 // ── 認證初始化（供 main.js 呼叫）───────────────────────────────
-export async function authInit() {
+export async function authInit(options = {}) {
+  _onEnterDashboard = options.onEnterDashboard || null;
   const token = sessionStorage.getItem('cmd_session_id');
   if (token) {
     try {
@@ -809,8 +823,3 @@ export async function authInit() {
   el('login-screen').style.display = '';
   return 'need-login';
 }
-
-// ── 暴露給 HTML 的過渡橋接函式（Phase 3 完成後移除）─────────────
-// Phase 3 前，HTML 尚有 inline handler，透過 window._ 掛載過渡
-// TODO：Phase 3 HTML 全面改用 data-action 後刪除此區塊
-window._authHandleCmdLogin = handleCmdLogin;

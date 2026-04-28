@@ -10,7 +10,7 @@
  * 可 import：auth.js
  * 不可 import：map.js / events.js / decisions.js / cop.js
  *
- * 對外 export：connect(), disconnect(), onData(), isPollActive(),
+ * 對外 export：connect(), disconnect(), send(), onMessage(), onData(), isPollActive(),
  *              setPollActive(), authFetch（re-export）
  */
 
@@ -114,6 +114,17 @@ export function disconnect() {
 /** 訂閱資料更新。cb(data) 每次 poll 成功後被呼叫 */
 export function onData(cb) {
   if (typeof cb === 'function') _dataCallbacks.push(cb);
+}
+
+/** WebSocket 相容介面：目前 C1-F 前端資料層仍使用 HTTP polling。 */
+export function send(_message) {
+  console.warn('[ws.js] send() ignored: HTTP polling transport has no outbound channel');
+  return false;
+}
+
+/** WebSocket 相容別名，供模組邊界測試與未來替換 transport 使用。 */
+export function onMessage(cb) {
+  onData(cb);
 }
 
 /** 查詢目前輪詢狀態 */

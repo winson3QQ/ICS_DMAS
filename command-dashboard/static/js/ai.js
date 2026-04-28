@@ -14,9 +14,8 @@
  *     Any implementation belongs to the C5-C task card.
  */
 
-console.warn('[ICS_DMAS] ai.js stub — not implemented (C5-C v3.1.0)');
+console.warn('[ICS_DMAS] ai.js stub - not implemented');
 
 export default Object.freeze({
   __stub: true,
-  version: 'stub-c5c',
 });

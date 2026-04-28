@@ -13,9 +13,8 @@
  *     Any implementation belongs to the C5-A task card.
  */
 
-console.warn('[ICS_DMAS] ttx.js stub — not implemented (C5-A v3.0.0)');
+console.warn('[ICS_DMAS] ttx.js stub - not implemented');
 
 export default Object.freeze({
   __stub: true,
-  version: 'stub-c5a',
 });

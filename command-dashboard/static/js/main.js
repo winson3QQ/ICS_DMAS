@@ -19,7 +19,7 @@ import {
   saveConfig, exportDashboardJSON, showAuditLog,
   openAdminPanel, closeAdminPanel, adminLogin,
   admShowTab, admShowSys, admChangeAdminPin,
-  unlockPinLock,
+  unlockPinLock, setModalHandlers,
 } from './auth.js';
 import {
   setPollActive, setSessionType, getSessionType, forcePoll,
@@ -31,6 +31,7 @@ import {
 } from './cop.js';
 import {
   getSeries, expandSpark, getExpandedSpark, renderSparklines,
+  buildSliceHtml,
 } from './charts.js';
 import {
   submitDecision, escalateDecision, closeDecision,
@@ -41,6 +42,7 @@ import {
   _autoSaveAndAction, _setAssignedUnit,
   _dlSetSign, _dlAdjust, _dlSetMin, _applyDeadline,
   toggleRightExpand, _evtCardDown, _evtCardUp,
+  _addEventNote, _updateEvAndRefresh, _updateEvTypeFromCategories, _syncEvSeverity,
 } from './events.js';
 import {
   initMap, switchMap, cancelPlaceMode, togglePinEditMode,
@@ -52,12 +54,15 @@ import {
   _deletePolygon, _deleteFlow, _deleteRoute, _deleteInfra,
   _resetPolyLabelAnchor, _resetRouteLabelAnchor,
   _panToCoordTarget, _mgrsSearch, _toggleCoordMode,
-  _populateNapsgCsel, _updateEvTypeFromCategories, _syncEvSeverity,
+  _populateNapsgCsel,
   onPlaceTypeChange, showZoneDetail,
   l3SubTab, openL4Detail, backToL3,
   loadL3Records, _loadPwaIncidents,
   _renderZoneModal, _zoneModalTab, setZoneModalTab,
   saveMapConfig, _saveInfraPosition,
+  openMapConfigPanel, closeMapConfigPanel, admUploadMapImage,
+  admRemoveMapImage, _cancelNodePlace, _cancelEventPin,
+  _toggleLayer, _closeLayerPanel,
 } from './map.js';
 
 const API_BASE = location.origin;
@@ -83,19 +88,41 @@ document.addEventListener('click', function (e) {
     case 'openSettings':   openSettings(); break;
     case 'closeSettings':  closeSettings(); break;
     case 'openConfigModal': openConfigModal(); break;
-    case 'saveConfig':     saveConfig(); break;
-    case 'exportJSON':     exportDashboardJSON(); break;
+    case 'saveConfig':
+    case 'save-config':    saveConfig(); break;
+    case 'exportJSON': {
+      import('./cop.js').then(m => exportDashboardJSON(m.getData()));
+      break;
+    }
     case 'showAuditLog':   showAuditLog(); break;
     case 'openAdminPanel': openAdminPanel(); break;
     case 'closeAdminPanel': closeAdminPanel(); break;
     case 'adminLogin':     adminLogin(); break;
     case 'admShowTab':     admShowTab(btn.dataset.tab); break;
     case 'admShowSys':     admShowSys(); break;
-    case 'admChangePin':   admChangeAdminPin(); break;
+    case 'admChangePin':
+    case 'adm-change-pin': admChangeAdminPin(); break;
     case 'unlockPinLock':  unlockPinLock(); break;
+    case 'adm-toggle-edit': import('./auth.js').then(m => m.admToggleEdit(btn.dataset.username)); break;
+    case 'adm-save-edit': import('./auth.js').then(m => m.admSaveEdit(btn.dataset.username)); break;
+    case 'adm-toggle-status': import('./auth.js').then(m => m.admToggleStatus(btn.dataset.username, btn.dataset.status)); break;
+    case 'adm-delete': import('./auth.js').then(m => m.admDelete(btn.dataset.username)); break;
+    case 'adm-add-account': import('./auth.js').then(m => m.admAddAccount()); break;
+    case 'adm-create-pi-node': import('./auth.js').then(m => m.admCreatePiNode()); break;
+    case 'adm-rekey-pi-node': import('./auth.js').then(m => m.admRekeyPiNode(btn.dataset.unitId)); break;
+    case 'adm-delete-pi-node': import('./auth.js').then(m => m.admDeletePiNode(btn.dataset.unitId)); break;
+    case 'adm-push-key-to-pi': import('./auth.js').then(m => m.admPushKeyToPi()); break;
+    case 'pi-copy-key': navigator.clipboard.writeText(document.getElementById('pi-key-value')?.textContent || ''); break;
+    case 'audit-filter': {
+      import('./auth.js').then(m => {
+        if (window._auditLogsCache) m.showAuditLog(window._auditLogsCache, btn.dataset.filter);
+      });
+      break;
+    }
 
     // ── 全局 modal ──
-    case 'closeModal':     closeModal(); break;
+    case 'closeModal':
+    case 'close-modal':    closeModal(); break;
     case 'confirmOk':      confirmResolve(true); break;
     case 'confirmCancel':  confirmResolve(false); break;
 
@@ -124,6 +151,8 @@ document.addEventListener('click', function (e) {
       break;
     }
     case 'autoSaveAndAction': _autoSaveAndAction(id, btn.dataset.evAction); break;
+    case 'addEventNote': _addEventNote(id); break;
+    case 'updateEvAndRefresh': _updateEvAndRefresh(id, btn.dataset.status); break;
     case 'setAssignedUnit': _setAssignedUnit(id, btn.dataset.unit); break;
     case 'resetDeadlineMenu': {
       import('./events.js').then(m => m._resetDeadlineMenu(id));
@@ -156,10 +185,18 @@ document.addEventListener('click', function (e) {
     // ── 地圖 ──
     case 'switchMap':      switchMap(btn.dataset.map); break;
     case 'cancelPlaceMode': cancelPlaceMode(); break;
+    case 'cancelNodePlace': _cancelNodePlace(); break;
+    case 'cancelEventPin': _cancelEventPin(); break;
     case 'togglePinEditMode': togglePinEditMode(); break;
     case 'toggleCsel':     toggleCsel(); break;
     case 'toggleMgrsGrid': _toggleMgrsGrid(); break;
     case 'toggleLayerPanel': _toggleLayerPanel(); break;
+    case 'toggleLayer': _toggleLayer(btn.dataset.layer); break;
+    case 'closeLayerPanel': _closeLayerPanel(); break;
+    case 'openMapConfigPanel': openMapConfigPanel(); break;
+    case 'closeMapConfigPanel': closeMapConfigPanel(); break;
+    case 'admUploadMapImage': admUploadMapImage(); break;
+    case 'admRemoveMapImage': admRemoveMapImage(); break;
     case 'startPolyDraw':  _startPolyDraw(); break;
     case 'cancelPolyDraw': _cancelPolyDraw(); break;
     case 'finishPolyDraw': _finishPolyDraw(); break;
@@ -233,6 +270,13 @@ document.addEventListener('change', function (e) {
     case 'onPlaceTypeChange': onPlaceTypeChange(); break;
     case 'syncEvSeverity': _syncEvSeverity(); break;
   }
+});
+
+// ── keydown 事件 ──
+document.addEventListener('keydown', function (e) {
+  const target = e.target.closest('[data-key-action]');
+  if (!target || e.key !== 'Enter') return;
+  if (target.dataset.keyAction === 'mgrsSearch') _mgrsSearch();
 });
 
 // ── input 事件 ──
@@ -330,6 +374,7 @@ async function _loadVersion() {
     if (!resp.ok) return;
     const { cmd_version } = await resp.json();
     if (cmd_version) {
+      document.body.dataset.cmdVersion = cmd_version;
       document.title = 'ICS 指揮部 ' + cmd_version;
       document.querySelectorAll('.h-ver').forEach(el => {
         el.textContent = 'cmd-' + cmd_version;
@@ -338,25 +383,69 @@ async function _loadVersion() {
   } catch (e) { /* 非關鍵，失敗不影響功能 */ }
 }
 
+function _waitForGlobal(name, timeoutMs = 3000) {
+  const started = Date.now();
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      if (window[name]) {
+        resolve(window[name]);
+        return;
+      }
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error(`${name} not loaded`));
+        return;
+      }
+      setTimeout(tick, 25);
+    };
+    tick();
+  });
+}
+
+function _loadClassicScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === 'true') resolve();
+      else {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', () => reject(new Error(`${src} failed`)), { once: true });
+      }
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.dataset.loaded = 'false';
+    script.addEventListener('load', () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    }, { once: true });
+    script.addEventListener('error', () => reject(new Error(`${src} failed`)), { once: true });
+    document.head.appendChild(script);
+  });
+}
+
 // ══════════════════════════════════════════════════════════════
 // 啟動
 // ══════════════════════════════════════════════════════════════
 
 (async function _boot() {
+  await _loadClassicScript('/static/lib/leaflet.min.js').catch(() => null);
+  await _loadClassicScript('/static/lib/protomaps-leaflet.js').catch(() => null);
+  await _waitForGlobal('L').catch(() => null);
+
   // 1. 版號
   await _loadVersion();
 
   // 2. 初始化所有模組
+  setModalHandlers({ openModal, closeModal });
   initCop();
 
-  // 3. 地圖
-  import('./map.js').then(m => m.initMap());
-
-  // 4. 預填表單下拉
+  // 3. 預填表單下拉
   _populateNapsgCsel();
   _updateEvTypeFromCategories();
 
-  // 5. 恢復展開狀態
+  // 4. 恢復展開狀態
   const savedSection = sessionStorage.getItem('_expandedSection');
   if (savedSection) import('./events.js').then(m => m._applyRightExpand(savedSection));
 
@@ -369,7 +458,7 @@ async function _loadVersion() {
     if (sc) sc.classList.add('expanded');
   }
 
-  // 6. 認證：有 session → heartbeat → 進入 dashboard；否則顯示登入畫面
+  // 5. 認證：有 session → heartbeat → 進入 dashboard；否則顯示登入畫面
   await authInit({
     onEnterDashboard: () => {
       setPollActive(true);
