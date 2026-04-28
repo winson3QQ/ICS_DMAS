@@ -389,6 +389,9 @@ function _auditRenderModal(logs, activeFilter) {
 // ── Admin 面板 ─────────────────────────────────────────────────
 let _admPin = '';
 
+/** 提供給 cop.js 等模組讀取已快取的 Admin PIN（admin 面板登入後設定） */
+export function getAdminPin() { return _admPin; }
+
 export function openAdminPanel() {
   closeSettings();
   el('admin-overlay').classList.add('show');
@@ -467,7 +470,7 @@ export function admShowTab(tab) {
 
 export function admShowSys() {
   el('adm-panel-sys').innerHTML = `
-    <div style="margin-bottom:20px;">
+    <div style="margin-bottom:24px;">
       <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text);">🔑 更改 Admin PIN</div>
       <div style="display:flex;flex-direction:column;gap:8px;max-width:320px;">
         <input id="adm-sys-old-pin" class="login-input" type="password" inputmode="numeric"
@@ -479,6 +482,16 @@ export function admShowSys() {
         <button class="login-btn" data-action="adm-change-pin" style="margin-top:4px;">更改 Admin PIN</button>
         <div id="adm-sys-warn" style="font-size:12px;color:var(--red);min-height:16px;"></div>
       </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:16px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--red);">⚠ 重設指揮部資料庫</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+        清除所有快照、事件、裁示、Pi 批次資料。<br>
+        <b>帳號和 Pi 節點註冊不受影響</b>，Pi 端資料也不受影響。<br>
+        <span style="color:var(--red);">此操作無法復原。</span>
+      </div>
+      <button class="login-btn" data-action="confirmResetDB"
+              style="background:var(--red);color:#fff;border:none;max-width:320px;">重設指揮部資料庫</button>
     </div>`;
 }
 

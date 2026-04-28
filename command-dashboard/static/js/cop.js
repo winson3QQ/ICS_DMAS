@@ -33,9 +33,9 @@ import {
 } from './events.js';
 import {
   initMap, renderMapOverlay, refreshLeafletMarkers,
-  getMapConfig, findZoneByEventId,
+  getMapConfig, findZoneByEventId, saveMapConfig,
 } from './map.js';
-import { getCurrentOperator } from './auth.js';
+import { getCurrentOperator, closeSettings, getAdminPin, closeAdminPanel } from './auth.js';
 
 const API_BASE = location.origin;
 
@@ -91,6 +91,53 @@ export function confirmResolve(val) {
   const co = document.getElementById('confirm-overlay');
   if (co) co.style.display = 'none';
   if (_confirmCb) { _confirmCb(val); _confirmCb = null; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 重設指揮部資料庫（設定面板：重設 DB）
+// ══════════════════════════════════════════════════════════════
+
+export async function confirmResetDB() {
+  // 此 action 從 admin 面板系統分頁觸發，admPin 已在登入面板時快取
+  // 若從別處觸發（無快取）再 fallback 到 prompt
+  const cachedPin = getAdminPin();
+  closeAdminPanel();
+  closeSettings();
+
+  const ok = await appConfirm(
+    '重設指揮部資料庫',
+    '將清除所有快照、事件、裁示、Pi 批次資料。\n帳號和 Pi 節點註冊不受影響。\n\n此操作無法復原，確定繼續？'
+  );
+  if (!ok) return;
+
+  const pin = cachedPin || prompt('請輸入管理員 PIN 確認：');
+  if (!pin) return;
+
+  try {
+    const resp = await authFetch(API_BASE + '/api/admin/reset-db', {
+      method: 'POST',
+      headers: { 'X-Admin-PIN': pin },
+    });
+    if (!resp.ok) {
+      let detail = resp.status;
+      try { detail = (await resp.json()).detail || resp.status; } catch (e) { /* ignore */ }
+      alert('重設失敗：' + detail);
+      return;
+    }
+    // 同步清除地圖上所有事件 marker（保留永久 pin 據點）
+    const mapCfg = getMapConfig();
+    if (mapCfg) {
+      for (const m of Object.values(mapCfg.maps || {})) {
+        m.zones = (m.zones || []).filter(z => z.icon === 'pin');
+        m.flows = [];
+      }
+      await saveMapConfig();
+    }
+    alert('資料庫已重設，頁面將重新整理。');
+    location.reload();
+  } catch (e) {
+    alert('錯誤：' + e.message);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════

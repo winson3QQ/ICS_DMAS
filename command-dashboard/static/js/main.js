@@ -28,6 +28,7 @@ import {
   initCop, poll, refresh, renderZoneC,
   openModal, closeModal, switchLeftPanel, switchDecTab,
   showIpiBreakdown, renderZoneA, confirmResolve, appConfirm,
+  confirmResetDB,
 } from './cop.js';
 import {
   getSeries, expandSpark, getExpandedSpark, renderSparklines,
@@ -225,6 +226,7 @@ document.addEventListener('click', function (e) {
       break;
     }
     case 'showIpiBreakdown': showIpiBreakdown(); break;
+    case 'confirmResetDB': confirmResetDB(); break;
     case 'showSlice': {
       const idx = parseInt(btn.dataset.idx, 10);
       const focusType = btn.dataset.focus || null;

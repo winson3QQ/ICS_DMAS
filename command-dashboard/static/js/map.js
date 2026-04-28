@@ -121,7 +121,12 @@ export function initMap(deps = {}) {
 
 async function _loadMapConfig() {
   try {
-    const resp = await fetch(API_BASE + '/static/map_config.json');
+    // cache-bust：reset DB / 拖曳 / 新增 marker 後 saveMapConfig 才寫回靜態檔案，
+    // 但 /static/map_config.json 預設無 Cache-Control，瀏覽器會用啟發式快取
+    // 導致 location.reload() 後仍讀到舊版本（殘留事件 marker）
+    const resp = await fetch(API_BASE + '/static/map_config.json?t=' + Date.now(), {
+      cache: 'no-store',
+    });
     _mapConfig = await resp.json();
   } catch (e) {
     console.warn('[map.js] map_config 載入失敗', e);
