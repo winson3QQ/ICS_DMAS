@@ -1,8 +1,7 @@
 export default [
   {
     ignores: [
-      'static/lib/**/*.js',
-      'static/chart_utils.js'
+      'static/lib/**/*.js'
     ],
   },
   {
